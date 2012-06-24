@@ -1,0 +1,98 @@
+#include <cuda.h>
+#include <stdio.h>
+#include <string.h>
+#include <sys/time.h>
+
+#include "error.h"
+
+#define SIZE (128 * 1024 * 1024)
+#define INCREMENT (1024 * 1024)
+#define ITERATIONS 20
+
+/**
+ * This measures the bandwidth obtained when transferring data between CPU
+ * memory and GPU memory across the PCI-Express bus.
+ *
+ * Contiguous areas of memory ranging from 1MB to 128MB (in 1MB increments) are
+ * copied a large number of times.  The average time for each size of transfer
+ * is taken.  A least squares regression is then performed to calculate the
+ * average bandwidth and the overhead in setting up the memory transfer.
+ *
+ * The experiment is repeat for host to device transfers and device to host
+ * transfers for each GPU in the system.
+ */
+int main() {
+  CU_ERROR_CHECK(cuInit(0));
+
+  int count;
+  CU_ERROR_CHECK(cuDeviceGetCount(&count));
+
+  for (int i = 0; i < count; i++) {
+    CUdevice device;
+    CU_ERROR_CHECK(cuDeviceGet(&device, i));
+
+    CUcontext context;
+    CU_ERROR_CHECK(cuCtxCreate(&context, 0, device));
+
+    CUdeviceptr dPointer;
+    CU_ERROR_CHECK(cuMemAlloc(&dPointer, SIZE));
+
+    void * hPointer;
+    CU_ERROR_CHECK(cuMemAllocHost(&hPointer, SIZE));
+
+    fprintf(stdout, "Device %d:\n", i);
+
+    double sumX = 0.0, sumXX = 0.0, sumY = 0.0, sumXY = 0.0;
+    size_t n = SIZE / INCREMENT;
+    for (size_t j = 1; j <= n; j++) {
+      size_t size = j * INCREMENT;
+      struct timeval start, stop;
+
+      ERROR_CHECK(gettimeofday(&start, NULL), (strerror_t)strerror);
+      for (size_t k = 0; k < ITERATIONS; k++)
+        CU_ERROR_CHECK(cuMemcpyHtoD(dPointer, hPointer, size));
+      ERROR_CHECK(gettimeofday(&stop, NULL), (strerror_t)strerror);
+      double time = ((double)(stop.tv_sec - start.tv_sec) + ((double)(stop.tv_usec - start.tv_usec) * 1.E-6)) / (double)ITERATIONS;
+
+      sumX += (double)size;
+      sumXX += (double)size * (double)size;
+      sumY += time;
+      sumXY += time * (double)size;
+    }
+    double sxx = sumXX - (sumX * sumX) / (double)n;
+    double sxy = sumXY - (sumX * sumY) / (double)n;
+    double xbar = sumX / (double)n;
+    double ybar = sumY / (double)n;
+    double m = sxy / sxx;
+    fprintf(stdout, "\tHost to Device: %4.2fMB/s + %3.3fms\n", 1.0 / (m * (1 << 20)), (ybar - m * xbar) * 1.E3);
+
+    sumY = 0.0, sumXY = 0.0;
+    for (size_t j = 1; j <= n; j++) {
+      size_t size = j * INCREMENT;
+      struct timeval start, stop;
+
+      ERROR_CHECK(gettimeofday(&start, NULL), (strerror_t)strerror);
+      for (size_t k = 0; k < ITERATIONS; k++)
+        CU_ERROR_CHECK(cuMemcpyDtoH(hPointer, dPointer, size));
+      ERROR_CHECK(gettimeofday(&stop, NULL), (strerror_t)strerror);
+      double time = ((double)(stop.tv_sec - start.tv_sec) + ((double)(stop.tv_usec - start.tv_usec) * 1.E-6)) / (double)ITERATIONS;
+
+      sumY += time;
+      sumXY += time * (double)size;
+    }
+    sxx = sumXX - (sumX * sumX) / (double)n;
+    sxy = sumXY - (sumX * sumY) / (double)n;
+    xbar = sumX / (double)n;
+    ybar = sumY / (double)n;
+    m = sxy / sxx;
+    fprintf(stdout, "\tDevice to Host: %4.2fMB/s + %3.3fms\n", 1.0 / (m * (1 << 20)), (ybar - m * xbar) * 1.E3);
+
+    CU_ERROR_CHECK(cuMemFreeHost(hPointer));
+
+    CU_ERROR_CHECK(cuMemFree(dPointer));
+
+    CU_ERROR_CHECK(cuCtxDestroy(context));
+  }
+
+  return 0;
+}
