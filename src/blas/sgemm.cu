@@ -8,6 +8,11 @@ __device__ void saxpy(float a, const float * b, float * c) {
 }
 
 /**
+ * SGEMM:
+ *   C := alpha * AB   + beta * C for transA == CBlasNoTrans and transB == CBlasNoTrans
+ *   C := alpha * AB'  + beta * C for transA == CBlasNoTrans and transB == CBlasTrans
+ *   C := alpha * A'B  + beta * C for transA == CBlasTrans and transB == CBlasNoTrans
+ *   C := alpha * A'B' + beta * C for transA == CBlasTrans and transB == CBlasTrans
  *
  * @param transA  transpose for A.
  * @param transB  transpose for B.

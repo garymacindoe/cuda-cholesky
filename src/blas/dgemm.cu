@@ -1,6 +1,7 @@
 #include "blas.h"
 
 #if __CUDA_ARCH__ < 200
+
 __device__ void daxpy(double a, int * b_lo, int * b_hi, double * c) {
   c[0] += a * __hiloint2double(b_hi[0], b_lo[0]);
   c[1] += a * __hiloint2double(b_hi[1], b_lo[1]);
@@ -11,14 +12,13 @@ __device__ void daxpy(double a, int * b_lo, int * b_hi, double * c) {
   c[6] += a * __hiloint2double(b_hi[6], b_lo[6]);
   c[7] += a * __hiloint2double(b_hi[7], b_lo[7]);
 }
-#else
-__device__ void daxpy(double a, double * b, double * c) {
-  c[0] += a * b[0]; c[1] += a * b[1]; c[2] += a * b[2]; c[3] += a * b[3];
-  c[4] += a * b[4]; c[5] += a * b[5]; c[6] += a * b[6]; c[7] += a * b[7];
-}
-#endif
 
 /**
+ * DGEMM:
+ *   C := alpha * AB   + beta * C for transA == CBlasNoTrans and transB == CBlasNoTrans
+ *   C := alpha * AB'  + beta * C for transA == CBlasNoTrans and transB == CBlasTrans
+ *   C := alpha * A'B  + beta * C for transA == CBlasTrans and transB == CBlasNoTrans
+ *   C := alpha * A'B' + beta * C for transA == CBlasTrans and transB == CBlasTrans
  *
  * @param transA  transpose for A.
  * @param transB  transpose for B.
@@ -55,15 +55,10 @@ __global__ void dgemm(int m, int n, int k, double alpha, const double * A, int l
   /*
    * Blocks of A and B in shared memory and C in registers.
    */
-#if __CUDA_ARCH__ < 200
   __shared__ int a_lo[mb][kb + 1];       // Optimised away when transA == CBlasNoTrans
   __shared__ int a_hi[mb][kb + 1];       // Optimised away when transA == CBlasNoTrans
   __shared__ int b_lo[kb][(transB == CBlasNoTrans) ? nb + 1 : nb];
   __shared__ int b_hi[kb][(transB == CBlasNoTrans) ? nb + 1 : nb];
-#else
-  __shared__ double a[mb][kb + 1];       // Optimised away when transA == CBlasNoTrans
-  __shared__ double b[kb][(transB == CBlasNoTrans) ? nb + 1 : nb];
-#endif
 
   double c[] = { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
 
@@ -79,12 +74,8 @@ __global__ void dgemm(int m, int n, int k, double alpha, const double * A, int l
       for (int l = 0; l < kb; l += bx) {
 #pragma unroll
         for (int i = 0; i < mb; i += by) {
-#if __CUDA_ARCH__ < 200
           a_lo[i + threadIdx.y][l + threadIdx.x] = __double2loint(A[i * lda + l]);
           a_hi[i + threadIdx.y][l + threadIdx.x] = __double2hiint(A[i * lda + l]);
-#else
-          a[i + threadIdx.y][l + threadIdx.x] = A[i * lda + l];
-#endif
         }
       }
       A += kb;
@@ -100,12 +91,8 @@ __global__ void dgemm(int m, int n, int k, double alpha, const double * A, int l
       for (int l = 0; l < kb; l += bx) {
 #pragma unroll
         for (int j = 0; j < nb; j += by) {
-#if __CUDA_ARCH__ < 200
           b_lo[l + threadIdx.x][j + threadIdx.y] = __double2loint(B[j * ldb + l]);
           b_hi[l + threadIdx.x][j + threadIdx.y] = __double2hiint(B[j * ldb + l]);
-#else
-          b[l + threadIdx.x][j + threadIdx.y] = B[j * ldb + l];
-#endif
         }
       }
     }
@@ -116,12 +103,8 @@ __global__ void dgemm(int m, int n, int k, double alpha, const double * A, int l
       for (int l = 0; l < kb; l += by) {
 #pragma unroll
         for (int j = 0; j < nb; j += bx) {
-#if __CUDA_ARCH__ < 200
           b_lo[l + threadIdx.y][j + threadIdx.x] = __double2loint(B[l * ldb + j]);
           b_hi[l + threadIdx.y][j + threadIdx.x] = __double2hiint(B[l * ldb + j]);
-#else
-          b[l + threadIdx.y][j + threadIdx.x] = B[l * ldb + j];
-#endif
         }
       }
     }
@@ -136,11 +119,7 @@ __global__ void dgemm(int m, int n, int k, double alpha, const double * A, int l
 //       typedef char y[(nb == 8) ? 1 : -1]; // nb must equal the size of row per thread
 #pragma unroll
       for (int l = 0; l < kb; l++) {
-#if __CUDA_ARCH__ < 200
         daxpy(A[0], b_lo[l], b_hi[l], c);
-#else
-        daxpy(A[0], b[l], c);
-#endif
         A += lda;
       }
     }
@@ -152,15 +131,10 @@ __global__ void dgemm(int m, int n, int k, double alpha, const double * A, int l
 //       typedef char y[((bx * by * 8) / mb == nb) ? 1 : -1];     // when the threads are wrapped around mb they must spread along to nb
 #pragma unroll
       for (int l = 0; l < kb; l++)
-#if __CUDA_ARCH__ < 200
         daxpy(__hiloint2double(a_hi[(bx * by == mb) ? ti : ti % mb][l],
                                a_lo[(bx * by == mb) ? ti : ti % mb][l]),
               &b_lo[l][(bx * by == mb) ? 0 : 8 * (ti / mb)],
               &b_hi[l][(bx * by == mb) ? 0 : 8 * (ti / mb)], c);
-#else
-        daxpy(a[(bx * by == mb) ? ti : ti % mb][l],
-              &b[l][(bx * by == mb) ? 0 : 8 * (ti / mb)], c);
-#endif
     }
 
     __syncthreads();
@@ -171,25 +145,16 @@ __global__ void dgemm(int m, int n, int k, double alpha, const double * A, int l
 
   if (transA == CBlasNoTrans) {
     for (int l = 0; l < k; l++) {
-#if __CUDA_ARCH__ < 200
       daxpy(A[0], b_lo[l], b_hi[l], c);
-#else
-      daxpy(A[0], b[l], c);
-#endif
       A += lda;
     }
   }
   else {
     for (int l = 0; l < k; l++)
-#if __CUDA_ARCH__ < 200
       daxpy(__hiloint2double(a_hi[(bx * by == mb) ? ti : ti % mb][l],
                              a_lo[(bx * by == mb) ? ti : ti % mb][l]),
             &b_lo[l][(bx * by == mb) ? 0 : 8 * (ti / mb)],
             &b_hi[l][(bx * by == mb) ? 0 : 8 * (ti / mb)], c);
-#else
-      daxpy(a[(bx * by == mb) ? ti : ti % mb][l],
-            &b[l][(bx * by == mb) ? 0 : 8 * (ti / mb)], c);
-#endif
   }
 
   if (bx * by == mb)
@@ -221,6 +186,177 @@ __global__ void dgemm(int m, int n, int k, double alpha, const double * A, int l
     }
   }
 }
+
+#else
+
+__device__ void daxpy(double a, double * b, double * c) {
+  c[0] += a * b[0]; c[1] += a * b[1]; c[2] += a * b[2]; c[3] += a * b[3];
+  c[4] += a * b[4]; c[5] += a * b[5]; c[6] += a * b[6]; c[7] += a * b[7];
+}
+
+/**
+ * DGEMM:
+ *   C := alpha * AB   + beta * C for transA == CBlasNoTrans and transB == CBlasNoTrans
+ *   C := alpha * AB'  + beta * C for transA == CBlasNoTrans and transB == CBlasTrans
+ *   C := alpha * A'B  + beta * C for transA == CBlasTrans and transB == CBlasNoTrans
+ *   C := alpha * A'B' + beta * C for transA == CBlasTrans and transB == CBlasTrans
+ *
+ * @param transA  transpose for A.
+ * @param transB  transpose for B.
+ * @param mb      the number of rows in the block of C.
+ * @param nb      the number of columns in the block of C.
+ * @param kb      how far to unroll the inner loop.
+ * @param bx      blockDim.x.
+ * @param by      blockDim.y.
+ */
+template <CBlasTranspose transA, CBlasTranspose transB,
+          unsigned int mb, unsigned int nb, unsigned int kb,
+          unsigned int bx, unsigned int by>
+__global__ void dgemm(int m, int n, int k, double alpha, const double * A, int lda,
+                      const double * B, int ldb, double beta, double * C, int ldc) {
+
+  const int bi = blockIdx.x * mb;       // Starting row of block of C
+  const int bj = blockIdx.y * nb;       // Starting column of block of C
+  const int ti = threadIdx.y * bx + threadIdx.x;        // Unwrapped thread index [0, bx * by]
+
+  /*
+   * Compute our starting points in A, B and C.
+   *
+   * For transA != CBlasNoTrans A is cached in shared memory so the unwrapped
+   * thread index can be re-wrapped around mb when calculating C.
+   *
+   * If transA == CBlasNoTrans then bx * by == mb (checked later on) so there
+   * doesn't need to be a separate check for transA == CBlasNoTrans in
+   * calculating the start of C here.
+   */
+  A += (transA == CBlasNoTrans) ? bi + ti : (bi + threadIdx.y) * lda + threadIdx.x;
+  B += (transB == CBlasNoTrans) ? (bj + threadIdx.y) * ldb + threadIdx.x : threadIdx.y * ldb + bj + threadIdx.x;
+  C += (bx * by == mb) ? bj * ldc + bi + ti : (bj + 8 * (ti / mb)) * ldc + bi + ti % mb;
+
+  /*
+   * Blocks of A and B in shared memory and C in registers.
+   */
+  __shared__ double a[mb][kb + 1];       // Optimised away when transA == CBlasNoTrans
+  __shared__ double b[kb][(transB == CBlasNoTrans) ? nb + 1 : nb];
+
+  double c[] = { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+
+  while (k > 0) {
+    // If A is to be transposed cache it in shared memory
+    if (transA != CBlasNoTrans) {
+//       typedef char x[(kb % bx == 0) ? 1 : -1];  // bx must be a multiple of kb
+//       typedef char y[(mb % by == 0) ? 1 : -1];  // by must be a multiple of mb
+      // If bx or by is equal to kb or mb then nvcc will optimise one of these
+      // loops away.  This is the source of the "warning: expression has no
+      // effect" compiler messages.
+#pragma unroll
+      for (int l = 0; l < kb; l += bx) {
+#pragma unroll
+        for (int i = 0; i < mb; i += by)
+          a[i + threadIdx.y][l + threadIdx.x] = A[i * lda + l];
+      }
+      A += kb;
+    }
+
+    // B will always be "transposed" w.r.t. C so must always be cached in shared
+    // memory (i.e. it is read along the K or N dimensions when M is the
+    // dimension being expanded).
+    if (transB == CBlasNoTrans) {
+//       typedef char x[(kb % bx == 0) ? 1 : -1];  // bx must be a multiple of kb
+//       typedef char y[(nb % by == 0) ? 1 : -1];  // by must be a multiple of nb
+#pragma unroll
+      for (int l = 0; l < kb; l += bx) {
+#pragma unroll
+        for (int j = 0; j < nb; j += by)
+          b[l + threadIdx.x][j + threadIdx.y] = B[j * ldb + l];
+      }
+    }
+    else {
+//       typedef char x[(nb % bx == 0) ? 1 : -1];  // bx must be a multiple of nb
+//       typedef char y[(kb % by == 0) ? 1 : -1];  // by must be a multiple of kb
+#pragma unroll
+      for (int l = 0; l < kb; l += by) {
+#pragma unroll
+        for (int j = 0; j < nb; j += bx)
+          b[l + threadIdx.y][j + threadIdx.x] = B[l * ldb + j];
+      }
+    }
+
+    __syncthreads();
+
+    if (k < kb) break;
+
+    if (transA == CBlasNoTrans) {
+      // Read A straight from global memory.
+//       typedef char x[(bx * by == mb) ? 1 : -1]; // There must be mb unrolled threads
+//       typedef char y[(nb == 8) ? 1 : -1]; // nb must equal the size of row per thread
+#pragma unroll
+      for (int l = 0; l < kb; l++) {
+        daxpy(A[0], b[l], c);
+        A += lda;
+      }
+    }
+    else {
+      // Read A from shared memory.
+      // Need to check for thread wrapping so that the correct column of A is
+      // matched with the correct row/column of B.
+//       typedef char x[(bx * by % mb == 0) ? 1 : -1];     // bx * by must be a multiple of mb
+//       typedef char y[((bx * by * 8) / mb == nb) ? 1 : -1];     // when the threads are wrapped around mb they must spread along to nb
+#pragma unroll
+      for (int l = 0; l < kb; l++)
+        daxpy(a[(bx * by == mb) ? ti : ti % mb][l],
+              &b[l][(bx * by == mb) ? 0 : 8 * (ti / mb)], c);
+    }
+
+    __syncthreads();
+
+    B += (transB == CBlasNoTrans) ? kb : kb * ldb;
+    k -= kb;
+  }
+
+  if (transA == CBlasNoTrans) {
+    for (int l = 0; l < k; l++) {
+      daxpy(A[0], b[l], c);
+      A += lda;
+    }
+  }
+  else {
+    for (int l = 0; l < k; l++)
+      daxpy(a[(bx * by == mb) ? ti : ti % mb][l],
+            &b[l][(bx * by == mb) ? 0 : 8 * (ti / mb)], c);
+  }
+
+  if (bx * by == mb)
+    n -= bj;
+  else {
+    n -= bj + 8 * (ti / mb);
+    if (n == 0) return;
+  }
+  if ((bx * by == mb && bi + ti < m) || (bx * by > mb && bi + ti % mb < m)) {
+    if (beta == 0.0) {
+      C[0] = alpha * c[0]; if (1 >= n) return; C += ldc;
+      C[0] = alpha * c[1]; if (2 >= n) return; C += ldc;
+      C[0] = alpha * c[2]; if (3 >= n) return; C += ldc;
+      C[0] = alpha * c[3]; if (4 >= n) return; C += ldc;
+      C[0] = alpha * c[4]; if (5 >= n) return; C += ldc;
+      C[0] = alpha * c[5]; if (6 >= n) return; C += ldc;
+      C[0] = alpha * c[6]; if (7 >= n) return; C += ldc;
+      C[0] = alpha * c[7];
+    }
+    else {
+      C[0] = alpha * c[0] + beta * C[0]; if (1 >= n) return; C += ldc;
+      C[0] = alpha * c[1] + beta * C[0]; if (2 >= n) return; C += ldc;
+      C[0] = alpha * c[2] + beta * C[0]; if (3 >= n) return; C += ldc;
+      C[0] = alpha * c[3] + beta * C[0]; if (4 >= n) return; C += ldc;
+      C[0] = alpha * c[4] + beta * C[0]; if (5 >= n) return; C += ldc;
+      C[0] = alpha * c[5] + beta * C[0]; if (6 >= n) return; C += ldc;
+      C[0] = alpha * c[6] + beta * C[0]; if (7 >= n) return; C += ldc;
+      C[0] = alpha * c[7] + beta * C[0];
+    }
+  }
+}
+
+#endif
 
 /**
  * For C = aAB + bC:

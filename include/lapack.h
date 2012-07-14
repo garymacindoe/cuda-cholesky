@@ -4,6 +4,7 @@
 #include "blas.h"
 
 // nvcc uses __restrict__ instead of C99's restrict keyword
+// CUDA Programming Guide v4.1 Appendix B.2.4
 #ifdef __CUDACC__
 #define restrict __restrict__
 #endif

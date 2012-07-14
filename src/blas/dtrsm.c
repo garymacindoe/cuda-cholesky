@@ -214,7 +214,7 @@ CUresult cuDtrsm(CUmodule module, CBlasSide side, CBlasUplo uplo, CBlasTranspose
     info = 11;
   if (info != 0) {
     XERBLA(info);
-    return;
+    return CUDA_ERROR_INVALID_VALUE;
   }
 
   if (m == 0 || n == 0) return CUDA_SUCCESS;

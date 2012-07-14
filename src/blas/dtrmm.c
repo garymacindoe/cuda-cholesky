@@ -25,16 +25,6 @@ static inline CUresult cuMemcpyDtoH2DAsync(void * A, size_t lda, size_t ai, size
   return cuMemcpy2DAsync(&copy, stream);
 }
 
-static inline CUresult cuMemcpyDtoD2DAsync(CUdeviceptr A, size_t lda, size_t ai, size_t aj,
-                                          CUdeviceptr B, size_t ldb, size_t bi, size_t bj,
-                                          size_t m, size_t n, size_t elemSize, CUstream stream) {
-  CUDA_MEMCPY2D copy = {
-    bi * elemSize, bj, CU_MEMORYTYPE_DEVICE, NULL, B, 0, ldb * elemSize,
-    ai * elemSize, aj, CU_MEMORYTYPE_DEVICE, NULL, A, 0, lda * elemSize,
-    m * elemSize, n };
-  return cuMemcpy2DAsync(&copy, stream);
-}
-
 static const double zero = 0.0;
 static const double one = 1.0;
 

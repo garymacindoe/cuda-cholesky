@@ -9,8 +9,8 @@ __device__ void saxpy(float a, const float * b, float * c) {
 
 /**
  * SSYRK:
- *   C := alpha * A'A + beta * C for trans == CBlasNoTrans; or
- *   C := alpha * AA' + beta * C for trans != CBlasNoTrans.
+ *   C := alpha * A'A + beta * C for trans == CBlasNoTrans
+ *   C := alpha * AA' + beta * C for trans != CBlasNoTrans
  *
  * Only the upper or lower triangle of C is updated.
  *
