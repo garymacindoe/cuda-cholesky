@@ -3,9 +3,9 @@
 
 #include "blas.h"
 
-// nvcc doesn't understand C99's restrict keyword
+// nvcc uses __restrict__ instead of C99's restrict keyword
 #ifdef __CUDACC__
-#define restrict
+#define restrict __restrict__
 #endif
 
 #ifdef __cplusplus

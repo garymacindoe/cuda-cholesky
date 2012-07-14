@@ -1,4 +1,3 @@
-// nvcc -I../../include -O2 -arch=compute_13 -code=sm_13 -use_fast_math -Xptxas=-v -maxrregcount=32 -cubin dsyrk.cu
 #include "blas.h"
 
 #if __CUDA_ARCH__ < 200

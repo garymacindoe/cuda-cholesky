@@ -38,7 +38,7 @@ static inline CUresult cuMemcpyDtoD2DAsync(CUdeviceptr A, size_t lda, size_t ai,
 static const float zero = 0.0f;
 static const float one = 1.0f;
 
-void strsm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag, size_t m, size_t n, float alpha, const float * restrict A, size_t lda, float * restrict B, size_t ldb) {
+void strmm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag, size_t m, size_t n, float alpha, const float * restrict A, size_t lda, float * restrict B, size_t ldb) {
   const size_t nRowA = (side == CBlasLeft) ? m : n;
 
   int info = 0;
@@ -67,36 +67,30 @@ void strsm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag
       if (uplo == CBlasUpper) {
 #pragma omp parallel for
         for (size_t j = 0; j < n; j++) {
-          if (alpha != one) {
-            for (size_t i = 0; i < m; i++)
-              B[j * ldb + i] *= alpha;
-          }
-          size_t k = m - 1;
-          do {
+          for (size_t k = 0; k < m; k++) {
             if (B[j * ldb + k] != zero) {
-              if (diag == CBlasNonUnit) B[j * ldb + k] /= A[k * lda + k];
-              register float temp = B[j * ldb + k];
+              register float temp = alpha * B[j * ldb + k];
               for (size_t i = 0; i < k; i++)
-                B[j * ldb + i] -= temp * A[k * lda + i];
+                B[j * ldb + i] += temp * A[k * lda + i];
+              if (diag == CBlasNonUnit) temp *= A[k * lda + k];
+              B[j * ldb + k] = temp;
             }
-          } while (k-- > 0);
+          }
         }
       }
       else {
 #pragma omp parallel for
         for (size_t j = 0; j < n; j++) {
-          if (alpha != one) {
-            for (size_t i = 0; i < m; i++)
-              B[j * ldb + i] *= alpha;
-          }
-          for (size_t k = 0; k < m; k++) {
+          size_t k = m - 1;
+          do {
             if (B[j * ldb + k] != zero) {
-              if (diag == CBlasNonUnit) B[j * ldb + k] /= A[k * lda + k];
-              register float temp = B[j * ldb + k];
+              register float temp = alpha * B[j * ldb + k];
+              B[j * ldb + k] = temp;
+              if (diag == CBlasNonUnit) B[j * ldb + k] *= A[k * lda + k];
               for (size_t i = k + 1; i < m; i++)
                 B[j * ldb + i] -= temp * A[k * lda + i];
             }
-          }
+          } while (k-- > 0);
         }
       }
     }
@@ -104,28 +98,26 @@ void strsm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag
       if (uplo == CBlasUpper) {
 #pragma omp parallel for
         for (size_t j = 0; j < n; j++) {
-          for (size_t i = 0; i < m; i++) {
-            register float temp = zero;
+          size_t i = m - 1;
+          do {
+            register float temp = B[j * ldb + i];
+            if (diag == CBlasNonUnit) temp *= A[i * lda + i];
             for (size_t k = 0; k < i; k++)
               temp += A[i * lda + k] * B[j * ldb + k];
-            temp = alpha * B[j * ldb + i] - temp;
-            if (diag == CBlasNonUnit) temp /= A[i * lda + i];
-            B[j * ldb + i] = temp;
-          }
+            B[j * ldb + i] = alpha * temp;
+          } while (i-- > 0);
         }
       }
       else {
 #pragma omp parallel for
         for (size_t j = 0; j < n; j++) {
-          size_t i = m - 1;
-          do {
-            register float temp = zero;
+          for (size_t i = 0; i < m; i++) {
+            register float temp = B[j * ldb + i];
+            if (diag == CBlasNonUnit) temp *= A[i * lda + i];
             for (size_t k = i + 1; k < m; k++)
               temp += A[i * lda + k] * B[j * ldb + k];
-            temp = alpha * B[j * ldb + i] - temp;
-            if (diag == CBlasNonUnit) temp /= A[i * lda + i];
-            B[j * ldb + i] = temp;
-          } while (i-- > 0);
+            B[j * ldb + i] = alpha * temp;
+          }
         }
       }
     }
@@ -133,94 +125,78 @@ void strsm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag
   else {
     if (transA == CBlasNoTrans) {
       if (uplo == CBlasUpper) {
-        for (size_t j = 0; j < n; j++) {
-          if (alpha != one) {
-            for (size_t i = 0; i < m; i++)
-              B[j * ldb + i] *= alpha;
-          }
-          for (size_t k = 0; k < j; k++) {
-            if (A[j * lda + k] != zero) {
-              register float temp = A[j * lda + k];
-              for (size_t i = 0; i < m; i++)
-                B[j * ldb + i] -= temp * B[k * ldb + i];
-            }
-          }
-          if (diag == CBlasNonUnit) {
-            register float temp = one / A[j * lda + j];
-            for (size_t i = 0; i < m; i++)
-              B[j * ldb + i] *= temp;
-          }
-        }
-      }
-      else {
         size_t j = n - 1;
         do {
-          if (alpha != one) {
-            for (size_t i = 0; i < m; i++)
-              B[j * ldb + i] *= alpha;
-          }
-          for (size_t k = j + 1; k < n; k++) {
+          register float temp = alpha;
+          if (diag == CBlasNonUnit) temp *= A[j * lda + j];
+          for (size_t i = 0; i < m; i++)
+            B[j * ldb + i] *= temp;
+          for (size_t k = 0; k < j; k++) {
             if (A[j * lda + k] != zero) {
-              register float temp = A[j * lda + k];
+              register float temp = alpha * A[j * lda + k];
               for (size_t i = 0; i < m; i++)
-                B[j * ldb + i] -= temp * B[k * ldb + i];
+                B[j * ldb + i] += temp * B[k * ldb + i];
             }
           }
-          if (diag == CBlasNonUnit) {
-            register float temp = one / A[j * lda + j];
-            for (size_t i = 0; i < m; i++)
-              B[j * ldb + i] *= temp;
+        } while (j-- > n);
+      }
+      else {
+        for (size_t j = 0; j < n; j++) {
+          register float temp = alpha;
+          if (diag == CBlasNonUnit) temp *= A[j * lda + j];
+          for (size_t i = 0; i < m; i++)
+            B[j * ldb + i] *= temp;
+          for (size_t k = j + 1; k < n; k++) {
+            if (A[j * lda + k] != zero) {
+              register float temp = alpha * A[j * lda + k];
+              for (size_t i = 0; i < m; i++)
+                B[j * ldb + i] += temp * B[k * ldb + i];
+            }
           }
-        } while (j-- > 0);
+        }
       }
     }
     else {
       if (uplo == CBlasUpper) {
-        size_t k = n - 1;
-        do {
-          if (diag == CBlasNonUnit) {
-            register float temp = one / A[k * lda + k];
-            for (size_t i = 0; i < m; i++)
-              B[k * ldb + i] *= temp;
-          }
+        for (size_t k = 0; k < n; k++) {
           for (size_t j = 0; j < k; j++) {
             if (A[k * lda + j] != zero) {
-              register float temp = A[k * lda + j];
+              register float temp = alpha * A[k * lda + j];
               for (size_t i = 0; i < m; i++)
-                B[j * ldb + i] -= temp * B[k * ldb + i];
+                B[j * ldb + i] += temp * B[k * ldb + i];
             }
           }
-          if (alpha != one) {
+          register float temp = alpha;
+          if (diag == CBlasNonUnit) temp *= A[k * lda + k];
+          if (temp != one) {
+            for (size_t i = 0; i < m; i++)
+              B[k * ldb + i] *= alpha;
+          }
+        }
+      }
+      else {
+        size_t k = n - 1;
+        do {
+          for (size_t j = k + 1; j < n; j++) {
+            if (A[k * lda + j] != zero) {
+              register float temp = alpha * A[k * lda + j];
+              for (size_t i = 0; i < m; i++)
+                B[j * ldb + i] += temp * B[k * ldb + i];
+            }
+          }
+          register float temp = alpha;
+          if (diag == CBlasNonUnit) temp *= A[k * lda + k];
+          if (temp != one) {
             for (size_t i = 0; i < m; i++)
               B[k * ldb + i] *= alpha;
           }
         } while (k-- > 0);
       }
-      else {
-        for (size_t k = 0; k < n; k++) {
-          if (diag == CBlasNonUnit) {
-            register float temp = one / A[k * lda + k];
-            for (size_t i = 0; i < m; i++)
-              B[k * ldb + i] *= temp;
-          }
-          for (size_t j = k + 1; j < n; j++) {
-            if (A[k * lda + j] != zero) {
-              register float temp = A[k * lda + j];
-              for (size_t i = 0; i < m; i++)
-                B[j * ldb + i] -= temp * B[k * ldb + i];
-            }
-          }
-          if (alpha != one) {
-            for (size_t i = 0; i < m; i++)
-              B[k * ldb + i] *= alpha;
-          }
-        }
-      }
     }
   }
 }
 
-CUresult cuStrsm(CUmodule module, CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag, size_t m, size_t n, float alpha, CUdeviceptr A, size_t lda, CUdeviceptr B, size_t ldb, CUstream stream) {
+CUresult cuStrmm(CUmodule module, CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag, size_t m, size_t n, float alpha, CUdeviceptr A, size_t lda, CUdeviceptr B, size_t ldb, CUstream stream) {
   const size_t nRowA = (side == CBlasLeft) ? m : n;
 
   int info = 0;
@@ -241,7 +217,7 @@ CUresult cuStrsm(CUmodule module, CBlasSide side, CBlasUplo uplo, CBlasTranspose
   const unsigned int nb = (side == CBlasLeft) ? 64 :  8;
 
   char name[102];
-  snprintf(name, 102, "_Z5strsmIL9CBlasSide%dEL9CBlasUplo%dEL14CBlasTranspose%dEL9CBlasDiag%dELj%uELj%uELj%uELj%uEEviifPKfiPfi", side, uplo, transA, diag, mb, nb, bx, by);
+  snprintf(name, 102, "_Z5strmmIL9CBlasSide%dEL9CBlasUplo%dEL14CBlasTranspose%dEL9CBlasDiag%dELj%uELj%uELj%uELj%uEEviifPKfiPfi", side, uplo, transA, diag, mb, nb, bx, by);
 
   CUfunction function;
   CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
@@ -255,7 +231,7 @@ CUresult cuStrsm(CUmodule module, CBlasSide side, CBlasUplo uplo, CBlasTranspose
   return CUDA_SUCCESS;
 }
 
-CUresult cuMultiGPUStrsm(CUcontext * contexts, unsigned int deviceCount, CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag, size_t m, size_t n, float alpha, const float * restrict A, size_t lda, float * restrict B, size_t ldb) {
+CUresult cuMultiGPUStrmm(CUcontext * contexts, unsigned int deviceCount, CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag, size_t m, size_t n, float alpha, const float * restrict A, size_t lda, float * restrict B, size_t ldb) {
   const size_t nRowA = (side == CBlasLeft) ? m : n;
 
   int info = 0;
@@ -279,7 +255,7 @@ CUresult cuMultiGPUStrsm(CUcontext * contexts, unsigned int deviceCount, CBlasSi
   const size_t nb = (side == CBlasLeft) ? 16 :  8;
 
   if (m <= mb || n <= nb) {
-    strsm(side, uplo, transA, diag, m, n, alpha, A, lda, B, ldb);
+    strmm(side, uplo, transA, diag, m, n, alpha, A, lda, B, ldb);
     return CUDA_SUCCESS;
   }
 
@@ -296,7 +272,7 @@ CUresult cuMultiGPUStrsm(CUcontext * contexts, unsigned int deviceCount, CBlasSi
 
             CU_ERROR_CHECK(cuMultiGPUSgemm(contexts, deviceCount, CBlasNoTrans, CBlasNoTrans, ib, jb, m - i - ib, -one, &A[(i + ib) * lda + i], lda, &B[j * ldb + i + ib], ldb, alpha, &B[j * ldb + i], ldb));
 
-            strsm(CBlasLeft, CBlasUpper, CBlasNoTrans, diag, ib, jb, one, &A[i * lda + i], lda, &B[j * ldb + i], ldb);
+            strmm(CBlasLeft, CBlasUpper, CBlasNoTrans, diag, ib, jb, one, &A[i * lda + i], lda, &B[j * ldb + i], ldb);
           }
         } while (i > 0);
       }
@@ -309,7 +285,7 @@ CUresult cuMultiGPUStrsm(CUcontext * contexts, unsigned int deviceCount, CBlasSi
 
             CU_ERROR_CHECK(cuMultiGPUSgemm(contexts, deviceCount, CBlasNoTrans, CBlasNoTrans, ib, jb, i, -one, &A[i], lda, &B[j * ldb], ldb, alpha, &B[j * ldb + i], ldb));
 
-            strsm(CBlasLeft, CBlasLower, CBlasNoTrans, diag, ib, jb, one, &A[i * lda + i], lda, &B[j * ldb + i], ldb);
+            strmm(CBlasLeft, CBlasLower, CBlasNoTrans, diag, ib, jb, one, &A[i * lda + i], lda, &B[j * ldb + i], ldb);
           }
         }
       }
@@ -324,7 +300,7 @@ CUresult cuMultiGPUStrsm(CUcontext * contexts, unsigned int deviceCount, CBlasSi
 
             CU_ERROR_CHECK(cuMultiGPUSgemm(contexts, deviceCount, CBlasTrans, CBlasNoTrans, ib, jb, i, -one, &A[i * lda], lda, &B[j * ldb], ldb, alpha, &B[j * ldb + i], ldb));
 
-            strsm(CBlasLeft, CBlasUpper, CBlasTrans, diag, ib, jb, one, &A[i * lda + i], lda, &B[j * ldb + i], ldb);
+            strmm(CBlasLeft, CBlasUpper, CBlasTrans, diag, ib, jb, one, &A[i * lda + i], lda, &B[j * ldb + i], ldb);
           }
         }
       }
@@ -339,7 +315,7 @@ CUresult cuMultiGPUStrsm(CUcontext * contexts, unsigned int deviceCount, CBlasSi
 
             CU_ERROR_CHECK(cuMultiGPUSgemm(contexts, deviceCount, CBlasTrans, CBlasNoTrans, ib, jb, m - i - ib, -one, &A[i * lda + i + ib], lda, &B[j * ldb + i + ib], ldb, alpha, &B[j * ldb + i], ldb));
 
-            strsm(CBlasLeft, CBlasLower, CBlasTrans, diag, ib, jb, one, &A[i * lda + i], lda, &B[j * ldb + i], ldb);
+            strmm(CBlasLeft, CBlasLower, CBlasTrans, diag, ib, jb, one, &A[i * lda + i], lda, &B[j * ldb + i], ldb);
           }
         } while (i > 0);
       }
@@ -356,7 +332,7 @@ CUresult cuMultiGPUStrsm(CUcontext * contexts, unsigned int deviceCount, CBlasSi
 
             CU_ERROR_CHECK(cuMultiGPUSgemm(contexts, deviceCount, CBlasNoTrans, CBlasNoTrans, ib, jb, j, -one, &B[i], ldb, &A[j * lda], lda, alpha, &B[j * ldb + i], ldb));
 
-            strsm(CBlasRight, CBlasUpper, CBlasNoTrans, diag, ib, jb, one, &A[j * lda + j], lda, &B[j * ldb + i], ldb);
+            strmm(CBlasRight, CBlasUpper, CBlasNoTrans, diag, ib, jb, one, &A[j * lda + j], lda, &B[j * ldb + i], ldb);
           }
         }
       }
@@ -371,7 +347,7 @@ CUresult cuMultiGPUStrsm(CUcontext * contexts, unsigned int deviceCount, CBlasSi
 
             CU_ERROR_CHECK(cuMultiGPUSgemm(contexts, deviceCount, CBlasNoTrans, CBlasNoTrans, ib, jb, n - j - jb, -one, &B[(j + jb) * ldb + i], ldb, &A[j * lda + j + jb], lda, alpha, &B[j * ldb + i], ldb));
 
-            strsm(CBlasRight, CBlasLower, CBlasNoTrans, diag, ib, jb, one, &A[j * lda + j], lda, &B[j * ldb + i], ldb);
+            strmm(CBlasRight, CBlasLower, CBlasNoTrans, diag, ib, jb, one, &A[j * lda + j], lda, &B[j * ldb + i], ldb);
           }
         } while (j > 0);
       }
@@ -388,7 +364,7 @@ CUresult cuMultiGPUStrsm(CUcontext * contexts, unsigned int deviceCount, CBlasSi
 
             CU_ERROR_CHECK(cuMultiGPUSgemm(contexts, deviceCount, CBlasNoTrans, CBlasTrans, ib, jb, n - j - jb, -one, &B[(j + jb) * ldb + i], ldb, &A[(j + jb) * lda + j], lda, alpha, &B[j * ldb + i], ldb));
 
-            strsm(CBlasRight, CBlasUpper, CBlasTrans, diag, ib, jb, one, &A[j * lda + j], lda, &B[j * ldb + i], ldb);
+            strmm(CBlasRight, CBlasUpper, CBlasTrans, diag, ib, jb, one, &A[j * lda + j], lda, &B[j * ldb + i], ldb);
           }
         } while (j > 0);
       }
@@ -401,7 +377,7 @@ CUresult cuMultiGPUStrsm(CUcontext * contexts, unsigned int deviceCount, CBlasSi
 
             CU_ERROR_CHECK(cuMultiGPUSgemm(contexts, deviceCount, CBlasNoTrans, CBlasTrans, ib, jb, j, -one, &B[i], ldb, &A[j], lda, alpha, &B[j * ldb + i], ldb));
 
-            strsm(CBlasRight, CBlasLower, CBlasTrans, diag, ib, jb, one, &A[j * lda + j], lda, &B[j * ldb + i], ldb);
+            strmm(CBlasRight, CBlasLower, CBlasTrans, diag, ib, jb, one, &A[j * lda + j], lda, &B[j * ldb + i], ldb);
           }
         }
       }

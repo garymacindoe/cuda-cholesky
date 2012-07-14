@@ -1,62 +1,19 @@
-// nvcc -I../../include -O2 -arch=compute_13 -code=sm_13 -use_fast_math -Xptxas=-v -maxrregcount=32 -cubin strsm.cu
 #include "blas.h"
+#include <cuComplex.h>
 
-__device__ void sscal(float alpha, const float * x, int incx, float * y) {
-//   y = alpha * x;
-  y[ 0] = alpha * x[ 0 * incx]; y[ 1] = alpha * x[ 1 * incx];
-  y[ 2] = alpha * x[ 2 * incx]; y[ 3] = alpha * x[ 3 * incx];
-  y[ 4] = alpha * x[ 4 * incx]; y[ 5] = alpha * x[ 5 * incx];
-  y[ 6] = alpha * x[ 6 * incx]; y[ 7] = alpha * x[ 7 * incx];
-  y[ 8] = alpha * x[ 8 * incx]; y[ 9] = alpha * x[ 9 * incx];
-  y[10] = alpha * x[10 * incx]; y[11] = alpha * x[11 * incx];
-  y[12] = alpha * x[12 * incx]; y[13] = alpha * x[13 * incx];
-  y[14] = alpha * x[14 * incx]; y[15] = alpha * x[15 * incx];
+// y(1:8) += alpha * x(1:8)
+__device__ void zaxpy(cuDoubleComplex a, cuDoubleComplex * b, cuDoubleComplex * c) {
+  c[0] = cuCfma(a, b[0], c[0]); c[1] = cuCfma(a, b[1], c[1]);
 }
 
-__device__ void saxpy(float alpha, const float * x, int incx, float * y) {
-//   y -= alpha * x;
-  y[ 0] -= alpha * x[ 0 * incx];
-  y[ 1] -= alpha * x[ 1 * incx];
-  y[ 2] -= alpha * x[ 2 * incx];
-  y[ 3] -= alpha * x[ 3 * incx];
-  y[ 4] -= alpha * x[ 4 * incx];
-  y[ 5] -= alpha * x[ 5 * incx];
-  y[ 6] -= alpha * x[ 6 * incx];
-  y[ 7] -= alpha * x[ 7 * incx];
-  y[ 8] -= alpha * x[ 8 * incx];
-  y[ 9] -= alpha * x[ 9 * incx];
-  y[10] -= alpha * x[10 * incx];
-  y[11] -= alpha * x[11 * incx];
-  y[12] -= alpha * x[12 * incx];
-  y[13] -= alpha * x[13 * incx];
-  y[14] -= alpha * x[14 * incx];
-  y[15] -= alpha * x[15 * incx];
+// y(1:n) += alpha * x(1:n)
+__device__ void zaxpy(int n, cuDoubleComplex a, cuDoubleComplex * b, cuDoubleComplex * c) {
+  c[0] = cuCfma(a, b[0], c[0]); if (1 >= n) return;
+  c[1] = cuCfma(a, b[1], c[1]);
 }
-
-template <CBlasDiag diag>
-__device__ void sscal(int n, float alpha, const float * x, float * y, int incy) {
-//   y = (diag == CBlasNonUnit) ? x / alpha : x;
-  y[0] = (diag == CBlasNonUnit) ? x[ 0] / alpha : x[ 0]; if ( 1 >= n) return; y += incy;
-  y[0] = (diag == CBlasNonUnit) ? x[ 1] / alpha : x[ 1]; if ( 2 >= n) return; y += incy;
-  y[0] = (diag == CBlasNonUnit) ? x[ 2] / alpha : x[ 2]; if ( 3 >= n) return; y += incy;
-  y[0] = (diag == CBlasNonUnit) ? x[ 3] / alpha : x[ 3]; if ( 4 >= n) return; y += incy;
-  y[0] = (diag == CBlasNonUnit) ? x[ 4] / alpha : x[ 4]; if ( 5 >= n) return; y += incy;
-  y[0] = (diag == CBlasNonUnit) ? x[ 5] / alpha : x[ 5]; if ( 6 >= n) return; y += incy;
-  y[0] = (diag == CBlasNonUnit) ? x[ 6] / alpha : x[ 6]; if ( 7 >= n) return; y += incy;
-  y[0] = (diag == CBlasNonUnit) ? x[ 7] / alpha : x[ 7]; if ( 8 >= n) return; y += incy;
-  y[0] = (diag == CBlasNonUnit) ? x[ 8] / alpha : x[ 8]; if ( 9 >= n) return; y += incy;
-  y[0] = (diag == CBlasNonUnit) ? x[ 9] / alpha : x[ 9]; if (10 >= n) return; y += incy;
-  y[0] = (diag == CBlasNonUnit) ? x[10] / alpha : x[10]; if (11 >= n) return; y += incy;
-  y[0] = (diag == CBlasNonUnit) ? x[11] / alpha : x[11]; if (12 >= n) return; y += incy;
-  y[0] = (diag == CBlasNonUnit) ? x[12] / alpha : x[12]; if (13 >= n) return; y += incy;
-  y[0] = (diag == CBlasNonUnit) ? x[13] / alpha : x[13]; if (14 >= n) return; y += incy;
-  y[0] = (diag == CBlasNonUnit) ? x[14] / alpha : x[14]; if (15 >= n) return; y += incy;
-  y[0] = (diag == CBlasNonUnit) ? x[15] / alpha : x[15];
-}
-
 
 /**
- * STRSM:
+ * ZTRSM:
  *   B := alpha * inv( A ) * B for side == CBlasLeft, transA == CBlasNoTrans
  *   B := alpha * inv( A') * B for side == CBlasLeft, transA == CBlasTrans
  *   B := alpha * B * inv( A ) for side == CBlasRight, transA == CBlasNoTrans
@@ -70,122 +27,450 @@ __device__ void sscal(int n, float alpha, const float * x, float * y, int incy) 
  * @param diag   whether A is unit or nonunit diagonal.
  * @param mb     the number of rows in the block of B.
  * @param nb     the number of columns in the block of B.
- * @param kb     how far to unroll the inner loop.
  * @param bx     blockDim.x.
  * @param by     blockDim.y.
  */
 template <CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag,
-          unsigned int mb, unsigned int nb, unsigned int kb,
-          unsigned int bx, unsigned int by>
-__global__ void strsm(int m, int n,
-                      float alpha, const float * __restrict__ A, int lda,
-                      float * __restrict__ B, int ldb) {
+          unsigned int mb, unsigned int nb, unsigned int bx, unsigned int by>
+__global__ void ztrsm(int m, int n,
+                      cuDoubleComplex alpha, const cuDoubleComplex * __restrict__ A, int lda,
+                      cuDoubleComplex * __restrict__ B, int ldb) {
 
-  float temp[16];
+ if (side == CBlasLeft) {
+//     typedef char _x[(mb == 2) ? 1 : -1];
+//     typedef char _y[(nb == bx * by) ? 1 : -1];
+//     typedef char _z[(bx == mb) ? 1 : -1];
 
-  if (side == CBlasLeft) {
-    if (transA == CBlasNoTrans) {
-      if (uplo == CBlasUpper) {
-        for (int j = 0; j < n; j += 16) {
-          for (int i = m - 1; i >= 0; i--) {
-            sscal(alpha, &B[j * ldb + i], ldb, temp);
-            for (int k = i + 1; k < m; k++)
-              saxpy(A[k * lda + i], &B[j * ldb + k], ldb, temp);
-            sscal<diag>(n, A[i * lda + i], temp, &B[j * ldb + i], ldb);
-          }
+    __shared__ cuDoubleComplex a[mb][(transA == CBlasNoTrans) ? mb : mb + 1];
+    __shared__ cuDoubleComplex b[mb][nb + 1];
+    cuDoubleComplex x[2];
+
+    const int ti = threadIdx.y * bx + threadIdx.x;
+
+    A += threadIdx.y * lda + threadIdx.x;
+    B += (blockIdx.y * nb + threadIdx.y) * ldb + threadIdx.x;
+    n -= blockIdx.y * nb + threadIdx.y;
+
+    if ((uplo == CBlasUpper && transA == CBlasNoTrans) || (uplo == CBlasLower && transA != CBlasNoTrans)) {
+      const int mm = m & (mb - 1);
+      int i = m - mm;
+
+      A += i * lda + i;
+      cuDoubleComplex * X = B + i;
+
+      if (mm > 0) {
+        #pragma unroll
+        for (int j = 0; j < nb; j += by)
+          b[threadIdx.x][j + threadIdx.y] = X[j * ldb];
+
+        __syncthreads();
+
+        x[0] = cuCmul(alpha, b[0][ti]); x[1] = cuCmul(alpha, b[1][ti]);
+
+        if (transA == CBlasNoTrans)
+          a[threadIdx.y][threadIdx.x] = A[0];
+        else {
+          if (transA == CBlasTrans)
+            a[threadIdx.x][threadIdx.y] = A[0];
+          else
+            a[threadIdx.x][threadIdx.y] = cuConj(A[0]);
+        }
+
+        __syncthreads();
+
+        switch (mm - 1) {
+          case 1: if (diag == CBlasNonUnit) x[1] = cuCdiv(x[1], a[1][1]); zaxpy(1, x[1], a[1], x);
+          case 0: if (diag == CBlasNonUnit) x[0] = cuCdiv(x[0], a[0][0]);
+        }
+
+        __syncthreads();
+
+        b[0][ti] = x[0]; b[1][ti] = x[1];
+
+        __syncthreads();
+
+        if (threadIdx.x < mm) {
+          if (0 * by < n) { X[0 * by * ldb] = b[threadIdx.x][0 * by + threadIdx.y];
+          if (1 * by < n) { X[1 * by * ldb] = b[threadIdx.x][1 * by + threadIdx.y]; }}
         }
       }
-      else {
-        for (int j = 0; j < n; j += 16) {
-          for (int i = 0; i < m; i++) {
-            sscal(alpha, &B[j * ldb + i], ldb, temp);
-            for (int k = 0; k < i; k++)
-              saxpy(A[k * lda + i], &B[j * ldb + k], ldb, temp);
-            sscal<diag>(n, A[i * lda + i], temp, &B[j * ldb + i], ldb);
+
+      A -= mb * lda + mb;
+      X -= mb;
+      i -= mb;
+
+      while (i >= 0) {
+
+        __syncthreads();
+
+        #pragma unroll
+        for (int j = 0; j < nb; j += by)
+          b[threadIdx.x][j + threadIdx.y] = X[j * ldb];
+
+        __syncthreads();
+
+        x[0] = cuCmul(alpha, b[0][ti]); x[1] = cuCmul(alpha, b[1][ti]);
+
+        __syncthreads();
+
+        const cuDoubleComplex * _A = A + ((transA == CBlasNoTrans) ? mb * lda : mb);
+        const cuDoubleComplex * _B = X + mb;
+        int k = m - i - mb;
+        while (k > 0) {
+
+          if (transA == CBlasNoTrans)
+            a[threadIdx.y][threadIdx.x] = _A[0];
+          else {
+            if (transA == CBlasTrans)
+              a[threadIdx.x][threadIdx.y] = _A[0];
+            else
+              a[threadIdx.x][threadIdx.y] = cuConj(_A[0]);
           }
+
+          #pragma unroll
+          for (int j = 0; j < nb; j += by)
+            b[threadIdx.x][j + threadIdx.y] = _B[j * ldb];
+
+          __syncthreads();
+
+          if (k < mb) break;
+
+          #pragma unroll
+          for (int l = 0; l < mb; l++)
+            zaxpy(b[l][ti], a[l], x);
+
+          __syncthreads();
+
+          _A += (transA == CBlasNoTrans) ? mb * lda : mb;
+          _B += mb;
+          k -= mb;
         }
+
+        for (int l = 0; l < k; l++)
+          zaxpy(b[l][ti], a[l], x);
+
+        __syncthreads();
+
+        if (transA == CBlasNoTrans)
+          a[threadIdx.y][threadIdx.x] = A[0];
+        else {
+          if (transA == CBlasTrans)
+            a[threadIdx.x][threadIdx.y] = A[0];
+          else
+            a[threadIdx.x][threadIdx.y] = cuConj(A[0]);
+        }
+
+        __syncthreads();
+
+        if (diag == CBlasNonUnit) x[1] = cuCdiv(x[1], a[1][1]); zaxpy(1, x[1], a[1], x);
+        if (diag == CBlasNonUnit) x[0] = cuCdiv(x[0], a[0][0]);
+
+        b[0][ti] = x[0]; b[1][ti] = x[1];
+
+        __syncthreads();
+
+        #pragma unroll
+        for (int j = 0; j < nb; j += by)
+          X[j * ldb] = b[threadIdx.x][j + threadIdx.y];
+
+        A -= mb * lda + mb;
+        X -= mb;
+        i -= mb;
       }
     }
-    else {
-      if (uplo == CBlasUpper) {
-        for (int j = 0; j < n; j += 16) {
-          for (int i = 0; i < m; i++) {
-            sscal(alpha, &B[j * ldb + i], ldb, temp);
-            for (int k = 0; k < i; k++)
-              saxpy(A[i * lda + k], &B[j * ldb + k], ldb, temp);
-            sscal<diag>(n, A[i * lda + i], temp, &B[j * ldb + i], ldb);
+    else {      /* (uplo == CBlasLower && transA == CBlasNoTrans) || (uplo == CBlasUpper && transA != CBlasNoTrans) */
+      cuDoubleComplex * X = B;
+      int i = 0;
+
+      while (m > 0) {
+        #pragma unroll
+        for (int j = 0; j < nb; j += by)
+          b[threadIdx.x][j + threadIdx.y] = X[j * ldb];
+
+        __syncthreads();
+
+        x[0] = cuCmul(alpha, b[0][ti]); x[1] = cuCmul(alpha, b[1][ti]);
+
+        __syncthreads();
+
+        const cuDoubleComplex * _A = A;
+        const cuDoubleComplex * _B = B;
+        int k = i;
+        while (k > 0) {
+
+          if (transA == CBlasNoTrans)
+            a[threadIdx.y][threadIdx.x] = _A[0];
+          else {
+            if (transA == CBlasTrans)
+              a[threadIdx.x][threadIdx.y] = _A[0];
+            else
+              a[threadIdx.x][threadIdx.y] = cuConj(_A[0]);
           }
+
+          #pragma unroll
+          for (int j = 0; j < nb; j += by)
+            b[threadIdx.x][j + threadIdx.y] = _B[j * ldb];
+
+          __syncthreads();
+
+          #pragma unroll
+          for (int l = 0; l < mb; l++)
+            zaxpy(b[l][ti], a[l], x);
+
+          __syncthreads();
+
+          _A += (transA == CBlasNoTrans) ? mb * lda : mb;
+          _B += mb;
+          k -= mb;
         }
+
+        for (int l = 0; l < k; l++)
+          zaxpy(b[l][ti], a[l], x);
+
+        __syncthreads();
+
+        if (transA == CBlasNoTrans)
+          a[threadIdx.y][threadIdx.x] = _A[0];
+        else {
+          if (transA == CBlasTrans)
+            a[threadIdx.x][threadIdx.y] = _A[0];
+          else
+            a[threadIdx.x][threadIdx.y] = cuConj(_A[0]);
+        }
+
+        __syncthreads();
+
+        if (m < mb) break;
+
+        if (diag == CBlasNonUnit) x[0] = cuCdiv(x[0], a[0][0]); zaxpy(1, x[0], &a[0][1], &x[1]);
+        if (diag == CBlasNonUnit) x[1] = cuCdiv(x[1], a[1][1]);
+
+        b[0][ti] = x[0]; b[1][ti] = x[1];
+
+        __syncthreads();
+
+        #pragma unroll
+        for (int j = 0; j < nb; j += by)
+          X[j * ldb] = b[threadIdx.x][j + threadIdx.y];
+
+        __syncthreads();
+
+        A += (transA == CBlasNoTrans) ? mb : mb * lda;
+        X += mb;
+        m -= mb;
+        i += mb;
       }
-      else {
-        for (int j = 0; j < n; j += 16) {
-          for (int i = m - 1; i >= 0; i--) {
-            sscal(alpha, &B[j * ldb + i], ldb, temp);
-            for (int k = i + 1; k < m; k++)
-              saxpy(A[i * lda + k], &B[j * ldb + k], ldb, temp);
-            sscal<diag>(n, A[i * lda + i], temp, &B[j * ldb + i], ldb);
-          }
-        }
+
+      if (m > 0) { if (diag == CBlasNonUnit) x[0] = cuCdiv(x[0], a[0][0]);
+      if (m > 1) { zaxpy(m - 1, x[0], &a[0][1], &x[1]); if (diag == CBlasNonUnit) x[1] = cuCdiv(x[1], a[1][1]); }}
+
+      __syncthreads();
+
+      b[0][ti] = x[0]; b[1][ti] = x[1];
+
+      __syncthreads();
+
+      if (threadIdx.x < m) {
+        X[0] = b[threadIdx.x][by * 0 + threadIdx.y]; if (by * 1 >= n) return; X += by * ldb;
+        X[0] = b[threadIdx.x][by * 1 + threadIdx.y];
       }
     }
   }
   else {
-    for (int i = 0; i < m; i++) {
+//     typedef char _x[(nb == 2) ? 1 : -1];
+//     typedef char _y[(mb == bx * by) ? 1 : -1];
+//     typedef char _z[(by == nb) ? 1 : -1];
 
-      if (transA == CBlasNoTrans) {
-        if (uplo == CBlasUpper) {
-          for (int j = 0; j < n; j += 16) {
-            sscal(alpha, &B[j * ldb + i], ldb, temp);
-            for (int k = 0; k < j + threadIdx.x; k++)
-              saxpy(temp[k], &A[j * lda + k], lda, temp);
-            sscal<diag>(n, A[j * lda + j], temp, &B[j * ldb + i], ldb);
+    // Each thread computes a row of B 2 elements at a time
+    __shared__ cuDoubleComplex a[nb][(transA == CBlasNoTrans) ? nb + 1 : nb];
+    cuDoubleComplex x[2];
+
+    const int ti = threadIdx.y * bx + threadIdx.x;
+
+    // Compute the starting points in a and B for each thread
+    A += threadIdx.y * lda + threadIdx.x;
+    B += blockIdx.x * mb + ti;
+    m -= blockIdx.x * mb;
+
+    if ((uplo == CBlasUpper && transA == CBlasNoTrans) || (uplo == CBlasLower && transA != CBlasNoTrans)) {
+      cuDoubleComplex * X = B;
+      int j = 0;
+
+      while (n > 0) {
+        x[0] = cuCmul(alpha, X[0 * ldb]); x[1] = cuCmul(alpha, X[1 * ldb]);
+
+        const cuDoubleComplex * _A = A;
+        const cuDoubleComplex * _B = B;
+        int k = j;
+        while (k > 0) {
+
+          if (transA == CBlasNoTrans)
+            a[threadIdx.x][threadIdx.y] = _A[0];
+          else {
+            if (transA == CBlasTrans)
+              a[threadIdx.y][threadIdx.x] = _A[0];
+            else
+              a[threadIdx.y][threadIdx.x] = cuConj(_A[0]);
           }
+
+          __syncthreads();
+
+          #pragma unroll
+          for (int l = 0; l < nb; l++)
+            zaxpy(_B[l * ldb], a[l], x);
+
+          __syncthreads();
+
+          _A += (transA == CBlasNoTrans) ? nb : nb * lda;
+          _B += nb * ldb;
+          k -= nb;
         }
+
+        if (transA == CBlasNoTrans)
+          a[threadIdx.x][threadIdx.y] = _A[0];
+        else
+          a[threadIdx.y][threadIdx.x] = _A[0];
+
+        __syncthreads();
+
+        if (n < nb) break;
+
+        if (n > 0) { if (diag == CBlasNonUnit) x[0] = cuCdiv(x[0], a[0][0]);
+        if (n > 1) { zaxpy(7, x[0], &a[0][1], &x[1]); if (diag == CBlasNonUnit) x[1] = cuCdiv(x[1], a[1][1]); }}
+
+        if (ti < m) {
+          X[0 * ldb] = x[0]; X[1 * ldb] = x[1];
+        }
+
+        __syncthreads();
+
+        A += (transA == CBlasNoTrans) ? nb * lda : nb;
+        X += nb * ldb;
+        n -= nb;
+        j += nb;
+      }
+
+      if (n > 0) { if (diag == CBlasNonUnit)x[0] = cuCdiv(x[0], a[0][0]);
+      if (n > 1) { zaxpy(n - 1, x[0], &a[0][1], &x[1]); if (diag == CBlasNonUnit) x[1] = cuCdiv(x[1], a[1][1]); }}
+
+      if (ti < m) {
+        X[0] = x[0]; if (1 >= n) return; X += ldb; X[0] = x[1];
+      }
+    }
+    else {      /* (uplo == CBlasLower && transA == CBlasNoTrans) || (uplo == CBlasUpper && transA != CBlasNoTrans) */
+      const int nn = n & (nb - 1);
+      int j = n - nn;
+
+      A += j * lda + j;
+      cuDoubleComplex * X = B + j * ldb;
+
+      if (nn > 0) {
+        x[0] = cuCmul(alpha, X[0 * ldb]); x[1] = cuCmul(alpha, X[1 * ldb]);
+
+        if (transA == CBlasNoTrans)
+          a[threadIdx.x][threadIdx.y] = A[0];
         else {
-          for (int j = n - 1; j >= 0; j -= 16) {
-            sscal(alpha, &B[j * ldb + i], ldb, temp);
-            for (int k = j + 1; k < n; k++)
-              saxpy(B[k * ldb + i], &A[j * lda + k], lda, temp);
-            sscal<diag>(n, A[j * lda + j], temp, &B[j * ldb + i], ldb);
-          }
+          if (transA == CBlasTrans)
+            a[threadIdx.y][threadIdx.x] = A[0];
+          else
+            a[threadIdx.y][threadIdx.x] = cuConj(A[0]);
+        }
+
+        __syncthreads();
+
+        switch (nn - 1) {
+          case 1: if (diag == CBlasNonUnit) x[1] = cuCdiv(x[1], a[1][1]); zaxpy(1, x[1], a[1], x);
+          case 0: if (diag == CBlasNonUnit) x[0] = cuCdiv(x[0], a[0][0]);
+        }
+
+        if (ti < m) {
+          X[0 * ldb] = x[0]; if (1 < nn) {
+          X[1 * ldb] = x[1]; }
         }
       }
-      else {
-        if (uplo == CBlasUpper) {
-          for (int j = n - 1; j >= 0; j -= 16) {
-            sscal(alpha, &B[j * ldb + i], ldb, temp);
-            for (int k = j + 1; k < n; k++)
-              saxpy(B[k * ldb + i], &A[k * lda + j], 1, temp);
-            sscal<diag>(n, A[j * lda + j], temp, &B[j * ldb + i], ldb);
-          }
-        }
-        else {
-          for (int j = 0; j < n; j += 16) {
-            sscal(alpha, &B[j * ldb + i], ldb, temp);
-            for (int k = 0; k < j; k++)
-              saxpy(B[k * ldb + i], &A[k * lda + j], 1, temp);
-            sscal<diag>(n, A[j * lda + j], temp, &B[j * ldb + i], ldb);
-          }
-        }
-      }
 
+      A -= nb * lda + nb;
+      X -= nb * ldb;
+      j -= nb;
+
+      while (j >= 0) {
+        x[0] = cuCmul(alpha, X[0 * ldb]); x[1] = cuCmul(alpha, X[1 * ldb]);
+
+        __syncthreads();
+
+        const cuDoubleComplex * _A = A + ((transA == CBlasNoTrans) ? nb : nb * lda);
+        const cuDoubleComplex * _B = X + nb * ldb;
+        int k = n - j - nb;
+        while (k > 0) {
+
+          if (transA == CBlasNoTrans)
+            a[threadIdx.x][threadIdx.y] = _A[0];
+          else {
+            if (transA == CBlasTrans)
+              a[threadIdx.y][threadIdx.x] = _A[0];
+            else
+              a[threadIdx.y][threadIdx.x] = cuConj(_A[0]);
+          }
+
+          __syncthreads();
+
+          if (k < nb) break;
+
+          #pragma unroll
+          for (int l = 0; l < nb; l++)
+            zaxpy(_B[l * ldb], a[l], x);
+
+          __syncthreads();
+
+          _A += (transA == CBlasNoTrans) ? nb : nb * lda;
+          _B += nb * ldb;
+          k -= nb;
+        }
+
+        for (int l = 0; l < k; l++)
+          zaxpy(_B[l * ldb], a[l], x);
+
+        __syncthreads();
+
+        if (transA == CBlasNoTrans)
+          a[threadIdx.x][threadIdx.y] = A[0];
+        else {
+          if (transA == CBlasTrans)
+            a[threadIdx.y][threadIdx.x] = A[0];
+          else
+            a[threadIdx.y][threadIdx.x] = cuConj(A[0]);
+        }
+
+        __syncthreads();
+
+        if (diag == CBlasNonUnit) x[1] = cuCdiv(x[1], a[1][1]); zaxpy(1, x[1], a[1], x);
+        if (diag == CBlasNonUnit) x[0] = cuCdiv(x[0], a[0][0]);
+
+        if (ti < m) {
+          X[0 * ldb] = x[0]; X[1 * ldb] = x[1];
+        }
+
+        A -= nb * lda + nb;
+        X -= nb * ldb;
+        j -= nb;
+      }
     }
   }
 }
 
-template void strsm<CBlasLeft,  CBlasUpper, CBlasNoTrans, CBlasNonUnit, 64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, float * __restrict__, int);
-template void strsm<CBlasLeft,  CBlasUpper, CBlasNoTrans, CBlasUnit,    64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, float * __restrict__, int);
-template void strsm<CBlasLeft,  CBlasUpper, CBlasTrans,   CBlasNonUnit, 32, 32,  8,  8,  8>(int, int, float, const float * __restrict__, int, float * __restrict__, int);
-template void strsm<CBlasLeft,  CBlasUpper, CBlasTrans,   CBlasUnit,    32, 32,  8,  8,  8>(int, int, float, const float * __restrict__, int, float * __restrict__, int);
-template void strsm<CBlasLeft,  CBlasLower, CBlasNoTrans, CBlasNonUnit, 64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, float * __restrict__, int);
-template void strsm<CBlasLeft,  CBlasLower, CBlasNoTrans, CBlasUnit,    64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, float * __restrict__, int);
-template void strsm<CBlasLeft,  CBlasLower, CBlasTrans,   CBlasNonUnit, 32, 32,  8,  8,  8>(int, int, float, const float * __restrict__, int, float * __restrict__, int);
-template void strsm<CBlasLeft,  CBlasLower, CBlasTrans,   CBlasUnit,    32, 32,  8,  8,  8>(int, int, float, const float * __restrict__, int, float * __restrict__, int);
-template void strsm<CBlasRight, CBlasUpper, CBlasNoTrans, CBlasNonUnit, 64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, float * __restrict__, int);
-template void strsm<CBlasRight, CBlasUpper, CBlasNoTrans, CBlasUnit,    64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, float * __restrict__, int);
-template void strsm<CBlasRight, CBlasUpper, CBlasTrans,   CBlasNonUnit, 32, 32,  8,  8,  8>(int, int, float, const float * __restrict__, int, float * __restrict__, int);
-template void strsm<CBlasRight, CBlasUpper, CBlasTrans,   CBlasUnit,    32, 32,  8,  8,  8>(int, int, float, const float * __restrict__, int, float * __restrict__, int);
-template void strsm<CBlasRight, CBlasLower, CBlasNoTrans, CBlasNonUnit, 64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, float * __restrict__, int);
-template void strsm<CBlasRight, CBlasLower, CBlasNoTrans, CBlasUnit,    64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, float * __restrict__, int);
-template void strsm<CBlasRight, CBlasLower, CBlasTrans,   CBlasNonUnit, 32, 32,  8,  8,  8>(int, int, float, const float * __restrict__, int, float * __restrict__, int);
-template void strsm<CBlasRight, CBlasLower, CBlasTrans,   CBlasUnit,    32, 32,  8,  8,  8>(int, int, float, const float * __restrict__, int, float * __restrict__, int);
+template void ztrsm<CBlasLeft,  CBlasUpper, CBlasNoTrans, CBlasNonUnit,  2,  4, 2, 2>(int, int, cuDoubleComplex, const cuDoubleComplex * __restrict__, int, cuDoubleComplex * __restrict__, int);
+template void ztrsm<CBlasLeft,  CBlasUpper, CBlasNoTrans, CBlasUnit,     2,  4, 2, 2>(int, int, cuDoubleComplex, const cuDoubleComplex * __restrict__, int, cuDoubleComplex * __restrict__, int);
+template void ztrsm<CBlasLeft,  CBlasUpper, CBlasTrans,   CBlasNonUnit,  2,  4, 2, 2>(int, int, cuDoubleComplex, const cuDoubleComplex * __restrict__, int, cuDoubleComplex * __restrict__, int);
+template void ztrsm<CBlasLeft,  CBlasUpper, CBlasTrans,   CBlasUnit,     2,  4, 2, 2>(int, int, cuDoubleComplex, const cuDoubleComplex * __restrict__, int, cuDoubleComplex * __restrict__, int);
+template void ztrsm<CBlasLeft,  CBlasLower, CBlasNoTrans, CBlasNonUnit,  2,  4, 2, 2>(int, int, cuDoubleComplex, const cuDoubleComplex * __restrict__, int, cuDoubleComplex * __restrict__, int);
+template void ztrsm<CBlasLeft,  CBlasLower, CBlasNoTrans, CBlasUnit,     2,  4, 2, 2>(int, int, cuDoubleComplex, const cuDoubleComplex * __restrict__, int, cuDoubleComplex * __restrict__, int);
+template void ztrsm<CBlasLeft,  CBlasLower, CBlasTrans,   CBlasNonUnit,  2,  4, 2, 2>(int, int, cuDoubleComplex, const cuDoubleComplex * __restrict__, int, cuDoubleComplex * __restrict__, int);
+template void ztrsm<CBlasLeft,  CBlasLower, CBlasTrans,   CBlasUnit,     2,  4, 2, 2>(int, int, cuDoubleComplex, const cuDoubleComplex * __restrict__, int, cuDoubleComplex * __restrict__, int);
+template void ztrsm<CBlasRight, CBlasUpper, CBlasNoTrans, CBlasNonUnit,  4,  2, 2, 2>(int, int, cuDoubleComplex, const cuDoubleComplex * __restrict__, int, cuDoubleComplex * __restrict__, int);
+template void ztrsm<CBlasRight, CBlasUpper, CBlasNoTrans, CBlasUnit,     4,  2, 2, 2>(int, int, cuDoubleComplex, const cuDoubleComplex * __restrict__, int, cuDoubleComplex * __restrict__, int);
+template void ztrsm<CBlasRight, CBlasUpper, CBlasTrans,   CBlasNonUnit,  4,  2, 2, 2>(int, int, cuDoubleComplex, const cuDoubleComplex * __restrict__, int, cuDoubleComplex * __restrict__, int);
+template void ztrsm<CBlasRight, CBlasUpper, CBlasTrans,   CBlasUnit,     4,  2, 2, 2>(int, int, cuDoubleComplex, const cuDoubleComplex * __restrict__, int, cuDoubleComplex * __restrict__, int);
+template void ztrsm<CBlasRight, CBlasLower, CBlasNoTrans, CBlasNonUnit,  4,  2, 2, 2>(int, int, cuDoubleComplex, const cuDoubleComplex * __restrict__, int, cuDoubleComplex * __restrict__, int);
+template void ztrsm<CBlasRight, CBlasLower, CBlasNoTrans, CBlasUnit,     4,  2, 2, 2>(int, int, cuDoubleComplex, const cuDoubleComplex * __restrict__, int, cuDoubleComplex * __restrict__, int);
+template void ztrsm<CBlasRight, CBlasLower, CBlasTrans,   CBlasNonUnit,  4,  2, 2, 2>(int, int, cuDoubleComplex, const cuDoubleComplex * __restrict__, int, cuDoubleComplex * __restrict__, int);
+template void ztrsm<CBlasRight, CBlasLower, CBlasTrans,   CBlasUnit,     4,  2, 2, 2>(int, int, cuDoubleComplex, const cuDoubleComplex * __restrict__, int, cuDoubleComplex * __restrict__, int);
