@@ -77,10 +77,10 @@ __global__ void ctrsm(int m, int n,
 
         __syncthreads();
 
-        x[0] = cuCmulf(alpha, make_cuComplex(b[0][ti], b[0][ti]));
-        x[1] = cuCmulf(alpha, make_cuComplex(b[1][ti], b[1][ti]));
-        x[2] = cuCmulf(alpha, make_cuComplex(b[2][ti], b[2][ti]));
-        x[3] = cuCmulf(alpha, make_cuComplex(b[3][ti], b[3][ti]));
+        x[0] = cuCmulf(alpha, make_cuComplex(b_real[0][ti], b_imag[0][ti]));
+        x[1] = cuCmulf(alpha, make_cuComplex(b_real[1][ti], b_imag[1][ti]));
+        x[2] = cuCmulf(alpha, make_cuComplex(b_real[2][ti], b_imag[2][ti]));
+        x[3] = cuCmulf(alpha, make_cuComplex(b_real[3][ti], b_imag[3][ti]));
 
         if (transA == CBlasNoTrans) {
           a_real[threadIdx.y][threadIdx.x] = cuCrealf(A[0]);
@@ -139,10 +139,10 @@ __global__ void ctrsm(int m, int n,
 
         __syncthreads();
 
-        x[0] = cuCmulf(alpha, make_cuComplex(b[0][ti], b[0][ti]));
-        x[1] = cuCmulf(alpha, make_cuComplex(b[1][ti], b[1][ti]));
-        x[2] = cuCmulf(alpha, make_cuComplex(b[2][ti], b[2][ti]));
-        x[3] = cuCmulf(alpha, make_cuComplex(b[3][ti], b[3][ti]));
+        x[0] = cuCmulf(alpha, make_cuComplex(b_real[0][ti], b_imag[0][ti]));
+        x[1] = cuCmulf(alpha, make_cuComplex(b_real[1][ti], b_imag[1][ti]));
+        x[2] = cuCmulf(alpha, make_cuComplex(b_real[2][ti], b_imag[2][ti]));
+        x[3] = cuCmulf(alpha, make_cuComplex(b_real[3][ti], b_imag[3][ti]));
 
         __syncthreads();
 
@@ -152,17 +152,17 @@ __global__ void ctrsm(int m, int n,
         while (k > 0) {
 
           if (transA == CBlasNoTrans) {
-            a_real[threadIdx.y][threadIdx.x] = cuCrealf(A[0]);
-            a_imag[threadIdx.y][threadIdx.x] = cuCimagf(A[0]);
+            a_real[threadIdx.y][threadIdx.x] = cuCrealf(_A[0]);
+            a_imag[threadIdx.y][threadIdx.x] = cuCimagf(_A[0]);
           }
           else {
             if (transA == CBlasTrans) {
-              a_real[threadIdx.x][threadIdx.y] = cuCrealf(A[0]);
-              a_imag[threadIdx.x][threadIdx.y] = cuCimagf(A[0]);
+              a_real[threadIdx.x][threadIdx.y] = cuCrealf(_A[0]);
+              a_imag[threadIdx.x][threadIdx.y] = cuCimagf(_A[0]);
             }
             else {
-              a_real[threadIdx.x][threadIdx.y] = cuCrealf(A[0]);
-              a_imag[threadIdx.x][threadIdx.y] = -cuCimagf(A[0]);
+              a_real[threadIdx.x][threadIdx.y] = cuCrealf(_A[0]);
+              a_imag[threadIdx.x][threadIdx.y] = -cuCimagf(_A[0]);
             }
           }
 
@@ -230,19 +230,23 @@ __global__ void ctrsm(int m, int n,
         i -= mb;
       }
     }
-    else {      /* (uplo == CBlasLower && transA == CBlasNoTrans) || (uplo == CBlasUpper && transA != CBlasNoTrans) */ //TODO: here
+    else {      /* (uplo == CBlasLower && transA == CBlasNoTrans) || (uplo == CBlasUpper && transA != CBlasNoTrans) */
       cuComplex * X = B;
       int i = 0;
 
       while (m > 0) {
         #pragma unroll
-        for (int j = 0; j < nb; j += by)
-          b[threadIdx.x][j + threadIdx.y] = X[j * ldb];
+        for (int j = 0; j < nb; j += by) {
+          b_real[threadIdx.x][j + threadIdx.y] = cuCrealf(X[j * ldb]);
+          b_imag[threadIdx.x][j + threadIdx.y] = cuCimagf(X[j * ldb]);
+        }
 
         __syncthreads();
 
-        x[0] = cuCmulf(alpha, b[0][ti]); x[1] = cuCmulf(alpha, b[1][ti]);
-        x[2] = cuCmulf(alpha, b[2][ti]); x[3] = cuCmulf(alpha, b[3][ti]);
+        x[0] = cuCmulf(alpha, make_cuComplex(b_real[0][ti], b_imag[0][ti]));
+        x[1] = cuCmulf(alpha, make_cuComplex(b_real[1][ti], b_imag[1][ti]));
+        x[2] = cuCmulf(alpha, make_cuComplex(b_real[2][ti], b_imag[2][ti]));
+        x[3] = cuCmulf(alpha, make_cuComplex(b_real[3][ti], b_imag[3][ti]));
 
         __syncthreads();
 
@@ -251,24 +255,32 @@ __global__ void ctrsm(int m, int n,
         int k = i;
         while (k > 0) {
 
-          if (transA == CBlasNoTrans)
-            a[threadIdx.y][threadIdx.x] = _A[0];
+          if (transA == CBlasNoTrans) {
+            a_real[threadIdx.y][threadIdx.x] = cuCrealf(_A[0]);
+            a_imag[threadIdx.y][threadIdx.x] = cuCimagf(_A[0]);
+          }
           else {
-            if (transA == CBlasTrans)
-              a[threadIdx.x][threadIdx.y] = _A[0];
-            else
-              a[threadIdx.x][threadIdx.y] = cuConjf(_A[0]);
+            if (transA == CBlasTrans) {
+              a_real[threadIdx.x][threadIdx.y] = cuCrealf(_A[0]);
+              a_imag[threadIdx.x][threadIdx.y] = cuCimagf(_A[0]);
+            }
+            else {
+              a_real[threadIdx.x][threadIdx.y] = cuCrealf(_A[0]);
+              a_imag[threadIdx.x][threadIdx.y] = -cuCimagf(_A[0]);
+            }
           }
 
           #pragma unroll
-          for (int j = 0; j < nb; j += by)
-            b[threadIdx.x][j + threadIdx.y] = _B[j * ldb];
+          for (int j = 0; j < nb; j += by) {
+            b_real[threadIdx.x][j + threadIdx.y] = cuCrealf(_B[j * ldb]);
+            b_imag[threadIdx.x][j + threadIdx.y] = cuCimagf(_B[j * ldb]);
+          }
 
           __syncthreads();
 
           #pragma unroll
           for (int l = 0; l < mb; l++)
-            caxpy(b[l][ti], a[l], x);
+            caxpy(make_cuComplex(b_real[l][ti], b_imag[l][ti]), a_real[l], a_imag[l], x);
 
           __syncthreads();
 
@@ -278,35 +290,44 @@ __global__ void ctrsm(int m, int n,
         }
 
         for (int l = 0; l < k; l++)
-          caxpy(b[l][ti], a[l], x);
+          caxpy(make_cuComplex(b_real[l][ti], b_imag[l][ti]), a_real[l], a_imag[l], x);
 
         __syncthreads();
 
-        if (transA == CBlasNoTrans)
-          a[threadIdx.y][threadIdx.x] = _A[0];
+        if (transA == CBlasNoTrans) {
+          a_real[threadIdx.y][threadIdx.x] = cuCrealf(A[0]);
+          a_imag[threadIdx.y][threadIdx.x] = cuCimagf(A[0]);
+        }
         else {
-          if (transA == CBlasTrans)
-            a[threadIdx.x][threadIdx.y] = _A[0];
-          else
-            a[threadIdx.x][threadIdx.y] = cuConjf(_A[0]);
+          if (transA == CBlasTrans) {
+            a_real[threadIdx.x][threadIdx.y] = cuCrealf(A[0]);
+            a_imag[threadIdx.x][threadIdx.y] = cuCimagf(A[0]);
+          }
+          else {
+            a_real[threadIdx.x][threadIdx.y] = cuCrealf(A[0]);
+            a_imag[threadIdx.x][threadIdx.y] = -cuCimagf(A[0]);
+          }
         }
 
         __syncthreads();
 
         if (m < mb) break;
 
-        if (diag == CBlasNonUnit) x[0] = cuCdivf(x[0], a[0][0]); caxpy(3, x[0], &a[0][1], &x[1]);
-        if (diag == CBlasNonUnit) x[1] = cuCdivf(x[1], a[1][1]); caxpy(2, x[1], &a[1][2], &x[2]);
-        if (diag == CBlasNonUnit) x[2] = cuCdivf(x[2], a[2][2]); caxpy(1, x[2], &a[2][3], &x[3]);
-        if (diag == CBlasNonUnit) x[3] = cuCdivf(x[3], a[3][3]);
+        if (diag == CBlasNonUnit) x[0] = cuCdivf(x[0], make_cuComplex(a_real[0][0], a_imag[0][0])); caxpy(3, x[0], &a_real[0][1], &a_imag[0][1], &x[1]);
+        if (diag == CBlasNonUnit) x[1] = cuCdivf(x[1], make_cuComplex(a_real[1][1], a_imag[1][1])); caxpy(2, x[1], &a_real[1][2], &a_imag[1][2], &x[2]);
+        if (diag == CBlasNonUnit) x[2] = cuCdivf(x[2], make_cuComplex(a_real[2][2], a_imag[2][2])); caxpy(1, x[2], &a_real[2][3], &a_imag[2][3], &x[3]);
+        if (diag == CBlasNonUnit) x[3] = cuCdivf(x[3], make_cuComplex(a_real[3][3], a_imag[3][3]));
 
-        b[0][ti] = x[0]; b[1][ti] = x[1]; b[2][ti] = x[2]; b[3][ti] = x[3];
+        b_real[0][ti] = cuCrealf(x[0]); b_imag[0][ti] = cuCimagf(x[0]);
+        b_real[1][ti] = cuCrealf(x[1]); b_imag[1][ti] = cuCimagf(x[1]);
+        b_real[2][ti] = cuCrealf(x[2]); b_imag[2][ti] = cuCimagf(x[2]);
+        b_real[3][ti] = cuCrealf(x[3]); b_imag[3][ti] = cuCimagf(x[3]);
 
         __syncthreads();
 
         #pragma unroll
         for (int j = 0; j < nb; j += by)
-          X[j * ldb] = b[threadIdx.x][j + threadIdx.y];
+          X[j * ldb] = make_cuComplex(b_real[threadIdx.x][j + threadIdx.y], b_imag[threadIdx.x][j + threadIdx.y]);
 
         __syncthreads();
 
@@ -316,22 +337,25 @@ __global__ void ctrsm(int m, int n,
         i += mb;
       }
 
-      if (m > 0) { if (diag == CBlasNonUnit) x[0] = cuCdivf(x[0], a[0][0]);
-      if (m > 1) { caxpy(m - 1, x[0], &a[0][1], &x[1]); if (diag == CBlasNonUnit) x[1] = cuCdivf(x[1], a[1][1]);
-      if (m > 2) { caxpy(m - 2, x[1], &a[1][2], &x[2]); if (diag == CBlasNonUnit) x[2] = cuCdivf(x[2], a[2][2]);
-      if (m > 3) { caxpy(m - 3, x[2], &a[2][3], &x[3]); if (diag == CBlasNonUnit) x[3] = cuCdivf(x[3], a[3][3]); }}}}
+      if (m > 0) { if (diag == CBlasNonUnit) x[0] = cuCdivf(x[0], make_cuComplex(a_real[0][0], a_imag[0][0]));
+      if (m > 1) { caxpy(m - 1, x[0], &a_real[0][1], &a_imag[0][1], &x[1]); if (diag == CBlasNonUnit) x[1] = cuCdivf(x[1], make_cuComplex(a_real[1][1], a_imag[1][1]));
+      if (m > 2) { caxpy(m - 2, x[1], &a_real[1][2], &a_imag[1][2], &x[2]); if (diag == CBlasNonUnit) x[2] = cuCdivf(x[2], make_cuComplex(a_real[2][2], a_imag[2][2]));
+      if (m > 3) { caxpy(m - 3, x[2], &a_real[2][3], &a_imag[2][3], &x[3]); if (diag == CBlasNonUnit) x[3] = cuCdivf(x[3], make_cuComplex(a_real[3][3], a_imag[3][3])); }}}}
 
       __syncthreads();
 
-      b[0][ti] = x[0]; b[1][ti] = x[1]; b[2][ti] = x[2]; b[3][ti] = x[3];
+      b_real[0][ti] = cuCrealf(x[0]); b_imag[0][ti] = cuCimagf(x[0]);
+      b_real[1][ti] = cuCrealf(x[1]); b_imag[1][ti] = cuCimagf(x[1]);
+      b_real[2][ti] = cuCrealf(x[2]); b_imag[2][ti] = cuCimagf(x[2]);
+      b_real[3][ti] = cuCrealf(x[3]); b_imag[3][ti] = cuCimagf(x[3]);
 
       __syncthreads();
 
       if (threadIdx.x < m) {
-        X[0] = b[threadIdx.x][by * 0 + threadIdx.y]; if (by * 1 >= n) return; X += by * ldb;
-        X[0] = b[threadIdx.x][by * 1 + threadIdx.y]; if (by * 2 >= n) return; X += by * ldb;
-        X[0] = b[threadIdx.x][by * 2 + threadIdx.y]; if (by * 3 >= n) return; X += by * ldb;
-        X[0] = b[threadIdx.x][by * 3 + threadIdx.y];
+        X[0] = make_cuComplex(b_real[threadIdx.x][by * 0 + threadIdx.y], b_imag[threadIdx.x][by * 0 + threadIdx.y]); if (by * 1 >= n) return; X += by * ldb;
+        X[1] = make_cuComplex(b_real[threadIdx.x][by * 1 + threadIdx.y], b_imag[threadIdx.x][by * 1 + threadIdx.y]); if (by * 2 >= n) return; X += by * ldb;
+        X[2] = make_cuComplex(b_real[threadIdx.x][by * 2 + threadIdx.y], b_imag[threadIdx.x][by * 2 + threadIdx.y]); if (by * 3 >= n) return; X += by * ldb;
+        X[3] = make_cuComplex(b_real[threadIdx.x][by * 3 + threadIdx.y], b_imag[threadIdx.x][by * 3 + threadIdx.y]);
       }
     }
   }
@@ -341,7 +365,9 @@ __global__ void ctrsm(int m, int n,
 //     typedef char _z[(by == nb) ? 1 : -1];
 
     // Each thread computes a row of B 4 elements at a time
-    __shared__ cuComplex a[nb][(transA == CBlasNoTrans) ? nb + 1 : nb];
+    __shared__ float a_real[nb][(transA == CBlasNoTrans) ? nb + 1 : nb];
+    __shared__ float a_imag[nb][(transA == CBlasNoTrans) ? nb + 1 : nb];
+
     cuComplex x[4];
 
     const int ti = threadIdx.y * bx + threadIdx.x;
@@ -364,20 +390,26 @@ __global__ void ctrsm(int m, int n,
         int k = j;
         while (k > 0) {
 
-          if (transA == CBlasNoTrans)
-            a[threadIdx.x][threadIdx.y] = _A[0];
+          if (transA == CBlasNoTrans) {
+            a_real[threadIdx.x][threadIdx.y] = cuCrealf(_A[0]);
+            a_imag[threadIdx.x][threadIdx.y] = cuCimagf(_A[0]);
+          }
           else {
-            if (transA == CBlasTrans)
-              a[threadIdx.y][threadIdx.x] = _A[0];
-            else
-              a[threadIdx.y][threadIdx.x] = cuConjf(_A[0]);
+            if (transA == CBlasTrans) {
+              a_real[threadIdx.y][threadIdx.x] = cuCrealf(_A[0]);
+              a_imag[threadIdx.y][threadIdx.x] = cuCimagf(_A[0]);
+            }
+            else {
+              a_real[threadIdx.y][threadIdx.x] = cuCrealf(_A[0]);
+              a_imag[threadIdx.y][threadIdx.x] = -cuCimagf(_A[0]);
+            }
           }
 
           __syncthreads();
 
           #pragma unroll
           for (int l = 0; l < nb; l++)
-            caxpy(_B[l * ldb], a[l], x);
+            caxpy(_B[l * ldb], a_real[l], a_imag[l], x);
 
           __syncthreads();
 
@@ -386,19 +418,29 @@ __global__ void ctrsm(int m, int n,
           k -= nb;
         }
 
-        if (transA == CBlasNoTrans)
-          a[threadIdx.x][threadIdx.y] = _A[0];
-        else
-          a[threadIdx.y][threadIdx.x] = _A[0];
+        if (transA == CBlasNoTrans) {
+          a_real[threadIdx.x][threadIdx.y] = cuCrealf(_A[0]);
+          a_imag[threadIdx.x][threadIdx.y] = cuCimagf(_A[0]);
+        }
+        else {
+          if (transA == CBlasTrans) {
+            a_real[threadIdx.y][threadIdx.x] = cuCrealf(_A[0]);
+            a_imag[threadIdx.y][threadIdx.x] = cuCimagf(_A[0]);
+          }
+          else {
+            a_real[threadIdx.y][threadIdx.x] = cuCrealf(_A[0]);
+            a_imag[threadIdx.y][threadIdx.x] = -cuCimagf(_A[0]);
+          }
+        }
 
         __syncthreads();
 
         if (n < nb) break;
 
-        if (n > 0) { if (diag == CBlasNonUnit) x[0] = cuCdivf(x[0], a[0][0]);
-        if (n > 1) { caxpy(7, x[0], &a[0][1], &x[1]); if (diag == CBlasNonUnit) x[1] = cuCdivf(x[1], a[1][1]);
-        if (n > 2) { caxpy(6, x[1], &a[1][2], &x[2]); if (diag == CBlasNonUnit) x[2] = cuCdivf(x[2], a[2][2]);
-        if (n > 3) { caxpy(5, x[2], &a[2][3], &x[3]); if (diag == CBlasNonUnit) x[3] = cuCdivf(x[3], a[3][3]); }}}}
+        if (n > 0) { if (diag == CBlasNonUnit) x[0] = cuCdivf(x[0], make_cuComplex(a_real[0][0], a_imag[0][0]));
+        if (n > 1) { caxpy(7, x[0], &a_real[0][1], &a_imag[0][1], &x[1]); if (diag == CBlasNonUnit) x[1] = cuCdivf(x[1], make_cuComplex(a_real[1][1], a_imag[1][1]));
+        if (n > 2) { caxpy(6, x[1], &a_real[1][2], &a_imag[1][2], &x[2]); if (diag == CBlasNonUnit) x[2] = cuCdivf(x[2], make_cuComplex(a_real[2][2], a_imag[2][2]));
+        if (n > 3) { caxpy(5, x[2], &a_real[2][3], &a_imag[2][3], &x[3]); if (diag == CBlasNonUnit) x[3] = cuCdivf(x[3], make_cuComplex(a_real[3][3], a_imag[3][3])); }}}}
 
         if (ti < m) {
           X[0 * ldb] = x[0]; X[1 * ldb] = x[1]; X[2 * ldb] = x[2]; X[3 * ldb] = x[3];
@@ -412,10 +454,10 @@ __global__ void ctrsm(int m, int n,
         j += nb;
       }
 
-      if (n > 0) { if (diag == CBlasNonUnit)x[0] = cuCdivf(x[0], a[0][0]);
-      if (n > 1) { caxpy(n - 1, x[0], &a[0][1], &x[1]); if (diag == CBlasNonUnit) x[1] = cuCdivf(x[1], a[1][1]);
-      if (n > 2) { caxpy(n - 2, x[1], &a[1][2], &x[2]); if (diag == CBlasNonUnit) x[2] = cuCdivf(x[2], a[2][2]);
-      if (n > 3) { caxpy(n - 3, x[2], &a[2][3], &x[3]); if (diag == CBlasNonUnit) x[3] = cuCdivf(x[3], a[3][3]); }}}}
+      if (n > 0) { if (diag == CBlasNonUnit)x[0] = cuCdivf(x[0], make_cuComplex(a_real[0][0], a_imag[0][0]));
+      if (n > 1) { caxpy(n - 1, x[0], &a_real[0][1], &a_imag[0][1], &x[1]); if (diag == CBlasNonUnit) x[1] = cuCdivf(x[1], make_cuComplex(a_real[1][1], a_imag[1][1]));
+      if (n > 2) { caxpy(n - 2, x[1], &a_real[1][2], &a_imag[1][2], &x[2]); if (diag == CBlasNonUnit) x[2] = cuCdivf(x[2], make_cuComplex(a_real[2][2], a_imag[2][2]));
+      if (n > 3) { caxpy(n - 3, x[2], &a_real[2][3], &a_imag[2][3], &x[3]); if (diag == CBlasNonUnit) x[3] = cuCdivf(x[3], make_cuComplex(a_real[3][3], a_imag[3][3])); }}}}
 
       if (ti < m) {
         X[0] = x[0]; if (1 >= n) return; X += ldb; X[0] = x[1]; if (2 >= n) return; X += ldb;
@@ -433,22 +475,28 @@ __global__ void ctrsm(int m, int n,
         x[0] = cuCmulf(alpha, X[0 * ldb]); x[1] = cuCmulf(alpha, X[1 * ldb]);
         x[2] = cuCmulf(alpha, X[2 * ldb]); x[3] = cuCmulf(alpha, X[3 * ldb]);
 
-        if (transA == CBlasNoTrans)
-          a[threadIdx.x][threadIdx.y] = A[0];
+        if (transA == CBlasNoTrans) {
+          a_real[threadIdx.x][threadIdx.y] = cuCrealf(A[0]);
+          a_imag[threadIdx.x][threadIdx.y] = cuCimagf(A[0]);
+        }
         else {
-          if (transA == CBlasTrans)
-            a[threadIdx.y][threadIdx.x] = A[0];
-          else
-            a[threadIdx.y][threadIdx.x] = cuConjf(A[0]);
+          if (transA == CBlasTrans) {
+            a_real[threadIdx.y][threadIdx.x] = cuCrealf(A[0]);
+            a_imag[threadIdx.y][threadIdx.x] = cuCimagf(A[0]);
+          }
+          else {
+            a_real[threadIdx.y][threadIdx.x] = cuCrealf(A[0]);
+            a_imag[threadIdx.y][threadIdx.x] = -cuCimagf(A[0]);
+          }
         }
 
         __syncthreads();
 
         switch (nn - 1) {
-          case 3: if (diag == CBlasNonUnit) x[3] = cuCdivf(x[3], a[3][3]); caxpy(3, x[3], a[3], x);
-          case 2: if (diag == CBlasNonUnit) x[2] = cuCdivf(x[2], a[2][2]); caxpy(2, x[2], a[2], x);
-          case 1: if (diag == CBlasNonUnit) x[1] = cuCdivf(x[1], a[1][1]); caxpy(1, x[1], a[1], x);
-          case 0: if (diag == CBlasNonUnit) x[0] = cuCdivf(x[0], a[0][0]);
+          case 3: if (diag == CBlasNonUnit) x[3] = cuCdivf(x[3], make_cuComplex(a_real[3][3], a_imag[3][3])); caxpy(3, x[3], a_real[3], a_imag[3], x);
+          case 2: if (diag == CBlasNonUnit) x[2] = cuCdivf(x[2], make_cuComplex(a_real[2][2], a_imag[2][2])); caxpy(2, x[2], a_real[2], a_imag[2], x);
+          case 1: if (diag == CBlasNonUnit) x[1] = cuCdivf(x[1], make_cuComplex(a_real[1][1], a_imag[1][1])); caxpy(1, x[1], a_real[1], a_imag[1], x);
+          case 0: if (diag == CBlasNonUnit) x[0] = cuCdivf(x[0], make_cuComplex(a_real[0][0], a_imag[0][0]));
         }
 
         if (ti < m) {
@@ -474,13 +522,19 @@ __global__ void ctrsm(int m, int n,
         int k = n - j - nb;
         while (k > 0) {
 
-          if (transA == CBlasNoTrans)
-            a[threadIdx.x][threadIdx.y] = _A[0];
+          if (transA == CBlasNoTrans) {
+            a_real[threadIdx.x][threadIdx.y] = cuCrealf(_A[0]);
+            a_imag[threadIdx.x][threadIdx.y] = cuCimagf(_A[0]);
+          }
           else {
-            if (transA == CBlasTrans)
-              a[threadIdx.y][threadIdx.x] = _A[0];
-            else
-              a[threadIdx.y][threadIdx.x] = cuConjf(_A[0]);
+            if (transA == CBlasTrans) {
+              a_real[threadIdx.y][threadIdx.x] = cuCrealf(_A[0]);
+              a_imag[threadIdx.y][threadIdx.x] = cuCimagf(_A[0]);
+            }
+            else {
+              a_real[threadIdx.y][threadIdx.x] = cuCrealf(_A[0]);
+              a_imag[threadIdx.y][threadIdx.x] = -cuCimagf(_A[0]);
+            }
           }
 
           __syncthreads();
@@ -489,7 +543,7 @@ __global__ void ctrsm(int m, int n,
 
           #pragma unroll
           for (int l = 0; l < nb; l++)
-            caxpy(_B[l * ldb], a[l], x);
+            caxpy(_B[l * ldb], a_real[l], a_imag[l], x);
 
           __syncthreads();
 
@@ -499,25 +553,31 @@ __global__ void ctrsm(int m, int n,
         }
 
         for (int l = 0; l < k; l++)
-          caxpy(_B[l * ldb], a[l], x);
+          caxpy(_B[l * ldb], a_real[l], a_imag[l], x);
 
         __syncthreads();
 
-        if (transA == CBlasNoTrans)
-          a[threadIdx.x][threadIdx.y] = A[0];
+        if (transA == CBlasNoTrans) {
+          a_real[threadIdx.x][threadIdx.y] = cuCrealf(A[0]);
+          a_imag[threadIdx.x][threadIdx.y] = cuCimagf(A[0]);
+        }
         else {
-          if (transA == CBlasTrans)
-            a[threadIdx.y][threadIdx.x] = A[0];
-          else
-            a[threadIdx.y][threadIdx.x] = cuConjf(A[0]);
+          if (transA == CBlasTrans) {
+            a_real[threadIdx.y][threadIdx.x] = cuCrealf(A[0]);
+            a_imag[threadIdx.y][threadIdx.x] = cuCimagf(A[0]);
+          }
+          else {
+            a_real[threadIdx.y][threadIdx.x] = cuCrealf(A[0]);
+            a_imag[threadIdx.y][threadIdx.x] = -cuCimagf(A[0]);
+          }
         }
 
         __syncthreads();
 
-        if (diag == CBlasNonUnit) x[3] = cuCdivf(x[3], a[3][3]); caxpy(3, x[3], a[3], x);
-        if (diag == CBlasNonUnit) x[2] = cuCdivf(x[2], a[2][2]); caxpy(2, x[2], a[2], x);
-        if (diag == CBlasNonUnit) x[1] = cuCdivf(x[1], a[1][1]); caxpy(1, x[1], a[1], x);
-        if (diag == CBlasNonUnit) x[0] = cuCdivf(x[0], a[0][0]);
+        if (diag == CBlasNonUnit) x[3] = cuCdivf(x[3], make_cuComplex(a_real[3][3], a_imag[3][3])); caxpy(3, x[3], a_real[3], a_imag[3], x);
+        if (diag == CBlasNonUnit) x[2] = cuCdivf(x[2], make_cuComplex(a_real[2][2], a_imag[2][2])); caxpy(2, x[2], a_real[2], a_imag[2], x);
+        if (diag == CBlasNonUnit) x[1] = cuCdivf(x[1], make_cuComplex(a_real[1][1], a_imag[1][1])); caxpy(1, x[1], a_real[1], a_imag[1], x);
+        if (diag == CBlasNonUnit) x[0] = cuCdivf(x[0], make_cuComplex(a_real[0][0], a_imag[0][0]));
 
         if (ti < m) {
           X[0 * ldb] = x[0]; X[1 * ldb] = x[1]; X[2 * ldb] = x[2]; X[3 * ldb] = x[3];
@@ -879,8 +939,12 @@ __global__ void ctrsm(int m, int n,
 
         if (transA == CBlasNoTrans)
           a[threadIdx.x][threadIdx.y] = _A[0];
-        else
-          a[threadIdx.y][threadIdx.x] = _A[0];
+        else {
+          if (transA == CBlasTrans)
+            a[threadIdx.y][threadIdx.x] = _A[0];
+          else
+            a[threadIdx.y][threadIdx.x] = cuConjf(_A[0]);
+        }
 
         __syncthreads();
 
