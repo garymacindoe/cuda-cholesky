@@ -9,25 +9,27 @@ __host__ __device__ static inline cuDoubleComplex cuCfma(double a, cuDoubleCompl
   return make_cuDoubleComplex(a * cuCreal(b) + cuCreal(c), a * cuCimag(b) + cuCimag(c));
 }
 
-#if __CUDA_ARCH__ < 200
-__device__ void zaxpy(cuDoubleComplex a, int * b_real_lo, int * b_real_hi, int * b_imag_lo, int * b_imag_hi, cuDoubleComplex * c) {
-  c[0] = cuCfma(a, make_cuDoubleComplex(__hiloint2double(b_real_hi[0], b_real_lo[0]),
-                                        __hiloint2double(b_imag_hi[0], b_imag_lo[0])), c[0]);
-  c[1] = cuCfma(a, make_cuDoubleComplex(__hiloint2double(b_real_hi[1], b_real_lo[1]),
-                                        __hiloint2double(b_imag_hi[1], b_imag_lo[1])), c[1]);
-  c[2] = cuCfma(a, make_cuDoubleComplex(__hiloint2double(b_real_hi[2], b_real_lo[2]),
-                                        __hiloint2double(b_imag_hi[2], b_imag_lo[2])), c[2]);
-  c[3] = cuCfma(a, make_cuDoubleComplex(__hiloint2double(b_real_hi[3], b_real_lo[3]),
-                                        __hiloint2double(b_imag_hi[3], b_imag_lo[3])), c[3]);
+#if __CUDA_ARCH__ < 200 && !defined(__BANK_CONFLICT__)
+
+// y(1:4) += alpha * x(1:4)
+__device__ void zaxpy(cuDoubleComplex a, int * b_real_lo, int * b_real_hi,
+                      int * b_imag_lo, int * b_imag_hi, cuDoubleComplex * c) {
+  c[0] = cuCfma(a, make_cuDoubleComplex(
+                     __hiloint2double(b_real_hi[0], b_real_lo[0]),
+                     __hiloint2double(b_imag_hi[0], b_imag_lo[0])), c[0]);
+
+  c[1] = cuCfma(a, make_cuDoubleComplex(
+                     __hiloint2double(b_real_hi[1], b_real_lo[1]),
+                     __hiloint2double(b_imag_hi[1], b_imag_lo[1])), c[1]);
+
+  c[2] = cuCfma(a, make_cuDoubleComplex(
+                     __hiloint2double(b_real_hi[2], b_real_lo[2]),
+                     __hiloint2double(b_imag_hi[2], b_imag_lo[2])), c[2]);
+
+  c[3] = cuCfma(a, make_cuDoubleComplex(
+                     __hiloint2double(b_real_hi[3], b_real_lo[3]),
+                     __hiloint2double(b_imag_hi[3], b_imag_lo[3])), c[3]);
 }
-#else
-__device__ void zaxpy(cuDoubleComplex a, double * b_real, double * b_imag, cuDoubleComplex * c) {
-  c[0] = cuCfma(a, make_cuDoubleComplex(b_real[0], b_imag[0]), c[0]);
-  c[1] = cuCfma(a, make_cuDoubleComplex(b_real[1], b_imag[1]), c[1]);
-  c[2] = cuCfma(a, make_cuDoubleComplex(b_real[2], b_imag[2]), c[2]);
-  c[3] = cuCfma(a, make_cuDoubleComplex(b_real[3], b_imag[3]), c[3]);
-}
-#endif
 
 /**
  * ZHERK:
@@ -85,7 +87,6 @@ __global__ void zherk(int n, int k, double alpha,
   /*
    * Blocks of A and "B" in shared memory and C in registers.
    */
-#if __CUDA_ARCH__ < 200
   __shared__ int a_real_lo[mb][kb + 1];       // Optimised away when transA == CBlasNoTrans
   __shared__ int a_real_hi[mb][kb + 1];       // Optimised away when transA == CBlasNoTrans
   __shared__ int a_imag_lo[mb][kb + 1];       // Optimised away when transA == CBlasNoTrans
@@ -94,12 +95,6 @@ __global__ void zherk(int n, int k, double alpha,
   __shared__ int b_real_hi[kb][(trans == CBlasNoTrans) ? nb : nb + 1];
   __shared__ int b_imag_lo[kb][(trans == CBlasNoTrans) ? nb : nb + 1];
   __shared__ int b_imag_hi[kb][(trans == CBlasNoTrans) ? nb : nb + 1];
-#else
-  __shared__ double a_real[mb][kb + 1];       // Optimised away when transA == CBlasNoTrans
-  __shared__ double a_imag[mb][kb + 1];       // Optimised away when transA == CBlasNoTrans
-  __shared__ double b_real[kb][(trans == CBlasNoTrans) ? nb : nb + 1];
-  __shared__ double b_imag[kb][(trans == CBlasNoTrans) ? nb : nb + 1];
-#endif
 
   cuDoubleComplex c[] = { { 0.0, 0.0 }, { 0.0, 0.0 }, { 0.0, 0.0 }, { 0.0, 0.0 } };
 
@@ -111,15 +106,10 @@ __global__ void zherk(int n, int k, double alpha,
       for (int l = 0; l < kb; l += by) {
 #pragma unroll
         for (int j = 0; j < nb; j += bx) {
-#if __CUDA_ARCH__ < 200
           b_real_lo[l + threadIdx.y][j + threadIdx.x] = __double2loint( cuCreal(B[l * lda + j]));
           b_real_hi[l + threadIdx.y][j + threadIdx.x] = __double2hiint( cuCreal(B[l * lda + j]));
           b_imag_lo[l + threadIdx.y][j + threadIdx.x] = __double2loint(-cuCimag(B[l * lda + j]));
           b_imag_hi[l + threadIdx.y][j + threadIdx.x] = __double2hiint(-cuCimag(B[l * lda + j]));
-#else
-          b_real[l + threadIdx.y][j + threadIdx.x] =  cuCreal(B[l * lda + j]);
-          b_imag[l + threadIdx.y][j + threadIdx.x] = -cuCimag(B[l * lda + j]);
-#endif
         }
       }
     }
@@ -131,15 +121,10 @@ __global__ void zherk(int n, int k, double alpha,
       for (int l = 0; l < kb; l += bx) {
 #pragma unroll
         for (int i = 0; i < mb; i += by) {
-#if __CUDA_ARCH__ < 200
-            a_real_lo[i + threadIdx.y][l + threadIdx.x] = __double2loint( cuCreal(A[i * lda + l]));
-            a_real_hi[i + threadIdx.y][l + threadIdx.x] = __double2hiint( cuCreal(A[i * lda + l]));
-            a_imag_lo[i + threadIdx.y][l + threadIdx.x] = __double2loint(-cuCimag(A[i * lda + l]));
-            a_imag_hi[i + threadIdx.y][l + threadIdx.x] = __double2hiint(-cuCimag(A[i * lda + l]));
-#else
-            a_real[i + threadIdx.y][l + threadIdx.x] =  cuCreal(A[i * lda + l]);
-            a_imag[i + threadIdx.y][l + threadIdx.x] = -cuCimag(A[i * lda + l]);
-#endif
+          a_real_lo[i + threadIdx.y][l + threadIdx.x] = __double2loint( cuCreal(A[i * lda + l]));
+          a_real_hi[i + threadIdx.y][l + threadIdx.x] = __double2hiint( cuCreal(A[i * lda + l]));
+          a_imag_lo[i + threadIdx.y][l + threadIdx.x] = __double2loint(-cuCimag(A[i * lda + l]));
+          a_imag_hi[i + threadIdx.y][l + threadIdx.x] = __double2hiint(-cuCimag(A[i * lda + l]));
         }
       }
       A += kb;
@@ -148,15 +133,10 @@ __global__ void zherk(int n, int k, double alpha,
       for (int l = 0; l < kb; l += bx) {
 #pragma unroll
         for (int j = 0; j < nb; j += by) {
-#if __CUDA_ARCH__ < 200
           b_real_lo[l + threadIdx.x][j + threadIdx.y] = __double2loint(cuCreal(B[j * lda + l]));
           b_real_hi[l + threadIdx.x][j + threadIdx.y] = __double2hiint(cuCreal(B[j * lda + l]));
           b_imag_lo[l + threadIdx.x][j + threadIdx.y] = __double2loint(cuCimag(B[j * lda + l]));
           b_imag_hi[l + threadIdx.x][j + threadIdx.y] = __double2hiint(cuCimag(B[j * lda + l]));
-#else
-          b_real[l + threadIdx.x][j + threadIdx.y] = cuCreal(B[j * lda + l]);
-          b_imag[l + threadIdx.x][j + threadIdx.y] = cuCimag(B[j * lda + l]);
-#endif
         }
       }
     }
@@ -170,11 +150,7 @@ __global__ void zherk(int n, int k, double alpha,
 //       typedef char y[(nb == 4) ? 1 : -1]; // nb must equal the size of row per thread
 #pragma unroll
       for (int l = 0; l < kb; l++) {
-#if __CUDA_ARCH__ < 200
         zaxpy(A[0], b_real_lo[l], b_real_hi[l], b_imag_lo[l], b_imag_hi[l], c);
-#else
-        zaxpy(A[0], b_real[l], b_imag[l], c);
-#endif
         A += lda;
       }
     }
@@ -183,7 +159,6 @@ __global__ void zherk(int n, int k, double alpha,
 //       typedef char y[((bx * by * 4) / mb == nb) ? 1 : -1];     // when the threads are wrapped around mb they must spread along to nb
 #pragma unroll
       for (int l = 0; l < kb; l++)
-#if __CUDA_ARCH__ < 200
         zaxpy(make_cuDoubleComplex(
           __hiloint2double(a_real_hi[(bx * by == mb) ? ti : ti % mb][l],
                            a_real_lo[(bx * by == mb) ? ti : ti % mb][l]),
@@ -193,12 +168,6 @@ __global__ void zherk(int n, int k, double alpha,
               &b_real_hi[l][(bx * by == mb) ? 0 : 4 * (ti / mb)],
               &b_imag_lo[l][(bx * by == mb) ? 0 : 4 * (ti / mb)],
               &b_imag_hi[l][(bx * by == mb) ? 0 : 4 * (ti / mb)], c);
-#else
-        zaxpy(make_cuDoubleComplex(a_real[(bx * by == mb) ? ti : ti % mb][l],
-                                   a_imag[(bx * by == mb) ? ti : ti % mb][l]),
-              &b_real[l][(bx * by == mb) ? 0 : 4 * (ti / mb)],
-              &b_imag[l][(bx * by == mb) ? 0 : 4 * (ti / mb)], c);
-#endif
     }
 
     __syncthreads();
@@ -209,17 +178,12 @@ __global__ void zherk(int n, int k, double alpha,
 
   if (trans == CBlasNoTrans) {
     for (int l = 0; l < k; l++) {
-#if __CUDA_ARCH__ < 200
       zaxpy(A[0], b_real_lo[l], b_real_hi[l], b_imag_lo[l], b_imag_hi[l], c);
-#else
-      zaxpy(A[0], b_real[l], b_imag[l], c);
-#endif
       A += lda;
     }
   }
   else {
     for (int l = 0; l < k; l++)
-#if __CUDA_ARCH__ < 200
       zaxpy(make_cuDoubleComplex(
         __hiloint2double(a_real_hi[(bx * by == mb) ? ti : ti % mb][l],
                          a_real_lo[(bx * by == mb) ? ti : ti % mb][l]),
@@ -229,12 +193,6 @@ __global__ void zherk(int n, int k, double alpha,
             &b_real_hi[l][(bx * by == mb) ? 0 : 4 * (ti / mb)],
             &b_imag_lo[l][(bx * by == mb) ? 0 : 4 * (ti / mb)],
             &b_imag_hi[l][(bx * by == mb) ? 0 : 4 * (ti / mb)], c);
-#else
-      zaxpy(make_cuDoubleComplex(a_real[(bx * by == mb) ? ti : ti % mb][l],
-                                 a_imag[(bx * by == mb) ? ti : ti % mb][l]),
-            &b_real[l][(bx * by == mb) ? 0 : 4 * (ti / mb)],
-            &b_imag[l][(bx * by == mb) ? 0 : 4 * (ti / mb)], c);
-#endif
   }
 
   const unsigned int i = (bx * by == mb) ? bi + ti : bi + ti % mb;
@@ -255,6 +213,167 @@ __global__ void zherk(int n, int k, double alpha,
     }
   }
 }
+
+#else
+
+// y(1:4) += alpha * x(1:4)
+__device__ void zaxpy(cuDoubleComplex a, cuDoubleComplex * b, cuDoubleComplex * c) {
+  c[0] = cuCfma(a, b[0], c[0]); c[1] = cuCfma(a, b[1], c[1]);
+  c[2] = cuCfma(a, b[2], c[2]); c[3] = cuCfma(a, b[3], c[3]);
+}
+
+/**
+ * ZHERK:
+ *   C := alpha * A'A + beta * C for trans == CBlasNoTrans; or
+ *   C := alpha * AA' + beta * C for trans != CBlasNoTrans.
+ *
+ * Only the upper or lower triangle of C is updated.
+ *
+ * @param uplo   uplo for C.
+ * @param trans  transpose for A.
+ * @param mb     the number of rows in the block of C.
+ * @param nb     the number of columns in the block of C.
+ * @param kb     how far to unroll the inner loop.
+ * @param bx     blockDim.x.
+ * @param by     blockDim.y.
+ */
+template <CBlasUplo uplo, CBlasTranspose trans,
+          unsigned int mb, unsigned int nb, unsigned int kb,
+          unsigned int bx, unsigned int by>
+__global__ void zherk(int n, int k, double alpha,
+                      const cuDoubleComplex * __restrict__ A, int lda,
+                      double beta, cuDoubleComplex * __restrict__ C, int ldc) {
+
+  const int bi = blockIdx.x * mb;       // Starting row of block of C
+  const int bj = blockIdx.y * nb;       // Starting column of block of C
+  const int ti = threadIdx.y * bx + threadIdx.x;        // Unwrapped thread index [0, bx * by]
+
+  /*
+   * Cause blocks that are entirely above or below the diagonal to exit now.
+   */
+  if ((uplo == CBlasUpper && bj + nb - 1 < bi) ||
+      (uplo == CBlasLower && bi + mb - 1 < bj))
+    return;
+
+  /*
+   * If trans == CBlasNoTrans, A is A and B is A'. If trans != CBlasNoTrans, A
+   * is A' and B is A.
+   */
+  const cuDoubleComplex * __restrict__ B = A;
+
+  /*
+   * Compute our starting points in A, "B" and C.
+   *
+   * For trans != CBlasNoTrans A is cached in shared memory so the unwrapped
+   * thread index can be re-wrapped around mb when calculating C.
+   *
+   * If trans == CBlasNoTrans then bx * by == mb (checked later on) so there
+   * doesn't need to be a separate check for trans == CBlasNoTrans in
+   * calculating the start of C here.
+   */
+  A += (trans == CBlasNoTrans) ? bi + ti : (bi + threadIdx.y) * lda + threadIdx.x;
+  B += (trans == CBlasNoTrans) ? threadIdx.y * lda + bj + threadIdx.x : (bj + threadIdx.y) * lda + threadIdx.x;
+  C += (bx * by == mb) ? bj * ldc + bi + ti : (bj + 4 * (ti / mb)) * ldc + bi + ti % mb;
+
+  /*
+   * Blocks of A and "B" in shared memory and C in registers.
+   */
+  __shared__ cuDoubleComplex a[mb][kb + 1];       // Optimised away when transA == CBlasNoTrans
+  __shared__ cuDoubleComplex b[kb][(trans == CBlasNoTrans) ? nb : nb + 1];
+
+  cuDoubleComplex c[] = { { 0.0, 0.0 }, { 0.0, 0.0 }, { 0.0, 0.0 }, { 0.0, 0.0 } };
+
+  while (k > 0) {
+    if (trans == CBlasNoTrans) {
+//       typedef char x[(nb % bx == 0) ? 1 : -1];  // bx must be a multiple of nb
+//       typedef char y[(kb % by == 0) ? 1 : -1];  // by must be a multiple of kb
+#pragma unroll
+      for (int l = 0; l < kb; l += by) {
+#pragma unroll
+        for (int j = 0; j < nb; j += bx)
+          b[l + threadIdx.y][j + threadIdx.x] = cuConj(B[l * lda + j]);
+      }
+    }
+    else {
+//       typedef char x[(kb % bx == 0) ? 1 : -1];  // bx must be a multiple of kb
+//       typedef char y[(mb % by == 0) ? 1 : -1];  // by must be a multiple of mb
+//       typedef char z[(nb % by == 0) ? 1 : -1];  // by must be a multiple of nb
+#pragma unroll
+      for (int l = 0; l < kb; l += bx) {
+#pragma unroll
+        for (int i = 0; i < mb; i += by)
+          a[i + threadIdx.y][l + threadIdx.x] = cuConj(A[i * lda + l]);
+      }
+      A += kb;
+
+#pragma unroll
+      for (int l = 0; l < kb; l += bx) {
+#pragma unroll
+        for (int j = 0; j < nb; j += by)
+          b[l + threadIdx.x][j + threadIdx.y] = B[j * lda + l];
+      }
+    }
+
+    __syncthreads();
+
+    if (k < kb) break;
+
+    if (trans == CBlasNoTrans) {
+//       typedef char x[(bx * by == mb) ? 1 : -1]; // There must be mb unrolled threads
+//       typedef char y[(nb == 4) ? 1 : -1]; // nb must equal the size of row per thread
+#pragma unroll
+      for (int l = 0; l < kb; l++) {
+        zaxpy(A[0], b[l], c);
+        A += lda;
+      }
+    }
+    else {
+//       typedef char x[(bx * by % mb == 0) ? 1 : -1];     // bx * by must be a multiple of mb
+//       typedef char y[((bx * by * 4) / mb == nb) ? 1 : -1];     // when the threads are wrapped around mb they must spread along to nb
+#pragma unroll
+      for (int l = 0; l < kb; l++)
+        zaxpy(a[(bx * by == mb) ? ti : ti % mb][l],
+              &b[l][(bx * by == mb) ? 0 : 4 * (ti / mb)], c);
+    }
+
+    __syncthreads();
+
+    B += (trans != CBlasNoTrans) ? kb : kb * lda;
+    k -= kb;
+  }
+
+  if (trans == CBlasNoTrans) {
+    for (int l = 0; l < k; l++) {
+      zaxpy(A[0], b[l], c);
+      A += lda;
+    }
+  }
+  else {
+    for (int l = 0; l < k; l++)
+      zaxpy(a[(bx * by == mb) ? ti : ti % mb][l],
+            &b[l][(bx * by == mb) ? 0 : 4 * (ti / mb)], c);
+  }
+
+  const unsigned int i = (bx * by == mb) ? bi + ti : bi + ti % mb;
+  const unsigned int j = (bx * by == mb) ? bj : bj + 4 * (ti / mb);
+  if (i < n) {
+    n -= j;
+    if (beta == 0.0) {
+      if ((uplo == CBlasUpper && i <= j + 0) || (uplo == CBlasLower && i >= j + 0)) C[0] = (i == j + 0) ? make_cuDoubleComplex(alpha * cuCreal(c[0]), 0.0) : cuCmul(alpha, c[0]); if (1 >= n) return; C += ldc;
+      if ((uplo == CBlasUpper && i <= j + 1) || (uplo == CBlasLower && i >= j + 1)) C[0] = (i == j + 1) ? make_cuDoubleComplex(alpha * cuCreal(c[1]), 0.0) : cuCmul(alpha, c[1]); if (2 >= n) return; C += ldc;
+      if ((uplo == CBlasUpper && i <= j + 2) || (uplo == CBlasLower && i >= j + 2)) C[0] = (i == j + 2) ? make_cuDoubleComplex(alpha * cuCreal(c[2]), 0.0) : cuCmul(alpha, c[2]); if (3 >= n) return; C += ldc;
+      if ((uplo == CBlasUpper && i <= j + 3) || (uplo == CBlasLower && i >= j + 3)) C[0] = (i == j + 3) ? make_cuDoubleComplex(alpha * cuCreal(c[3]), 0.0) : cuCmul(alpha, c[3]);
+    }
+    else {
+      if ((uplo == CBlasUpper && i <= j + 0) || (uplo == CBlasLower && i >= j + 0)) C[0] = cuCfma(alpha, c[0], cuCmul(beta, ((i == j + 0) ? make_cuDoubleComplex(cuCreal(C[0]), 0.0) : C[0]))); if (1 >= n) return; C += ldc;
+      if ((uplo == CBlasUpper && i <= j + 1) || (uplo == CBlasLower && i >= j + 1)) C[0] = cuCfma(alpha, c[1], cuCmul(beta, ((i == j + 1) ? make_cuDoubleComplex(cuCreal(C[0]), 0.0) : C[0]))); if (2 >= n) return; C += ldc;
+      if ((uplo == CBlasUpper && i <= j + 2) || (uplo == CBlasLower && i >= j + 2)) C[0] = cuCfma(alpha, c[2], cuCmul(beta, ((i == j + 2) ? make_cuDoubleComplex(cuCreal(C[0]), 0.0) : C[0]))); if (3 >= n) return; C += ldc;
+      if ((uplo == CBlasUpper && i <= j + 3) || (uplo == CBlasLower && i >= j + 3)) C[0] = cuCfma(alpha, c[3], cuCmul(beta, ((i == j + 3) ? make_cuDoubleComplex(cuCreal(C[0]), 0.0) : C[0])));
+    }
+  }
+}
+
+#endif
 
 /**
  * For C = aAB + bC:

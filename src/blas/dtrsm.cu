@@ -1,6 +1,6 @@
 #include "blas.h"
 
-#if __CUDA_ARCH__ < 200
+#if __CUDA_ARCH__ < 200 || defined(__BANK_CONFLICT__)
 
 // y(1:4) += alpha * x(1:4)
 __device__ void daxpy(double a, const int * b_lo, const int * b_hi, double * c) {
@@ -51,7 +51,6 @@ __global__ void dtrsm(int m, int n,
     __shared__ int a_hi[mb][(transA == CBlasNoTrans) ? mb : mb + 1];
     __shared__ int b_lo[mb][nb + 1];
     __shared__ int b_hi[mb][nb + 1];
-
     double x[4];
 
     const int ti = threadIdx.y * bx + threadIdx.x;
@@ -307,9 +306,9 @@ __global__ void dtrsm(int m, int n,
       }
 
       if (m > 0) { if (diag == CBlasNonUnit) x[0] /= __hiloint2double(a_hi[0][0], a_hi[0][0]);
-      if (m > 1) { daxpy(m - 1, x[0], &a_lo[0][1], &a_hi[0][1], &x[1]); if (diag == CBlasNonUnit) x[1] /= __hiloint2double(a_hi[1][1], a_hi[1][1]);
-      if (m > 2) { daxpy(m - 2, x[1], &a_lo[1][2], &a_hi[1][2], &x[2]); if (diag == CBlasNonUnit) x[2] /= __hiloint2double(a_hi[2][2], a_hi[2][2]);
-      if (m > 3) { daxpy(m - 3, x[2], &a_lo[2][3], &a_hi[2][3], &x[3]); if (diag == CBlasNonUnit) x[3] /= __hiloint2double(a_hi[3][3], a_hi[3][3]); }}}}
+      if (m > 1) { daxpy(m - 1, x[0], &a_lo[0][1], &a_hi[0][1], &x[1]); if (diag == CBlasNonUnit) x[1] /= __hiloint2double(a_hi[1][1], a_lo[1][1]);
+      if (m > 2) { daxpy(m - 2, x[1], &a_lo[1][2], &a_hi[1][2], &x[2]); if (diag == CBlasNonUnit) x[2] /= __hiloint2double(a_hi[2][2], a_lo[2][2]);
+      if (m > 3) { daxpy(m - 3, x[2], &a_lo[2][3], &a_hi[2][3], &x[3]); if (diag == CBlasNonUnit) x[3] /= __hiloint2double(a_hi[3][3], a_lo[3][3]); }}}}
 
       __syncthreads();
 
@@ -336,7 +335,6 @@ __global__ void dtrsm(int m, int n,
     // Each thread computes a row of B 4 elements at a time
     __shared__ int a_lo[nb][(transA == CBlasNoTrans) ? nb + 1 : nb];
     __shared__ int a_hi[nb][(transA == CBlasNoTrans) ? nb + 1 : nb];
-
     double x[4];
 
     const int ti = threadIdx.y * bx + threadIdx.x;

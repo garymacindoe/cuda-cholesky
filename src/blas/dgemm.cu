@@ -1,7 +1,8 @@
 #include "blas.h"
 
-#if __CUDA_ARCH__ < 200
+#if __CUDA_ARCH__ < 200 && !defined(__BANK_CONFLICT__)
 
+// y(1:8) += alpha * x(1:8)
 __device__ void daxpy(double a, int * b_lo, int * b_hi, double * c) {
   c[0] += a * __hiloint2double(b_hi[0], b_lo[0]);
   c[1] += a * __hiloint2double(b_hi[1], b_lo[1]);
@@ -189,6 +190,7 @@ __global__ void dgemm(int m, int n, int k, double alpha, const double * A, int l
 
 #else
 
+// y(1:8) += alpha * x(1:8)
 __device__ void daxpy(double a, double * b, double * c) {
   c[0] += a * b[0]; c[1] += a * b[1]; c[2] += a * b[2]; c[3] += a * b[3];
   c[4] += a * b[4]; c[5] += a * b[5]; c[6] += a * b[6]; c[7] += a * b[7];

@@ -9,8 +9,9 @@ __host__ __device__ static inline cuComplex cuCfmaf(float a, cuComplex b, cuComp
   return make_cuComplex(a * cuCrealf(b) + cuCrealf(c), a * cuCimagf(b) + cuCimagf(c));
 }
 
-#if __CUDA_ARCH__ < 200
+#if __CUDA_ARCH__ < 200 && !defined(__BANK_CONFLICT__)
 
+// y(1:8) += alpha * x(1:8)
 __device__ void caxpy(cuComplex a, float * b_real, float * b_imag, cuComplex * c) {
   c[0] = cuCfmaf(a, make_cuComplex(b_real[0], b_imag[0]), c[0]);
   c[1] = cuCfmaf(a, make_cuComplex(b_real[1], b_imag[1]), c[1]);
@@ -142,7 +143,7 @@ __global__ void cherk(int n, int k, float alpha,
 #pragma unroll
       for (int l = 0; l < kb; l++)
         caxpy(make_cuComplex(a_real[(bx * by == mb) ? ti : ti % mb][l],
-                               a_imag[(bx * by == mb) ? ti : ti % mb][l]),
+                             a_imag[(bx * by == mb) ? ti : ti % mb][l]),
               &b_real[l][(bx * by == mb) ? 0 : 8 * (ti / mb)],
               &b_imag[l][(bx * by == mb) ? 0 : 8 * (ti / mb)], c);
     }
@@ -196,6 +197,7 @@ __global__ void cherk(int n, int k, float alpha,
 
 #else
 
+// y(1:8) += alpha * x(1:8)
 __device__ void caxpy(cuComplex a, cuComplex * b, cuComplex * c) {
   c[0] = cuCfmaf(a, b[0], c[0]); c[1] = cuCfmaf(a, b[1], c[1]);
   c[2] = cuCfmaf(a, b[2], c[2]); c[3] = cuCfmaf(a, b[3], c[3]);

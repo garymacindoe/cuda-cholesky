@@ -1,8 +1,9 @@
 #include "blas.h"
 #include <cuComplex.h>
 
-#if __CUDA_ARCH__ < 200
+#if __CUDA_ARCH__ < 200 && !defined(__BANK_CONFLICT__)
 
+// y(1:8) += alpha * x(1:8)
 __device__ void caxpy(cuComplex a, float * b_real, float * b_imag, cuComplex * c) {
   c[0] = cuCfmaf(a, make_cuComplex(b_real[0], b_imag[0]), c[0]);
   c[1] = cuCfmaf(a, make_cuComplex(b_real[1], b_imag[1]), c[1]);

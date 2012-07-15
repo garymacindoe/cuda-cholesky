@@ -1,22 +1,46 @@
 #include "blas.h"
 #include <cuComplex.h>
 
-#if __CUDA_ARCH__ < 200
+#if __CUDA_ARCH__ < 200 || defined(__BANK_CONFLICT__)
 
-// y(1:8) += alpha * x(1:8)
-__device__ void zaxpy(cuDoubleComplex a, double * b_real, double * b_imag, cuDoubleComplex * c) {
-  c[0] = cuCfma(a, make_cuDoubleComplex(b_real[0], b_imag[0]), c[0]);
-  c[1] = cuCfma(a, make_cuDoubleComplex(b_real[1], b_imag[1]), c[1]);
-  c[2] = cuCfma(a, make_cuDoubleComplex(b_real[2], b_imag[2]), c[2]);
-  c[3] = cuCfma(a, make_cuDoubleComplex(b_real[3], b_imag[3]), c[3]);
+// y(1:4) += alpha * x(1:4)
+__device__ void zaxpy(cuDoubleComplex a, int * b_real_lo, int * b_real_hi,
+                      int * b_imag_lo, int * b_imag_hi, cuDoubleComplex * c) {
+  c[0] = cuCfma(a, make_cuDoubleComplex(
+                     __hiloint2double(b_real_hi[0], b_real_lo[0]),
+                     __hiloint2double(b_imag_hi[0], b_imag_lo[0])), c[0]);
+
+  c[1] = cuCfma(a, make_cuDoubleComplex(
+                     __hiloint2double(b_real_hi[1], b_real_lo[1]),
+                     __hiloint2double(b_imag_hi[1], b_imag_lo[1])), c[1]);
+
+  c[2] = cuCfma(a, make_cuDoubleComplex(
+                     __hiloint2double(b_real_hi[2], b_real_lo[2]),
+                     __hiloint2double(b_imag_hi[2], b_imag_lo[2])), c[2]);
+
+  c[3] = cuCfma(a, make_cuDoubleComplex(
+                     __hiloint2double(b_real_hi[3], b_real_lo[3]),
+                     __hiloint2double(b_imag_hi[3], b_imag_lo[3])), c[3]);
 }
 
 // y(1:n) += alpha * x(1:n)
-__device__ void zaxpy(int n, cuDoubleComplex a, double * b_real, double * b_imag, cuDoubleComplex * c) {
-  c[0] = cuCfma(a, make_cuDoubleComplex(b_real[0], b_imag[0]), c[0]); if (1 >= n) return;
-  c[1] = cuCfma(a, make_cuDoubleComplex(b_real[1], b_imag[1]), c[1]); if (2 >= n) return;
-  c[2] = cuCfma(a, make_cuDoubleComplex(b_real[2], b_imag[2]), c[2]); if (3 >= n) return;
-  c[3] = cuCfma(a, make_cuDoubleComplex(b_real[3], b_imag[3]), c[3]);
+__device__ void zaxpy(int n, cuDoubleComplex a, int * b_real_lo, int * b_real_hi,
+                      int * b_imag_lo, int * b_imag_hi, cuDoubleComplex * c) {
+  c[0] = cuCfma(a, make_cuDoubleComplex(
+                     __hiloint2double(b_real_hi[0], b_real_lo[0]),
+                     __hiloint2double(b_imag_hi[0], b_imag_lo[0])), c[0]);
+  if (1 >= n) return;
+  c[1] = cuCfma(a, make_cuDoubleComplex(
+                     __hiloint2double(b_real_hi[1], b_real_lo[1]),
+                     __hiloint2double(b_imag_hi[1], b_imag_lo[1])), c[1]);
+  if (2 >= n) return;
+  c[2] = cuCfma(a, make_cuDoubleComplex(
+                     __hiloint2double(b_real_hi[2], b_real_lo[2]),
+                     __hiloint2double(b_imag_hi[2], b_imag_lo[2])), c[2]);
+  if (3 >= n) return;
+  c[3] = cuCfma(a, make_cuDoubleComplex(
+                     __hiloint2double(b_real_hi[3], b_real_lo[3]),
+                     __hiloint2double(b_imag_hi[3], b_imag_lo[3])), c[3]);
 }
 
 /**
@@ -48,10 +72,14 @@ __global__ void ztrsm(int m, int n,
 //     typedef char _y[(nb == bx * by) ? 1 : -1];
 //     typedef char _z[(bx == mb) ? 1 : -1];
 
-    __shared__ double a_real[mb][(transA == CBlasNoTrans) ? mb : mb + 1];
-    __shared__ double a_imag[mb][(transA == CBlasNoTrans) ? mb : mb + 1];
-    __shared__ double b_real[mb][nb + 1];
-    __shared__ double b_imag[mb][nb + 1];
+    __shared__ int a_real_lo[mb][(transA == CBlasNoTrans) ? mb : mb + 1];
+    __shared__ int a_real_hi[mb][(transA == CBlasNoTrans) ? mb : mb + 1];
+    __shared__ int a_imag_lo[mb][(transA == CBlasNoTrans) ? mb : mb + 1];
+    __shared__ int a_imag_hi[mb][(transA == CBlasNoTrans) ? mb : mb + 1];
+    __shared__ int b_real_lo[mb][nb + 1];
+    __shared__ int b_real_hi[mb][nb + 1];
+    __shared__ int b_imag_lo[mb][nb + 1];
+    __shared__ int b_imag_hi[mb][nb + 1];
 
     cuDoubleComplex x[4];
 
@@ -71,17 +99,19 @@ __global__ void ztrsm(int m, int n,
       if (mm > 0) {
         #pragma unroll
         for (int j = 0; j < nb; j += by) {
-          b_real[threadIdx.x][j + threadIdx.y] = cuCreal(X[j * ldb]);
-          b_imag[threadIdx.x][j + threadIdx.y] = cuCimag(X[j * ldb]);
+          b_real_lo[threadIdx.x][j + threadIdx.y] = __double2loint(cuCreal(X[j * ldb]));
+          b_real_hi[threadIdx.x][j + threadIdx.y] = __double2hiint(cuCreal(X[j * ldb]));
+          b_imag_lo[threadIdx.x][j + threadIdx.y] = __double2loint(cuCimag(X[j * ldb]));
+          b_imag_hi[threadIdx.x][j + threadIdx.y] = __double2hiint(cuCimag(X[j * ldb]));
         }
 
         __syncthreads();
 
-        x[0] = cuCmul(alpha, make_cuDoubleComplex(b_real[0][ti], b_imag[0][ti]));
-        x[1] = cuCmul(alpha, make_cuDoubleComplex(b_real[1][ti], b_imag[1][ti]));
-        x[2] = cuCmul(alpha, make_cuDoubleComplex(b_real[2][ti], b_imag[2][ti]));
-        x[3] = cuCmul(alpha, make_cuDoubleComplex(b_real[3][ti], b_imag[3][ti]));
-
+        x[0] = cuCmul(alpha, make_cuDoubleComplex(__hiloint2double(b_real_hi[0][ti], b_real_lo[0][ti]), __hiloint2double(b_imag_hi[0][ti], b_imag_lo[0][ti])));
+        x[1] = cuCmul(alpha, make_cuDoubleComplex(__hiloint2double(b_real_hi[1][ti], b_real_lo[1][ti]), __hiloint2double(b_imag_hi[1][ti], b_imag_lo[1][ti])));
+        x[2] = cuCmul(alpha, make_cuDoubleComplex(__hiloint2double(b_real_hi[2][ti], b_real_lo[2][ti]), __hiloint2double(b_imag_hi[2][ti], b_imag_lo[2][ti])));
+        x[3] = cuCmul(alpha, make_cuDoubleComplex(__hiloint2double(b_real_hi[3][ti], b_real_lo[3][ti]), __hiloint2double(b_imag_hi[3][ti], b_imag_lo[3][ti])));
+//TODO: here
         if (transA == CBlasNoTrans) {
           a_real[threadIdx.y][threadIdx.x] = cuCreal(A[0]);
           a_imag[threadIdx.y][threadIdx.x] = cuCimag(A[0]);

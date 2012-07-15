@@ -1,6 +1,6 @@
 #include "blas.h"
 
-// y(1:8) += alpha * x(1:8)
+// y(1:8) -= alpha * x(1:8)
 __device__ void saxpy(float alpha, const float * x, float * y) {
   y[0] -= alpha * x[0]; y[1] -= alpha * x[1];
   y[2] -= alpha * x[2]; y[3] -= alpha * x[3];
@@ -8,7 +8,7 @@ __device__ void saxpy(float alpha, const float * x, float * y) {
   y[6] -= alpha * x[6]; y[7] -= alpha * x[7];
 }
 
-// y(1:n) += alpha * x(1:n)
+// y(1:n) -= alpha * x(1:n)
 __device__ void saxpy(int n, float alpha, const float * x, float * y) {
   y[0] -= alpha * x[0]; if (1 >= n) return; y[1] -= alpha * x[1]; if (2 >= n) return;
   y[2] -= alpha * x[2]; if (3 >= n) return; y[3] -= alpha * x[3]; if (4 >= n) return;
@@ -41,37 +41,54 @@ __global__ void strsm(int m, int n,
                       float * __restrict__ B, int ldb) {
 
  if (side == CBlasLeft) {
+   // For CBlasLeft each thread updates a column.  This means that B needs to be
+   // read and written via shared memory to transpose it after reading it
+   // efficiently from global memory.
 //     typedef char _x[(mb == 8) ? 1 : -1];
 //     typedef char _y[(nb == bx * by) ? 1 : -1];
 //     typedef char _z[(bx == mb) ? 1 : -1];
 
+    // Blocks of A and B is shared memory and X in registers
     __shared__ float a[mb][(transA == CBlasNoTrans) ? mb : mb + 1];
     __shared__ float b[mb][nb + 1];
     float x[8];
 
     const int ti = threadIdx.y * bx + threadIdx.x;
 
+    // Work out the column for the current thread in A and B
     A += threadIdx.y * lda + threadIdx.x;
     B += (blockIdx.y * nb + threadIdx.y) * ldb + threadIdx.x;
     n -= blockIdx.y * nb + threadIdx.y;
 
-    if ((uplo == CBlasUpper && transA == CBlasNoTrans) || (uplo == CBlasLower && transA != CBlasNoTrans)) {
+    // There are 2 common cases for each of CBlasLeft and CBlasRight
+    if ((uplo == CBlasUpper && transA == CBlasNoTrans) ||
+        (uplo == CBlasLower && transA != CBlasNoTrans)) {
+      // For this case start at the bottom of B and work upwards
       const int mm = m & (mb - 1);
       int i = m - mm;
 
+      // Since we need to read B to update it we need two pointers into it: one
+      // into the block we are updating (X), and one into the block we are
+      // currently reading to update it (_B, defined later in terms of X).
       A += i * lda + i;
       float * X = B + i;
 
+      // Handle the trailing elements first, if any.  This only requires reading
+      // the block of B that we are also updating (X == _B).
       if (mm > 0) {
+        // Read the block of B we are updating and transpose into shared
+        // memory using b.
         #pragma unroll
         for (int j = 0; j < nb; j += by)
           b[threadIdx.x][j + threadIdx.y] = X[j * ldb];
 
         __syncthreads();
 
+        // Place it into X as alpha * B
         x[0] = alpha * b[0][ti]; x[1] = alpha * b[1][ti]; x[2] = alpha * b[2][ti]; x[3] = alpha * b[3][ti];
         x[4] = alpha * b[4][ti]; x[5] = alpha * b[5][ti]; x[6] = alpha * b[6][ti]; x[7] = alpha * b[7][ti];
 
+        // Read the current block of A
         if (transA == CBlasNoTrans)
           a[threadIdx.y][threadIdx.x] = A[0];
         else
@@ -79,6 +96,7 @@ __global__ void strsm(int m, int n,
 
         __syncthreads();
 
+        // Update X from top to bottom
         switch (mm - 1) {
           case 7: if (diag == CBlasNonUnit) x[7] /= a[7][7]; saxpy(7, x[7], a[7], x);
           case 6: if (diag == CBlasNonUnit) x[6] /= a[6][6]; saxpy(6, x[6], a[6], x);
@@ -92,6 +110,7 @@ __global__ void strsm(int m, int n,
 
         __syncthreads();
 
+        // Write X out transposing it back via shared memory using b.
         b[0][ti] = x[0]; b[1][ti] = x[1]; b[2][ti] = x[2]; b[3][ti] = x[3];
         b[4][ti] = x[4]; b[5][ti] = x[5]; b[6][ti] = x[6]; b[7][ti] = x[7];
 
@@ -109,6 +128,7 @@ __global__ void strsm(int m, int n,
         }
       }
 
+      // Move up to the next block
       A -= mb * lda + mb;
       X -= mb;
       i -= mb;
@@ -319,7 +339,8 @@ __global__ void strsm(int m, int n,
     B += blockIdx.x * mb + ti;
     m -= blockIdx.x * mb;
 
-    if ((uplo == CBlasUpper && transA == CBlasNoTrans) || (uplo == CBlasLower && transA != CBlasNoTrans)) {
+    if ((uplo == CBlasUpper && transA == CBlasNoTrans) ||
+        (uplo == CBlasLower && transA != CBlasNoTrans)) {
       float * X = B;
       int j = 0;
 
