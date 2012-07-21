@@ -4,15 +4,15 @@
 #if __CUDA_ARCH__ < 200 && !defined(__BANK_CONFLICT__)
 
 // y(1:8) += alpha * x(1:8)
-__device__ void caxpy(cuComplex a, float * b_real, float * b_imag, cuComplex * c) {
-  c[0] = cuCfmaf(a, make_cuComplex(b_real[0], b_imag[0]), c[0]);
-  c[1] = cuCfmaf(a, make_cuComplex(b_real[1], b_imag[1]), c[1]);
-  c[2] = cuCfmaf(a, make_cuComplex(b_real[2], b_imag[2]), c[2]);
-  c[3] = cuCfmaf(a, make_cuComplex(b_real[3], b_imag[3]), c[3]);
-  c[4] = cuCfmaf(a, make_cuComplex(b_real[4], b_imag[4]), c[4]);
-  c[5] = cuCfmaf(a, make_cuComplex(b_real[5], b_imag[5]), c[5]);
-  c[6] = cuCfmaf(a, make_cuComplex(b_real[6], b_imag[6]), c[6]);
-  c[7] = cuCfmaf(a, make_cuComplex(b_real[7], b_imag[7]), c[7]);
+__device__ void caxpy(cuComplex alpha, float * x_real, float * x_imag, cuComplex * y) {
+  y[0] = cuCfmaf(alpha, make_cuComplex(x_real[0], x_imag[0]), y[0]);
+  y[1] = cuCfmaf(alpha, make_cuComplex(x_real[1], x_imag[1]), y[1]);
+  y[2] = cuCfmaf(alpha, make_cuComplex(x_real[2], x_imag[2]), y[2]);
+  y[3] = cuCfmaf(alpha, make_cuComplex(x_real[3], x_imag[3]), y[3]);
+  y[4] = cuCfmaf(alpha, make_cuComplex(x_real[4], x_imag[4]), y[4]);
+  y[5] = cuCfmaf(alpha, make_cuComplex(x_real[5], x_imag[5]), y[5]);
+  y[6] = cuCfmaf(alpha, make_cuComplex(x_real[6], x_imag[6]), y[6]);
+  y[7] = cuCfmaf(alpha, make_cuComplex(x_real[7], x_imag[7]), y[7]);
 }
 
 /**
@@ -221,11 +221,12 @@ __global__ void cgemm(int m, int n, int k, cuComplex alpha, const cuComplex * A,
 
 #else
 
-__device__ void caxpy(cuComplex a, cuComplex * b, cuComplex * c) {
-  c[0] = cuCfmaf(a, b[0], c[0]); c[1] = cuCfmaf(a, b[1], c[1]);
-  c[2] = cuCfmaf(a, b[2], c[2]); c[3] = cuCfmaf(a, b[3], c[3]);
-  c[4] = cuCfmaf(a, b[4], c[4]); c[5] = cuCfmaf(a, b[5], c[5]);
-  c[6] = cuCfmaf(a, b[6], c[6]); c[7] = cuCfmaf(a, b[7], c[7]);
+// y(1:8) += alpha * x(1:8)
+__device__ void caxpy(cuComplex alpha, cuComplex * x, cuComplex * y) {
+  y[0] = cuCfmaf(alpha, x[0], y[0]); y[1] = cuCfmaf(alpha, x[1], y[1]);
+  y[2] = cuCfmaf(alpha, x[2], y[2]); y[3] = cuCfmaf(alpha, x[3], y[3]);
+  y[4] = cuCfmaf(alpha, x[4], y[4]); y[5] = cuCfmaf(alpha, x[5], y[5]);
+  y[6] = cuCfmaf(alpha, x[6], y[6]); y[7] = cuCfmaf(alpha, x[7], y[7]);
 }
 
 /**

@@ -3,15 +3,15 @@
 #if __CUDA_ARCH__ < 200 && !defined(__BANK_CONFLICT__)
 
 // y(1:8) += alpha * x(1:8)
-__device__ void daxpy(double a, int * b_lo, int * b_hi, double * c) {
-  c[0] += a * __hiloint2double(b_hi[0], b_lo[0]);
-  c[1] += a * __hiloint2double(b_hi[1], b_lo[1]);
-  c[2] += a * __hiloint2double(b_hi[2], b_lo[2]);
-  c[3] += a * __hiloint2double(b_hi[3], b_lo[3]);
-  c[4] += a * __hiloint2double(b_hi[4], b_lo[4]);
-  c[5] += a * __hiloint2double(b_hi[5], b_lo[5]);
-  c[6] += a * __hiloint2double(b_hi[6], b_lo[6]);
-  c[7] += a * __hiloint2double(b_hi[7], b_lo[7]);
+__device__ void daxpy(double alpha, int * x_hi, int * x_lo, double * y) {
+  y[0] += alpha * __hiloint2double(x_hi[0], x_lo[0]);
+  y[1] += alpha * __hiloint2double(x_hi[1], x_lo[1]);
+  y[2] += alpha * __hiloint2double(x_hi[2], x_lo[2]);
+  y[3] += alpha * __hiloint2double(x_hi[3], x_lo[3]);
+  y[4] += alpha * __hiloint2double(x_hi[4], x_lo[4]);
+  y[5] += alpha * __hiloint2double(x_hi[5], x_lo[5]);
+  y[6] += alpha * __hiloint2double(x_hi[6], x_lo[6]);
+  y[7] += alpha * __hiloint2double(x_hi[7], x_lo[7]);
 }
 
 /**
@@ -70,10 +70,10 @@ __global__ void dsyrk(int n, int k, double alpha,
   /*
    * Blocks of A and "B" in shared memory and C in registers.
    */
-  __shared__ int a_lo[mb][kb + 1];       // Optimised away when transA == CBlasNoTrans
   __shared__ int a_hi[mb][kb + 1];       // Optimised away when transA == CBlasNoTrans
-  __shared__ int b_lo[kb][(trans == CBlasNoTrans) ? nb : nb + 1];
+  __shared__ int a_lo[mb][kb + 1];       // Optimised away when transA == CBlasNoTrans
   __shared__ int b_hi[kb][(trans == CBlasNoTrans) ? nb : nb + 1];
+  __shared__ int b_lo[kb][(trans == CBlasNoTrans) ? nb : nb + 1];
 
   double c[] = { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
 
@@ -85,8 +85,8 @@ __global__ void dsyrk(int n, int k, double alpha,
       for (int l = 0; l < kb; l += by) {
 #pragma unroll
         for (int j = 0; j < nb; j += bx) {
-          b_lo[l + threadIdx.y][j + threadIdx.x] = __double2loint(B[l * lda + j]);
           b_hi[l + threadIdx.y][j + threadIdx.x] = __double2hiint(B[l * lda + j]);
+          b_lo[l + threadIdx.y][j + threadIdx.x] = __double2loint(B[l * lda + j]);
         }
       }
     }
@@ -98,8 +98,8 @@ __global__ void dsyrk(int n, int k, double alpha,
       for (int l = 0; l < kb; l += bx) {
 #pragma unroll
         for (int i = 0; i < mb; i += by) {
-          a_lo[i + threadIdx.y][l + threadIdx.x] = __double2loint(A[i * lda + l]);
           a_hi[i + threadIdx.y][l + threadIdx.x] = __double2hiint(A[i * lda + l]);
+          a_lo[i + threadIdx.y][l + threadIdx.x] = __double2loint(A[i * lda + l]);
         }
       }
       A += kb;
@@ -108,8 +108,8 @@ __global__ void dsyrk(int n, int k, double alpha,
       for (int l = 0; l < kb; l += bx) {
 #pragma unroll
         for (int j = 0; j < nb; j += by) {
-          b_lo[l + threadIdx.x][j + threadIdx.y] = __double2loint(B[j * lda + l]);
           b_hi[l + threadIdx.x][j + threadIdx.y] = __double2hiint(B[j * lda + l]);
+          b_lo[l + threadIdx.x][j + threadIdx.y] = __double2loint(B[j * lda + l]);
         }
       }
     }
@@ -123,7 +123,7 @@ __global__ void dsyrk(int n, int k, double alpha,
 //       typedef char y[(nb == 8) ? 1 : -1]; // nb must equal the size of row per thread
 #pragma unroll
       for (int l = 0; l < kb; l++) {
-        daxpy(A[0], b_lo[l], b_hi[l], c);
+        daxpy(A[0], b_hi[l], b_lo[l], c);
         A += lda;
       }
     }
@@ -134,8 +134,8 @@ __global__ void dsyrk(int n, int k, double alpha,
       for (int l = 0; l < kb; l++)
         daxpy(__hiloint2double(a_hi[(bx * by == mb) ? ti : ti % mb][l],
                                a_lo[(bx * by == mb) ? ti : ti % mb][l]),
-              &b_lo[l][(bx * by == mb) ? 0 : 8 * (ti / mb)],
-              &b_hi[l][(bx * by == mb) ? 0 : 8 * (ti / mb)], c);
+              &b_hi[l][(bx * by == mb) ? 0 : 8 * (ti / mb)],
+              &b_lo[l][(bx * by == mb) ? 0 : 8 * (ti / mb)], c);
     }
 
     __syncthreads();
@@ -146,7 +146,7 @@ __global__ void dsyrk(int n, int k, double alpha,
 
   if (trans == CBlasNoTrans) {
     for (int l = 0; l < k; l++) {
-      daxpy(A[0], b_lo[l], b_hi[l], c);
+      daxpy(A[0], b_hi[l], b_lo[l], c);
       A += lda;
     }
   }
@@ -154,8 +154,8 @@ __global__ void dsyrk(int n, int k, double alpha,
     for (int l = 0; l < k; l++)
       daxpy(__hiloint2double(a_hi[(bx * by == mb) ? ti : ti % mb][l],
                              a_lo[(bx * by == mb) ? ti : ti % mb][l]),
-            &b_lo[l][(bx * by == mb) ? 0 : 8 * (ti / mb)],
-            &b_hi[l][(bx * by == mb) ? 0 : 8 * (ti / mb)], c);
+            &b_hi[l][(bx * by == mb) ? 0 : 8 * (ti / mb)],
+            &b_lo[l][(bx * by == mb) ? 0 : 8 * (ti / mb)], c);
   }
 
   const unsigned int i = (bx * by == mb) ? bi + ti : bi + ti % mb;
@@ -188,9 +188,9 @@ __global__ void dsyrk(int n, int k, double alpha,
 #else
 
 // y(1:8) += alpha * x(1:8)
-__device__ void daxpy(double a, double * b, double * c) {
-  c[0] += a * b[0]; c[1] += a * b[1]; c[2] += a * b[2]; c[3] += a * b[3];
-  c[4] += a * b[4]; c[5] += a * b[5]; c[6] += a * b[6]; c[7] += a * b[7];
+__device__ void daxpy(double alpha, double * x, double * y) {
+  y[0] += alpha * x[0]; y[1] += alpha * x[1]; y[2] += alpha * x[2]; y[3] += alpha * x[3];
+  y[4] += alpha * x[4]; y[5] += alpha * x[5]; y[6] += alpha * x[6]; y[7] += alpha * x[7];
 }
 
 /**

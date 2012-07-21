@@ -99,12 +99,12 @@ __global__ void ctrsm(int m, int n,
 
         // Read the current block of A
         if (transA == CBlasNoTrans) {
-          a_imag[threadIdx.y][threadIdx.x] = cuCrealf(A[0]);
-          a_real[threadIdx.y][threadIdx.x] = cuCimagf(A[0]);
+          a_real[threadIdx.y][threadIdx.x] = cuCrealf(A[0]);
+          a_imag[threadIdx.y][threadIdx.x] = cuCimagf(A[0]);
         }
         else {
-          a_imag[threadIdx.x][threadIdx.y] = cuCrealf(A[0]);
-          a_real[threadIdx.x][threadIdx.y] = (transA == CBlasConjTrans) ? -cuCimagf(A[0]) : cuCimagf(A[0]);
+          a_real[threadIdx.x][threadIdx.y] = cuCrealf(A[0]);
+          a_imag[threadIdx.x][threadIdx.y] = (transA == CBlasConjTrans) ? -cuCimagf(A[0]) : cuCimagf(A[0]);
         }
 
         __syncthreads();
@@ -120,10 +120,10 @@ __global__ void ctrsm(int m, int n,
         __syncthreads();
 
         // Write X out transposing it back via shared memory using b.
-        b_imag[0][ti] = cuCrealf(x[0]); b_real[1][ti] = cuCimagf(x[1]);
-        b_imag[1][ti] = cuCrealf(x[1]); b_real[1][ti] = cuCimagf(x[1]);
-        b_imag[2][ti] = cuCrealf(x[2]); b_real[2][ti] = cuCimagf(x[2]);
-        b_imag[3][ti] = cuCrealf(x[3]); b_real[3][ti] = cuCimagf(x[3]);
+        b_real[0][ti] = cuCrealf(x[0]); b_imag[0][ti] = cuCimagf(x[0]);
+        b_real[1][ti] = cuCrealf(x[1]); b_imag[1][ti] = cuCimagf(x[1]);
+        b_real[2][ti] = cuCrealf(x[2]); b_imag[2][ti] = cuCimagf(x[2]);
+        b_real[3][ti] = cuCrealf(x[3]); b_imag[3][ti] = cuCimagf(x[3]);
 
         __syncthreads();
 
@@ -147,8 +147,8 @@ __global__ void ctrsm(int m, int n,
         // Read the current block of X
         #pragma unroll
         for (int j = 0; j < nb; j += by) {
-          b_imag[threadIdx.x][j + threadIdx.y] = cuCrealf(X[j * ldb]);
-          b_real[threadIdx.x][j + threadIdx.y] = cuCimagf(X[j * ldb]);
+          b_real[threadIdx.x][j + threadIdx.y] = cuCrealf(X[j * ldb]);
+          b_imag[threadIdx.x][j + threadIdx.y] = cuCimagf(X[j * ldb]);
         }
 
         __syncthreads();
@@ -168,18 +168,18 @@ __global__ void ctrsm(int m, int n,
 
           // Read A and B into shared memory
           if (transA == CBlasNoTrans) {
-            a_imag[threadIdx.y][threadIdx.x] = cuCrealf(_A[0]);
-            a_real[threadIdx.y][threadIdx.x] = cuCimagf(_A[0]);
+            a_real[threadIdx.y][threadIdx.x] = cuCrealf(_A[0]);
+            a_imag[threadIdx.y][threadIdx.x] = cuCimagf(_A[0]);
           }
           else {
-            a_imag[threadIdx.x][threadIdx.y] = cuCrealf(_A[0]);
-            a_real[threadIdx.x][threadIdx.y] = (transA == CBlasConjTrans) ? -cuCimagf(_A[0]) : cuCimagf(_A[0]);
+            a_real[threadIdx.x][threadIdx.y] = cuCrealf(_A[0]);
+            a_imag[threadIdx.x][threadIdx.y] = (transA == CBlasConjTrans) ? -cuCimagf(_A[0]) : cuCimagf(_A[0]);
           }
 
           #pragma unroll
           for (int j = 0; j < nb; j += by) {
-            b_imag[threadIdx.x][j + threadIdx.y] = cuCrealf(_B[j * ldb]);
-            b_real[threadIdx.x][j + threadIdx.y] = cuCimagf(_B[j * ldb]);
+            b_real[threadIdx.x][j + threadIdx.y] = cuCrealf(_B[j * ldb]);
+            b_imag[threadIdx.x][j + threadIdx.y] = cuCimagf(_B[j * ldb]);
           }
 
           __syncthreads();
@@ -207,12 +207,12 @@ __global__ void ctrsm(int m, int n,
 
         // Read the block of A that matches the block of B which is in registers
           if (transA == CBlasNoTrans) {
-            a_imag[threadIdx.y][threadIdx.x] = cuCrealf(A[0]);
-            a_real[threadIdx.y][threadIdx.x] = cuCimagf(A[0]);
+            a_real[threadIdx.y][threadIdx.x] = cuCrealf(A[0]);
+            a_imag[threadIdx.y][threadIdx.x] = cuCimagf(A[0]);
           }
           else {
-            a_imag[threadIdx.x][threadIdx.y] = cuCrealf(A[0]);
-            a_real[threadIdx.x][threadIdx.y] = (transA == CBlasConjTrans) ? -cuCimagf(A[0]) : cuCimagf(A[0]);
+            a_real[threadIdx.x][threadIdx.y] = cuCrealf(A[0]);
+            a_imag[threadIdx.x][threadIdx.y] = (transA == CBlasConjTrans) ? -cuCimagf(A[0]) : cuCimagf(A[0]);
           }
 
         __syncthreads();
@@ -224,10 +224,10 @@ __global__ void ctrsm(int m, int n,
         if (diag == CBlasNonUnit) x[0] = cuCdivf(x[0], make_cuComplex(a_real[0][0], a_imag[0][0]));
 
         // Write X out transposing it back via shared memory using b
-        b_imag[0][ti] = cuCrealf(x[0]); b_real[1][ti] = cuCimagf(x[1]);
-        b_imag[1][ti] = cuCrealf(x[1]); b_real[1][ti] = cuCimagf(x[1]);
-        b_imag[2][ti] = cuCrealf(x[2]); b_real[2][ti] = cuCimagf(x[2]);
-        b_imag[3][ti] = cuCrealf(x[3]); b_real[3][ti] = cuCimagf(x[3]);
+        b_real[0][ti] = cuCrealf(x[0]); b_imag[0][ti] = cuCimagf(x[0]);
+        b_real[1][ti] = cuCrealf(x[1]); b_imag[1][ti] = cuCimagf(x[1]);
+        b_real[2][ti] = cuCrealf(x[2]); b_imag[2][ti] = cuCimagf(x[2]);
+        b_real[3][ti] = cuCrealf(x[3]); b_imag[3][ti] = cuCimagf(x[3]);
 
         __syncthreads();
 
@@ -250,8 +250,8 @@ __global__ void ctrsm(int m, int n,
         // Read the current block of X
         #pragma unroll
         for (int j = 0; j < nb; j += by) {
-          b_imag[threadIdx.x][j + threadIdx.y] = cuCrealf(X[j * ldb]);
-          b_real[threadIdx.x][j + threadIdx.y] = cuCimagf(X[j * ldb]);
+          b_real[threadIdx.x][j + threadIdx.y] = cuCrealf(X[j * ldb]);
+          b_imag[threadIdx.x][j + threadIdx.y] = cuCimagf(X[j * ldb]);
         }
 
         __syncthreads();
@@ -272,18 +272,18 @@ __global__ void ctrsm(int m, int n,
 
           // Read A and B into shared memory
           if (transA == CBlasNoTrans) {
-            a_imag[threadIdx.y][threadIdx.x] = cuCrealf(_A[0]);
-            a_real[threadIdx.y][threadIdx.x] = cuCimagf(_A[0]);
+            a_real[threadIdx.y][threadIdx.x] = cuCrealf(_A[0]);
+            a_imag[threadIdx.y][threadIdx.x] = cuCimagf(_A[0]);
           }
           else {
-            a_imag[threadIdx.x][threadIdx.y] = cuCrealf(_A[0]);
-            a_real[threadIdx.x][threadIdx.y] = (transA == CBlasConjTrans) ? -cuCimagf(_A[0]) : cuCimagf(_A[0]);
+            a_real[threadIdx.x][threadIdx.y] = cuCrealf(_A[0]);
+            a_imag[threadIdx.x][threadIdx.y] = (transA == CBlasConjTrans) ? -cuCimagf(_A[0]) : cuCimagf(_A[0]);
           }
 
           #pragma unroll
           for (int j = 0; j < nb; j += by) {
-            b_imag[threadIdx.x][j + threadIdx.y] = cuCrealf(_B[j * ldb]);
-            b_real[threadIdx.x][j + threadIdx.y] = cuCimagf(_B[j * ldb]);
+            b_real[threadIdx.x][j + threadIdx.y] = cuCrealf(_B[j * ldb]);
+            b_imag[threadIdx.x][j + threadIdx.y] = cuCimagf(_B[j * ldb]);
           }
 
           __syncthreads();
@@ -309,12 +309,12 @@ __global__ void ctrsm(int m, int n,
 
         // Read the block of A that matches the block of B which is in registers
         if (transA == CBlasNoTrans) {
-          a_imag[threadIdx.y][threadIdx.x] = cuCrealf(_A[0]);
-          a_real[threadIdx.y][threadIdx.x] = cuCimagf(_A[0]);
+          a_real[threadIdx.y][threadIdx.x] = cuCrealf(_A[0]);
+          a_imag[threadIdx.y][threadIdx.x] = cuCimagf(_A[0]);
         }
         else {
-          a_imag[threadIdx.x][threadIdx.y] = cuCrealf(_A[0]);
-          a_real[threadIdx.x][threadIdx.y] = (transA == CBlasConjTrans) ? -cuCimagf(_A[0]) : cuCimagf(_A[0]);
+          a_real[threadIdx.x][threadIdx.y] = cuCrealf(_A[0]);
+          a_imag[threadIdx.x][threadIdx.y] = (transA == CBlasConjTrans) ? -cuCimagf(_A[0]) : cuCimagf(_A[0]);
         }
 
         __syncthreads();
@@ -328,10 +328,10 @@ __global__ void ctrsm(int m, int n,
         if (diag == CBlasNonUnit) x[3] = cuCdivf(x[3], make_cuComplex(a_real[3][3], a_imag[3][3]));
 
         // Write X out transposing it back via shared memory using b
-        b_imag[0][ti] = cuCrealf(x[0]); b_real[1][ti] = cuCimagf(x[1]);
-        b_imag[1][ti] = cuCrealf(x[1]); b_real[1][ti] = cuCimagf(x[1]);
-        b_imag[2][ti] = cuCrealf(x[2]); b_real[2][ti] = cuCimagf(x[2]);
-        b_imag[3][ti] = cuCrealf(x[3]); b_real[3][ti] = cuCimagf(x[3]);
+        b_real[0][ti] = cuCrealf(x[0]); b_imag[0][ti] = cuCimagf(x[0]);
+        b_real[1][ti] = cuCrealf(x[1]); b_imag[1][ti] = cuCimagf(x[1]);
+        b_real[2][ti] = cuCrealf(x[2]); b_imag[2][ti] = cuCimagf(x[2]);
+        b_real[3][ti] = cuCrealf(x[3]); b_imag[3][ti] = cuCimagf(x[3]);
 
         __syncthreads();
 
@@ -357,10 +357,10 @@ __global__ void ctrsm(int m, int n,
       __syncthreads();
 
       // Write X out transposing it back via shared memory using b
-        b_imag[0][ti] = cuCrealf(x[0]); b_real[1][ti] = cuCimagf(x[1]);
-        b_imag[1][ti] = cuCrealf(x[1]); b_real[1][ti] = cuCimagf(x[1]);
-        b_imag[2][ti] = cuCrealf(x[2]); b_real[2][ti] = cuCimagf(x[2]);
-        b_imag[3][ti] = cuCrealf(x[3]); b_real[3][ti] = cuCimagf(x[3]);
+      b_real[0][ti] = cuCrealf(x[0]); b_imag[0][ti] = cuCimagf(x[0]);
+      b_real[1][ti] = cuCrealf(x[1]); b_imag[1][ti] = cuCimagf(x[1]);
+      b_real[2][ti] = cuCrealf(x[2]); b_imag[2][ti] = cuCimagf(x[2]);
+      b_real[3][ti] = cuCrealf(x[3]); b_imag[3][ti] = cuCimagf(x[3]);
 
       __syncthreads();
 
@@ -380,8 +380,8 @@ __global__ void ctrsm(int m, int n,
 //     typedef char _z[(by == nb) ? 1 : -1];
 
     // Each thread computes a row of B 4 elements at a time
-    __shared__ float a_imag[nb][(transA == CBlasNoTrans) ? nb + 1 : nb];
     __shared__ float a_real[nb][(transA == CBlasNoTrans) ? nb + 1 : nb];
+    __shared__ float a_imag[nb][(transA == CBlasNoTrans) ? nb + 1 : nb];
     cuComplex x[4];
 
     const int ti = threadIdx.y * bx + threadIdx.x;
@@ -411,12 +411,12 @@ __global__ void ctrsm(int m, int n,
 
           // Read A into shared memory
           if (transA == CBlasNoTrans) {
-            a_imag[threadIdx.x][threadIdx.y] = cuCrealf(_A[0]);
-            a_real[threadIdx.x][threadIdx.y] = cuCimagf(_A[0]);
+            a_real[threadIdx.x][threadIdx.y] = cuCrealf(_A[0]);
+            a_imag[threadIdx.x][threadIdx.y] = cuCimagf(_A[0]);
           }
           else {
-            a_imag[threadIdx.y][threadIdx.x] = cuCrealf(_A[0]);
-            a_real[threadIdx.y][threadIdx.x] = (transA == CBlasConjTrans) ? -cuCimagf(_A[0]) : cuCimagf(_A[0]);
+            a_real[threadIdx.y][threadIdx.x] = cuCrealf(_A[0]);
+            a_imag[threadIdx.y][threadIdx.x] = (transA == CBlasConjTrans) ? -cuCimagf(_A[0]) : cuCimagf(_A[0]);
           }
 
           __syncthreads();
@@ -436,12 +436,12 @@ __global__ void ctrsm(int m, int n,
 
         // Read the block of A that matches the block of B which is in registers
         if (transA == CBlasNoTrans) {
-          a_imag[threadIdx.x][threadIdx.y] = cuCrealf(_A[0]);
-          a_real[threadIdx.x][threadIdx.y] = cuCimagf(_A[0]);
+          a_real[threadIdx.x][threadIdx.y] = cuCrealf(_A[0]);
+          a_imag[threadIdx.x][threadIdx.y] = cuCimagf(_A[0]);
         }
         else {
-          a_imag[threadIdx.y][threadIdx.x] = cuCrealf(_A[0]);
-          a_real[threadIdx.y][threadIdx.x] = (transA == CBlasConjTrans) ? -cuCimagf(_A[0]) : cuCimagf(_A[0]);
+          a_real[threadIdx.y][threadIdx.x] = cuCrealf(_A[0]);
+          a_imag[threadIdx.y][threadIdx.x] = (transA == CBlasConjTrans) ? -cuCimagf(_A[0]) : cuCimagf(_A[0]);
         }
 
         __syncthreads();
@@ -497,12 +497,12 @@ __global__ void ctrsm(int m, int n,
 
         // Read the current block of A
         if (transA == CBlasNoTrans) {
-          a_imag[threadIdx.x][threadIdx.y] = cuCrealf(A[0]);
-          a_real[threadIdx.x][threadIdx.y] = cuCimagf(A[0]);
+          a_real[threadIdx.x][threadIdx.y] = cuCrealf(A[0]);
+          a_imag[threadIdx.x][threadIdx.y] = cuCimagf(A[0]);
         }
         else {
-          a_imag[threadIdx.y][threadIdx.x] = cuCrealf(A[0]);
-          a_real[threadIdx.y][threadIdx.x] = (transA == CBlasConjTrans) ? -cuCimagf(A[0]) : cuCimagf(A[0]);
+          a_real[threadIdx.y][threadIdx.x] = cuCrealf(A[0]);
+          a_imag[threadIdx.y][threadIdx.x] = (transA == CBlasConjTrans) ? -cuCimagf(A[0]) : cuCimagf(A[0]);
         }
 
         __syncthreads();
@@ -544,12 +544,12 @@ __global__ void ctrsm(int m, int n,
 
           // Read the current block of A
           if (transA == CBlasNoTrans) {
-            a_imag[threadIdx.x][threadIdx.y] = cuCrealf(_A[0]);
-            a_real[threadIdx.x][threadIdx.y] = cuCimagf(_A[0]);
+            a_real[threadIdx.x][threadIdx.y] = cuCrealf(_A[0]);
+            a_imag[threadIdx.x][threadIdx.y] = cuCimagf(_A[0]);
           }
           else {
-            a_imag[threadIdx.y][threadIdx.x] = cuCrealf(_A[0]);
-            a_real[threadIdx.y][threadIdx.x] = (transA == CBlasConjTrans) ? -cuCimagf(_A[0]) : cuCimagf(_A[0]);
+            a_real[threadIdx.y][threadIdx.x] = cuCrealf(_A[0]);
+            a_imag[threadIdx.y][threadIdx.x] = (transA == CBlasConjTrans) ? -cuCimagf(_A[0]) : cuCimagf(_A[0]);
           }
 
           __syncthreads();
@@ -577,12 +577,12 @@ __global__ void ctrsm(int m, int n,
 
         // Read the block of A that matches the block of B which is in registers
         if (transA == CBlasNoTrans) {
-          a_imag[threadIdx.x][threadIdx.y] = cuCrealf(A[0]);
-          a_real[threadIdx.x][threadIdx.y] = cuCimagf(A[0]);
+          a_real[threadIdx.x][threadIdx.y] = cuCrealf(A[0]);
+          a_imag[threadIdx.x][threadIdx.y] = cuCimagf(A[0]);
         }
         else {
-          a_imag[threadIdx.y][threadIdx.x] = cuCrealf(A[0]);
-          a_real[threadIdx.y][threadIdx.x] = (transA == CBlasConjTrans) ? -cuCimagf(A[0]) : cuCimagf(A[0]);
+          a_real[threadIdx.y][threadIdx.x] = cuCrealf(A[0]);
+          a_imag[threadIdx.y][threadIdx.x] = (transA == CBlasConjTrans) ? -cuCimagf(A[0]) : cuCimagf(A[0]);
         }
 
         __syncthreads();
@@ -660,7 +660,7 @@ __global__ void ctrsm(int m, int n,
     // Blocks of A and B is shared memory and X in registers
     __shared__ cuComplex a[mb][(transA == CBlasNoTrans) ? mb : mb + 1];
     __shared__ cuComplex b[mb][nb + 1];
-    cuComplex x[8];
+    cuComplex x[4];
 
     const int ti = threadIdx.y * bx + threadIdx.x;
 

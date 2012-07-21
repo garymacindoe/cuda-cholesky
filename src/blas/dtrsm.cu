@@ -3,7 +3,7 @@
 #if __CUDA_ARCH__ < 200 && !defined(__BANK_CONFLICT__)
 
 // y(1:4) -= alpha * x(1:4)
-__device__ void daxpy(double alpha, const int * x_lo, const int * x_hi, double * y) {
+__device__ void daxpy(double alpha, const int * x_hi, const int * x_lo, double * y) {
   y[0] -= alpha * __hiloint2double(x_hi[0], x_lo[0]);
   y[1] -= alpha * __hiloint2double(x_hi[1], x_lo[1]);
   y[2] -= alpha * __hiloint2double(x_hi[2], x_lo[2]);
@@ -11,7 +11,7 @@ __device__ void daxpy(double alpha, const int * x_lo, const int * x_hi, double *
 }
 
 // y(1:n) -= alpha * x(1:n)
-__device__ void daxpy(int n, double alpha, const int * x_lo, const int * x_hi, double * y) {
+__device__ void daxpy(int n, double alpha, const int * x_hi, const int * x_lo, double * y) {
   y[0] -= alpha * __hiloint2double(x_hi[0], x_lo[0]); if (1 >= n) return;
   y[1] -= alpha * __hiloint2double(x_hi[1], x_lo[1]); if (2 >= n) return;
   y[2] -= alpha * __hiloint2double(x_hi[2], x_lo[2]); if (3 >= n) return;
@@ -51,10 +51,10 @@ __global__ void dtrsm(int m, int n,
 //     typedef char _z[(bx == mb) ? 1 : -1];
 
     // Blocks of A and B is shared memory and X in registers
-    __shared__ int a_lo[mb][(transA == CBlasNoTrans) ? mb : mb + 1];
     __shared__ int a_hi[mb][(transA == CBlasNoTrans) ? mb : mb + 1];
-    __shared__ int b_lo[mb][nb + 1];
+    __shared__ int a_lo[mb][(transA == CBlasNoTrans) ? mb : mb + 1];
     __shared__ int b_hi[mb][nb + 1];
+    __shared__ int b_lo[mb][nb + 1];
     double x[4];
 
     const int ti = threadIdx.y * bx + threadIdx.x;
@@ -84,8 +84,8 @@ __global__ void dtrsm(int m, int n,
         // memory using b.
         #pragma unroll
         for (int j = 0; j < nb; j += by) {
-          b_lo[threadIdx.x][j + threadIdx.y] = __double2loint(X[j * ldb]);
           b_hi[threadIdx.x][j + threadIdx.y] = __double2hiint(X[j * ldb]);
+          b_lo[threadIdx.x][j + threadIdx.y] = __double2loint(X[j * ldb]);
         }
 
         __syncthreads();
@@ -98,31 +98,31 @@ __global__ void dtrsm(int m, int n,
 
         // Read the current block of A
         if (transA == CBlasNoTrans) {
-          a_lo[threadIdx.y][threadIdx.x] = __double2loint(A[0]);
           a_hi[threadIdx.y][threadIdx.x] = __double2hiint(A[0]);
+          a_lo[threadIdx.y][threadIdx.x] = __double2loint(A[0]);
         }
         else {
-          a_lo[threadIdx.x][threadIdx.y] = __double2loint(A[0]);
           a_hi[threadIdx.x][threadIdx.y] = __double2hiint(A[0]);
+          a_lo[threadIdx.x][threadIdx.y] = __double2loint(A[0]);
         }
 
         __syncthreads();
 
         // Update X from top to bottom
         switch (mm - 1) {
-          case 3: if (diag == CBlasNonUnit) x[3] /= __hiloint2double(a_hi[3][3], a_lo[3][3]); daxpy(3, x[3], a_lo[3], a_hi[3], x);
-          case 2: if (diag == CBlasNonUnit) x[2] /= __hiloint2double(a_hi[2][2], a_lo[2][2]); daxpy(2, x[2], a_lo[2], a_hi[2], x);
-          case 1: if (diag == CBlasNonUnit) x[1] /= __hiloint2double(a_hi[1][1], a_lo[1][1]); daxpy(1, x[1], a_lo[1], a_hi[1], x);
+          case 3: if (diag == CBlasNonUnit) x[3] /= __hiloint2double(a_hi[3][3], a_lo[3][3]); daxpy(3, x[3], a_hi[3], a_lo[3], x);
+          case 2: if (diag == CBlasNonUnit) x[2] /= __hiloint2double(a_hi[2][2], a_lo[2][2]); daxpy(2, x[2], a_hi[2], a_lo[2], x);
+          case 1: if (diag == CBlasNonUnit) x[1] /= __hiloint2double(a_hi[1][1], a_lo[1][1]); daxpy(1, x[1], a_hi[1], a_lo[1], x);
           case 0: if (diag == CBlasNonUnit) x[0] /= __hiloint2double(a_hi[0][0], a_lo[0][0]);
         }
 
         __syncthreads();
 
         // Write X out transposing it back via shared memory using b.
-        b_lo[0][ti] = __double2loint(x[0]); b_hi[1][ti] = __double2hiint(x[1]);
-        b_lo[1][ti] = __double2loint(x[1]); b_hi[1][ti] = __double2hiint(x[1]);
-        b_lo[2][ti] = __double2loint(x[2]); b_hi[2][ti] = __double2hiint(x[2]);
-        b_lo[3][ti] = __double2loint(x[3]); b_hi[3][ti] = __double2hiint(x[3]);
+        b_hi[0][ti] = __double2hiint(x[0]); b_lo[0][ti] = __double2loint(x[0]);
+        b_hi[1][ti] = __double2hiint(x[1]); b_lo[1][ti] = __double2loint(x[1]);
+        b_hi[2][ti] = __double2hiint(x[2]); b_lo[2][ti] = __double2loint(x[2]);
+        b_hi[3][ti] = __double2hiint(x[3]); b_lo[3][ti] = __double2loint(x[3]);
 
         __syncthreads();
 
@@ -146,8 +146,8 @@ __global__ void dtrsm(int m, int n,
         // Read the current block of X
         #pragma unroll
         for (int j = 0; j < nb; j += by) {
-          b_lo[threadIdx.x][j + threadIdx.y] = __double2loint(X[j * ldb]);
           b_hi[threadIdx.x][j + threadIdx.y] = __double2hiint(X[j * ldb]);
+          b_lo[threadIdx.x][j + threadIdx.y] = __double2loint(X[j * ldb]);
         }
 
         __syncthreads();
@@ -167,18 +167,18 @@ __global__ void dtrsm(int m, int n,
 
           // Read A and B into shared memory
           if (transA == CBlasNoTrans) {
-            a_lo[threadIdx.y][threadIdx.x] = __double2loint(_A[0]);
             a_hi[threadIdx.y][threadIdx.x] = __double2hiint(_A[0]);
+            a_lo[threadIdx.y][threadIdx.x] = __double2loint(_A[0]);
           }
           else {
-            a_lo[threadIdx.x][threadIdx.y] = __double2loint(_A[0]);
             a_hi[threadIdx.x][threadIdx.y] = __double2hiint(_A[0]);
+            a_lo[threadIdx.x][threadIdx.y] = __double2loint(_A[0]);
           }
 
           #pragma unroll
           for (int j = 0; j < nb; j += by) {
-            b_lo[threadIdx.x][j + threadIdx.y] = __double2loint(_B[j * ldb]);
             b_hi[threadIdx.x][j + threadIdx.y] = __double2hiint(_B[j * ldb]);
+            b_lo[threadIdx.x][j + threadIdx.y] = __double2loint(_B[j * ldb]);
           }
 
           __syncthreads();
@@ -188,7 +188,7 @@ __global__ void dtrsm(int m, int n,
           // Update X in registers
           #pragma unroll
           for (int l = 0; l < mb; l++)
-            daxpy(__hiloint2double(b_hi[l][ti], b_lo[l][ti]), a_lo[l], a_hi[l], x);
+            daxpy(__hiloint2double(b_hi[l][ti], b_lo[l][ti]), a_hi[l], a_lo[l], x);
 
           __syncthreads();
 
@@ -200,33 +200,33 @@ __global__ void dtrsm(int m, int n,
 
         // Process odd elements of A and B
         for (int l = 0; l < k; l++)
-          daxpy(__hiloint2double(b_hi[l][ti], b_lo[l][ti]), a_lo[l], a_hi[l], x);
+          daxpy(__hiloint2double(b_hi[l][ti], b_lo[l][ti]), a_hi[l], a_lo[l], x);
 
         __syncthreads();
 
         // Read the block of A that matches the block of B which is in registers
           if (transA == CBlasNoTrans) {
-            a_lo[threadIdx.y][threadIdx.x] = __double2loint(A[0]);
             a_hi[threadIdx.y][threadIdx.x] = __double2hiint(A[0]);
+            a_lo[threadIdx.y][threadIdx.x] = __double2loint(A[0]);
           }
           else {
-            a_lo[threadIdx.x][threadIdx.y] = __double2loint(A[0]);
             a_hi[threadIdx.x][threadIdx.y] = __double2hiint(A[0]);
+            a_lo[threadIdx.x][threadIdx.y] = __double2loint(A[0]);
           }
 
         __syncthreads();
 
         // Update X unrolled (reverse loop)
-        if (diag == CBlasNonUnit) x[3] /= __hiloint2double(a_hi[3][3], a_lo[3][3]); daxpy(3, x[3], a_lo[3], a_hi[3], x);
-        if (diag == CBlasNonUnit) x[2] /= __hiloint2double(a_hi[2][2], a_lo[2][2]); daxpy(2, x[2], a_lo[2], a_hi[2], x);
-        if (diag == CBlasNonUnit) x[1] /= __hiloint2double(a_hi[1][1], a_lo[1][1]); daxpy(1, x[1], a_lo[1], a_hi[1], x);
+        if (diag == CBlasNonUnit) x[3] /= __hiloint2double(a_hi[3][3], a_lo[3][3]); daxpy(3, x[3], a_hi[3], a_lo[3], x);
+        if (diag == CBlasNonUnit) x[2] /= __hiloint2double(a_hi[2][2], a_lo[2][2]); daxpy(2, x[2], a_hi[2], a_lo[2], x);
+        if (diag == CBlasNonUnit) x[1] /= __hiloint2double(a_hi[1][1], a_lo[1][1]); daxpy(1, x[1], a_hi[1], a_lo[1], x);
         if (diag == CBlasNonUnit) x[0] /= __hiloint2double(a_hi[0][0], a_lo[0][0]);
 
         // Write X out transposing it back via shared memory using b
-        b_lo[0][ti] = __double2loint(x[0]); b_hi[1][ti] = __double2hiint(x[1]);
-        b_lo[1][ti] = __double2loint(x[1]); b_hi[1][ti] = __double2hiint(x[1]);
-        b_lo[2][ti] = __double2loint(x[2]); b_hi[2][ti] = __double2hiint(x[2]);
-        b_lo[3][ti] = __double2loint(x[3]); b_hi[3][ti] = __double2hiint(x[3]);
+        b_hi[0][ti] = __double2hiint(x[0]); b_lo[0][ti] = __double2loint(x[0]);
+        b_hi[1][ti] = __double2hiint(x[1]); b_lo[1][ti] = __double2loint(x[1]);
+        b_hi[2][ti] = __double2hiint(x[2]); b_lo[2][ti] = __double2loint(x[2]);
+        b_hi[3][ti] = __double2hiint(x[3]); b_lo[3][ti] = __double2loint(x[3]);
 
         __syncthreads();
 
@@ -249,8 +249,8 @@ __global__ void dtrsm(int m, int n,
         // Read the current block of X
         #pragma unroll
         for (int j = 0; j < nb; j += by) {
-          b_lo[threadIdx.x][j + threadIdx.y] = __double2loint(X[j * ldb]);
           b_hi[threadIdx.x][j + threadIdx.y] = __double2hiint(X[j * ldb]);
+          b_lo[threadIdx.x][j + threadIdx.y] = __double2loint(X[j * ldb]);
         }
 
         __syncthreads();
@@ -271,18 +271,18 @@ __global__ void dtrsm(int m, int n,
 
           // Read A and B into shared memory
           if (transA == CBlasNoTrans) {
-            a_lo[threadIdx.y][threadIdx.x] = __double2loint(_A[0]);
             a_hi[threadIdx.y][threadIdx.x] = __double2hiint(_A[0]);
+            a_lo[threadIdx.y][threadIdx.x] = __double2loint(_A[0]);
           }
           else {
-            a_lo[threadIdx.x][threadIdx.y] = __double2loint(_A[0]);
             a_hi[threadIdx.x][threadIdx.y] = __double2hiint(_A[0]);
+            a_lo[threadIdx.x][threadIdx.y] = __double2loint(_A[0]);
           }
 
           #pragma unroll
           for (int j = 0; j < nb; j += by) {
-            b_lo[threadIdx.x][j + threadIdx.y] = __double2loint(_B[j * ldb]);
             b_hi[threadIdx.x][j + threadIdx.y] = __double2hiint(_B[j * ldb]);
+            b_lo[threadIdx.x][j + threadIdx.y] = __double2loint(_B[j * ldb]);
           }
 
           __syncthreads();
@@ -290,7 +290,7 @@ __global__ void dtrsm(int m, int n,
           // Update X in registers
           #pragma unroll
           for (int l = 0; l < mb; l++)
-            daxpy(__hiloint2double(b_hi[l][ti], b_lo[l][ti]), a_lo[l], a_hi[l], x);
+            daxpy(__hiloint2double(b_hi[l][ti], b_lo[l][ti]), a_hi[l], a_lo[l], x);
 
           __syncthreads();
 
@@ -302,18 +302,18 @@ __global__ void dtrsm(int m, int n,
 
         // Process odd elements of A and B
         for (int l = 0; l < k; l++)
-          daxpy(__hiloint2double(b_hi[l][ti], b_lo[l][ti]), a_lo[l], a_hi[l], x);
+          daxpy(__hiloint2double(b_hi[l][ti], b_lo[l][ti]), a_hi[l], a_lo[l], x);
 
         __syncthreads();
 
         // Read the block of A that matches the block of B which is in registers
         if (transA == CBlasNoTrans) {
-          a_lo[threadIdx.y][threadIdx.x] = __double2loint(_A[0]);
           a_hi[threadIdx.y][threadIdx.x] = __double2hiint(_A[0]);
+          a_lo[threadIdx.y][threadIdx.x] = __double2loint(_A[0]);
         }
         else {
-          a_lo[threadIdx.x][threadIdx.y] = __double2loint(_A[0]);
           a_hi[threadIdx.x][threadIdx.y] = __double2hiint(_A[0]);
+          a_lo[threadIdx.x][threadIdx.y] = __double2loint(_A[0]);
         }
 
         __syncthreads();
@@ -321,16 +321,16 @@ __global__ void dtrsm(int m, int n,
         if (m < mb) break;
 
         // Update X unrolled (forward loop)
-        if (diag == CBlasNonUnit) x[0] /= __hiloint2double(a_hi[0][0], a_lo[0][0]); daxpy(3, x[0], &a_lo[0][1], &a_hi[0][1], &x[1]);
-        if (diag == CBlasNonUnit) x[1] /= __hiloint2double(a_hi[1][1], a_lo[1][1]); daxpy(2, x[1], &a_lo[1][2], &a_hi[1][2], &x[2]);
-        if (diag == CBlasNonUnit) x[2] /= __hiloint2double(a_hi[2][2], a_lo[2][2]); daxpy(1, x[2], &a_lo[2][3], &a_hi[2][3], &x[3]);
+        if (diag == CBlasNonUnit) x[0] /= __hiloint2double(a_hi[0][0], a_lo[0][0]); daxpy(3, x[0], &a_hi[0][1], &a_lo[0][1], &x[1]);
+        if (diag == CBlasNonUnit) x[1] /= __hiloint2double(a_hi[1][1], a_lo[1][1]); daxpy(2, x[1], &a_hi[1][2], &a_lo[1][2], &x[2]);
+        if (diag == CBlasNonUnit) x[2] /= __hiloint2double(a_hi[2][2], a_lo[2][2]); daxpy(1, x[2], &a_hi[2][3], &a_lo[2][3], &x[3]);
         if (diag == CBlasNonUnit) x[3] /= __hiloint2double(a_hi[3][3], a_lo[3][3]);
 
         // Write X out transposing it back via shared memory using b
-        b_lo[0][ti] = __double2loint(x[0]); b_hi[1][ti] = __double2hiint(x[1]);
-        b_lo[1][ti] = __double2loint(x[1]); b_hi[1][ti] = __double2hiint(x[1]);
-        b_lo[2][ti] = __double2loint(x[2]); b_hi[2][ti] = __double2hiint(x[2]);
-        b_lo[3][ti] = __double2loint(x[3]); b_hi[3][ti] = __double2hiint(x[3]);
+        b_hi[0][ti] = __double2hiint(x[0]); b_lo[0][ti] = __double2loint(x[0]);
+        b_hi[1][ti] = __double2hiint(x[1]); b_lo[1][ti] = __double2loint(x[1]);
+        b_hi[2][ti] = __double2hiint(x[2]); b_lo[2][ti] = __double2loint(x[2]);
+        b_hi[3][ti] = __double2hiint(x[3]); b_lo[3][ti] = __double2loint(x[3]);
 
         __syncthreads();
 
@@ -349,17 +349,17 @@ __global__ void dtrsm(int m, int n,
 
       // Handle the trailing elements last, if any.
       if (m > 0) { if (diag == CBlasNonUnit) x[0] /= __hiloint2double(a_hi[0][0], a_lo[0][0]);
-      if (m > 1) { daxpy(m - 1, x[0], &a_lo[0][1], &a_hi[0][1], &x[1]); if (diag == CBlasNonUnit) x[1] /= __hiloint2double(a_hi[1][1], a_lo[1][1]);
-      if (m > 2) { daxpy(m - 2, x[1], &a_lo[1][2], &a_hi[1][2], &x[2]); if (diag == CBlasNonUnit) x[2] /= __hiloint2double(a_hi[2][2], a_lo[2][2]);
-      if (m > 3) { daxpy(m - 3, x[2], &a_lo[2][3], &a_hi[2][3], &x[3]); if (diag == CBlasNonUnit) x[3] /= __hiloint2double(a_hi[3][3], a_lo[3][3]); }}}}
+      if (m > 1) { daxpy(m - 1, x[0], &a_hi[0][1], &a_lo[0][1], &x[1]); if (diag == CBlasNonUnit) x[1] /= __hiloint2double(a_hi[1][1], a_lo[1][1]);
+      if (m > 2) { daxpy(m - 2, x[1], &a_hi[1][2], &a_lo[1][2], &x[2]); if (diag == CBlasNonUnit) x[2] /= __hiloint2double(a_hi[2][2], a_lo[2][2]);
+      if (m > 3) { daxpy(m - 3, x[2], &a_hi[2][3], &a_lo[2][3], &x[3]); if (diag == CBlasNonUnit) x[3] /= __hiloint2double(a_hi[3][3], a_lo[3][3]); }}}}
 
       __syncthreads();
 
       // Write X out transposing it back via shared memory using b
-        b_lo[0][ti] = __double2loint(x[0]); b_hi[1][ti] = __double2hiint(x[1]);
-        b_lo[1][ti] = __double2loint(x[1]); b_hi[1][ti] = __double2hiint(x[1]);
-        b_lo[2][ti] = __double2loint(x[2]); b_hi[2][ti] = __double2hiint(x[2]);
-        b_lo[3][ti] = __double2loint(x[3]); b_hi[3][ti] = __double2hiint(x[3]);
+      b_hi[0][ti] = __double2hiint(x[0]); b_lo[0][ti] = __double2loint(x[0]);
+      b_hi[1][ti] = __double2hiint(x[1]); b_lo[1][ti] = __double2loint(x[1]);
+      b_hi[2][ti] = __double2hiint(x[2]); b_lo[2][ti] = __double2loint(x[2]);
+      b_hi[3][ti] = __double2hiint(x[3]); b_lo[3][ti] = __double2loint(x[3]);
 
       __syncthreads();
 
@@ -379,8 +379,8 @@ __global__ void dtrsm(int m, int n,
 //     typedef char _z[(by == nb) ? 1 : -1];
 
     // Each thread computes a row of B 4 elements at a time
-    __shared__ int a_lo[nb][(transA == CBlasNoTrans) ? nb + 1 : nb];
     __shared__ int a_hi[nb][(transA == CBlasNoTrans) ? nb + 1 : nb];
+    __shared__ int a_lo[nb][(transA == CBlasNoTrans) ? nb + 1 : nb];
     double x[4];
 
     const int ti = threadIdx.y * bx + threadIdx.x;
@@ -409,12 +409,12 @@ __global__ void dtrsm(int m, int n,
 
           // Read A into shared memory
           if (transA == CBlasNoTrans) {
-            a_lo[threadIdx.x][threadIdx.y] = __double2loint(_A[0]);
             a_hi[threadIdx.x][threadIdx.y] = __double2hiint(_A[0]);
+            a_lo[threadIdx.x][threadIdx.y] = __double2loint(_A[0]);
           }
           else {
-            a_lo[threadIdx.y][threadIdx.x] = __double2loint(_A[0]);
             a_hi[threadIdx.y][threadIdx.x] = __double2hiint(_A[0]);
+            a_lo[threadIdx.y][threadIdx.x] = __double2loint(_A[0]);
           }
 
           __syncthreads();
@@ -422,7 +422,7 @@ __global__ void dtrsm(int m, int n,
           // Update X reading B straight from global memory
           #pragma unroll
           for (int l = 0; l < nb; l++)
-            daxpy(_B[l * ldb], a_lo[l], a_hi[l], x);
+            daxpy(_B[l * ldb], a_hi[l], a_lo[l], x);
 
           __syncthreads();
 
@@ -434,12 +434,12 @@ __global__ void dtrsm(int m, int n,
 
         // Read the block of A that matches the block of B which is in registers
         if (transA == CBlasNoTrans) {
-          a_lo[threadIdx.x][threadIdx.y] = __double2loint(_A[0]);
           a_hi[threadIdx.x][threadIdx.y] = __double2hiint(_A[0]);
+          a_lo[threadIdx.x][threadIdx.y] = __double2loint(_A[0]);
         }
         else {
-          a_lo[threadIdx.y][threadIdx.x] = __double2loint(_A[0]);
           a_hi[threadIdx.y][threadIdx.x] = __double2hiint(_A[0]);
+          a_lo[threadIdx.y][threadIdx.x] = __double2loint(_A[0]);
         }
 
         __syncthreads();
@@ -448,9 +448,9 @@ __global__ void dtrsm(int m, int n,
 
         // Update X unrolled (forward loop)
         if (n > 0) { if (diag == CBlasNonUnit) x[0] /= __hiloint2double(a_hi[0][0], a_lo[0][0]);
-        if (n > 1) { daxpy(3, x[0], &a_lo[0][1], &a_hi[0][1], &x[1]); if (diag == CBlasNonUnit) x[1] /= __hiloint2double(a_hi[1][1], a_lo[1][1]);
-        if (n > 2) { daxpy(2, x[1], &a_lo[1][2], &a_hi[1][2], &x[2]); if (diag == CBlasNonUnit) x[2] /= __hiloint2double(a_hi[2][2], a_lo[2][2]);
-        if (n > 3) { daxpy(1, x[2], &a_lo[2][3], &a_hi[2][3], &x[3]); if (diag == CBlasNonUnit) x[3] /= __hiloint2double(a_hi[3][3], a_lo[3][3]); }}}}
+        if (n > 1) { daxpy(3, x[0], &a_hi[0][1], &a_lo[0][1], &x[1]); if (diag == CBlasNonUnit) x[1] /= __hiloint2double(a_hi[1][1], a_lo[1][1]);
+        if (n > 2) { daxpy(2, x[1], &a_hi[1][2], &a_lo[1][2], &x[2]); if (diag == CBlasNonUnit) x[2] /= __hiloint2double(a_hi[2][2], a_lo[2][2]);
+        if (n > 3) { daxpy(1, x[2], &a_hi[2][3], &a_lo[2][3], &x[3]); if (diag == CBlasNonUnit) x[3] /= __hiloint2double(a_hi[3][3], a_lo[3][3]); }}}}
 
         // Write X
         if (ti < m) {
@@ -468,9 +468,9 @@ __global__ void dtrsm(int m, int n,
 
       // Update X unrolled (forward loop)
       if (n > 0) { if (diag == CBlasNonUnit) x[0] /= __hiloint2double(a_hi[0][0], a_lo[0][0]);
-      if (n > 1) { daxpy(n - 1, x[0], &a_lo[0][1], &a_hi[0][1], &x[1]); if (diag == CBlasNonUnit) x[1] /= __hiloint2double(a_hi[1][1], a_lo[1][1]);
-      if (n > 2) { daxpy(n - 2, x[1], &a_lo[1][2], &a_hi[1][2], &x[2]); if (diag == CBlasNonUnit) x[2] /= __hiloint2double(a_hi[2][2], a_lo[2][2]);
-      if (n > 3) { daxpy(n - 3, x[2], &a_lo[2][3], &a_hi[2][3], &x[3]); if (diag == CBlasNonUnit) x[3] /= __hiloint2double(a_hi[3][3], a_lo[3][3]); }}}}
+      if (n > 1) { daxpy(n - 1, x[0], &a_hi[0][1], &a_lo[0][1], &x[1]); if (diag == CBlasNonUnit) x[1] /= __hiloint2double(a_hi[1][1], a_lo[1][1]);
+      if (n > 2) { daxpy(n - 2, x[1], &a_hi[1][2], &a_lo[1][2], &x[2]); if (diag == CBlasNonUnit) x[2] /= __hiloint2double(a_hi[2][2], a_lo[2][2]);
+      if (n > 3) { daxpy(n - 3, x[2], &a_hi[2][3], &a_lo[2][3], &x[3]); if (diag == CBlasNonUnit) x[3] /= __hiloint2double(a_hi[3][3], a_lo[3][3]); }}}}
 
       // Write X
       if (ti < m) {
@@ -494,21 +494,21 @@ __global__ void dtrsm(int m, int n,
 
         // Read the current block of A
         if (transA == CBlasNoTrans) {
-          a_lo[threadIdx.x][threadIdx.y] = __double2loint(A[0]);
           a_hi[threadIdx.x][threadIdx.y] = __double2hiint(A[0]);
+          a_lo[threadIdx.x][threadIdx.y] = __double2loint(A[0]);
         }
         else {
-          a_lo[threadIdx.y][threadIdx.x] = __double2loint(A[0]);
           a_hi[threadIdx.y][threadIdx.x] = __double2hiint(A[0]);
+          a_lo[threadIdx.y][threadIdx.x] = __double2loint(A[0]);
         }
 
         __syncthreads();
 
         // Update X from right to left
         switch (nn - 1) {
-          case 3: if (diag == CBlasNonUnit) x[3] /= __hiloint2double(a_hi[3][3], a_lo[3][3]); daxpy(3, x[3], a_lo[3], a_hi[3], x);
-          case 2: if (diag == CBlasNonUnit) x[2] /= __hiloint2double(a_hi[2][2], a_lo[2][2]); daxpy(2, x[2], a_lo[2], a_hi[2], x);
-          case 1: if (diag == CBlasNonUnit) x[1] /= __hiloint2double(a_hi[1][1], a_lo[1][1]); daxpy(1, x[1], a_lo[1], a_hi[1], x);
+          case 3: if (diag == CBlasNonUnit) x[3] /= __hiloint2double(a_hi[3][3], a_lo[3][3]); daxpy(3, x[3], a_hi[3], a_lo[3], x);
+          case 2: if (diag == CBlasNonUnit) x[2] /= __hiloint2double(a_hi[2][2], a_lo[2][2]); daxpy(2, x[2], a_hi[2], a_lo[2], x);
+          case 1: if (diag == CBlasNonUnit) x[1] /= __hiloint2double(a_hi[1][1], a_lo[1][1]); daxpy(1, x[1], a_hi[1], a_lo[1], x);
           case 0: if (diag == CBlasNonUnit) x[0] /= __hiloint2double(a_hi[0][0], a_lo[0][0]);
         }
 
@@ -540,12 +540,12 @@ __global__ void dtrsm(int m, int n,
 
           // Read the current block of A
           if (transA == CBlasNoTrans) {
-            a_lo[threadIdx.x][threadIdx.y] = __double2loint(_A[0]);
             a_hi[threadIdx.x][threadIdx.y] = __double2hiint(_A[0]);
+            a_lo[threadIdx.x][threadIdx.y] = __double2loint(_A[0]);
           }
           else {
-            a_lo[threadIdx.y][threadIdx.x] = __double2loint(_A[0]);
             a_hi[threadIdx.y][threadIdx.x] = __double2hiint(_A[0]);
+            a_lo[threadIdx.y][threadIdx.x] = __double2loint(_A[0]);
           }
 
           __syncthreads();
@@ -555,7 +555,7 @@ __global__ void dtrsm(int m, int n,
           // Update X in registers
           #pragma unroll
           for (int l = 0; l < nb; l++)
-            daxpy(_B[l * ldb], a_lo[l], a_hi[l], x);
+            daxpy(_B[l * ldb], a_hi[l], a_lo[l], x);
 
           __syncthreads();
 
@@ -567,26 +567,26 @@ __global__ void dtrsm(int m, int n,
 
         // Process odd elements of A and B
         for (int l = 0; l < k; l++)
-          daxpy(_B[l * ldb], a_lo[l], a_hi[l], x);
+          daxpy(_B[l * ldb], a_hi[l], a_lo[l], x);
 
         __syncthreads();
 
         // Read the block of A that matches the block of B which is in registers
         if (transA == CBlasNoTrans) {
-          a_lo[threadIdx.x][threadIdx.y] = __double2loint(A[0]);
           a_hi[threadIdx.x][threadIdx.y] = __double2hiint(A[0]);
+          a_lo[threadIdx.x][threadIdx.y] = __double2loint(A[0]);
         }
         else {
-          a_lo[threadIdx.y][threadIdx.x] = __double2loint(A[0]);
           a_hi[threadIdx.y][threadIdx.x] = __double2hiint(A[0]);
+          a_lo[threadIdx.y][threadIdx.x] = __double2loint(A[0]);
         }
 
         __syncthreads();
 
         // Update X from right to left
-        if (diag == CBlasNonUnit) x[3] /= __hiloint2double(a_hi[3][3], a_lo[3][3]); daxpy(3, x[3], a_lo[3], a_hi[3], x);
-        if (diag == CBlasNonUnit) x[2] /= __hiloint2double(a_hi[2][2], a_lo[2][2]); daxpy(2, x[2], a_lo[2], a_hi[2], x);
-        if (diag == CBlasNonUnit) x[1] /= __hiloint2double(a_hi[1][1], a_lo[1][1]); daxpy(1, x[1], a_lo[1], a_hi[1], x);
+        if (diag == CBlasNonUnit) x[3] /= __hiloint2double(a_hi[3][3], a_lo[3][3]); daxpy(3, x[3], a_hi[3], a_lo[3], x);
+        if (diag == CBlasNonUnit) x[2] /= __hiloint2double(a_hi[2][2], a_lo[2][2]); daxpy(2, x[2], a_hi[2], a_lo[2], x);
+        if (diag == CBlasNonUnit) x[1] /= __hiloint2double(a_hi[1][1], a_lo[1][1]); daxpy(1, x[1], a_hi[1], a_lo[1], x);
         if (diag == CBlasNonUnit) x[0] /= __hiloint2double(a_hi[0][0], a_lo[0][0]);
 
         // Write X

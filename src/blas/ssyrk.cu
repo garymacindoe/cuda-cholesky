@@ -1,11 +1,11 @@
 #include "blas.h"
 
 // y(1:16) += alpha * x(1:16)
-__device__ void saxpy(float a, const float * b, float * c) {
-  c[ 0] += a * b[ 0]; c[ 1] += a * b[ 1]; c[ 2] += a * b[ 2]; c[ 3] += a * b[ 3];
-  c[ 4] += a * b[ 4]; c[ 5] += a * b[ 5]; c[ 6] += a * b[ 6]; c[ 7] += a * b[ 7];
-  c[ 8] += a * b[ 8]; c[ 9] += a * b[ 9]; c[10] += a * b[10]; c[11] += a * b[11];
-  c[12] += a * b[12]; c[13] += a * b[13]; c[14] += a * b[14]; c[15] += a * b[15];
+__device__ void saxpy(float alpha, const float * x, float * y) {
+  y[ 0] += alpha * x[ 0]; y[ 1] += alpha * x[ 1]; y[ 2] += alpha * x[ 2]; y[ 3] += alpha * x[ 3];
+  y[ 4] += alpha * x[ 4]; y[ 5] += alpha * x[ 5]; y[ 6] += alpha * x[ 6]; y[ 7] += alpha * x[ 7];
+  y[ 8] += alpha * x[ 8]; y[ 9] += alpha * x[ 9]; y[10] += alpha * x[10]; y[11] += alpha * x[11];
+  y[12] += alpha * x[12]; y[13] += alpha * x[13]; y[14] += alpha * x[14]; y[15] += alpha * x[15];
 }
 
 /**
