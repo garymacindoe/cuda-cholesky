@@ -137,6 +137,7 @@ __global__ void strsm(int m, int n,
 
         __syncthreads();
 
+        // Read the current block of X
         #pragma unroll
         for (int j = 0; j < nb; j += by)
           b[threadIdx.x][j + threadIdx.y] = X[j * ldb];
@@ -148,11 +149,13 @@ __global__ void strsm(int m, int n,
 
         __syncthreads();
 
+        // Start at the block one beyond X and move to the bottom
         const float * _A = A + ((transA == CBlasNoTrans) ? mb * lda : mb);
         const float * _B = X + mb;
         int k = m - i - mb;
         while (k > 0) {
 
+          // Read A and B into shared memory
           if (transA == CBlasNoTrans)
             a[threadIdx.y][threadIdx.x] = _A[0];
           else
@@ -166,22 +169,26 @@ __global__ void strsm(int m, int n,
 
           if (k < mb) break;
 
+          // Update X in registers
           #pragma unroll
           for (int l = 0; l < mb; l++)
             saxpy(b[l][ti], a[l], x);
 
           __syncthreads();
 
+          // Move to the next blocks of A and B
           _A += (transA == CBlasNoTrans) ? mb * lda : mb;
           _B += mb;
           k -= mb;
         }
 
+        // Process odd elements of A and B
         for (int l = 0; l < k; l++)
           saxpy(b[l][ti], a[l], x);
 
         __syncthreads();
 
+        // Read the block of A that matches the block of B which is in registers
         if (transA == CBlasNoTrans)
           a[threadIdx.y][threadIdx.x] = A[0];
         else
@@ -189,6 +196,7 @@ __global__ void strsm(int m, int n,
 
         __syncthreads();
 
+        // Update X unrolled (reverse loop)
         if (diag == CBlasNonUnit) x[7] /= a[7][7]; saxpy(7, x[7], a[7], x);
         if (diag == CBlasNonUnit) x[6] /= a[6][6]; saxpy(6, x[6], a[6], x);
         if (diag == CBlasNonUnit) x[5] /= a[5][5]; saxpy(5, x[5], a[5], x);
@@ -198,6 +206,7 @@ __global__ void strsm(int m, int n,
         if (diag == CBlasNonUnit) x[1] /= a[1][1]; saxpy(1, x[1], a[1], x);
         if (diag == CBlasNonUnit) x[0] /= a[0][0];
 
+        // Write X out transposing it back via shared memory using b
         b[0][ti] = x[0]; b[1][ti] = x[1]; b[2][ti] = x[2]; b[3][ti] = x[3];
         b[4][ti] = x[4]; b[5][ti] = x[5]; b[6][ti] = x[6]; b[7][ti] = x[7];
 
@@ -207,16 +216,19 @@ __global__ void strsm(int m, int n,
         for (int j = 0; j < nb; j += by)
           X[j * ldb] = b[threadIdx.x][j + threadIdx.y];
 
+        // Move up to the next blocks of A and B (through X)
         A -= mb * lda + mb;
         X -= mb;
         i -= mb;
       }
     }
     else {      /* (uplo == CBlasLower && transA == CBlasNoTrans) || (uplo == CBlasUpper && transA != CBlasNoTrans) */
+      // For this case we start at the top of B and work downwards
       float * X = B;
       int i = 0;
 
       while (m > 0) {
+        // Read the current block of X
         #pragma unroll
         for (int j = 0; j < nb; j += by)
           b[threadIdx.x][j + threadIdx.y] = X[j * ldb];
@@ -228,11 +240,13 @@ __global__ void strsm(int m, int n,
 
         __syncthreads();
 
+        // Start at the top of B and move down to X
         const float * _A = A;
         const float * _B = B;
         int k = i;
         while (k > 0) {
 
+          // Read A and B into shared memory
           if (transA == CBlasNoTrans)
             a[threadIdx.y][threadIdx.x] = _A[0];
           else
@@ -244,22 +258,26 @@ __global__ void strsm(int m, int n,
 
           __syncthreads();
 
+          // Update X in registers
           #pragma unroll
           for (int l = 0; l < mb; l++)
             saxpy(b[l][ti], a[l], x);
 
           __syncthreads();
 
+          // Move to the next blocks of A and B
           _A += (transA == CBlasNoTrans) ? mb * lda : mb;
           _B += mb;
           k -= mb;
         }
 
+        // Process odd elements of A and B
         for (int l = 0; l < k; l++)
           saxpy(b[l][ti], a[l], x);
 
         __syncthreads();
 
+        // Read the block of A that matches the block of B which is in registers
         if (transA == CBlasNoTrans)
           a[threadIdx.y][threadIdx.x] = _A[0];
         else
@@ -269,6 +287,7 @@ __global__ void strsm(int m, int n,
 
         if (m < mb) break;
 
+        // Update X unrolled (forward loop)
         if (diag == CBlasNonUnit) x[0] /= a[0][0]; saxpy(7, x[0], &a[0][1], &x[1]);
         if (diag == CBlasNonUnit) x[1] /= a[1][1]; saxpy(6, x[1], &a[1][2], &x[2]);
         if (diag == CBlasNonUnit) x[2] /= a[2][2]; saxpy(5, x[2], &a[2][3], &x[3]);
@@ -278,6 +297,7 @@ __global__ void strsm(int m, int n,
         if (diag == CBlasNonUnit) x[6] /= a[6][6]; saxpy(1, x[6], &a[6][7], &x[7]);
         if (diag == CBlasNonUnit) x[7] /= a[7][7];
 
+        // Write X out transposing it back via shared memory using b
         b[0][ti] = x[0]; b[1][ti] = x[1]; b[2][ti] = x[2]; b[3][ti] = x[3];
         b[4][ti] = x[4]; b[5][ti] = x[5]; b[6][ti] = x[6]; b[7][ti] = x[7];
 
@@ -289,12 +309,14 @@ __global__ void strsm(int m, int n,
 
         __syncthreads();
 
+        // Move up to the next blocks of A and B (through X)
         A += (transA == CBlasNoTrans) ? mb : mb * lda;
         X += mb;
         m -= mb;
         i += mb;
       }
 
+      // Handle the trailing elements last, if any.
       if (m > 0) { if (diag == CBlasNonUnit) x[0] /= a[0][0];
       if (m > 1) { saxpy(m - 1, x[0], &a[0][1], &x[1]); if (diag == CBlasNonUnit) x[1] /= a[1][1];
       if (m > 2) { saxpy(m - 2, x[1], &a[1][2], &x[2]); if (diag == CBlasNonUnit) x[2] /= a[2][2];
@@ -306,6 +328,7 @@ __global__ void strsm(int m, int n,
 
       __syncthreads();
 
+      // Write X out transposing it back via shared memory using b
       b[0][ti] = x[0]; b[1][ti] = x[1]; b[2][ti] = x[2]; b[3][ti] = x[3];
       b[4][ti] = x[4]; b[5][ti] = x[5]; b[6][ti] = x[6]; b[7][ti] = x[7];
 
@@ -324,6 +347,8 @@ __global__ void strsm(int m, int n,
     }
   }
   else {
+   // For CBlasRight each thread updates a row.  This means that B can be read
+   // efficiently straight from global memory.
 //     typedef char _x[(nb == 8) ? 1 : -1];
 //     typedef char _y[(mb == bx * by) ? 1 : -1];
 //     typedef char _z[(by == nb) ? 1 : -1];
@@ -334,25 +359,30 @@ __global__ void strsm(int m, int n,
 
     const int ti = threadIdx.y * bx + threadIdx.x;
 
-    // Compute the starting points in a and B for each thread
+    // Compute the starting points in A and B for each thread
     A += threadIdx.y * lda + threadIdx.x;
     B += blockIdx.x * mb + ti;
     m -= blockIdx.x * mb;
 
+    // There are 2 common cases for each of CBlasLeft and CBlasRight
     if ((uplo == CBlasUpper && transA == CBlasNoTrans) ||
         (uplo == CBlasLower && transA != CBlasNoTrans)) {
+      // For this case start on the left and work right
       float * X = B;
       int j = 0;
 
       while (n > 0) {
+        // Read the current block of X
         x[0] = alpha * X[0 * ldb]; x[1] = alpha * X[1 * ldb]; x[2] = alpha * X[2 * ldb]; x[3] = alpha * X[3 * ldb];
         x[4] = alpha * X[4 * ldb]; x[5] = alpha * X[5 * ldb]; x[6] = alpha * X[6 * ldb]; x[7] = alpha * X[7 * ldb];
 
+        // Start at the left of B and move right to X
         const float * _A = A;
         const float * _B = B;
         int k = j;
         while (k > 0) {
 
+          // Read A into shared memory
           if (transA == CBlasNoTrans)
             a[threadIdx.x][threadIdx.y] = _A[0];
           else
@@ -360,17 +390,20 @@ __global__ void strsm(int m, int n,
 
           __syncthreads();
 
+          // Update X reading B straight from global memory
           #pragma unroll
           for (int l = 0; l < nb; l++)
             saxpy(_B[l * ldb], a[l], x);
 
           __syncthreads();
 
+          //  Move to the next blocks of A and B
           _A += (transA == CBlasNoTrans) ? nb : nb * lda;
           _B += nb * ldb;
           k -= nb;
         }
 
+        // Read the block of A that matches the block of B which is in registers
         if (transA == CBlasNoTrans)
           a[threadIdx.x][threadIdx.y] = _A[0];
         else
@@ -380,6 +413,7 @@ __global__ void strsm(int m, int n,
 
         if (n < nb) break;
 
+        // Update X unrolled (forward loop)
         if (n > 0) { if (diag == CBlasNonUnit) x[0] /= a[0][0];
         if (n > 1) { saxpy(7, x[0], &a[0][1], &x[1]); if (diag == CBlasNonUnit) x[1] /= a[1][1];
         if (n > 2) { saxpy(6, x[1], &a[1][2], &x[2]); if (diag == CBlasNonUnit) x[2] /= a[2][2];
@@ -389,6 +423,7 @@ __global__ void strsm(int m, int n,
         if (n > 6) { saxpy(2, x[5], &a[5][6], &x[6]); if (diag == CBlasNonUnit) x[6] /= a[6][6];
         if (n > 7) { saxpy(1, x[6], &a[6][7], &x[7]); if (diag == CBlasNonUnit) x[7] /= a[7][7]; }}}}}}}}
 
+        // Write X
         if (ti < m) {
           X[0 * ldb] = x[0]; X[1 * ldb] = x[1]; X[2 * ldb] = x[2]; X[3 * ldb] = x[3];
           X[4 * ldb] = x[4]; X[5 * ldb] = x[5]; X[6 * ldb] = x[6]; X[7 * ldb] = x[7];
@@ -396,12 +431,14 @@ __global__ void strsm(int m, int n,
 
         __syncthreads();
 
+        // Move right to the next blocks of A and B (through X)
         A += (transA == CBlasNoTrans) ? nb * lda : nb;
         X += nb * ldb;
         n -= nb;
         j += nb;
       }
 
+      // Update X unrolled (forward loop)
       if (n > 0) { if (diag == CBlasNonUnit) x[0] /= a[0][0];
       if (n > 1) { saxpy(n - 1, x[0], &a[0][1], &x[1]); if (diag == CBlasNonUnit) x[1] /= a[1][1];
       if (n > 2) { saxpy(n - 2, x[1], &a[1][2], &x[2]); if (diag == CBlasNonUnit) x[2] /= a[2][2];
@@ -411,6 +448,7 @@ __global__ void strsm(int m, int n,
       if (n > 6) { saxpy(n - 6, x[5], &a[5][6], &x[6]); if (diag == CBlasNonUnit) x[6] /= a[6][6];
       if (n > 7) { saxpy(n - 7, x[6], &a[6][7], &x[7]); if (diag == CBlasNonUnit) x[7] /= a[7][7]; }}}}}}}}
 
+      // Write X
       if (ti < m) {
         X[0] = x[0]; if (1 >= n) return; X += ldb; X[0] = x[1]; if (2 >= n) return; X += ldb;
         X[0] = x[2]; if (3 >= n) return; X += ldb; X[0] = x[3]; if (4 >= n) return; X += ldb;
@@ -419,16 +457,21 @@ __global__ void strsm(int m, int n,
       }
     }
     else {      /* (uplo == CBlasLower && transA == CBlasNoTrans) || (uplo == CBlasUpper && transA != CBlasNoTrans) */
+      // For this case start on the right and work left
       const int nn = n & (nb - 1);
       int j = n - nn;
 
       A += j * lda + j;
       float * X = B + j * ldb;
 
+      // Handle the trailing elements first, if any.  This only requires reading
+      // the block of B that we are also updating (X == _B).
       if (nn > 0) {
+        // Read the block of B we are updating
         x[0] = alpha * X[0 * ldb]; x[1] = alpha * X[1 * ldb]; x[2] = alpha * X[2 * ldb]; x[3] = alpha * X[3 * ldb];
         x[4] = alpha * X[4 * ldb]; x[5] = alpha * X[5 * ldb]; x[6] = alpha * X[6 * ldb]; x[7] = alpha * X[7 * ldb];
 
+        // Read the current block of A
         if (transA == CBlasNoTrans)
           a[threadIdx.x][threadIdx.y] = A[0];
         else
@@ -436,6 +479,7 @@ __global__ void strsm(int m, int n,
 
         __syncthreads();
 
+        // Update X from right to left
         switch (nn - 1) {
           case 7: if (diag == CBlasNonUnit) x[7] /= a[7][7]; saxpy(7, x[7], a[7], x);
           case 6: if (diag == CBlasNonUnit) x[6] /= a[6][6]; saxpy(6, x[6], a[6], x);
@@ -447,6 +491,7 @@ __global__ void strsm(int m, int n,
           case 0: if (diag == CBlasNonUnit) x[0] /= a[0][0];
         }
 
+        // Write X
         if (ti < m) {
           X[0 * ldb] = x[0]; if (1 < nn) {
           X[1 * ldb] = x[1]; if (2 < nn) {
@@ -459,21 +504,25 @@ __global__ void strsm(int m, int n,
         }
       }
 
+      // Move left to the next block
       A -= nb * lda + nb;
       X -= nb * ldb;
       j -= nb;
 
       while (j >= 0) {
+        // Read the current block of X and multiply by alpha
         x[0] = alpha * X[0 * ldb]; x[1] = alpha * X[1 * ldb]; x[2] = alpha * X[2 * ldb]; x[3] = alpha * X[3 * ldb];
         x[4] = alpha * X[4 * ldb]; x[5] = alpha * X[5 * ldb]; x[6] = alpha * X[6 * ldb]; x[7] = alpha * X[7 * ldb];
 
         __syncthreads();
 
+        // Start one block beyond X and move to the right
         const float * _A = A + ((transA == CBlasNoTrans) ? nb : nb * lda);
         const float * _B = X + nb * ldb;
         int k = n - j - nb;
         while (k > 0) {
 
+          // Read the current block of A
           if (transA == CBlasNoTrans)
             a[threadIdx.x][threadIdx.y] = _A[0];
           else
@@ -483,22 +532,26 @@ __global__ void strsm(int m, int n,
 
           if (k < nb) break;
 
+          // Update X in registers
           #pragma unroll
           for (int l = 0; l < nb; l++)
             saxpy(_B[l * ldb], a[l], x);
 
           __syncthreads();
 
+          // Move to the next blocks of A and B
           _A += (transA == CBlasNoTrans) ? nb : nb * lda;
           _B += nb * ldb;
           k -= nb;
         }
 
+        // Process odd elements of A and B
         for (int l = 0; l < k; l++)
           saxpy(_B[l * ldb], a[l], x);
 
         __syncthreads();
 
+        // Read the block of A that matches the block of B which is in registers
         if (transA == CBlasNoTrans)
           a[threadIdx.x][threadIdx.y] = A[0];
         else
@@ -506,6 +559,7 @@ __global__ void strsm(int m, int n,
 
         __syncthreads();
 
+        // Update X from right to left
         if (diag == CBlasNonUnit) x[7] /= a[7][7]; saxpy(7, x[7], a[7], x);
         if (diag == CBlasNonUnit) x[6] /= a[6][6]; saxpy(6, x[6], a[6], x);
         if (diag == CBlasNonUnit) x[5] /= a[5][5]; saxpy(5, x[5], a[5], x);
@@ -515,11 +569,13 @@ __global__ void strsm(int m, int n,
         if (diag == CBlasNonUnit) x[1] /= a[1][1]; saxpy(1, x[1], a[1], x);
         if (diag == CBlasNonUnit) x[0] /= a[0][0];
 
+        // Write X
         if (ti < m) {
           X[0 * ldb] = x[0]; X[1 * ldb] = x[1]; X[2 * ldb] = x[2]; X[3 * ldb] = x[3];
           X[4 * ldb] = x[4]; X[5 * ldb] = x[5]; X[6 * ldb] = x[6]; X[7 * ldb] = x[7];
         }
 
+        // Move left to the next blocks of A and B (through X)
         A -= nb * lda + nb;
         X -= nb * ldb;
         j -= nb;
