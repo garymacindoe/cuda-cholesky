@@ -1,11 +1,11 @@
 #include "blas.h"
 #include <cuComplex.h>
 
-__host__ __device__ static inline cuComplex cuCmulf(float a, cuComplex b) {
+__host__ __device__ static __inline__ cuComplex cuCmulf(float a, cuComplex b) {
   return make_cuComplex(a * cuCrealf(b), a * cuCimagf(b));
 }
 
-__host__ __device__ static inline cuComplex cuCfmaf(float a, cuComplex b, cuComplex c) {
+__host__ __device__ static __inline__ cuComplex cuCfmaf(float a, cuComplex b, cuComplex c) {
   return make_cuComplex(a * cuCrealf(b) + cuCrealf(c), a * cuCimagf(b) + cuCimagf(c));
 }
 
