@@ -109,10 +109,10 @@ void zpotrf(CBlasUplo uplo, size_t n, double complex * restrict A, size_t lda, l
 
   const size_t nb = 64;
 
-//   if (n < nb) {
+  if (n < nb) {
     zpotf2(uplo, n, A, lda, info);
     return;
-//   }
+  }
 
   if (uplo == CBlasUpper) {
     for (size_t j = 0; j < n; j += nb) {
@@ -127,7 +127,7 @@ void zpotrf(CBlasUplo uplo, size_t n, double complex * restrict A, size_t lda, l
 
       if (j + jb < n) {
         zgemm(CBlasConjTrans, CBlasNoTrans, jb, n - j - jb, j, -complex_one, &A[j * lda], lda, &A[(j + jb) * lda], lda, one, &A[(j + jb) * lda + j], lda);
-//         ztrsm(CBlasLeft, CBlasUpper, CBlasConjTrans, CBlasNonUnit, jb, n - j - jb, one, &A[j * lda + j], lda, &A[(j + jb) * lda + j], lda);
+        ztrsm(CBlasLeft, CBlasUpper, CBlasConjTrans, CBlasNonUnit, jb, n - j - jb, one, &A[j * lda + j], lda, &A[(j + jb) * lda + j], lda);
       }
     }
   }
@@ -144,7 +144,7 @@ void zpotrf(CBlasUplo uplo, size_t n, double complex * restrict A, size_t lda, l
 
       if (j + jb < n) {
         zgemm(CBlasNoTrans, CBlasConjTrans, n - j - jb, jb, j, -complex_one, &A[j + jb], lda, &A[j], lda, one, &A[j * lda + j + jb], lda);
-//         ztrsm(CBlasRight, CBlasLower, CBlasConjTrans, CBlasNonUnit, n - j - jb, jb, one, &A[j * lda + j], lda, &A[j * lda + j + jb], lda);
+        ztrsm(CBlasRight, CBlasLower, CBlasConjTrans, CBlasNonUnit, n - j - jb, jb, one, &A[j * lda + j], lda, &A[j * lda + j + jb], lda);
       }
     }
   }

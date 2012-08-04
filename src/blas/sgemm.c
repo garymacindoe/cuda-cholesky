@@ -175,7 +175,7 @@ CUresult cuSgemm(CUmodule module, CBlasTranspose transA, CBlasTranspose transB, 
   return CUDA_SUCCESS;
 }
 
-CUresult cuMultiGPUSgemm(CUcontext * contexts, unsigned int deviceCount, CBlasTranspose transA, CBlasTranspose transB, size_t m, size_t n, size_t k, float alpha, const float * restrict A, size_t lda, const float * restrict B, size_t ldb, float beta, float * restrict C, size_t ldc) {
+CUresult cuMultiGPUSgemm(CUcontext * contexts, int deviceCount, CBlasTranspose transA, CBlasTranspose transB, size_t m, size_t n, size_t k, float alpha, const float * restrict A, size_t lda, const float * restrict B, size_t ldb, float beta, float * restrict C, size_t ldc) {
   size_t nRowA = (transA == CBlasNoTrans) ? m : k;
   size_t nRowB = (transB == CBlasNoTrans) ? k : n;
 
@@ -216,7 +216,7 @@ CUresult cuMultiGPUSgemm(CUcontext * contexts, unsigned int deviceCount, CBlasTr
   CUdeviceptr dA0[deviceCount], dA1[deviceCount], dB0[deviceCount], dB1[deviceCount], dC[deviceCount];
   size_t dlda0[deviceCount], dlda1[deviceCount], dldb0[deviceCount], dldb1[deviceCount], dldc[deviceCount];
 
-  for (unsigned int i = 0; i < deviceCount; i++) {
+  for (int i = 0; i < deviceCount; i++) {
     CU_ERROR_CHECK(cuCtxPushCurrent(contexts[i]));
 
     CU_ERROR_CHECK(cuModuleLoad(&module[i], "sgemm.cubin"));
@@ -226,14 +226,18 @@ CUresult cuMultiGPUSgemm(CUcontext * contexts, unsigned int deviceCount, CBlasTr
     CU_ERROR_CHECK(cuCtxPopCurrent(&contexts[i]));
   }
 
+  CU_ERROR_CHECK(cuMemHostRegister(C, ldc * n * sizeof(float), CU_MEMHOSTREGISTER_PORTABLE));
 
-  unsigned int d = 0;
+  int d = 0;
   if (transA == CBlasNoTrans) {
     if (transB == CBlasNoTrans) {
 
       const size_t mb = 1024, nb = 1024, kb = 1024;
 
-      for (unsigned int d = 0; d < deviceCount; d++) {
+      CU_ERROR_CHECK(cuMemHostRegister((void *)A, lda * k * sizeof(float), CU_MEMHOSTREGISTER_PORTABLE));
+      CU_ERROR_CHECK(cuMemHostRegister((void *)B, ldb * n * sizeof(float), CU_MEMHOSTREGISTER_PORTABLE));
+
+      for (int d = 0; d < deviceCount; d++) {
         CU_ERROR_CHECK(cuCtxPushCurrent(contexts[d]));
 
         CU_ERROR_CHECK(cuMemAllocPitch(&dA0[d], &dlda0[d], mb * sizeof(float), kb, sizeof(float))); dlda0[d] /= sizeof(float);
@@ -285,7 +289,7 @@ CUresult cuMultiGPUSgemm(CUcontext * contexts, unsigned int deviceCount, CBlasTr
 
       const size_t mb = 1024, nb = 1024, kb = 1024;
 
-      for (unsigned int d = 0; d < deviceCount; d++) {
+      for (int d = 0; d < deviceCount; d++) {
         CU_ERROR_CHECK(cuCtxPushCurrent(contexts[d]));
 
         CU_ERROR_CHECK(cuMemAllocPitch(&dA0[d], &dlda0[d], mb * sizeof(float), kb, sizeof(float))); dlda0[d] /= sizeof(float);
@@ -339,7 +343,7 @@ CUresult cuMultiGPUSgemm(CUcontext * contexts, unsigned int deviceCount, CBlasTr
 
       const size_t mb = 1024, nb = 1024, kb = 1024;
 
-      for (unsigned int d = 0; d < deviceCount; d++) {
+      for (int d = 0; d < deviceCount; d++) {
         CU_ERROR_CHECK(cuCtxPushCurrent(contexts[d]));
 
         CU_ERROR_CHECK(cuMemAllocPitch(&dA0[d], &dlda0[d], kb * sizeof(float), mb, sizeof(float))); dlda0[d] /= sizeof(float);
@@ -391,7 +395,7 @@ CUresult cuMultiGPUSgemm(CUcontext * contexts, unsigned int deviceCount, CBlasTr
 
       const size_t mb = 1024, nb = 1024, kb = 1024;
 
-      for (unsigned int d = 0; d < deviceCount; d++) {
+      for (int d = 0; d < deviceCount; d++) {
         CU_ERROR_CHECK(cuCtxPushCurrent(contexts[d]));
 
         CU_ERROR_CHECK(cuMemAllocPitch(&dA0[d], &dlda0[d], kb * sizeof(float), mb, sizeof(float))); dlda0[d] /= sizeof(float);
@@ -441,7 +445,7 @@ CUresult cuMultiGPUSgemm(CUcontext * contexts, unsigned int deviceCount, CBlasTr
     }
   }
 
-  for (unsigned int d = 0; d < deviceCount; d++) {
+  for (int d = 0; d < deviceCount; d++) {
     CU_ERROR_CHECK(cuCtxPushCurrent(contexts[d]));
 
     CU_ERROR_CHECK(cuMemFree(dA0[d]));
@@ -449,11 +453,6 @@ CUresult cuMultiGPUSgemm(CUcontext * contexts, unsigned int deviceCount, CBlasTr
     CU_ERROR_CHECK(cuMemFree(dB0[d]));
     CU_ERROR_CHECK(cuMemFree(dB1[d]));
     CU_ERROR_CHECK(cuMemFree(dC[d]));
-
-    CU_ERROR_CHECK(cuStreamDestroy(stream0[d]));
-    CU_ERROR_CHECK(cuStreamDestroy(stream1[d]));
-
-    CU_ERROR_CHECK(cuModuleUnload(module[d]));
 
     CU_ERROR_CHECK(cuCtxPopCurrent(&contexts[d]));
   }

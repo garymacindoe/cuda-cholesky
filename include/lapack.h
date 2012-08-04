@@ -25,15 +25,15 @@ void cpotri(CBlasUplo, size_t,  float complex * restrict, size_t, long * restric
 void zpotri(CBlasUplo, size_t, double complex * restrict, size_t, long * restrict);
 
 /** My GPU/Hybrid implementations */
-CUresult cuSpotrf(CBlasUplo, size_t, CUdeviceptr, size_t, CUdeviceptr);
-CUresult cuDpotrf(CBlasUplo, size_t, CUdeviceptr, size_t, CUdeviceptr);
-CUresult cuCpotrf(CBlasUplo, size_t, CUdeviceptr, size_t, CUdeviceptr);
-CUresult cuZpotrf(CBlasUplo, size_t, CUdeviceptr, size_t, CUdeviceptr);
+CUresult cuSpotrf(CBlasUplo, size_t, CUdeviceptr, size_t, long *);
+CUresult cuDpotrf(CBlasUplo, size_t, CUdeviceptr, size_t, long *);
+CUresult cuCpotrf(CBlasUplo, size_t, CUdeviceptr, size_t, long *);
+CUresult cuZpotrf(CBlasUplo, size_t, CUdeviceptr, size_t, long *);
 
-CUresult cuSpotri(CBlasUplo, size_t, CUdeviceptr, size_t, CUdeviceptr);
-CUresult cuDpotri(CBlasUplo, size_t, CUdeviceptr, size_t, CUdeviceptr);
-CUresult cuCpotri(CBlasUplo, size_t, CUdeviceptr, size_t, CUdeviceptr);
-CUresult cuZpotri(CBlasUplo, size_t, CUdeviceptr, size_t, CUdeviceptr);
+CUresult cuSpotri(CBlasUplo, size_t, CUdeviceptr, size_t, long *);
+CUresult cuDpotri(CBlasUplo, size_t, CUdeviceptr, size_t, long *);
+CUresult cuCpotri(CBlasUplo, size_t, CUdeviceptr, size_t, long *);
+CUresult cuZpotri(CBlasUplo, size_t, CUdeviceptr, size_t, long *);
 
 /** My multi-GPU/Hybrid implementations */
 CUresult cuMultiGPUSpotrf(CUcontext *, unsigned int, CBlasUplo, size_t,  float * restrict, size_t, long * restrict);

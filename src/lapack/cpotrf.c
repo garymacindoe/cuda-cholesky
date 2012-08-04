@@ -109,10 +109,10 @@ void cpotrf(CBlasUplo uplo, size_t n, float complex * restrict A, size_t lda, lo
 
   const size_t nb = 64;
 
-//   if (n < nb) {
+  if (n < nb) {
     cpotf2(uplo, n, A, lda, info);
     return;
-//   }
+  }
 
   if (uplo == CBlasUpper) {
     for (size_t j = 0; j < n; j += nb) {
@@ -127,7 +127,7 @@ void cpotrf(CBlasUplo uplo, size_t n, float complex * restrict A, size_t lda, lo
 
       if (j + jb < n) {
         cgemm(CBlasConjTrans, CBlasNoTrans, jb, n - j - jb, j, -complex_one, &A[j * lda], lda, &A[(j + jb) * lda], lda, one, &A[(j + jb) * lda + j], lda);
-//         ctrsm(CBlasLeft, CBlasUpper, CBlasConjTrans, CBlasNonUnit, jb, n - j - jb, one, &A[j * lda + j], lda, &A[(j + jb) * lda + j], lda);
+        ctrsm(CBlasLeft, CBlasUpper, CBlasConjTrans, CBlasNonUnit, jb, n - j - jb, one, &A[j * lda + j], lda, &A[(j + jb) * lda + j], lda);
       }
     }
   }
@@ -144,7 +144,7 @@ void cpotrf(CBlasUplo uplo, size_t n, float complex * restrict A, size_t lda, lo
 
       if (j + jb < n) {
         cgemm(CBlasNoTrans, CBlasConjTrans, n - j - jb, jb, j, -complex_one, &A[j + jb], lda, &A[j], lda, one, &A[j * lda + j + jb], lda);
-//         ctrsm(CBlasRight, CBlasLower, CBlasConjTrans, CBlasNonUnit, n - j - jb, jb, one, &A[j * lda + j], lda, &A[j * lda + j + jb], lda);
+        ctrsm(CBlasRight, CBlasLower, CBlasConjTrans, CBlasNonUnit, n - j - jb, jb, one, &A[j * lda + j], lda, &A[j * lda + j + jb], lda);
       }
     }
   }
@@ -180,15 +180,13 @@ static inline CUresult cuCpotf2(CUmodule module, CBlasUplo uplo, size_t n, CUdev
   return CUDA_SUCCESS;
 }
 
-CUresult cuCpotrf(CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, CUdeviceptr info) {
-  long hInfo = 0;
+CUresult cuCpotrf(CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, long * info) {
+  *info = 0;
   CU_ERROR_CHECK(cuMemcpyHtoD(info, &hInfo, sizeof(long)));
-  if (lda < max(1, n)) {
-    hInfo = -4;
-    CU_ERROR_CHECK(cuMemcpyHtoD(info, &hInfo, sizeof(long)));
-  }
-  if (hInfo != 0) {
-    XERBLA(-hInfo);
+  if (lda < max(1, n))
+    *info = -4;
+  if (*info != 0) {
+    XERBLA(-*info);
     return CUDA_ERROR_INVALID_VALUE;
   }
 
@@ -226,15 +224,14 @@ CUresult cuCpotrf(CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, CUdevicep
       CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(B, ldb, 0, 0, A, lda, j, j, jb, jb, sizeof(float complex), stream0));
       CU_ERROR_CHECK(cuCgemm(cgemm, CBlasConjTrans, CBlasNoTrans, jb, n - j - jb, j, -complex_one, A + j * lda * sizeof(float complex), lda, A + (j + jb) * lda * sizeof(float complex), lda, complex_one, A + ((j + jb) * lda + j) * sizeof(float complex), lda, stream1));
       CU_ERROR_CHECK(cuStreamSynchronize(stream0));
-      cpotrf(CBlasUpper, jb, B, ldb, &hInfo);
-      if (hInfo != 0) {
-        hInfo += (long)j;
-        CU_ERROR_CHECK(cuMemcpyHtoD(info, &hInfo, sizeof(long)));
+      cpotrf(CBlasUpper, jb, B, ldb, info);
+      if (*info != 0) {
+        *info += (long)j;
         return CUDA_ERROR_INVALID_VALUE;
       }
       CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A, lda, j, j, B, ldb, 0, 0, jb, jb, sizeof(float complex), stream0));
       CU_ERROR_CHECK(cuStreamSynchronize(stream1));
-//       CU_ERROR_CHECK(cuCtrsm(ctrsm, CBlasLeft, CBlasUpper, CBlasConjTrans, CBlasNonUnit, jb, n - j - jb, complex_one, A + (j * lda + j) * sizeof(float complex), lda, A + ((j + jb) * lda + j) * sizeof(float complex), lda, stream0));
+      CU_ERROR_CHECK(cuCtrsm(ctrsm, CBlasLeft, CBlasUpper, CBlasConjTrans, CBlasNonUnit, jb, n - j - jb, complex_one, A + (j * lda + j) * sizeof(float complex), lda, A + ((j + jb) * lda + j) * sizeof(float complex), lda, stream0));
     }
   }
   else {
@@ -245,15 +242,14 @@ CUresult cuCpotrf(CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, CUdevicep
       CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(B, ldb, 0, 0, A, lda, j, j, jb, jb, sizeof(float complex), stream0));
       CU_ERROR_CHECK(cuCgemm(cgemm, CBlasNoTrans, CBlasConjTrans, n - j - jb, jb, j, -complex_one, A + (j + jb) * sizeof(float complex), lda, A + j * sizeof(float complex), lda, one, A + (j * lda + j + jb) * sizeof(float complex), lda, stream1));
       CU_ERROR_CHECK(cuStreamSynchronize(stream0));
-      cpotrf(CBlasUpper, jb, B, ldb, &hInfo);
-      if (hInfo != 0) {
-        hInfo += (long)j;
-        CU_ERROR_CHECK(cuMemcpyHtoD(info, &hInfo, sizeof(long)));
+      cpotrf(CBlasUpper, jb, B, ldb, info);
+      if (*info != 0) {
+        *info += (long)j;
         return CUDA_ERROR_INVALID_VALUE;
       }
       CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A, lda, j, j, B, ldb, 0, 0, jb, jb, sizeof(float complex), stream0));
       CU_ERROR_CHECK(cuStreamSynchronize(stream1));
-//       CU_ERROR_CHECK(cuCtrsm(ctrsm, CBlasRight, CBlasLower, CBlasConjTrans, CBlasNonUnit, n - j - jb, jb, complex_one, A + (j * lda + j) * sizeof(float complex), lda, A + (j * lda + j + jb) * sizeof(float complex), lda, stream0));
+      CU_ERROR_CHECK(cuCtrsm(ctrsm, CBlasRight, CBlasLower, CBlasConjTrans, CBlasNonUnit, n - j - jb, jb, complex_one, A + (j * lda + j) * sizeof(float complex), lda, A + (j * lda + j + jb) * sizeof(float complex), lda, stream0));
     }
   }
 

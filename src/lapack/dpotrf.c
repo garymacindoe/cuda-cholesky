@@ -178,15 +178,12 @@ static inline CUresult cuDpotf2(CUmodule module, CBlasUplo uplo, size_t n, CUdev
   return CUDA_SUCCESS;
 }
 
-CUresult cuDpotrf(CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, CUdeviceptr info) {
-  long hInfo = 0;
-  CU_ERROR_CHECK(cuMemcpyHtoD(info, &hInfo, sizeof(long)));
-  if (lda < max(1, n)) {
-    hInfo = -4;
-    CU_ERROR_CHECK(cuMemcpyHtoD(info, &hInfo, sizeof(long)));
-  }
-  if (hInfo != 0) {
-    XERBLA(-hInfo);
+CUresult cuDpotrf(CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, long * info) {
+  *info = 0;
+  if (lda < max(1, n))
+    *info = -4;
+  if (*info != 0) {
+    XERBLA(-*info);
     return CUDA_ERROR_INVALID_VALUE;
   }
 
@@ -224,10 +221,9 @@ CUresult cuDpotrf(CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, CUdevicep
       CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(B, ldb, 0, 0, A, lda, j, j, jb, jb, sizeof(double), stream0));
       CU_ERROR_CHECK(cuDgemm(dgemm, CBlasTrans, CBlasNoTrans, jb, n - j - jb, j, -one, A + j * lda * sizeof(double), lda, A + (j + jb) * lda * sizeof(double), lda, one, A + ((j + jb) * lda + j) * sizeof(double), lda, stream1));
       CU_ERROR_CHECK(cuStreamSynchronize(stream0));
-      dpotrf(CBlasUpper, jb, B, ldb, &hInfo);
-      if (hInfo != 0) {
-        hInfo += (long)j;
-        CU_ERROR_CHECK(cuMemcpyHtoD(info, &hInfo, sizeof(long)));
+      dpotrf(CBlasUpper, jb, B, ldb, info);
+      if (*info != 0) {
+        *info += (long)j;
         return CUDA_ERROR_INVALID_VALUE;
       }
       CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A, lda, j, j, B, ldb, 0, 0, jb, jb, sizeof(double), stream0));
@@ -243,10 +239,9 @@ CUresult cuDpotrf(CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, CUdevicep
       CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(B, ldb, 0, 0, A, lda, j, j, jb, jb, sizeof(double), stream0));
       CU_ERROR_CHECK(cuDgemm(dgemm, CBlasNoTrans, CBlasTrans, n - j - jb, jb, j, -one, A + (j + jb) * sizeof(double), lda, A + j * sizeof(double), lda, one, A + (j * lda + j + jb) * sizeof(double), lda, stream1));
       CU_ERROR_CHECK(cuStreamSynchronize(stream0));
-      dpotrf(CBlasUpper, jb, B, ldb, &hInfo);
-      if (hInfo != 0) {
-        hInfo += (long)j;
-        CU_ERROR_CHECK(cuMemcpyHtoD(info, &hInfo, sizeof(long)));
+      dpotrf(CBlasUpper, jb, B, ldb, info);
+      if (*info != 0) {
+        *info += (long)j;
         return CUDA_ERROR_INVALID_VALUE;
       }
       CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A, lda, j, j, B, ldb, 0, 0, jb, jb, sizeof(double), stream0));

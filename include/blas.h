@@ -92,26 +92,26 @@ CUresult cuCtrsm(CUmodule, CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag, size
 CUresult cuZtrsm(CUmodule, CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag, size_t, size_t, double complex, CUdeviceptr, size_t, CUdeviceptr, size_t, CUstream);
 
 /** My MultiGPU/Hybrid implementations */
-CUresult cuMultiGPUSsyrk(CUcontext *, unsigned int, CBlasUplo, CBlasTranspose, size_t, size_t,  float, const  float * restrict, size_t,  float,  float * restrict, size_t);
-CUresult cuMultiGPUDsyrk(CUcontext *, unsigned int, CBlasUplo, CBlasTranspose, size_t, size_t, double, const double * restrict, size_t, double, double * restrict, size_t);
+CUresult cuMultiGPUSsyrk(CUcontext *, int, CBlasUplo, CBlasTranspose, size_t, size_t,  float, const  float * restrict, size_t,  float,  float * restrict, size_t);
+CUresult cuMultiGPUDsyrk(CUcontext *, int, CBlasUplo, CBlasTranspose, size_t, size_t, double, const double * restrict, size_t, double, double * restrict, size_t);
 
-CUresult cuMultiGPUCherk(CUcontext *, unsigned int, CBlasUplo, CBlasTranspose, size_t, size_t,  float, const  float complex * restrict, size_t,  float,  float complex * restrict, size_t);
-CUresult cuMultiGPUZherk(CUcontext *, unsigned int, CBlasUplo, CBlasTranspose, size_t, size_t, double, const double complex * restrict, size_t, double, double complex * restrict, size_t);
+CUresult cuMultiGPUCherk(CUcontext *, int, CBlasUplo, CBlasTranspose, size_t, size_t,  float, const  float complex * restrict, size_t,  float,  float complex * restrict, size_t);
+CUresult cuMultiGPUZherk(CUcontext *, int, CBlasUplo, CBlasTranspose, size_t, size_t, double, const double complex * restrict, size_t, double, double complex * restrict, size_t);
 
-CUresult cuMultiGPUSgemm(CUcontext *, unsigned int, CBlasTranspose, CBlasTranspose, size_t, size_t, size_t,  float, const  float * restrict, size_t, const  float * restrict, size_t,  float,  float * restrict, size_t);
-CUresult cuMultiGPUDgemm(CUcontext *, unsigned int, CBlasTranspose, CBlasTranspose, size_t, size_t, size_t, double, const double * restrict, size_t, const double * restrict, size_t, double, double * restrict, size_t);
-CUresult cuMultiGPUCgemm(CUcontext *, unsigned int, CBlasTranspose, CBlasTranspose, size_t, size_t, size_t,  float complex, const  float complex * restrict, size_t, const  float complex * restrict, size_t,  float complex,  float complex * restrict, size_t);
-CUresult cuMultiGPUZgemm(CUcontext *, unsigned int, CBlasTranspose, CBlasTranspose, size_t, size_t, size_t, double complex, const double complex * restrict, size_t, const double complex * restrict, size_t, double complex, double complex * restrict, size_t);
+CUresult cuMultiGPUSgemm(CUcontext *, int, CBlasTranspose, CBlasTranspose, size_t, size_t, size_t,  float, const  float * restrict, size_t, const  float * restrict, size_t,  float,  float * restrict, size_t);
+CUresult cuMultiGPUDgemm(CUcontext *, int, CBlasTranspose, CBlasTranspose, size_t, size_t, size_t, double, const double * restrict, size_t, const double * restrict, size_t, double, double * restrict, size_t);
+CUresult cuMultiGPUCgemm(CUcontext *, int, CBlasTranspose, CBlasTranspose, size_t, size_t, size_t,  float complex, const  float complex * restrict, size_t, const  float complex * restrict, size_t,  float complex,  float complex * restrict, size_t);
+CUresult cuMultiGPUZgemm(CUcontext *, int, CBlasTranspose, CBlasTranspose, size_t, size_t, size_t, double complex, const double complex * restrict, size_t, const double complex * restrict, size_t, double complex, double complex * restrict, size_t);
 
-CUresult cuMultiGPUStrmm(CUcontext *, unsigned int, CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag, size_t, size_t,  float, const  float * restrict, size_t,  float * restrict, size_t);
-CUresult cuMultiGPUDtrmm(CUcontext *, unsigned int, CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag, size_t, size_t, double, const double * restrict, size_t, double * restrict, size_t);
-CUresult cuMultiGPUCtrmm(CUcontext *, unsigned int, CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag, size_t, size_t,  float complex, const  float complex * restrict, size_t,  float complex * restrict, size_t);
-CUresult cuMultiGPUZtrmm(CUcontext *, unsigned int, CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag, size_t, size_t, double complex, const double complex * restrict, size_t, double complex * restrict, size_t);
+CUresult cuMultiGPUStrmm(CUcontext *, int, CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag, size_t, size_t,  float, const  float * restrict, size_t,  float * restrict, size_t);
+CUresult cuMultiGPUDtrmm(CUcontext *, int, CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag, size_t, size_t, double, const double * restrict, size_t, double * restrict, size_t);
+CUresult cuMultiGPUCtrmm(CUcontext *, int, CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag, size_t, size_t,  float complex, const  float complex * restrict, size_t,  float complex * restrict, size_t);
+CUresult cuMultiGPUZtrmm(CUcontext *, int, CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag, size_t, size_t, double complex, const double complex * restrict, size_t, double complex * restrict, size_t);
 
-CUresult cuMultiGPUStrsm(CUcontext *, unsigned int, CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag, size_t, size_t,  float, const  float * restrict, size_t,  float * restrict, size_t);
-CUresult cuMultiGPUDtrsm(CUcontext *, unsigned int, CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag, size_t, size_t, double, const double * restrict, size_t, double * restrict, size_t);
-CUresult cuMultiGPUCtrsm(CUcontext *, unsigned int, CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag, size_t, size_t,  float complex, const  float complex * restrict, size_t,  float complex * restrict, size_t);
-CUresult cuMultiGPUZtrsm(CUcontext *, unsigned int, CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag, size_t, size_t, double complex, const double complex * restrict, size_t, double complex * restrict, size_t);
+CUresult cuMultiGPUStrsm(CUcontext *, int, CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag, size_t, size_t,  float, const  float * restrict, size_t,  float * restrict, size_t);
+CUresult cuMultiGPUDtrsm(CUcontext *, int, CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag, size_t, size_t, double, const double * restrict, size_t, double * restrict, size_t);
+CUresult cuMultiGPUCtrsm(CUcontext *, int, CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag, size_t, size_t,  float complex, const  float complex * restrict, size_t,  float complex * restrict, size_t);
+CUresult cuMultiGPUZtrsm(CUcontext *, int, CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag, size_t, size_t, double complex, const double complex * restrict, size_t, double complex * restrict, size_t);
 
 #ifdef __CUDACC__
 #undef restrict

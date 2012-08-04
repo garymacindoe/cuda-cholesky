@@ -4,7 +4,6 @@
 
 static inline size_t min(size_t a, size_t b) { return (a < b) ? a : b; }
 static inline size_t max(size_t a, size_t b) { return (a > b) ? a : b; }
-static inline unsigned int maxj(unsigned int a, unsigned int b) { return (a > b) ? a : b; }
 
 static inline CUresult cuMemcpyHtoD2DAsync(CUdeviceptr A, size_t lda, size_t ai, size_t aj,
                                           const void * B, size_t ldb, size_t bi, size_t bj,
@@ -31,7 +30,7 @@ static const float one = 1.0f;
 
 static inline void spotf2(CBlasUplo uplo, size_t n, float * restrict A, size_t lda, long * restrict info) {
   *info = 0;
-  if (lda < max(1, n))
+  if (lda < n)
     *info = -4;
   if (*info != 0) {
     XERBLA(-(*info));
@@ -85,20 +84,9 @@ static inline void spotf2(CBlasUplo uplo, size_t n, float * restrict A, size_t l
   }
 }
 
-// #ifdef MKL_ILP64
-//   extern void spotrf_(const char *, const long *, float *, const long *, long *);
-// #else
-//   extern void spotrf_(const char *, const int *, float *, const int *, int *);
-// #endif
 void spotrf(CBlasUplo uplo, size_t n, float * restrict A, size_t lda, long * restrict info) {
   *info = 0;
-// #ifdef MKL_ILP64
-//   spotrf_((const char *)&uplo, (const long *)&n, A, (const long *)&lda, info);
-// #else
-//   spotrf_((const char *)&uplo, (const int *)&n, A, (const int *)&lda, info);
-// #endif
-//   return;
-  if (lda < max(1, n))
+  if (lda < n)
     *info = -4;
   if (*info != 0) {
     XERBLA(-(*info));
@@ -151,19 +139,6 @@ void spotrf(CBlasUplo uplo, size_t n, float * restrict A, size_t lda, long * res
 }
 
 static inline CUresult cuSpotf2(CUmodule module, CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, CUdeviceptr info, CUstream stream) {
-  long hInfo = 0;
-  CU_ERROR_CHECK(cuMemcpyHtoD(info, &hInfo, sizeof(long)));
-  if (lda < max(1, n)) {
-    hInfo = -4;
-    CU_ERROR_CHECK(cuMemcpyHtoD(info, &hInfo, sizeof(long)));
-  }
-  if (hInfo != 0) {
-    XERBLA(-hInfo);
-    return CUDA_ERROR_INVALID_VALUE;
-  }
-
-  if (n == 0) return CUDA_SUCCESS;
-
   const unsigned int bx = (uplo == CBlasUpper) ?  8 : 16;
   const unsigned int by = (uplo == CBlasUpper) ?  8 :  4;
 
@@ -180,15 +155,12 @@ static inline CUresult cuSpotf2(CUmodule module, CBlasUplo uplo, size_t n, CUdev
   return CUDA_SUCCESS;
 }
 
-CUresult cuSpotrf(CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, CUdeviceptr info) {
-  long hInfo = 0;
-  CU_ERROR_CHECK(cuMemcpyHtoD(info, &hInfo, sizeof(long)));
-  if (lda < max(1, n)) {
-    hInfo = -4;
-    CU_ERROR_CHECK(cuMemcpyHtoD(info, &hInfo, sizeof(long)));
-  }
-  if (hInfo != 0) {
-    XERBLA(-hInfo);
+CUresult cuSpotrf(CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, long * info) {
+  *info = 0;
+  if (lda < n)
+    *info = -4;
+  if (*info != 0) {
+    XERBLA(-(*info));
     return CUDA_ERROR_INVALID_VALUE;
   }
 
@@ -226,10 +198,9 @@ CUresult cuSpotrf(CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, CUdevicep
       CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(B, ldb, 0, 0, A, lda, j, j, jb, jb, sizeof(float), stream0));
       CU_ERROR_CHECK(cuSgemm(sgemm, CBlasTrans, CBlasNoTrans, jb, n - j - jb, j, -one, A + j * lda * sizeof(float), lda, A + (j + jb) * lda * sizeof(float), lda, one, A + ((j + jb) * lda + j) * sizeof(float), lda, stream1));
       CU_ERROR_CHECK(cuStreamSynchronize(stream0));
-      spotrf(CBlasUpper, jb, B, ldb, &hInfo);
-      if (hInfo != 0) {
-        hInfo += (long)j;
-        CU_ERROR_CHECK(cuMemcpyHtoD(info, &hInfo, sizeof(long)));
+      spotrf(CBlasUpper, jb, B, ldb, info);
+      if (*info != 0) {
+        *info += (long)j;
         return CUDA_ERROR_INVALID_VALUE;
       }
       CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A, lda, j, j, B, ldb, 0, 0, jb, jb, sizeof(float), stream0));
@@ -245,10 +216,9 @@ CUresult cuSpotrf(CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, CUdevicep
       CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(B, ldb, 0, 0, A, lda, j, j, jb, jb, sizeof(float), stream0));
       CU_ERROR_CHECK(cuSgemm(sgemm, CBlasNoTrans, CBlasTrans, n - j - jb, jb, j, -one, A + (j + jb) * sizeof(float), lda, A + j * sizeof(float), lda, one, A + (j * lda + j + jb) * sizeof(float), lda, stream1));
       CU_ERROR_CHECK(cuStreamSynchronize(stream0));
-      spotrf(CBlasUpper, jb, B, ldb, &hInfo);
-      if (hInfo != 0) {
-        hInfo += (long)j;
-        CU_ERROR_CHECK(cuMemcpyHtoD(info, &hInfo, sizeof(long)));
+      spotrf(CBlasUpper, jb, B, ldb, info);
+      if (*info != 0) {
+        *info += (long)j;
         return CUDA_ERROR_INVALID_VALUE;
       }
       CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A, lda, j, j, B, ldb, 0, 0, jb, jb, sizeof(float), stream0));
