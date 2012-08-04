@@ -289,6 +289,9 @@ CUresult cuMultiGPUSgemm(CUcontext * contexts, int deviceCount, CBlasTranspose t
 
       const size_t mb = 1024, nb = 1024, kb = 1024;
 
+      CU_ERROR_CHECK(cuMemHostRegister((void *)A, lda * k * sizeof(float), CU_MEMHOSTREGISTER_PORTABLE));
+      CU_ERROR_CHECK(cuMemHostRegister((void *)B, ldb * k * sizeof(float), CU_MEMHOSTREGISTER_PORTABLE));
+
       for (int d = 0; d < deviceCount; d++) {
         CU_ERROR_CHECK(cuCtxPushCurrent(contexts[d]));
 
@@ -343,6 +346,9 @@ CUresult cuMultiGPUSgemm(CUcontext * contexts, int deviceCount, CBlasTranspose t
 
       const size_t mb = 1024, nb = 1024, kb = 1024;
 
+      CU_ERROR_CHECK(cuMemHostRegister((void *)A, lda * m * sizeof(float), CU_MEMHOSTREGISTER_PORTABLE));
+      CU_ERROR_CHECK(cuMemHostRegister((void *)B, ldb * n * sizeof(float), CU_MEMHOSTREGISTER_PORTABLE));
+
       for (int d = 0; d < deviceCount; d++) {
         CU_ERROR_CHECK(cuCtxPushCurrent(contexts[d]));
 
@@ -395,6 +401,9 @@ CUresult cuMultiGPUSgemm(CUcontext * contexts, int deviceCount, CBlasTranspose t
 
       const size_t mb = 1024, nb = 1024, kb = 1024;
 
+      CU_ERROR_CHECK(cuMemHostRegister((void *)A, lda * m * sizeof(float), CU_MEMHOSTREGISTER_PORTABLE));
+      CU_ERROR_CHECK(cuMemHostRegister((void *)B, ldb * k * sizeof(float), CU_MEMHOSTREGISTER_PORTABLE));
+
       for (int d = 0; d < deviceCount; d++) {
         CU_ERROR_CHECK(cuCtxPushCurrent(contexts[d]));
 
@@ -445,6 +454,10 @@ CUresult cuMultiGPUSgemm(CUcontext * contexts, int deviceCount, CBlasTranspose t
     }
   }
 
+  CU_ERROR_CHECK(cuMemHostUnregister(C));
+  CU_ERROR_CHECK(cuMemHostUnregister((void *)B));
+  CU_ERROR_CHECK(cuMemHostUnregister((void *)A));
+
   for (int d = 0; d < deviceCount; d++) {
     CU_ERROR_CHECK(cuCtxPushCurrent(contexts[d]));
 
@@ -453,6 +466,11 @@ CUresult cuMultiGPUSgemm(CUcontext * contexts, int deviceCount, CBlasTranspose t
     CU_ERROR_CHECK(cuMemFree(dB0[d]));
     CU_ERROR_CHECK(cuMemFree(dB1[d]));
     CU_ERROR_CHECK(cuMemFree(dC[d]));
+
+    CU_ERROR_CHECK(cuStreamDestroy(stream0[d]));
+    CU_ERROR_CHECK(cuStreamDestroy(stream1[d]));
+
+    CU_ERROR_CHECK(cuModuleUnload(module[d]));
 
     CU_ERROR_CHECK(cuCtxPopCurrent(&contexts[d]));
   }

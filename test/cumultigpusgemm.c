@@ -118,6 +118,8 @@ int main(int argc, char * argv[]) {
   float alpha, beta, * A, * B, * C, * refC;
   size_t lda, ldb, ldc;
 
+  CU_ERROR_CHECK(cuInit(0));
+
   int deviceCount;
   CU_ERROR_CHECK(cuDeviceGetCount(&deviceCount));
 
@@ -132,7 +134,7 @@ int main(int argc, char * argv[]) {
   beta = (float)rand() / (float)RAND_MAX;
 
   if (transA == CBlasNoTrans) {
-    lda = (m + 15u) & ~15u;
+    lda = (m + 3u) & ~3u;
     if ((A = malloc(lda * k * sizeof(float))) == NULL) {
       fputs("Unable to allocate A\n", stderr);
       return -1;
@@ -144,7 +146,7 @@ int main(int argc, char * argv[]) {
     }
   }
   else {
-    lda = (k + 15u) & ~15u;
+    lda = (k + 3u) & ~3u;
     if ((A = malloc(lda * m * sizeof(float))) == NULL) {
       fputs("Unable to allocate A\n", stderr);
       return -1;
@@ -157,7 +159,7 @@ int main(int argc, char * argv[]) {
   }
 
   if (transB == CBlasNoTrans) {
-    ldb = (k + 15u) & ~15u;
+    ldb = (k + 3u) & ~3u;
     if ((B = malloc(ldb * n * sizeof(float))) == NULL) {
       fputs("Unable to allocate B\n", stderr);
       return -2;
@@ -169,7 +171,7 @@ int main(int argc, char * argv[]) {
     }
   }
   else {
-    ldb = (n + 15u) & ~15u;
+    ldb = (n + 3u) & ~3u;
     if ((B = malloc(ldb * k * sizeof(float))) == NULL) {
       fputs("Unable to allocate B\n", stderr);
       return -2;
@@ -181,7 +183,7 @@ int main(int argc, char * argv[]) {
     }
   }
 
-  ldc = (m + 15u) & ~15u;
+  ldc = (m + 3u) & ~3u;
   if ((C = malloc(ldc * n * sizeof(float))) == NULL) {
     fputs("Unable to allocate C\n", stderr);
     return -3;
