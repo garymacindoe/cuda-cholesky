@@ -370,7 +370,7 @@ CUresult cuMultiGPUCgemm(CUcontext * contexts, int deviceCount, CBlasTranspose t
       CU_ERROR_CHECK(cuMemHostRegister((void *)A, lda * k * sizeof(float complex), CU_MEMHOSTREGISTER_PORTABLE));
       CU_ERROR_CHECK(cuMemHostRegister((void *)B, ldb * k * sizeof(float complex), CU_MEMHOSTREGISTER_PORTABLE));
 
-      for (unsigned int d = 0; d < deviceCount; d++) {
+      for (int d = 0; d < deviceCount; d++) {
         CU_ERROR_CHECK(cuCtxPushCurrent(contexts[d]));
 
         CU_ERROR_CHECK(cuMemAllocPitch(&dA0[d], &dlda0[d], mb * sizeof(float complex), kb, sizeof(float complex))); dlda0[d] /= sizeof(float complex);

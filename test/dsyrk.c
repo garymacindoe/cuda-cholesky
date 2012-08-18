@@ -4,18 +4,18 @@
 #include <sys/time.h>
 #include <float.h>
 
-static void ssyrk_ref(CBlasUplo uplo, CBlasTranspose trans, size_t n, size_t k,
-                      float alpha, const float * restrict A, size_t lda,
-                      float beta, float * restrict C, size_t ldc) {
+static void dsyrk_ref(CBlasUplo uplo, CBlasTranspose trans, size_t n, size_t k,
+                      double alpha, const double * restrict A, size_t lda,
+                      double beta, double * restrict C, size_t ldc) {
 
-  if (n == 0 || ((k == 0 || alpha == 0.0f) && beta == 1.0f)) return;
+  if (n == 0 || ((k == 0 || alpha == 0.0) && beta == 1.0)) return;
 
-  if (alpha == 0.0f) {
+  if (alpha == 0.0) {
     if (uplo == CBlasUpper) {
-      if (beta == 0.0f) {
+      if (beta == 0.0) {
         for (size_t j = 0; j < n; j++) {
           for (size_t i = 0; i <= j; i++)
-            C[j * ldc + i] = 0.0f;
+            C[j * ldc + i] = 0.0;
         }
       }
       else {
@@ -26,10 +26,10 @@ static void ssyrk_ref(CBlasUplo uplo, CBlasTranspose trans, size_t n, size_t k,
       }
     }
     else {
-      if (beta == 0.0f) {
+      if (beta == 0.0) {
         for (size_t j = 0; j < n; j++) {
           for (size_t i = j; i < n; i++)
-            C[j * ldc + i] = 0.0f;
+            C[j * ldc + i] = 0.0;
         }
       }
       else {
@@ -45,7 +45,7 @@ static void ssyrk_ref(CBlasUplo uplo, CBlasTranspose trans, size_t n, size_t k,
   for (size_t j = 0; j < n; j++) {
     if (uplo == CBlasUpper) {
       for (size_t i = 0; i <= j; i++) {
-        float temp;
+        double temp;
 
         if (trans == CBlasNoTrans) {
           temp = A[i] * A[j];
@@ -58,9 +58,9 @@ static void ssyrk_ref(CBlasUplo uplo, CBlasTranspose trans, size_t n, size_t k,
             temp += A[i * lda + l] * A[j * lda + l];
         }
 
-        if (alpha != 1.0f)
+        if (alpha != 1.0)
           temp *= alpha;
-        if (beta != 0.0f)
+        if (beta != 0.0)
           temp += beta * C[j * ldc + i];
 
         C[j * ldc + i] = temp;
@@ -68,7 +68,7 @@ static void ssyrk_ref(CBlasUplo uplo, CBlasTranspose trans, size_t n, size_t k,
     }
     else {
       for (size_t i = j; i < n; i++) {
-        float temp;
+        double temp;
 
         if (trans == CBlasNoTrans) {
           temp = A[i] * A[j];
@@ -81,9 +81,9 @@ static void ssyrk_ref(CBlasUplo uplo, CBlasTranspose trans, size_t n, size_t k,
             temp += A[i * lda + l] * A[j * lda + l];
         }
 
-        if (alpha != 1.0f)
+        if (alpha != 1.0)
           temp *= alpha;
-        if (beta != 0.0f)
+        if (beta != 0.0)
           temp += beta * C[j * ldc + i];
 
         C[j * ldc + i] = temp;
@@ -137,59 +137,59 @@ int main(int argc, char * argv[]) {
 
   srand(0);
 
-  float alpha, beta, * A, * C, * refC;
+  double alpha, beta, * A, * C, * refC;
   size_t lda, ldc;
 
-  alpha = (float)rand() / (float)RAND_MAX;
-  beta = (float)rand() / (float)RAND_MAX;
+  alpha = (double)rand() / (double)RAND_MAX;
+  beta = (double)rand() / (double)RAND_MAX;
 
   if (trans == CBlasNoTrans) {
-    lda = (n + 3u) & ~3u;
-    if ((A = malloc(lda * k * sizeof(float))) == NULL) {
+    lda = (n + 1u) & ~1u;
+    if ((A = malloc(lda * k * sizeof(double))) == NULL) {
       fputs("Unable to allocate A\n", stderr);
       return -1;
     }
 
     for (size_t j = 0; j < k; j++) {
       for (size_t i = 0; i < n; i++)
-        A[j * lda + i] = (float)rand() / (float)RAND_MAX;
+        A[j * lda + i] = (double)rand() / (double)RAND_MAX;
     }
   }
   else {
-    lda = (k + 3u) & ~3u;
-    if ((A = malloc(lda * n * sizeof(float))) == NULL) {
+    lda = (k + 1u) & ~1u;
+    if ((A = malloc(lda * n * sizeof(double))) == NULL) {
       fputs("Unable to allocate A\n", stderr);
       return -1;
     }
 
     for (size_t j = 0; j < n; j++) {
       for (size_t i = 0; i < k; i++)
-        A[j * lda + i] = (float)rand() / (float)RAND_MAX;
+        A[j * lda + i] = (double)rand() / (double)RAND_MAX;
     }
   }
 
-  ldc = (n + 3u) & ~3u;
-  if ((C = malloc(ldc * n * sizeof(float))) == NULL) {
+  ldc = (n + 1u) & ~1u;
+  if ((C = malloc(ldc * n * sizeof(double))) == NULL) {
     fputs("Unable to allocate C\n", stderr);
     return -3;
   }
-  if ((refC = malloc(ldc * n * sizeof(float))) == NULL) {
+  if ((refC = malloc(ldc * n * sizeof(double))) == NULL) {
     fputs("Unable to allocate refC\n", stderr);
     return -4;
   }
 
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < n; i++)
-      refC[j * ldc + i] = C[j * ldc + i] = (float)rand() / (float)RAND_MAX;
+      refC[j * ldc + i] = C[j * ldc + i] = (double)rand() / (double)RAND_MAX;
   }
 
-  ssyrk_ref(uplo, trans, n, k, alpha, A, lda, beta, refC, ldc);
-  ssyrk(uplo, trans, n, k, alpha, A, lda, beta, C, ldc);
+  dsyrk_ref(uplo, trans, n, k, alpha, A, lda, beta, refC, ldc);
+  dsyrk(uplo, trans, n, k, alpha, A, lda, beta, C, ldc);
 
-  float diff = 0.0f;
+  double diff = 0.0;
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < n; i++) {
-      float d = fabsf(C[j * ldc + i] - refC[j * ldc + i]);
+      double d = fabs(C[j * ldc + i] - refC[j * ldc + i]);
       if (d > diff)
         diff = d;
     }
@@ -201,7 +201,7 @@ int main(int argc, char * argv[]) {
     return -5;
   }
   for (size_t i = 0; i < 20; i++)
-    ssyrk(uplo, trans, n, k, alpha, A, lda, beta, C, ldc);
+    dsyrk(uplo, trans, n, k, alpha, A, lda, beta, C, ldc);
   if (gettimeofday(&stop, NULL) != 0) {
     fputs("gettimeofday failed\n", stderr);
     return -6;
@@ -211,11 +211,11 @@ int main(int argc, char * argv[]) {
                  (double)(stop.tv_usec - start.tv_usec) * 1.e-6) / 20.0;
 
   size_t flops = 2 * k - 1;
-  if (alpha != 1.0f)
+  if (alpha != 1.0)
     flops += 1;
-  if (beta != 0.0f)
+  if (beta != 0.0)
     flops += 2;
-  float error = (float)flops * 2.0f * FLT_EPSILON;
+  double error = (double)flops * 2.0 * DBL_EPSILON;
   flops *= n * (n + 1) / 2;
 
   bool passed = (diff <= error);

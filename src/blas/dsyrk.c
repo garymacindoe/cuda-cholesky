@@ -187,7 +187,7 @@ CUresult cuDsyrk(CUmodule module, CBlasUplo uplo, CBlasTranspose trans, size_t n
   return CUDA_SUCCESS;
 }
 
-CUresult cuMultiGPUDsyrk(CUcontext * contexts, unsigned int deviceCount, CBlasUplo uplo, CBlasTranspose trans, size_t n, size_t k, double alpha, const double * restrict A, size_t lda, double beta, double * restrict C, size_t ldc) {
+CUresult cuMultiGPUDsyrk(CUcontext * contexts, int deviceCount, CBlasUplo uplo, CBlasTranspose trans, size_t n, size_t k, double alpha, const double * restrict A, size_t lda, double beta, double * restrict C, size_t ldc) {
   size_t nRowA = (trans == CBlasNoTrans) ? n : k;
 
   int info = 0;
