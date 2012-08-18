@@ -253,7 +253,7 @@ CUresult cuCgemm(CUmodule module, CBlasTranspose transA, CBlasTranspose transB, 
   return CUDA_SUCCESS;
 }
 
-CUresult cuMultiGPUCgemm(CUcontext * contexts, unsigned int deviceCount, CBlasTranspose transA, CBlasTranspose transB, size_t m, size_t n, size_t k, float complex alpha, const float complex * restrict A, size_t lda, const float complex * restrict B, size_t ldb, float complex beta, float complex * restrict C, size_t ldc) {
+CUresult cuMultiGPUCgemm(CUcontext * contexts, int deviceCount, CBlasTranspose transA, CBlasTranspose transB, size_t m, size_t n, size_t k, float complex alpha, const float complex * restrict A, size_t lda, const float complex * restrict B, size_t ldb, float complex beta, float complex * restrict C, size_t ldc) {
   size_t nRowA = (transA == CBlasNoTrans) ? m : k;
   size_t nRowB = (transB == CBlasNoTrans) ? k : n;
 
@@ -294,7 +294,7 @@ CUresult cuMultiGPUCgemm(CUcontext * contexts, unsigned int deviceCount, CBlasTr
   CUdeviceptr dA0[deviceCount], dA1[deviceCount], dB0[deviceCount], dB1[deviceCount], dC[deviceCount];
   size_t dlda0[deviceCount], dlda1[deviceCount], dldb0[deviceCount], dldb1[deviceCount], dldc[deviceCount];
 
-  for (unsigned int i = 0; i < deviceCount; i++) {
+  for (int i = 0; i < deviceCount; i++) {
     CU_ERROR_CHECK(cuCtxPushCurrent(contexts[i]));
 
     CU_ERROR_CHECK(cuModuleLoad(&module[i], "cgemm.cubin"));
@@ -306,7 +306,7 @@ CUresult cuMultiGPUCgemm(CUcontext * contexts, unsigned int deviceCount, CBlasTr
 
   CU_ERROR_CHECK(cuMemHostRegister(C, ldc * n * sizeof(float complex), CU_MEMHOSTREGISTER_PORTABLE));
 
-  unsigned int d = 0;
+  int d = 0;
   if (transA == CBlasNoTrans) {
     if (transB == CBlasNoTrans) {
 
@@ -315,7 +315,7 @@ CUresult cuMultiGPUCgemm(CUcontext * contexts, unsigned int deviceCount, CBlasTr
       CU_ERROR_CHECK(cuMemHostRegister((void *)A, lda * k * sizeof(float complex), CU_MEMHOSTREGISTER_PORTABLE));
       CU_ERROR_CHECK(cuMemHostRegister((void *)B, ldb * n * sizeof(float complex), CU_MEMHOSTREGISTER_PORTABLE));
 
-      for (unsigned int d = 0; d < deviceCount; d++) {
+      for (int d = 0; d < deviceCount; d++) {
         CU_ERROR_CHECK(cuCtxPushCurrent(contexts[d]));
 
         CU_ERROR_CHECK(cuMemAllocPitch(&dA0[d], &dlda0[d], mb * sizeof(float complex), kb, sizeof(float complex))); dlda0[d] /= sizeof(float complex);
@@ -427,7 +427,7 @@ CUresult cuMultiGPUCgemm(CUcontext * contexts, unsigned int deviceCount, CBlasTr
       CU_ERROR_CHECK(cuMemHostRegister((void *)A, lda * m * sizeof(float complex), CU_MEMHOSTREGISTER_PORTABLE));
       CU_ERROR_CHECK(cuMemHostRegister((void *)B, ldb * n * sizeof(float complex), CU_MEMHOSTREGISTER_PORTABLE));
 
-      for (unsigned int d = 0; d < deviceCount; d++) {
+      for (int d = 0; d < deviceCount; d++) {
         CU_ERROR_CHECK(cuCtxPushCurrent(contexts[d]));
 
         CU_ERROR_CHECK(cuMemAllocPitch(&dA0[d], &dlda0[d], kb * sizeof(float complex), mb, sizeof(float complex))); dlda0[d] /= sizeof(float complex);
@@ -482,7 +482,7 @@ CUresult cuMultiGPUCgemm(CUcontext * contexts, unsigned int deviceCount, CBlasTr
       CU_ERROR_CHECK(cuMemHostRegister((void *)A, lda * m * sizeof(float complex), CU_MEMHOSTREGISTER_PORTABLE));
       CU_ERROR_CHECK(cuMemHostRegister((void *)B, ldb * k * sizeof(float complex), CU_MEMHOSTREGISTER_PORTABLE));
 
-      for (unsigned int d = 0; d < deviceCount; d++) {
+      for (int d = 0; d < deviceCount; d++) {
         CU_ERROR_CHECK(cuCtxPushCurrent(contexts[d]));
 
         CU_ERROR_CHECK(cuMemAllocPitch(&dA0[d], &dlda0[d], kb * sizeof(float complex), mb, sizeof(float complex))); dlda0[d] /= sizeof(float complex);
@@ -536,7 +536,7 @@ CUresult cuMultiGPUCgemm(CUcontext * contexts, unsigned int deviceCount, CBlasTr
   CU_ERROR_CHECK(cuMemHostUnregister((void *)B));
   CU_ERROR_CHECK(cuMemHostUnregister((void *)A));
 
-  for (unsigned int d = 0; d < deviceCount; d++) {
+  for (int d = 0; d < deviceCount; d++) {
     CU_ERROR_CHECK(cuCtxPushCurrent(contexts[d]));
 
     CU_ERROR_CHECK(cuMemFree(dA0[d]));

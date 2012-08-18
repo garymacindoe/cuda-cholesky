@@ -197,13 +197,13 @@ CUresult cuCherk(CUmodule module, CBlasUplo uplo, CBlasTranspose trans, size_t n
   if (n == 0 || ((alpha == zero || k == 0) && beta == one)) return CUDA_SUCCESS;
 
   const unsigned int mb = (trans == CBlasNoTrans) ? 64 : 32;
-  const unsigned int nb = (trans == CBlasNoTrans) ? 16 : 32;
+  const unsigned int nb = (trans == CBlasNoTrans) ?  8 : 16;
   const unsigned int kb = (trans == CBlasNoTrans) ? 16 :  8;
-  const unsigned int bx = (trans == CBlasNoTrans) ? 16 :  8;
-  const unsigned int by = (trans == CBlasNoTrans) ?  4 :  8;
+  const unsigned int bx = 8;
+  const unsigned int by = 8;
 
-  char name[82];
-  snprintf(name, 82, "_Z5cherkIL9CBlasUplo%dEL14CBlasTranspose%dELj%uELj%uELj%uELj%uELj%uEEviifPKfifPfi", uplo, trans, mb, nb, kb, bx, by);
+  char name[88];
+  snprintf(name, 88, "_Z5cherkIL9CBlasUplo%dEL14CBlasTranspose%dELj%uELj%uELj%uELj%uELj%uEEviifPK6float2ifPS2_i", uplo, trans, mb, nb, kb, bx, by);
 
   CUfunction function;
   CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
@@ -215,7 +215,7 @@ CUresult cuCherk(CUmodule module, CBlasUplo uplo, CBlasTranspose trans, size_t n
   return CUDA_SUCCESS;
 }
 
-CUresult cuMultiGPUCherk(CUcontext * contexts, unsigned int deviceCount, CBlasUplo uplo, CBlasTranspose trans, size_t n, size_t k, float alpha, const float complex * restrict A, size_t lda, float beta, float complex * restrict C, size_t ldc) {
+CUresult cuMultiGPUCherk(CUcontext * contexts, int deviceCount, CBlasUplo uplo, CBlasTranspose trans, size_t n, size_t k, float alpha, const float complex * restrict A, size_t lda, float beta, float complex * restrict C, size_t ldc) {
   size_t nRowA = (trans == CBlasNoTrans) ? n : k;
 
   int info = 0;

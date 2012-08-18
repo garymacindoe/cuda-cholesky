@@ -202,8 +202,8 @@ CUresult cuZherk(CUmodule module, CBlasUplo uplo, CBlasTranspose trans, size_t n
   const unsigned int bx = (trans == CBlasNoTrans) ? 16 :  8;
   const unsigned int by = (trans == CBlasNoTrans) ?  4 :  8;
 
-  char name[82];
-  snprintf(name, 82, "_Z5zherkIL9CBlasUplo%dEL14CBlasTranspose%dELj%uELj%uELj%uELj%uELj%uEEviifPKfifPfi", uplo, trans, mb, nb, kb, bx, by);
+  char name[90];
+  snprintf(name, 90, "_Z5zherkIL9CBlasUplo%dEL14CBlasTranspose%dELj%uELj%uELj%uELj%uELj%uEEviidPK7double2idPS2_i", uplo, trans, mb, nb, kb, bx, by);
 
   CUfunction function;
   CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
@@ -215,7 +215,7 @@ CUresult cuZherk(CUmodule module, CBlasUplo uplo, CBlasTranspose trans, size_t n
   return CUDA_SUCCESS;
 }
 
-CUresult cuMultiGPUZherk(CUcontext * contexts, unsigned int deviceCount, CBlasUplo uplo, CBlasTranspose trans, size_t n, size_t k, double alpha, const double complex * restrict A, size_t lda, double beta, double complex * restrict C, size_t ldc) {
+CUresult cuMultiGPUZherk(CUcontext * contexts, int deviceCount, CBlasUplo uplo, CBlasTranspose trans, size_t n, size_t k, double alpha, const double complex * restrict A, size_t lda, double beta, double complex * restrict C, size_t ldc) {
   size_t nRowA = (trans == CBlasNoTrans) ? n : k;
 
   int info = 0;

@@ -95,10 +95,9 @@ void strsm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag
 #pragma omp parallel for
         for (size_t j = 0; j < n; j++) {
           for (size_t i = 0; i < m; i++) {
-            register float temp = zero;
+            register float temp = alpha * B[j * ldb + i];
             for (size_t k = 0; k < i; k++)
-              temp += A[i * lda + k] * B[j * ldb + k];
-            temp = alpha * B[j * ldb + i] - temp;
+              temp -= A[i * lda + k] * B[j * ldb + k];
             if (diag == CBlasNonUnit) temp /= A[i * lda + i];
             B[j * ldb + i] = temp;
           }
@@ -109,10 +108,9 @@ void strsm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag
         for (size_t j = 0; j < n; j++) {
           size_t i = m - 1;
           do {
-            register float temp = zero;
+            register float temp = alpha * B[j * ldb + i];
             for (size_t k = i + 1; k < m; k++)
-              temp += A[i * lda + k] * B[j * ldb + k];
-            temp = alpha * B[j * ldb + i] - temp;
+              temp -= A[i * lda + k] * B[j * ldb + k];
             if (diag == CBlasNonUnit) temp /= A[i * lda + i];
             B[j * ldb + i] = temp;
           } while (i-- > 0);
@@ -245,7 +243,7 @@ CUresult cuStrsm(CUmodule module, CBlasSide side, CBlasUplo uplo, CBlasTranspose
   return CUDA_SUCCESS;
 }
 
-CUresult cuMultiGPUStrsm(CUcontext * contexts, unsigned int deviceCount, CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag, size_t m, size_t n, float alpha, const float * restrict A, size_t lda, float * restrict B, size_t ldb) {
+CUresult cuMultiGPUStrsm(CUcontext * contexts, int deviceCount, CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag, size_t m, size_t n, float alpha, const float * restrict A, size_t lda, float * restrict B, size_t ldb) {
   const size_t nRowA = (side == CBlasLeft) ? m : n;
 
   int info = 0;

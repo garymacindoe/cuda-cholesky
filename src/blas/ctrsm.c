@@ -65,8 +65,9 @@ void ctrsm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag
           do {
             if (B[j * ldb + k] != zero) {
               if (diag == CBlasNonUnit) B[j * ldb + k] /= A[k * lda + k];
+              register float complex temp = B[j * ldb + k];
               for (size_t i = 0; i < k; i++)
-                B[j * ldb + i] -= B[j * ldb + k] * A[k * lda + i];
+                B[j * ldb + i] -= temp * A[k * lda + i];
             }
           } while (k-- > 0);
         }
@@ -81,8 +82,9 @@ void ctrsm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag
           for (size_t k = 0; k < m; k++) {
             if (B[j * ldb + k] != zero) {
               if (diag == CBlasNonUnit) B[j * ldb + k] /= A[k * lda + k];
+              register float complex temp = B[j * ldb + k];
               for (size_t i = k + 1; i < m; i++)
-                B[j * ldb + i] -= B[j * ldb + k] * A[k * lda + i];
+                B[j * ldb + i] -= temp * A[k * lda + i];
             }
           }
         }
@@ -93,7 +95,7 @@ void ctrsm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag
 #pragma omp parallel for
         for (size_t j = 0; j < n; j++) {
           for (size_t i = 0; i < m; i++) {
-            float complex  temp = alpha * B[j * ldb + i];
+            register float complex temp = alpha * B[j * ldb + i];
             if (transA == CBlasTrans) {
               for (size_t k = 0; k < i; k++)
                 temp -= A[i * lda + k] * B[j * ldb + k];
@@ -113,7 +115,7 @@ void ctrsm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag
         for (size_t j = 0; j < n; j++) {
           size_t i = m - 1;
           do {
-            float complex temp = alpha * B[j * ldb + i];
+            register float complex temp = alpha * B[j * ldb + i];
             if (transA == CBlasTrans) {
               for (size_t k = i + 1; k < m; k++)
                 temp -= A[i * lda + k] * B[j * ldb + k];
@@ -140,12 +142,13 @@ void ctrsm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag
           }
           for (size_t k = 0; k < j; k++) {
             if (A[j * lda + k] != zero) {
+              register float complex temp = A[j * lda + k];
               for (size_t i = 0; i < m; i++)
-                B[j * ldb + i] -= A[j * lda + k] * B[k * ldb + i];
+                B[j * ldb + i] -= temp * B[k * ldb + i];
             }
           }
           if (diag == CBlasNonUnit) {
-            float complex temp = one / A[j * lda + j];
+            register float complex temp = one / A[j * lda + j];
             for (size_t i = 0; i < m; i++)
               B[j * ldb + i] *= temp;
           }
@@ -160,12 +163,13 @@ void ctrsm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag
           }
           for (size_t k = j + 1; k < n; k++) {
             if (A[j * lda + k] != zero) {
+              register float complex temp = A[j * lda + k];
               for (size_t i = 0; i < m; i++)
-                B[j * ldb + i] -= A[j * lda + k] * B[k * ldb + i];
+                B[j * ldb + i] -= temp * B[k * ldb + i];
             }
           }
           if (diag == CBlasNonUnit) {
-            float complex temp = one / A[j * lda + j];
+            register float complex temp = one / A[j * lda + j];
             for (size_t i = 0; i < m; i++)
               B[j * ldb + i] *= temp;
           }
@@ -177,13 +181,13 @@ void ctrsm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag
         size_t k = n - 1;
         do {
           if (diag == CBlasNonUnit) {
-            float complex temp = (transA == CBlasTrans) ? one / A[k * lda + k] : one / conjf(A[k * lda + k]);
+            register float complex temp = (transA == CBlasTrans) ? one / A[k * lda + k] : one / conjf(A[k * lda + k]);
             for (size_t i = 0; i < m; i++)
               B[k * ldb + i] *= temp;
           }
           for (size_t j = 0; j < k; j++) {
             if (A[k * lda + j] != zero) {
-              float complex temp = (transA == CBlasTrans) ? A[k * lda + j] : conjf(A[k * lda + j]);
+              register float complex temp = (transA == CBlasTrans) ? A[k * lda + j] : conjf(A[k * lda + j]);
               for (size_t i = 0; i < m; i++)
                 B[j * ldb + i] -= temp * B[k * ldb + i];
             }
@@ -197,13 +201,13 @@ void ctrsm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag
       else {
         for (size_t k = 0; k < n; k++) {
           if (diag == CBlasNonUnit) {
-            float complex temp = (transA == CBlasTrans) ? one / A[k * lda + k] : one / conjf(A[k * lda + k]);
+            register float complex temp = (transA == CBlasTrans) ? one / A[k * lda + k] : one / conjf(A[k * lda + k]);
             for (size_t i = 0; i < m; i++)
               B[k * ldb + i] *= temp;
           }
           for (size_t j = k + 1; j < n; j++) {
             if (A[k * lda + j] != zero) {
-              float complex temp = (transA == CBlasTrans) ? A[k * lda + j] : conjf(A[k * lda + j]);
+              register float complex temp = (transA == CBlasTrans) ? A[k * lda + j] : conjf(A[k * lda + j]);
               for (size_t i = 0; i < m; i++)
                 B[j * ldb + i] -= temp * B[k * ldb + i];
             }
@@ -233,14 +237,13 @@ CUresult cuCtrsm(CUmodule module, CBlasSide side, CBlasUplo uplo, CBlasTranspose
 
   if (m == 0 || n == 0) return CUDA_SUCCESS;
 
-  const unsigned int mb = (trans == CBlasNoTrans) ? 64 : 32;
-  const unsigned int nb = (trans == CBlasNoTrans) ? 16 : 32;
-  const unsigned int kb = (trans == CBlasNoTrans) ? 16 :  8;
-  const unsigned int bx = (trans == CBlasNoTrans) ? 16 :  8;
-  const unsigned int by = (trans == CBlasNoTrans) ?  4 :  8;
+  const unsigned int bx =  4;
+  const unsigned int by =  4;
+  const unsigned int mb = (side == CBlasLeft) ?  4 : 16;
+  const unsigned int nb = (side == CBlasLeft) ? 16 :  4;
 
-  char name[80];
-  snprintf(name, 80, "_Z5sgemmIL14%d%d%dCBlasTranspose%dELj%uELj%uELj%uELj%uELj%uEEviiifPKfiS2_ifPfi", side, uplo, trans, diag, mb, nb, kb, bx, by);
+  char name[116];
+  snprintf(name, 116, "_Z5ctrsmIL9CBlasSide%dEL9CBlasUplo%dEL14CBlasTranspose%dEL9CBlasDiag%dELj%uELj%uELj%uELj%uEEvii6float2PKS4_iPS4_i", side, uplo, trans, diag, mb, nb, bx, by);
 
   CUfunction function;
   CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
@@ -252,7 +255,7 @@ CUresult cuCtrsm(CUmodule module, CBlasSide side, CBlasUplo uplo, CBlasTranspose
   return CUDA_SUCCESS;
 }
 
-CUresult cuMultiGPUCtrsm(CUcontext * contexts, unsigned int deviceCount, CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag, size_t m, size_t n, float complex alpha, const float complex * restrict A, size_t lda, float complex * restrict B, size_t ldb) {
+CUresult cuMultiGPUCtrsm(CUcontext * contexts, int deviceCount, CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag, size_t m, size_t n, float complex alpha, const float complex * restrict A, size_t lda, float complex * restrict B, size_t ldb) {
   const size_t nRowA = (side == CBlasLeft) ? m : n;
 
   int info = 0;

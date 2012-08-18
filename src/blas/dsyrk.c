@@ -157,9 +157,9 @@ CUresult cuDsyrk(CUmodule module, CBlasUplo uplo, CBlasTranspose trans, size_t n
   size_t nRowA = (trans == CBlasNoTrans) ? n : k;
 
   int info = 0;
-  if (lda < max(1, nRowA))
+  if (lda < nRowA)
     info = 7;
-  else if (ldc < max(1, n))
+  else if (ldc < n)
     info = 10;
   if (info != 0) {
     XERBLA(info);
@@ -169,13 +169,13 @@ CUresult cuDsyrk(CUmodule module, CBlasUplo uplo, CBlasTranspose trans, size_t n
   if (n == 0 || ((alpha == zero || k == 0) && beta == one)) return CUDA_SUCCESS;
 
   const unsigned int mb = (trans == CBlasNoTrans) ? 64 : 32;
-  const unsigned int nb = (trans == CBlasNoTrans) ? 16 : 32;
+  const unsigned int nb = (trans == CBlasNoTrans) ?  8 : 16;
   const unsigned int kb = (trans == CBlasNoTrans) ? 16 :  8;
-  const unsigned int bx = (trans == CBlasNoTrans) ? 16 :  8;
-  const unsigned int by = (trans == CBlasNoTrans) ?  4 :  8;
+  const unsigned int bx = 8;
+  const unsigned int by = 8;
 
   char name[82];
-  snprintf(name, 82, "_Z5ssyrkIL9CBlasUplo%dEL14CBlasTranspose%dELj%uELj%uELj%uELj%uELj%uEEviifPKfifPfi", uplo, trans, mb, nb, kb, bx, by);
+  snprintf(name, 82, "_Z5dsyrkIL9CBlasUplo%dEL14CBlasTranspose%dELj%uELj%uELj%uELj%uELj%uEEviidPKdidPdi", uplo, trans, mb, nb, kb, bx, by);
 
   CUfunction function;
   CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
