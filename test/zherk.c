@@ -5,38 +5,38 @@
 #include <float.h>
 #include <complex.h>
 
-static void cherk_ref(CBlasUplo uplo, CBlasTranspose trans, size_t n, size_t k,
-                      float alpha, const float complex * restrict A, size_t lda,
-                      float beta, float complex * restrict C, size_t ldc) {
+static void zherk_ref(CBlasUplo uplo, CBlasTranspose trans, size_t n, size_t k,
+                      double alpha, const double complex * restrict A, size_t lda,
+                      double beta, double complex * restrict C, size_t ldc) {
 
-  if (n == 0 || ((k == 0 || alpha == 0.0f) && beta == 1.0f)) return;
+  if (n == 0 || ((k == 0 || alpha == 0.0) && beta == 1.0)) return;
 
-  if (alpha == 0.0f) {
+  if (alpha == 0.0) {
     if (uplo == CBlasUpper) {
-      if (beta == 0.0f) {
+      if (beta == 0.0) {
         for (size_t j = 0; j < n; j++) {
           for (size_t i = 0; i <= j; i++)
-            C[j * ldc + i] = 0.0f;
+            C[j * ldc + i] = 0.0;
         }
       }
       else {
         for (size_t j = 0; j < n; j++) {
           for (size_t i = 0; i < j; i++)
             C[j * ldc + i] = beta * C[j * ldc + i];
-          C[j * ldc + j] = beta * crealf(C[j * ldc + j]);
+          C[j * ldc + j] = beta * creal(C[j * ldc + j]);
         }
       }
     }
     else {
-      if (beta == 0.0f) {
+      if (beta == 0.0) {
         for (size_t j = 0; j < n; j++) {
           for (size_t i = j; i < n; i++)
-            C[j * ldc + i] = 0.0f;
+            C[j * ldc + i] = 0.0;
         }
       }
       else {
         for (size_t j = 0; j < n; j++) {
-          C[j * ldc + j] = beta * crealf(C[j * ldc + j]);
+          C[j * ldc + j] = beta * creal(C[j * ldc + j]);
           for (size_t i = j + 1; i < n; i++)
             C[j * ldc + i] = beta * C[j * ldc + i];
         }
@@ -48,85 +48,85 @@ static void cherk_ref(CBlasUplo uplo, CBlasTranspose trans, size_t n, size_t k,
   for (size_t j = 0; j < n; j++) {
     if (uplo == CBlasUpper) {
       for (size_t i = 0; i < j; i++) {
-        float complex temp;
+        double complex temp;
 
         if (trans == CBlasNoTrans) {
-          temp = A[i] * A[j];
+          temp = A[i] * conj(A[j]);
           for (size_t l = 1; l < k; l++)
-            temp += A[l * lda + i] * A[l * lda + j];
+            temp += A[l * lda + i] * conj(A[l * lda + j]);
         }
         else {
-          temp = conjf(A[i * lda]) * A[j * lda];
+          temp = conj(A[i * lda]) * A[j * lda];
           for (size_t l = 1; l < k; l++)
-            temp += conjf(A[i * lda + l]) * A[j * lda + l];
+            temp += conj(A[i * lda + l]) * A[j * lda + l];
         }
 
-        if (alpha != 1.0f)
+        if (alpha != 1.0)
           temp *= alpha;
-        if (beta != 0.0f)
+        if (beta != 0.0)
           temp += beta * C[j * ldc + i];
 
         C[j * ldc + i] = temp;
       }
 
-      float rtemp;
+      double rtemp;
 
       if (trans == CBlasNoTrans) {
-        rtemp = A[j] * A[j];
+        rtemp = A[j] * conj(A[j]);
         for (size_t l = 1; l < k; l++)
-          rtemp += A[l * lda + j] * A[l * lda + j];
+          rtemp += A[l * lda + j] * conj(A[l * lda + j]);
       }
       else {
-        rtemp = conjf(A[j * lda]) * A[j * lda];
+        rtemp = conj(A[j * lda]) * A[j * lda];
         for (size_t l = 1; l < k; l++)
-          rtemp += conjf(A[j * lda + l]) * A[j * lda + l];
+          rtemp += conj(A[j * lda + l]) * A[j * lda + l];
       }
 
-      if (alpha != 1.0f)
+      if (alpha != 1.0)
         rtemp *= alpha;
-      if (beta != 0.0f)
-        rtemp += beta * crealf(C[j * ldc + i]);
+      if (beta != 0.0)
+        rtemp += beta * C[j * ldc + j];
 
-      C[j * ldc + i] = rtemp;
+      C[j * ldc + j] = rtemp;
     }
     else {
-      float rtemp;
+      double rtemp;
 
       if (trans == CBlasNoTrans) {
-        rtemp = A[j] * A[j];
+        rtemp = A[j] * conj(A[j]);
         for (size_t l = 1; l < k; l++)
-          rtemp += A[l * lda + j] * A[l * lda + j];
+          rtemp += A[l * lda + j] * conj(A[l * lda + j]);
       }
       else {
-        rtemp = conjf(A[j * lda]) * A[j * lda];
+        rtemp = conj(A[j * lda]) * A[j * lda];
         for (size_t l = 1; l < k; l++)
-          rtemp += conjf(A[j * lda + l]) * A[j * lda + l];
+          rtemp += conj(A[j * lda + l]) * A[j * lda + l];
       }
 
-      if (alpha != 1.0f)
+      if (alpha != 1.0)
         rtemp *= alpha;
-      if (beta != 0.0f)
-        rtemp += beta * crealf(C[j * ldc + i]);
+      if (beta != 0.0)
+        rtemp += beta * C[j * ldc + j];
 
-      C[j * ldc + i] = rtemp;
+      C[j * ldc + j] = rtemp;
 
-      for (size_t i = j; i < n; i++) {
-        float temp;
+      for (size_t i = j + 1; i < n; i++) {
+        double complex temp;
 
         if (trans == CBlasNoTrans) {
-          temp = A[i] * A[j];
+          temp = A[i] * conj(A[j]);
           for (size_t l = 1; l < k; l++)
-            temp += A[l * lda + i] * A[l * lda + j];
+            temp += A[l * lda + i] * conj(A[l * lda + j]);
         }
         else {
-          temp = conjf(A[i * lda]) * A[j * lda];
+          temp = conj(A[i * lda]) * A[j * lda];
           for (size_t l = 1; l < k; l++)
-            temp += conjf(A[i * lda + l]) * A[j * lda + l];
+            temp += conj(A[i * lda + l]) * A[j * lda + l];
         }
 
-        if (alpha != 1.0f)
+        if (alpha != 1.0)
           temp *= alpha;
-        if (beta != 0.0f)
+        if (beta != 0.0)
           temp += beta * C[j * ldc + i];
 
         C[j * ldc + i] = temp;
@@ -180,63 +180,63 @@ int main(int argc, char * argv[]) {
 
   srand(0);
 
-  float alpha, beta
-  float complex * A, * C, * refC;
+  double alpha, beta;
+  double complex * A, * C, * refC;
   size_t lda, ldc;
 
-  alpha = (float)rand() / (float)RAND_MAX;
-  beta = (float)rand() / (float)RAND_MAX;
+  alpha = (double)rand() / (double)RAND_MAX;
+  beta = (double)rand() / (double)RAND_MAX;
 
   if (trans == CBlasNoTrans) {
-    lda = (n + 3u) & ~3u;
-    if ((A = malloc(lda * k * sizeof(float))) == NULL) {
+    lda = n;
+    if ((A = malloc(lda * k * sizeof(double complex))) == NULL) {
       fputs("Unable to allocate A\n", stderr);
       return -1;
     }
 
     for (size_t j = 0; j < k; j++) {
       for (size_t i = 0; i < n; i++)
-        A[j * lda + i] = ((float)rand() / (float)RAND_MAX) + ((float)rand() / (float)RAND_MAX) * I;
+        A[j * lda + i] = ((double)rand() / (double)RAND_MAX) + ((double)rand() / (double)RAND_MAX) * I;
     }
   }
   else {
-    lda = (k + 3u) & ~3u;
-    if ((A = malloc(lda * n * sizeof(float))) == NULL) {
+    lda = k;
+    if ((A = malloc(lda * n * sizeof(double complex))) == NULL) {
       fputs("Unable to allocate A\n", stderr);
       return -1;
     }
 
     for (size_t j = 0; j < n; j++) {
       for (size_t i = 0; i < k; i++)
-        A[j * lda + i] = ((float)rand() / (float)RAND_MAX) + ((float)rand() / (float)RAND_MAX) * I;
+        A[j * lda + i] = ((double)rand() / (double)RAND_MAX) + ((double)rand() / (double)RAND_MAX) * I;
     }
   }
 
-  ldc = (n + 3u) & ~3u;
-  if ((C = malloc(ldc * n * sizeof(float))) == NULL) {
+  ldc = n;
+  if ((C = malloc(ldc * n * sizeof(double complex))) == NULL) {
     fputs("Unable to allocate C\n", stderr);
     return -3;
   }
-  if ((refC = malloc(ldc * n * sizeof(float))) == NULL) {
+  if ((refC = malloc(ldc * n * sizeof(double complex))) == NULL) {
     fputs("Unable to allocate refC\n", stderr);
     return -4;
   }
 
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < n; i++)
-      refC[j * ldc + i] = C[j * ldc + i] = ((float)rand() / (float)RAND_MAX) + ((float)rand() / (float)RAND_MAX) * I;
+      refC[j * ldc + i] = C[j * ldc + i] = ((double)rand() / (double)RAND_MAX) + ((double)rand() / (double)RAND_MAX) * I;
   }
 
-  cherk_ref(uplo, trans, n, k, alpha, A, lda, beta, refC, ldc);
-  cherk(uplo, trans, n, k, alpha, A, lda, beta, C, ldc);
+  zherk_ref(uplo, trans, n, k, alpha, A, lda, beta, refC, ldc);
+  zherk(uplo, trans, n, k, alpha, A, lda, beta, C, ldc);
 
-  float rdiff = 0.0f, idiff = 0.0f;
+  double rdiff = 0.0, idiff = 0.0;
   for (size_t j = 0; j < n; j++) {
-    for (size_t i = 0; i < m; i++) {
-      float d = fabsf(crealf(C[j * ldc + i]) - crealf(refC[j * ldc + i]));
+    for (size_t i = 0; i < n; i++) {
+      double d = fabs(creal(C[j * ldc + i]) - creal(refC[j * ldc + i]));
       if (d > rdiff)
         rdiff = d;
-      d = fabsf(cimagf(C[j * ldc + i]) - cimagf(refC[j * ldc + i]));
+      d = fabs(cimag(C[j * ldc + i]) - cimag(refC[j * ldc + i]));
       if (d > idiff)
         idiff = d;
     }
@@ -248,7 +248,7 @@ int main(int argc, char * argv[]) {
     return -5;
   }
   for (size_t i = 0; i < 20; i++)
-    cherk(uplo, trans, n, k, alpha, A, lda, beta, C, ldc);
+    zherk(uplo, trans, n, k, alpha, A, lda, beta, C, ldc);
   if (gettimeofday(&stop, NULL) != 0) {
     fputs("gettimeofday failed\n", stderr);
     return -6;
@@ -258,11 +258,11 @@ int main(int argc, char * argv[]) {
                  (double)(stop.tv_usec - start.tv_usec) * 1.e-6) / 20.0;
 
   size_t flops = 8 * k - 2;
-  if (alpha != 1.0f)
+  if (alpha != 1.0)
     flops += 1;
-  if (beta != 0.0f)
+  if (beta != 0.0)
     flops += 2;
-  float error = (float)flops * FLT_EPSILON;
+  double error = (double)flops * DBL_EPSILON;
   flops *= n * (n + 1) / 2;
 
   bool passed = (rdiff <= error) && (idiff <= error);

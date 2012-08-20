@@ -51,9 +51,9 @@ static void cherk_ref(CBlasUplo uplo, CBlasTranspose trans, size_t n, size_t k,
         float complex temp;
 
         if (trans == CBlasNoTrans) {
-          temp = A[i] * A[j];
+          temp = A[i] * conjf(A[j]);
           for (size_t l = 1; l < k; l++)
-            temp += A[l * lda + i] * A[l * lda + j];
+            temp += A[l * lda + i] * conjf(A[l * lda + j]);
         }
         else {
           temp = conjf(A[i * lda]) * A[j * lda];
@@ -72,9 +72,9 @@ static void cherk_ref(CBlasUplo uplo, CBlasTranspose trans, size_t n, size_t k,
       float rtemp;
 
       if (trans == CBlasNoTrans) {
-        rtemp = A[j] * A[j];
+        rtemp = A[j] * conjf(A[j]);
         for (size_t l = 1; l < k; l++)
-          rtemp += A[l * lda + j] * A[l * lda + j];
+          rtemp += A[l * lda + j] * conjf(A[l * lda + j]);
       }
       else {
         rtemp = conjf(A[j * lda]) * A[j * lda];
@@ -85,7 +85,7 @@ static void cherk_ref(CBlasUplo uplo, CBlasTranspose trans, size_t n, size_t k,
       if (alpha != 1.0f)
         rtemp *= alpha;
       if (beta != 0.0f)
-        rtemp += beta * crealf(C[j * ldc + j]);
+        rtemp += beta * C[j * ldc + j];
 
       C[j * ldc + j] = rtemp;
     }
@@ -93,9 +93,9 @@ static void cherk_ref(CBlasUplo uplo, CBlasTranspose trans, size_t n, size_t k,
       float rtemp;
 
       if (trans == CBlasNoTrans) {
-        rtemp = A[j] * A[j];
+        rtemp = A[j] * conjf(A[j]);
         for (size_t l = 1; l < k; l++)
-          rtemp += A[l * lda + j] * A[l * lda + j];
+          rtemp += A[l * lda + j] * conjf(A[l * lda + j]);
       }
       else {
         rtemp = conjf(A[j * lda]) * A[j * lda];
@@ -106,17 +106,17 @@ static void cherk_ref(CBlasUplo uplo, CBlasTranspose trans, size_t n, size_t k,
       if (alpha != 1.0f)
         rtemp *= alpha;
       if (beta != 0.0f)
-        rtemp += beta * crealf(C[j * ldc + j]);
+        rtemp += beta * C[j * ldc + j];
 
       C[j * ldc + j] = rtemp;
 
       for (size_t i = j + 1; i < n; i++) {
-        float temp;
+        float complex temp;
 
         if (trans == CBlasNoTrans) {
-          temp = A[i] * A[j];
+          temp = A[i] * conjf(A[j]);
           for (size_t l = 1; l < k; l++)
-            temp += A[l * lda + i] * A[l * lda + j];
+            temp += A[l * lda + i] * conjf(A[l * lda + j]);
         }
         else {
           temp = conjf(A[i * lda]) * A[j * lda];

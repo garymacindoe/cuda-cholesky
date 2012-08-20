@@ -100,7 +100,7 @@ void zherk(CBlasUplo uplo, CBlasTranspose trans, size_t n, size_t k, double alph
           C[j * ldc + j] = creal(C[j * ldc + j]);
         for (size_t l = 0; l < k; l++) {
           if (A[l * lda + j] != zero) {
-            register double temp = alpha * conj(A[l * lda + j]);
+            register double complex temp = alpha * conj(A[l * lda + j]);
             for (size_t i = 0; i < j; i++)
               C[j * ldc + i] += temp * A[l * lda + i];
             C[j * ldc + j] = creal(C[j * ldc + j]) + creal(temp * A[l * lda + j]);
@@ -124,7 +124,7 @@ void zherk(CBlasUplo uplo, CBlasTranspose trans, size_t n, size_t k, double alph
           C[j * ldc + j] = creal(C[j * ldc + j]);
         for (size_t l = 0; l < k; l++) {
           if (A[l * lda + j] != zero) {
-            register double temp = alpha * conj(A[l * lda + j]);
+            register double complex temp = alpha * conj(A[l * lda + j]);
             C[j * ldc + j] = creal(C[j * ldc + j]) + creal(temp * A[l * lda + j]);
             for (size_t i = j + 1; i < n; i++)
               C[j * ldc + i] += temp * A[l * lda + i];

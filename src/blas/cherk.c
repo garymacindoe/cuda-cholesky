@@ -100,7 +100,7 @@ void cherk(CBlasUplo uplo, CBlasTranspose trans, size_t n, size_t k, float alpha
           C[j * ldc + j] = crealf(C[j * ldc + j]);
         for (size_t l = 0; l < k; l++) {
           if (A[l * lda + j] != zero) {
-            register float temp = alpha * conjf(A[l * lda + j]);
+            register float complex temp = alpha * conjf(A[l * lda + j]);
             for (size_t i = 0; i < j; i++)
               C[j * ldc + i] += temp * A[l * lda + i];
             C[j * ldc + j] = crealf(C[j * ldc + j]) + crealf(temp * A[l * lda + j]);
@@ -124,7 +124,7 @@ void cherk(CBlasUplo uplo, CBlasTranspose trans, size_t n, size_t k, float alpha
           C[j * ldc + j] = crealf(C[j * ldc + j]);
         for (size_t l = 0; l < k; l++) {
           if (A[l * lda + j] != zero) {
-            register float temp = alpha * conjf(A[l * lda + j]);
+            register float complex temp = alpha * conjf(A[l * lda + j]);
             C[j * ldc + j] = crealf(C[j * ldc + j]) + crealf(temp * A[l * lda + j]);
             for (size_t i = j + 1; i < n; i++)
               C[j * ldc + i] += temp * A[l * lda + i];
