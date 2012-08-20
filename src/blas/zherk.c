@@ -196,11 +196,11 @@ CUresult cuZherk(CUmodule module, CBlasUplo uplo, CBlasTranspose trans, size_t n
 
   if (n == 0 || ((alpha == zero || k == 0) && beta == one)) return CUDA_SUCCESS;
 
-  const unsigned int mb = (trans == CBlasNoTrans) ? 64 : 32;
-  const unsigned int nb = (trans == CBlasNoTrans) ? 16 : 32;
+  const unsigned int mb = 16;
+  const unsigned int nb = (trans == CBlasNoTrans) ?  4 :  8;
   const unsigned int kb = (trans == CBlasNoTrans) ? 16 :  8;
-  const unsigned int bx = (trans == CBlasNoTrans) ? 16 :  8;
-  const unsigned int by = (trans == CBlasNoTrans) ?  4 :  8;
+  const unsigned int bx = (trans == CBlasNoTrans) ?  4 :  8;
+  const unsigned int by = 4;
 
   char name[90];
   snprintf(name, 90, "_Z5zherkIL9CBlasUplo%dEL14CBlasTranspose%dELj%uELj%uELj%uELj%uELj%uEEviidPK7double2idPS2_i", uplo, trans, mb, nb, kb, bx, by);
