@@ -3,10 +3,11 @@
 #include <stdio.h>
 #include <sys/time.h>
 #include <float.h>
+#include <complex.h>
 
-static void ssyrk_ref(CBlasUplo uplo, CBlasTranspose trans, size_t n, size_t k,
-                      float alpha, const float * restrict A, size_t lda,
-                      float beta, float * restrict C, size_t ldc) {
+static void cherk_ref(CBlasUplo uplo, CBlasTranspose trans, size_t n, size_t k,
+                      float alpha, const float complex * restrict A, size_t lda,
+                      float beta, float complex * restrict C, size_t ldc) {
 
   if (n == 0 || ((k == 0 || alpha == 0.0f) && beta == 1.0f)) return;
 
@@ -20,8 +21,9 @@ static void ssyrk_ref(CBlasUplo uplo, CBlasTranspose trans, size_t n, size_t k,
       }
       else {
         for (size_t j = 0; j < n; j++) {
-          for (size_t i = 0; i <= j; i++)
+          for (size_t i = 0; i < j; i++)
             C[j * ldc + i] = beta * C[j * ldc + i];
+          C[j * ldc + j] = beta * crealf(C[j * ldc + j]);
         }
       }
     }
@@ -34,7 +36,8 @@ static void ssyrk_ref(CBlasUplo uplo, CBlasTranspose trans, size_t n, size_t k,
       }
       else {
         for (size_t j = 0; j < n; j++) {
-          for (size_t i = j; i < n; i++)
+          C[j * ldc + j] = beta * crealf(C[j * ldc + j]);
+          for (size_t i = j + 1; i < n; i++)
             C[j * ldc + i] = beta * C[j * ldc + i];
         }
       }
@@ -44,18 +47,18 @@ static void ssyrk_ref(CBlasUplo uplo, CBlasTranspose trans, size_t n, size_t k,
 
   for (size_t j = 0; j < n; j++) {
     if (uplo == CBlasUpper) {
-      for (size_t i = 0; i <= j; i++) {
-        float temp;
+      for (size_t i = 0; i < j; i++) {
+        float complex temp;
 
         if (trans == CBlasNoTrans) {
-          temp = A[i] * A[j];
+          temp = A[i] * conjf(A[j]);
           for (size_t l = 1; l < k; l++)
-            temp += A[l * lda + i] * A[l * lda + j];
+            temp += A[l * lda + i] * conjf(A[l * lda + j]);
         }
         else {
-          temp = A[i * lda] * A[j * lda];
+          temp = conjf(A[i * lda]) * A[j * lda];
           for (size_t l = 1; l < k; l++)
-            temp += A[i * lda + l] * A[j * lda + l];
+            temp += conjf(A[i * lda + l]) * A[j * lda + l];
         }
 
         if (alpha != 1.0f)
@@ -65,20 +68,60 @@ static void ssyrk_ref(CBlasUplo uplo, CBlasTranspose trans, size_t n, size_t k,
 
         C[j * ldc + i] = temp;
       }
+
+      float rtemp;
+
+      if (trans == CBlasNoTrans) {
+        rtemp = A[j] * conjf(A[j]);
+        for (size_t l = 1; l < k; l++)
+          rtemp += A[l * lda + j] * conjf(A[l * lda + j]);
+      }
+      else {
+        rtemp = conjf(A[j * lda]) * A[j * lda];
+        for (size_t l = 1; l < k; l++)
+          rtemp += conjf(A[j * lda + l]) * A[j * lda + l];
+      }
+
+      if (alpha != 1.0f)
+        rtemp *= alpha;
+      if (beta != 0.0f)
+        rtemp += beta * C[j * ldc + j];
+
+      C[j * ldc + j] = rtemp;
     }
     else {
-      for (size_t i = j; i < n; i++) {
-        float temp;
+      float rtemp;
+
+      if (trans == CBlasNoTrans) {
+        rtemp = A[j] * conjf(A[j]);
+        for (size_t l = 1; l < k; l++)
+          rtemp += A[l * lda + j] * conjf(A[l * lda + j]);
+      }
+      else {
+        rtemp = conjf(A[j * lda]) * A[j * lda];
+        for (size_t l = 1; l < k; l++)
+          rtemp += conjf(A[j * lda + l]) * A[j * lda + l];
+      }
+
+      if (alpha != 1.0f)
+        rtemp *= alpha;
+      if (beta != 0.0f)
+        rtemp += beta * C[j * ldc + j];
+
+      C[j * ldc + j] = rtemp;
+
+      for (size_t i = j + 1; i < n; i++) {
+        float complex temp;
 
         if (trans == CBlasNoTrans) {
-          temp = A[i] * A[j];
+          temp = A[i] * conjf(A[j]);
           for (size_t l = 1; l < k; l++)
-            temp += A[l * lda + i] * A[l * lda + j];
+            temp += A[l * lda + i] * conjf(A[l * lda + j]);
         }
         else {
-          temp = A[i * lda] * A[j * lda];
+          temp = conjf(A[i * lda]) * A[j * lda];
           for (size_t l = 1; l < k; l++)
-            temp += A[i * lda + l] * A[j * lda + l];
+            temp += conjf(A[i * lda + l]) * A[j * lda + l];
         }
 
         if (alpha != 1.0f)
@@ -98,7 +141,7 @@ int main(int argc, char * argv[]) {
   size_t n, k;
 
   if (argc != 5) {
-    fprintf(stderr, "Usage: %s <uplo> <trans> <n> <k>\nwhere:\n  uplo               is 'u' or 'U' for CBlasUpper or 'l' or 'L' for CBlasLower\n  transA and transB  are 'n' or 'N' for CBlasNoTrans, 't' or 'T' for CBlasTrans or 'c' or 'C' for CBlasConjTrans\n  n and k            are the sizes of the matrices\n", argv[0]);
+    fprintf(stderr, "Usage: %s <uplo> <trans> <n> <k>\nwhere:\n  uplo               is 'u' or 'U' for CBlasUpper or 'l' or 'L' for CBlasLower\n  transA and transB  are 'n' or 'N' for CBlasNoTrans or 'c' or 'C' for CBlasConjTrans\n  n and k            are the sizes of the matrices\n", argv[0]);
     return 1;
   }
 
@@ -137,7 +180,8 @@ int main(int argc, char * argv[]) {
 
   srand(0);
 
-  float alpha, beta, * A, * C, * refC;
+  float alpha, beta;
+  float complex * A, * C, * refC;
   size_t lda, ldc;
 
   CU_ERROR_CHECK(cuInit(0));
@@ -157,53 +201,56 @@ int main(int argc, char * argv[]) {
 
   if (trans == CBlasNoTrans) {
     lda = (n + 3u) & ~3u;
-    if ((A = malloc(lda * k * sizeof(float))) == NULL) {
+    if ((A = malloc(lda * k * sizeof(float complex))) == NULL) {
       fputs("Unable to allocate A\n", stderr);
       return -1;
     }
 
     for (size_t j = 0; j < k; j++) {
       for (size_t i = 0; i < n; i++)
-        A[j * lda + i] = (float)rand() / (float)RAND_MAX;
+        A[j * lda + i] = ((float)rand() / (float)RAND_MAX) + ((float)rand() / (float)RAND_MAX) * I;
     }
   }
   else {
     lda = (k + 3u) & ~3u;
-    if ((A = malloc(lda * n * sizeof(float))) == NULL) {
+    if ((A = malloc(lda * n * sizeof(float complex))) == NULL) {
       fputs("Unable to allocate A\n", stderr);
       return -1;
     }
 
     for (size_t j = 0; j < n; j++) {
       for (size_t i = 0; i < k; i++)
-        A[j * lda + i] = (float)rand() / (float)RAND_MAX;
+        A[j * lda + i] = ((float)rand() / (float)RAND_MAX) + ((float)rand() / (float)RAND_MAX) * I;
     }
   }
 
   ldc = (n + 3u) & ~3u;
-  if ((C = malloc(ldc * n * sizeof(float))) == NULL) {
+  if ((C = malloc(ldc * n * sizeof(float complex))) == NULL) {
     fputs("Unable to allocate C\n", stderr);
     return -3;
   }
-  if ((refC = malloc(ldc * n * sizeof(float))) == NULL) {
+  if ((refC = malloc(ldc * n * sizeof(float complex))) == NULL) {
     fputs("Unable to allocate refC\n", stderr);
     return -4;
   }
 
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < n; i++)
-      refC[j * ldc + i] = C[j * ldc + i] = (float)rand() / (float)RAND_MAX;
+      refC[j * ldc + i] = C[j * ldc + i] = ((float)rand() / (float)RAND_MAX) + ((float)rand() / (float)RAND_MAX) * I;
   }
 
-  ssyrk_ref(uplo, trans, n, k, alpha, A, lda, beta, refC, ldc);
-  CU_ERROR_CHECK(cuMultGPUSsyrk(contexts, deviceCount, uplo, trans, n, k, alpha, A, lda, beta, C, ldc));
+  cherk_ref(uplo, trans, n, k, alpha, A, lda, beta, refC, ldc);
+  CU_ERROR_CHECK(cuMultGPUCherk(contexts, deviceCount, uplo, trans, n, k, alpha, A, lda, beta, C, ldc));
 
-  float diff = 0.0f;
+  float rdiff = 0.0f, idiff = 0.0f;
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < n; i++) {
-      float d = fabsf(C[j * ldc + i] - refC[j * ldc + i]);
-      if (d > diff)
-        diff = d;
+      float d = fabsf(crealf(C[j * ldc + i]) - crealf(refC[j * ldc + i]));
+      if (d > rdiff)
+        rdiff = d;
+      d = fabsf(cimagf(C[j * ldc + i]) - cimagf(refC[j * ldc + i]));
+      if (d > idiff)
+        idiff = d;
     }
   }
 
@@ -213,7 +260,7 @@ int main(int argc, char * argv[]) {
     return -5;
   }
   for (size_t i = 0; i < 20; i++)
-    CU_ERROR_CHECK(cuMultGPUSsyrk(contexts, deviceCount, uplo, trans, n, k, alpha, A, lda, beta, C, ldc));
+    CU_ERROR_CHECK(cuMultGPUCherk(contexts, deviceCount, uplo, trans, n, k, alpha, A, lda, beta, C, ldc));
   if (gettimeofday(&stop, NULL) != 0) {
     fputs("gettimeofday failed\n", stderr);
     return -6;
@@ -222,17 +269,17 @@ int main(int argc, char * argv[]) {
   double time = ((double)(stop.tv_sec - start.tv_sec) +
                  (double)(stop.tv_usec - start.tv_usec) * 1.e-6) / 20.0;
 
-  size_t flops = 2 * k - 1;
+  size_t flops = 8 * k - 2;
   if (alpha != 1.0f)
     flops += 1;
   if (beta != 0.0f)
     flops += 2;
-  float error = (float)flops * 2.0f * FLT_EPSILON;
+  float error = (float)flops * FLT_EPSILON;
   flops *= n * (n + 1) / 2;
 
-  bool passed = (diff <= error);
-  fprintf(stdout, "%.3es %.3gGFlops/s Error: %.3e\n%sED!\n", time,
-          ((double)flops * 1.e-9) / time, diff, (passed) ? "PASS" : "FAIL");
+  bool passed = (rdiff <= error) && (idiff <= error);
+  fprintf(stdout, "%.3es %.3gGFlops/s Error: %.3e + %.3ei\n%sED!\n", time,
+          ((double)flops * 1.e-9) / time, rdiff, idiff, (passed) ? "PASS" : "FAIL");
 
   free(A);
   free(C);
