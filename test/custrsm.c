@@ -129,9 +129,10 @@ int main(int argc, char * argv[]) {
   CBlasTranspose trans;
   CBlasDiag diag;
   size_t m, n;
+  int d = 0;
 
-  if (argc != 7) {
-    fprintf(stderr, "Usage: %s <side> <uplo> <trans> <diag> <m> <n>\nwhere:\n  side               is 'l' or 'L' for CBlasLeft and 'r' or 'R' for CBlasRight\n  uplo               is 'u' or 'U' for CBlasUpper and 'l' or 'L' for CBlasLower\n  trans              is 'n' or 'N' for CBlasNoTrans, 't' or 'T' for CBlasTrans or 'c' or 'C' for CBlasConjTrans\n  diag               is 'n' or 'N' for CBlasNonUnit and 'u' or 'U' for CBlasUnit\n  m and n           are the sizes of the matrices\n", argv[0]);
+  if (argc < 7 || argc > 8) {
+    fprintf(stderr, "Usage: %s <side> <uplo> <trans> <diag> <m> <n> [device]\nwhere:\n  side               is 'l' or 'L' for CBlasLeft and 'r' or 'R' for CBlasRight\n  uplo               is 'u' or 'U' for CBlasUpper and 'l' or 'L' for CBlasLower\n  trans              is 'n' or 'N' for CBlasNoTrans, 't' or 'T' for CBlasTrans or 'c' or 'C' for CBlasConjTrans\n  diag               is 'n' or 'N' for CBlasNonUnit and 'u' or 'U' for CBlasUnit\n  m and n           are the sizes of the matrices\n", argv[0]);
     return 1;
   }
 
@@ -169,12 +170,12 @@ int main(int argc, char * argv[]) {
     default: fprintf(stderr, "Unknown transpose '%c'\n", t); return 3;
   }
 
-  char d;
-  if (sscanf(argv[4], "%c", &d) != 1) {
+  char di;
+  if (sscanf(argv[4], "%c", &di) != 1) {
     fprintf(stderr, "Unable to read character from '%s'\n", argv[4]);
     return 4;
   }
-  switch (d) {
+  switch (di) {
     case 'N': case 'n': diag = CBlasNonUnit; break;
     case 'U': case 'u': diag = CBlasUnit; break;
     default: fprintf(stderr, "Unknown diag '%c'\n", t); return 4;
@@ -190,10 +191,29 @@ int main(int argc, char * argv[]) {
     return 6;
   }
 
+  if (argc > 7) {
+    if (sscanf(argv[7], "%d", &d) != 1) {
+      fprintf(stderr, "Unable to parse number from '%s'\n", argv[7]);
+      return 7;
+    }
+  }
+
   srand(0);
 
   float alpha, * A, * B, * refB;
-  size_t lda, ldb;
+  CUdeviceptr dA, dB;
+  size_t lda, ldb, dlda, dldb;
+
+  CU_ERROR_CHECK(cuInit(0));
+
+  CUdevice device;
+  CU_ERROR_CHECK(cuDeviceGet(&device, d));
+
+  CUcontext context;
+  CU_ERROR_CHECK(cuCtxCreate(&context, CU_CTX_BLOCKING_SYNC, device));
+
+  CUmodule module;
+  CU_ERROR_CHECK(cuModuleLoad(&module, "strsm.cubin"));
 
   alpha = (float)rand() / (float)RAND_MAX;
 
@@ -203,11 +223,18 @@ int main(int argc, char * argv[]) {
       fputs("Unable to allocate A\n", stderr);
       return -1;
     }
+    CU_ERROR_CHECK(cuMemAllocPitch(&dA, &dlda, m * sizeof(float), m, sizeof(float)));
+    dlda /= sizeof(float);
 
     for (size_t j = 0; j < m; j++) {
       for (size_t i = 0; i < m; i++)
         A[j * lda + i] = (float)rand() / (float)RAND_MAX;
     }
+
+    CUDA_MEMCPY2D copy = { 0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(float),
+                           0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(float),
+                           m * sizeof(float), m };
+    CU_ERROR_CHECK(cuMemcpy2D(&copy));
   }
   else {
     lda = (n + 3u) & ~3u;
@@ -215,11 +242,18 @@ int main(int argc, char * argv[]) {
       fputs("Unable to allocate A\n", stderr);
       return -1;
     }
+    CU_ERROR_CHECK(cuMemAllocPitch(&dA, &dlda, n * sizeof(float), n, sizeof(float)));
+    dlda /= sizeof(float);
 
     for (size_t j = 0; j < n; j++) {
       for (size_t i = 0; i < n; i++)
         A[j * lda + i] = (float)rand() / (float)RAND_MAX;
     }
+
+    CUDA_MEMCPY2D copy = { 0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(float),
+                           0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(float),
+                           n * sizeof(float), n };
+    CU_ERROR_CHECK(cuMemcpy2D(&copy));
   }
 
   ldb = (m + 3u) & ~3u;
@@ -231,14 +265,26 @@ int main(int argc, char * argv[]) {
     fputs("Unable to allocate refB\n", stderr);
     return -4;
   }
+  CU_ERROR_CHECK(cuMemAllocPitch(&dB, &dldb, m * sizeof(float), n, sizeof(float)));
+  dldb /= sizeof(float);
 
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < m; i++)
       refB[j * ldb + i] = B[j * ldb + i] = (float)rand() / (float)RAND_MAX;
   }
 
+  CUDA_MEMCPY2D copy = { 0, 0, CU_MEMORYTYPE_HOST, B, 0, NULL, ldb * sizeof(float),
+                         0, 0, CU_MEMORYTYPE_DEVICE, NULL, dB, NULL, dldb * sizeof(float),
+                         m * sizeof(float), n };
+  CU_ERROR_CHECK(cuMemcpy2D(&copy));
+
   strsm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb);
-  strsm(side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb);
+  CU_ERROR_CHECK(cuStrsm(module, side, uplo, trans, diag, m, n, alpha, dA, dlda, dB, dldb, NULL));
+
+  copy = (CUDA_MEMCPY2D){ 0, 0, CU_MEMORYTYPE_DEVICE, NULL, dB, NULL, dldb * sizeof(float),
+           0, 0, CU_MEMORYTYPE_HOST, B, 0, NULL, ldb * sizeof(float),
+           m * sizeof(float), n };
+  CU_ERROR_CHECK(cuMemcpy2D(&copy));
 
   bool passed = true;
   float diff = 0.0f;
@@ -273,20 +319,22 @@ int main(int argc, char * argv[]) {
     }
   }
 
-  struct timeval start, stop;
-  if (gettimeofday(&start, NULL) != 0) {
-    fputs("gettimeofday failed\n", stderr);
-    return -5;
-  }
-  for (size_t i = 0; i < 20; i++)
-    strsm(side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb);
-  if (gettimeofday(&stop, NULL) != 0) {
-    fputs("gettimeofday failed\n", stderr);
-    return -6;
-  }
+  CUevent start, stop;
+  CU_ERROR_CHECK(cuEventCreate(&start, CU_EVENT_BLOCKING_SYNC));
+  CU_ERROR_CHECK(cuEventCreate(&stop, CU_EVENT_BLOCKING_SYNC));
 
-  double time = ((double)(stop.tv_sec - start.tv_sec) +
-                 (double)(stop.tv_usec - start.tv_usec) * 1.e-6) / 20.0;
+  CU_ERROR_CHECK(cuEventRecord(start, NULL));
+  for (size_t i = 0; i < 20; i++)
+    CU_ERROR_CHECK(cuStrsm(module, side, uplo, trans, diag, m, n, alpha, dA, dlda, dB, dldb, NULL));
+  CU_ERROR_CHECK(cuEventRecord(stop, NULL));
+  CU_ERROR_CHECK(cuEventSynchronize(stop));
+
+  float time;
+  CU_ERROR_CHECK(cuEventElapsedTime(&time, start, stop));
+  time /= 20;
+
+  CU_ERROR_CHECK(cuEventDestroy(start));
+  CU_ERROR_CHECK(cuEventDestroy(stop));
 
   size_t flops = m * n;
   if (alpha != 0.0f) {
@@ -294,12 +342,15 @@ int main(int argc, char * argv[]) {
     if (diag == CBlasNonUnit) flops += m * n;
   }
 
-  fprintf(stdout, "%.3es %.3gGFlops/s Error: %.3e\n%sED!\n", time,
-          ((double)flops * 1.e-9) / time, diff, (passed) ? "PASS" : "FAIL");
+  fprintf(stdout, "%.3ems %.3gGFlops/s Error: %.3e\n%sED!\n", time, ((float)flops * 1.e-6f) / time, diff, (passed) ? "PASS" : "FAIL");
 
   free(A);
   free(B);
   free(refB);
+  CU_ERROR_CHECK(cuMemFree(dA));
+  CU_ERROR_CHECK(cuMemFree(dB));
+
+  CU_ERROR_CHECK(cuCtxDestroy(context));
 
   return (int)!passed;
 }

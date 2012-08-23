@@ -4,17 +4,17 @@
 #include <sys/time.h>
 #include <float.h>
 
-static void strsm_ref(CBlasSide side, CBlasUplo uplo, CBlasTranspose trans,
+static void dtrsm_ref(CBlasSide side, CBlasUplo uplo, CBlasTranspose trans,
                       CBlasDiag diag, size_t m, size_t n,
-                      float alpha, const float * restrict A, size_t lda,
-                      float * restrict B, size_t ldb) {
+                      double alpha, const double * restrict A, size_t lda,
+                      double * restrict B, size_t ldb) {
 
   if (m == 0 || n == 0) return;
 
-  if (alpha == 0.0f) {
+  if (alpha == 0.0) {
     for (size_t j = 0; j < n; j++) {
       for (size_t i = 0; i < m; i++)
-        B[j * ldb + i] = 0.0f;
+        B[j * ldb + i] = 0.0;
     }
     return;
   }
@@ -25,7 +25,7 @@ static void strsm_ref(CBlasSide side, CBlasUplo uplo, CBlasTranspose trans,
         for (size_t j = 0; j < n; j++) {
           size_t i = m - 1;
           do {
-            float temp = alpha * B[j * ldb + i];
+            double temp = alpha * B[j * ldb + i];
             for (size_t k = i + 1; k < m; k++)
               temp -= A[k * lda + i] * B[j * ldb + k];
             if (diag == CBlasNonUnit) temp /= A[i * lda + i];
@@ -36,7 +36,7 @@ static void strsm_ref(CBlasSide side, CBlasUplo uplo, CBlasTranspose trans,
       else {
         for (size_t j = 0; j < n; j++) {
           for (size_t i = 0; i < m; i++) {
-            float temp = alpha * B[j * ldb + i];
+            double temp = alpha * B[j * ldb + i];
             for (size_t k = 0; k < i; k++)
               temp -= A[k * lda + i] * B[j * ldb + k];
             if (diag == CBlasNonUnit) temp /= A[i * lda + i];
@@ -49,7 +49,7 @@ static void strsm_ref(CBlasSide side, CBlasUplo uplo, CBlasTranspose trans,
       if (uplo == CBlasUpper) {
         for (size_t j = 0; j < n; j++) {
           for (size_t i = 0; i < m; i++) {
-            float temp = alpha * B[j * ldb + i];
+            double temp = alpha * B[j * ldb + i];
             for (size_t k = 0; k < i; k++)
               temp -= A[i * lda + k] * B[j * ldb + k];
             if (diag == CBlasNonUnit) temp /= A[i * lda + i];
@@ -61,7 +61,7 @@ static void strsm_ref(CBlasSide side, CBlasUplo uplo, CBlasTranspose trans,
         for (size_t j = 0; j < n; j++) {
           size_t i = m - 1;
           do {
-            float temp = alpha * B[j * ldb + i];
+            double temp = alpha * B[j * ldb + i];
             for (size_t k = i + 1; k < m; k++)
               temp -= A[i * lda + k] * B[j * ldb + k];
             if (diag == CBlasNonUnit) temp /= A[i * lda + i];
@@ -76,7 +76,7 @@ static void strsm_ref(CBlasSide side, CBlasUplo uplo, CBlasTranspose trans,
       if (uplo == CBlasUpper) {
         for (size_t j = 0; j < n; j++) {
           for (size_t i = 0; i < m; i++) {
-            float temp = alpha * B[j * ldb + i];
+            double temp = alpha * B[j * ldb + i];
             for (size_t k = j + 1; k < n; k++)
               temp -= A[j * lda + k] * B[k * ldb + i];
             if (diag == CBlasNonUnit) temp /= A[j * lda + j];
@@ -87,7 +87,7 @@ static void strsm_ref(CBlasSide side, CBlasUplo uplo, CBlasTranspose trans,
       else {
         for (size_t j = 0; j < n; j++) {
           for (size_t i = 0; i < m; i++) {
-            float temp = alpha * B[j * ldb + i];
+            double temp = alpha * B[j * ldb + i];
             for (size_t k = 0; k < j; k++)
               temp -= A[j * lda + k] * B[k * ldb + i];
             if (diag == CBlasNonUnit) temp /= A[j * lda + j];
@@ -100,7 +100,7 @@ static void strsm_ref(CBlasSide side, CBlasUplo uplo, CBlasTranspose trans,
       if (uplo == CBlasUpper) {
         for (size_t j = 0; j < n; j++) {
           for (size_t i = 0; i < m; i++) {
-            float temp = alpha * B[j * ldb + i];
+            double temp = alpha * B[j * ldb + i];
             for (size_t k = 0; k < j; k++)
               temp -= A[k * lda + j] * B[k * ldb + i];
             if (diag == CBlasNonUnit) temp /= A[j * lda + j];
@@ -111,7 +111,7 @@ static void strsm_ref(CBlasSide side, CBlasUplo uplo, CBlasTranspose trans,
       else {
         for (size_t j = 0; j < n; j++) {
           for (size_t i = 0; i < m; i++) {
-            float temp = alpha * B[j * ldb + i];
+            double temp = alpha * B[j * ldb + i];
             for (size_t k = j + 1; k < n; k++)
               temp -= A[k * lda + j] * B[k * ldb + i];
             if (diag == CBlasNonUnit) temp /= A[j * lda + j];
@@ -192,59 +192,71 @@ int main(int argc, char * argv[]) {
 
   srand(0);
 
-  float alpha, * A, * B, * refB;
+  double alpha, * A, * B, * refB;
   size_t lda, ldb;
 
-  alpha = (float)rand() / (float)RAND_MAX;
+  CU_ERROR_CHECK(cuInit(0));
+
+  int deviceCount;
+  CU_ERROR_CHECK(cuDeviceGetCount(&deviceCount));
+
+  CUcontext contexts[deviceCount];
+  for (int i = 0; i < deviceCount; i++) {
+    CUdevice device;
+    CU_ERROR_CHECK(cuDeviceGet(&device, i));
+    CU_ERROR_CHECK(cuCtxCreate(&contexts[i], CU_CTX_BLOCKING_SYNC, device));
+  }
+
+  alpha = (double)rand() / (double)RAND_MAX;
 
   if (side == CBlasLeft) {
-    lda = (m + 3u) & ~3u;
-    if ((A = malloc(lda * m * sizeof(float))) == NULL) {
+    lda = (m + 1u) & ~1u;
+    if ((A = malloc(lda * m * sizeof(double))) == NULL) {
       fputs("Unable to allocate A\n", stderr);
       return -1;
     }
 
     for (size_t j = 0; j < m; j++) {
       for (size_t i = 0; i < m; i++)
-        A[j * lda + i] = (float)rand() / (float)RAND_MAX;
+        A[j * lda + i] = (double)rand() / (double)RAND_MAX;
     }
   }
   else {
-    lda = (n + 3u) & ~3u;
-    if ((A = malloc(lda * n * sizeof(float))) == NULL) {
+    lda = (n + 1u) & ~1u;
+    if ((A = malloc(lda * n * sizeof(double))) == NULL) {
       fputs("Unable to allocate A\n", stderr);
       return -1;
     }
 
     for (size_t j = 0; j < n; j++) {
       for (size_t i = 0; i < n; i++)
-        A[j * lda + i] = (float)rand() / (float)RAND_MAX;
+        A[j * lda + i] = (double)rand() / (double)RAND_MAX;
     }
   }
 
-  ldb = (m + 3u) & ~3u;
-  if ((B = malloc(ldb * n * sizeof(float))) == NULL) {
+  ldb = (m + 1u) & ~1u;
+  if ((B = malloc(ldb * n * sizeof(double))) == NULL) {
     fputs("Unable to allocate B\n", stderr);
     return -3;
   }
-  if ((refB = malloc(ldb * n * sizeof(float))) == NULL) {
+  if ((refB = malloc(ldb * n * sizeof(double))) == NULL) {
     fputs("Unable to allocate refB\n", stderr);
     return -4;
   }
 
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < m; i++)
-      refB[j * ldb + i] = B[j * ldb + i] = (float)rand() / (float)RAND_MAX;
+      refB[j * ldb + i] = B[j * ldb + i] = (double)rand() / (double)RAND_MAX;
   }
 
-  strsm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb);
-  strsm(side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb);
+  dtrsm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb);
+  CU_ERROR_CHECK(cuMultiGPUDtrsm(contexts, deviceCount, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb));
 
   bool passed = true;
-  float diff = 0.0f;
+  double diff = 0.0;
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < m; i++) {
-      float d = fabsf(B[j * ldb + i] - refB[j * ldb + i]);
+      double d = fabs(B[j * ldb + i] - refB[j * ldb + i]);
       if (d > diff)
         diff = d;
 
@@ -264,10 +276,10 @@ int main(int argc, char * argv[]) {
         }
         if (diag == CBlasNonUnit)
           k++;
-        if (alpha != 0.0f)
+        if (alpha != 0.0)
           k++;
 
-        if (d > (float)k * FLT_EPSILON)
+        if (d > (double)k * DBL_EPSILON)
           passed = false;
       }
     }
@@ -279,7 +291,7 @@ int main(int argc, char * argv[]) {
     return -5;
   }
   for (size_t i = 0; i < 20; i++)
-    strsm(side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb);
+    CU_ERROR_CHECK(cuMultiGPUDtrsm(contexts, deviceCount, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb));
   if (gettimeofday(&stop, NULL) != 0) {
     fputs("gettimeofday failed\n", stderr);
     return -6;
@@ -300,6 +312,9 @@ int main(int argc, char * argv[]) {
   free(A);
   free(B);
   free(refB);
+
+  for (int i = 0; i < deviceCount; i++)
+    CU_ERROR_CHECK(cuCtxDestroy(contexts[i]));
 
   return (int)!passed;
 }

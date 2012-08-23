@@ -321,14 +321,11 @@ int main(int argc, char * argv[]) {
   double time = ((double)(stop.tv_sec - start.tv_sec) +
                  (double)(stop.tv_usec - start.tv_usec) * 1.e-6) / 20.0;
 
-  size_t flops;
-  if (alpha == 0.0f + 0.0f * I)
-    flops = 1;
-  else {
-    flops = (side == CBlasLeft) ? m - 1 : n - 1;
-    if (alpha != 1.0f + 0.0f * I) flops++;
+  size_t flops = 6 * m * n;
+  if (alpha != 0.0f + 0.0f * I) {
+    flops += (side == CBlasLeft) ? 2 * m * n * (2 * m - 1) : 2 * m * n * (2 * n - 1);
+    if (diag == CBlasNonUnit) flops += 18 * m * n;
   }
-  flops *= m * n;
 
   fprintf(stdout, "%.3es %.3gGFlops/s Error: %.3e + %.3ei\n%sED!\n", time,
           ((double)flops * 1.e-9) / time, rdiff, idiff, (passed) ? "PASS" : "FAIL");

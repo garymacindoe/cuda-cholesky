@@ -195,6 +195,18 @@ int main(int argc, char * argv[]) {
   float alpha, * A, * B, * refB;
   size_t lda, ldb;
 
+  CU_ERROR_CHECK(cuInit(0));
+
+  int deviceCount;
+  CU_ERROR_CHECK(cuDeviceGetCount(&deviceCount));
+
+  CUcontext contexts[deviceCount];
+  for (int i = 0; i < deviceCount; i++) {
+    CUdevice device;
+    CU_ERROR_CHECK(cuDeviceGet(&device, i));
+    CU_ERROR_CHECK(cuCtxCreate(&contexts[i], CU_CTX_BLOCKING_SYNC, device));
+  }
+
   alpha = (float)rand() / (float)RAND_MAX;
 
   if (side == CBlasLeft) {
@@ -238,7 +250,7 @@ int main(int argc, char * argv[]) {
   }
 
   strsm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb);
-  strsm(side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb);
+  CU_ERROR_CHECK(cuMultiGPUStrsm(contexts, deviceCount, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb));
 
   bool passed = true;
   float diff = 0.0f;
@@ -279,7 +291,7 @@ int main(int argc, char * argv[]) {
     return -5;
   }
   for (size_t i = 0; i < 20; i++)
-    strsm(side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb);
+    CU_ERROR_CHECK(cuMultiGPUStrsm(contexts, deviceCount, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb));
   if (gettimeofday(&stop, NULL) != 0) {
     fputs("gettimeofday failed\n", stderr);
     return -6;
@@ -300,6 +312,9 @@ int main(int argc, char * argv[]) {
   free(A);
   free(B);
   free(refB);
+
+  for (int i = 0; i < deviceCount; i++)
+    CU_ERROR_CHECK(cuCtxDestroy(contexts[i]));
 
   return (int)!passed;
 }
