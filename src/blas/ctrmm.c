@@ -245,7 +245,7 @@ CUresult cuCtrmm(CUmodule module, CBlasSide side, CBlasUplo uplo, CBlasTranspose
   return CUDA_SUCCESS;
 }
 
-CUresult cuMultiGPUCtrmm(CUcontext * contexts, unsigned int deviceCount, CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag, size_t m, size_t n, float complex alpha, const float complex * restrict A, size_t lda, float complex * restrict B, size_t ldb) {
+CUresult cuMultiGPUCtrmm(CUcontext * contexts, int deviceCount, CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag, size_t m, size_t n, float complex alpha, const float complex * restrict A, size_t lda, float complex * restrict B, size_t ldb) {
   const size_t nRowA = (side == CBlasLeft) ? m : n;
 
   int info = 0;
