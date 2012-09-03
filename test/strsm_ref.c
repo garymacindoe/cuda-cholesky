@@ -120,11 +120,30 @@ static void strsm_ref(CBlasSide side, CBlasUplo uplo, CBlasTranspose trans,
     }
   }
 
-  for (size_t i = 0; i < m; i++) {
-    for (size_t j = 0; j < n; j++)
-      fprintf(stderr, "%4zu", E[j * ldb + i]);
-    fprintf(stderr, "\n");
-  }
+//   for (size_t i = 0; i < m; i++) {
+//     for (size_t j = 0; j < n; j++)
+//       fprintf(stderr, "%4zu", E[j * ldb + i]);
+//     fprintf(stderr, "\n");
+//   }
 
   free(E);
+}
+
+static float gaussian() {
+  static bool hasNext = false;
+  static float next;
+
+  if (hasNext) {
+    hasNext = false;
+    return next;
+  }
+
+  float u0 = ((float)rand() + 1) / (float)RAND_MAX;
+  float u1 = ((float)rand() + 1) / (float)RAND_MAX;
+  float r = sqrtf(-2 * logf(u0));
+  float phi = 2.f * 3.1415926535f * u1;
+  next = r * sinf(phi);
+  hasNext = true;
+
+  return r * cosf(phi);
 }

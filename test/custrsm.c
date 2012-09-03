@@ -97,7 +97,7 @@ int main(int argc, char * argv[]) {
   CUmodule module;
   CU_ERROR_CHECK(cuModuleLoad(&module, "strsm.cubin"));
 
-  alpha = (float)rand() / (float)RAND_MAX;
+  alpha = gaussian();
 
   if (side == CBlasLeft) {
     lda = (m + 3u) & ~3u;
@@ -116,7 +116,7 @@ int main(int argc, char * argv[]) {
     }
     for (size_t j = 0; j < k; j++) {
       for (size_t i = 0; i < m; i++)
-        C[j * ldc + i] = (float)rand() / (float)RAND_MAX;
+        C[j * ldc + i] = gaussian();
     }
     for (size_t j = 0; j < m; j++) {
       for (size_t i = 0; i < m; i++)
@@ -127,8 +127,6 @@ int main(int argc, char * argv[]) {
       }
     }
     free(C);
-    for (size_t k = 0; k < m; k++)
-      A[k * lda + k] = 1.0f;
 
     CUDA_MEMCPY2D copy = { 0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(float),
                            0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(float),
@@ -152,7 +150,7 @@ int main(int argc, char * argv[]) {
     }
     for (size_t j = 0; j < k; j++) {
       for (size_t i = 0; i < n; i++)
-        C[j * ldc + i] = (float)rand() / (float)RAND_MAX;
+        C[j * ldc + i] = gaussian();
     }
     for (size_t j = 0; j < n; j++) {
       for (size_t i = 0; i < n; i++)
@@ -163,8 +161,6 @@ int main(int argc, char * argv[]) {
       }
     }
     free(C);
-    for (size_t k = 0; k < n; k++)
-      A[k * lda + k] = 1.0f;
 
     CUDA_MEMCPY2D copy = { 0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(float),
                            0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(float),
@@ -186,7 +182,7 @@ int main(int argc, char * argv[]) {
 
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < m; i++)
-      refB[j * ldb + i] = B[j * ldb + i] = (float)rand() / (float)RAND_MAX;
+      refB[j * ldb + i] = B[j * ldb + i] = gaussian();
   }
 
   CUDA_MEMCPY2D copy = { 0, 0, CU_MEMORYTYPE_HOST, B, 0, NULL, ldb * sizeof(float),
