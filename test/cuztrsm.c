@@ -26,7 +26,7 @@ int main(int argc, char * argv[]) {
   }
   switch (s) {
     case 'L': case 'l': side = CBlasLeft; break;
-    case 'R': case 'r': side = CBlasLeft; break;
+    case 'R': case 'r': side = CBlasRight; break;
     default: fprintf(stderr, "Unknown side '%c'\n", s); return 1;
   }
 

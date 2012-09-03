@@ -73,7 +73,7 @@ static void strsm_ref(CBlasSide side, CBlasUplo uplo, CBlasTranspose trans,
         for (size_t j = 0; j < n; j++) {
           for (size_t i = 0; i < m; i++) {
             float temp = alpha * B[j * ldb + i]; E[j * ldb + i] = 1;
-            for (size_t k = j + 1; k < n; k++) {
+            for (size_t k = 0; k < j; k++) {
               temp -= A[j * lda + k] * B[k * ldb + i]; E[j * ldb + i] += E[k * ldb + i] + 2; }
             if (diag == CBlasNonUnit) { temp /= A[j * lda + j]; E[j * ldb + i]++; }
             B[j * ldb + i] = temp;
@@ -81,34 +81,36 @@ static void strsm_ref(CBlasSide side, CBlasUplo uplo, CBlasTranspose trans,
         }
       }
       else {
-        for (size_t j = 0; j < n; j++) {
+        size_t j = n - 1;
+        do {
           for (size_t i = 0; i < m; i++) {
             float temp = alpha * B[j * ldb + i]; E[j * ldb + i] = 1;
-            for (size_t k = 0; k < j; k++) {
+            for (size_t k = j + 1; k < n; k++) {
               temp -= A[j * lda + k] * B[k * ldb + i]; E[j * ldb + i] += E[k * ldb + i] + 2; }
             if (diag == CBlasNonUnit) { temp /= A[j * lda + j]; E[j * ldb + i]++; }
             B[j * ldb + i] = temp;
           }
-        }
+        } while (j-- > 0);
       }
     }
     else {
       if (uplo == CBlasUpper) {
-        for (size_t j = 0; j < n; j++) {
+        size_t j = n - 1;
+        do {
           for (size_t i = 0; i < m; i++) {
             float temp = alpha * B[j * ldb + i]; E[j * ldb + i] = 1;
-            for (size_t k = 0; k < j; k++) {
+            for (size_t k = j + 1; k < n; k++) {
               temp -= A[k * lda + j] * B[k * ldb + i]; E[j * ldb + i] += E[k * ldb + i] + 2; }
             if (diag == CBlasNonUnit) { temp /= A[j * lda + j]; E[j * ldb + i]++; }
             B[j * ldb + i] = temp;
           }
-        }
+        } while (j-- > 0);
       }
       else {
         for (size_t j = 0; j < n; j++) {
           for (size_t i = 0; i < m; i++) {
             float temp = alpha * B[j * ldb + i]; E[j * ldb + i] = 1;
-            for (size_t k = j + 1; k < n; k++) {
+            for (size_t k = 0; k < j; k++) {
               temp -= A[k * lda + j] * B[k * ldb + i]; E[j * ldb + i] += E[k * ldb + i] + 2; }
             if (diag == CBlasNonUnit) { temp /= A[j * lda + j]; E[j * ldb + i]++; }
             B[j * ldb + i] = temp;

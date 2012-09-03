@@ -25,7 +25,7 @@ int main(int argc, char * argv[]) {
   }
   switch (s) {
     case 'L': case 'l': side = CBlasLeft; break;
-    case 'R': case 'r': side = CBlasLeft; break;
+    case 'R': case 'r': side = CBlasRight; break;
     default: fprintf(stderr, "Unknown side '%c'\n", s); return 1;
   }
 
@@ -60,7 +60,7 @@ int main(int argc, char * argv[]) {
   switch (di) {
     case 'N': case 'n': diag = CBlasNonUnit; break;
     case 'U': case 'u': diag = CBlasUnit; break;
-    default: fprintf(stderr, "Unknown diag '%c'\n", t); return 4;
+    default: fprintf(stderr, "Unknown diag '%c'\n", di); return 4;
   }
 
   if (sscanf(argv[5], "%zu", &m) != 1) {
@@ -82,9 +82,9 @@ int main(int argc, char * argv[]) {
 
   srand(0);
 
-  float alpha, * A, * B, * refB;
+  float alpha, * A, * B, * refB, * C;
   CUdeviceptr dA, dB;
-  size_t lda, ldb, dlda, dldb;
+  size_t lda, ldb, ldc, dlda, dldb;
 
   CU_ERROR_CHECK(cuInit(0));
 
@@ -108,10 +108,27 @@ int main(int argc, char * argv[]) {
     CU_ERROR_CHECK(cuMemAllocPitch(&dA, &dlda, m * sizeof(float), m, sizeof(float)));
     dlda /= sizeof(float);
 
+    size_t k = m * 5;
+    ldc = (m + 3u) & ~3u;
+    if ((C = malloc(ldc * k * sizeof(float))) == NULL) {
+      fputs("Unable to allocate C\n", stderr);
+      return -1;
+    }
+    for (size_t j = 0; j < k; j++) {
+      for (size_t i = 0; i < m; i++)
+        C[j * ldc + i] = (float)rand() / (float)RAND_MAX;
+    }
     for (size_t j = 0; j < m; j++) {
       for (size_t i = 0; i < m; i++)
-        A[j * lda + i] = (float)rand() / (float)RAND_MAX;
+        A[j * lda + i] = 0.0f;
+      for (size_t l = 0; l < k; l++) {
+        for (size_t i = 0; i < m; i++)
+          A[j * lda + i] += C[l * ldc + j] * C[l * ldc + i];
+      }
     }
+    free(C);
+    for (size_t k = 0; k < m; k++)
+      A[k * lda + k] = 1.0f;
 
     CUDA_MEMCPY2D copy = { 0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(float),
                            0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(float),
@@ -127,10 +144,27 @@ int main(int argc, char * argv[]) {
     CU_ERROR_CHECK(cuMemAllocPitch(&dA, &dlda, n * sizeof(float), n, sizeof(float)));
     dlda /= sizeof(float);
 
+    size_t k = n * 5;
+    ldc = (n + 3u) & ~3u;
+    if ((C = malloc(ldc * k * sizeof(float))) == NULL) {
+      fputs("Unable to allocate C\n", stderr);
+      return -1;
+    }
+    for (size_t j = 0; j < k; j++) {
+      for (size_t i = 0; i < n; i++)
+        C[j * ldc + i] = (float)rand() / (float)RAND_MAX;
+    }
     for (size_t j = 0; j < n; j++) {
       for (size_t i = 0; i < n; i++)
-        A[j * lda + i] = (float)rand() / (float)RAND_MAX;
+        A[j * lda + i] = 0.0f;
+      for (size_t l = 0; l < k; l++) {
+        for (size_t i = 0; i < n; i++)
+          A[j * lda + i] += C[l * ldc + j] * C[l * ldc + i];
+      }
     }
+    free(C);
+    for (size_t k = 0; k < n; k++)
+      A[k * lda + k] = 1.0f;
 
     CUDA_MEMCPY2D copy = { 0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(float),
                            0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(float),
