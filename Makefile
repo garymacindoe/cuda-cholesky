@@ -43,7 +43,10 @@ TEST_PROGS = sgemm dgemm cgemm zgemm \
              custrsm cudtrsm cuctrsm cuztrsm \
              cumultigpusgemm cumultigpudgemm cumultigpucgemm cumultigpuzgemm \
              cumultigpussyrk cumultigpudsyrk cumultigpucherk cumultigpuzherk \
-             cumultigpustrsm cumultigpudtrsm cumultigpuctrsm cumultigpuztrsm
+             cumultigpustrsm cumultigpudtrsm cumultigpuctrsm cumultigpuztrsm \
+             spotrf dpotrf cpotrf zpotrf \
+             cuspotrf cudpotrf cucpotrf cuzpotrf \
+             cumultigpuspotrf cumultigpudpotrf cumultigpucpotrf cumultigpuzpotrf
 TEST_CUBINS = sgemm.cubin dgemm.cubin cgemm.cubin zgemm.cubin \
               ssyrk.cubin dsyrk.cubin cherk.cubin zherk.cubin \
               strsm.cubin dtrsm.cubin ctrsm.cubin ztrsm.cubin
@@ -72,6 +75,11 @@ dtrsm: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgem
 ctrsm: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/src/blas/ctrsm.o $(OBJDIR)/test/ctrsm.o
 ztrsm: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/blas/ztrsm.o $(OBJDIR)/test/ztrsm.o
 
+spotrf: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/src/blas/ssyrk.o $(OBJDIR)/src/blas/strsm.o $(OBJDIR)/src/lapack/spotrf.o $(OBJDIR)/test/spotrf.o
+dpotrf: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/src/blas/dsyrk.o $(OBJDIR)/src/blas/dtrsm.o $(OBJDIR)/src/lapack/dpotrf.o $(OBJDIR)/test/dpotrf.o
+cpotrf: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/src/blas/cherk.o $(OBJDIR)/src/blas/ctrsm.o $(OBJDIR)/src/lapack/cpotrf.o $(OBJDIR)/test/cpotrf.o
+zpotrf: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/blas/zherk.o $(OBJDIR)/src/blas/ztrsm.o $(OBJDIR)/src/lapack/zpotrf.o $(OBJDIR)/test/zpotrf.o
+
 cusgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/test/cusgemm.o | sgemm.cubin
 cudgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/test/cudgemm.o | dgemm.cubin
 cucgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/test/cucgemm.o | cgemm.cubin
@@ -84,6 +92,11 @@ custrsm: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sg
 cudtrsm: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/src/blas/dtrsm.o $(OBJDIR)/test/cudtrsm.o | dtrsm.cubin
 cuctrsm: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/src/blas/ctrsm.o $(OBJDIR)/test/cuctrsm.o | ctrsm.cubin
 cuztrsm: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/blas/ztrsm.o $(OBJDIR)/test/cuztrsm.o | ztrsm.cubin
+
+cuspotrf: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/src/blas/ssyrk.o $(OBJDIR)/src/blas/strsm.o $(OBJDIR)/src/lapack/spotrf.o $(OBJDIR)/test/cuspotrf.o | sgemm.cubin ssyrk.cubin strsm.cubin
+cudpotrf: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/src/blas/dsyrk.o $(OBJDIR)/src/blas/dtrsm.o $(OBJDIR)/src/lapack/dpotrf.o $(OBJDIR)/test/cudpotrf.o | dgemm.cubin dsyrk.cubin dtrsm.cubin
+cucpotrf: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/src/blas/cherk.o $(OBJDIR)/src/blas/ctrsm.o $(OBJDIR)/src/lapack/cpotrf.o $(OBJDIR)/test/cucpotrf.o | cgemm.cubin cherk.cubin ctrsm.cubin
+cuzpotrf: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/blas/zherk.o $(OBJDIR)/src/blas/ztrsm.o $(OBJDIR)/src/lapack/zpotrf.o $(OBJDIR)/test/cuzpotrf.o | zgemm.cubin zherk.cubin ztrsm.cubin
 
 cumultigpusgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/test/cumultigpusgemm.o | sgemm.cubin
 cumultigpudgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/test/cumultigpudgemm.o | dgemm.cubin
@@ -98,6 +111,11 @@ cumultigpudtrsm: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src
 cumultigpuctrsm: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/src/blas/ctrsm.o $(OBJDIR)/test/cumultigpuctrsm.o | cgemm.cubin ctrsm.cubin
 cumultigpuztrsm: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/blas/ztrsm.o $(OBJDIR)/test/cumultigpuztrsm.o | zgemm.cubin ztrsm.cubin
 
+cumultigpuspotrf: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/src/blas/ssyrk.o $(OBJDIR)/src/blas/strsm.o $(OBJDIR)/src/lapack/spotrf.o $(OBJDIR)/test/cumultigpuspotrf.o | sgemm.cubin ssyrk.cubin strsm.cubin
+cumultigpudpotrf: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/src/blas/dsyrk.o $(OBJDIR)/src/blas/dtrsm.o $(OBJDIR)/src/lapack/dpotrf.o $(OBJDIR)/test/cumultigpudpotrf.o | dgemm.cubin dsyrk.cubin dtrsm.cubin
+cumultigpucpotrf: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/src/blas/cherk.o $(OBJDIR)/src/blas/ctrsm.o $(OBJDIR)/src/lapack/cpotrf.o $(OBJDIR)/test/cumultigpucpotrf.o | cgemm.cubin cherk.cubin ctrsm.cubin
+cumultigpuzpotrf: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/blas/zherk.o $(OBJDIR)/src/blas/ztrsm.o $(OBJDIR)/src/lapack/zpotrf.o $(OBJDIR)/test/cumultigpuzpotrf.o | zgemm.cubin zherk.cubin ztrsm.cubin
+
 $(OBJDIR):
 	$(MKDIR) $(@)
 
@@ -110,16 +128,99 @@ $(OBJDIR)/src/blas: | $(OBJDIR)/src
 	$(MKDIR) $(@)
 
 $(OBJDIR)/src/blas/xerbla.o: blas.h | $(OBJDIR)/src/blas
-BLAS_OBJS = $(foreach prec,s d,$(prec)gemm.o $(prec)syrk.o $(prec)trsm.o $(prec)trmm.o) \
-            $(foreach prec,c z,$(prec)gemm.o $(prec)herk.o $(prec)trsm.o $(prec)trmm.o)
-$(foreach blas,$(BLAS_OBS),$(eval $(OBJDIR)/src/blas/$(blas): blas.h error.h | $(OBJDIR)/src/blas))
+$(OBJDIR)/src/blas/sgemm.o: blas.h error.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/dgemm.o: blas.h error.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/cgemm.o: blas.h error.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/zgemm.o: blas.h error.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/ssyrk.o: blas.h error.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/dsyrk.o: blas.h error.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/cherk.o: blas.h error.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/zherk.o: blas.h error.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/strsm.o: blas.h error.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/dtrsm.o: blas.h error.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/ctrsm.o: blas.h error.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/ztrsm.o: blas.h error.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/strmm.o: blas.h error.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/dtrmm.o: blas.h error.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/ctrmm.o: blas.h error.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/ztrmm.o: blas.h error.h | $(OBJDIR)/src/blas
+
+$(OBJDIR)/src/lapack: | $(OBJDIR)/src
+	$(MKDIR) $(@)
+
+$(OBJDIR)/src/lapack/spotrf.o: lapack.h blas.h error.h | $(OBJDIR)/src/lapack
+$(OBJDIR)/src/lapack/dpotrf.o: lapack.h blas.h error.h | $(OBJDIR)/src/lapack
+$(OBJDIR)/src/lapack/cpotrf.o: lapack.h blas.h error.h | $(OBJDIR)/src/lapack
+$(OBJDIR)/src/lapack/zpotrf.o: lapack.h blas.h error.h | $(OBJDIR)/src/lapack
+$(OBJDIR)/src/lapack/spotri.o: lapack.h blas.h error.h | $(OBJDIR)/src/lapack
+$(OBJDIR)/src/lapack/dpotri.o: lapack.h blas.h error.h | $(OBJDIR)/src/lapack
+$(OBJDIR)/src/lapack/cpotri.o: lapack.h blas.h error.h | $(OBJDIR)/src/lapack
+$(OBJDIR)/src/lapack/zpotri.o: lapack.h blas.h error.h | $(OBJDIR)/src/lapack
 
 $(OBJDIR)/test: | $(OBJDIR)
 	$(MKDIR) $(@)
-$(foreach prec,s d,$(foreach op,gemm syrk trsm,$(eval $(OBJDIR)/test/$(type)$(prec)$(op).o: test/$(prec)$(op)_ref.c blas.h error.h | $(OBJDIR)/test)))
-$(foreach type,cu cumultigpu,$(foreach prec,s d,$(foreach op,gemm syrk trsm,$(eval $(OBJDIR)/test/$(type)$(prec)$(op).o: test/$(prec)$(op)_ref.c blas.h error.h | $(OBJDIR)/test))))
-$(foreach prec,c z,$(foreach op,gemm herk trsm,$(eval $(OBJDIR)/test/$(type)$(prec)$(op).o: test/$(prec)$(op)_ref.c blas.h error.h | $(OBJDIR)/test)))
-$(foreach type,cu cumultigpu,$(foreach prec,c z,$(foreach op,gemm herk trsm,$(eval $(OBJDIR)/test/$(type)$(prec)$(op).o: test/$(prec)$(op)_ref.c blas.h error.h | $(OBJDIR)/test))))
+
+$(OBJDIR)/test/sgemm.o: test/sgemm_ref.c blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/dgemm.o: test/dgemm_ref.c blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cgemm.o: test/cgemm_ref.c blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/zgemm.o: test/zgemm_ref.c blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/ssyrk.o: test/ssyrk_ref.c blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/dsyrk.o: test/dsyrk_ref.c blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cherk.o: test/cherk_ref.c blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/zherk.o: test/zherk_ref.c blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/strsm.o: test/strsm_ref.c blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/dtrsm.o: test/dtrsm_ref.c blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/ctrsm.o: test/ctrsm_ref.c blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/ztrsm.o: test/ztrsm_ref.c blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/strmm.o: test/strmm_ref.c blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/dtrmm.o: test/dtrmm_ref.c blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/ctrmm.o: test/ctrmm_ref.c blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/ztrmm.o: test/ztrmm_ref.c blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cusgemm.o: test/sgemm_ref.c blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cudgemm.o: test/dgemm_ref.c blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cucgemm.o: test/cgemm_ref.c blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cuzgemm.o: test/zgemm_ref.c blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cussyrk.o: test/ssyrk_ref.c blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cudsyrk.o: test/dsyrk_ref.c blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cucherk.o: test/cherk_ref.c blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cuzherk.o: test/zherk_ref.c blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/custrsm.o: test/strsm_ref.c blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cudtrsm.o: test/dtrsm_ref.c blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cuctrsm.o: test/ctrsm_ref.c blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cuztrsm.o: test/ztrsm_ref.c blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/custrmm.o: test/strmm_ref.c blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cudtrmm.o: test/dtrmm_ref.c blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cuctrmm.o: test/ctrmm_ref.c blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cuztrmm.o: test/ztrmm_ref.c blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cumultigpusgemm.o: test/sgemm_ref.c blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cumultigpudgemm.o: test/dgemm_ref.c blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cumultigpucgemm.o: test/cgemm_ref.c blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cumultigpuzgemm.o: test/zgemm_ref.c blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cumultigpussyrk.o: test/ssyrk_ref.c blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cumultigpudsyrk.o: test/dsyrk_ref.c blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cumultigpucherk.o: test/cherk_ref.c blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cumultigpuzherk.o: test/zherk_ref.c blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cumultigpustrsm.o: test/strsm_ref.c blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cumultigpudtrsm.o: test/dtrsm_ref.c blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cumultigpuctrsm.o: test/ctrsm_ref.c blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cumultigpuztrsm.o: test/ztrsm_ref.c blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cumultigpustrmm.o: test/strmm_ref.c blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cumultigpudtrmm.o: test/dtrmm_ref.c blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cumultigpuctrmm.o: test/ctrmm_ref.c blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cumultigpuztrmm.o: test/ztrmm_ref.c blas.h error.h | $(OBJDIR)/test
+
+$(OBJDIR)/test/spotrf.o: test/spotrf_ref.c lapack.h blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/dpotrf.o: test/dpotrf_ref.c lapack.h blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cpotrf.o: test/cpotrf_ref.c lapack.h blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/zpotrf.o: test/zpotrf_ref.c lapack.h blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cuspotrf.o: test/spotrf_ref.c lapack.h blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cudpotrf.o: test/dpotrf_ref.c lapack.h blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cucpotrf.o: test/cpotrf_ref.c lapack.h blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cuzpotrf.o: test/zpotrf_ref.c lapack.h blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cumultigpuspotrf.o: test/spotrf_ref.c lapack.h blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cumultigpudpotrf.o: test/dpotrf_ref.c lapack.h blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cumultigpucpotrf.o: test/cpotrf_ref.c lapack.h blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cumultigpuzpotrf.o: test/zpotrf_ref.c lapack.h blas.h error.h | $(OBJDIR)/test
 
 $(TEST_CUBINS): blas.h
 

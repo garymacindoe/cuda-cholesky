@@ -36,15 +36,15 @@ CUresult cuCpotri(CBlasUplo, size_t, CUdeviceptr, size_t, long *);
 CUresult cuZpotri(CBlasUplo, size_t, CUdeviceptr, size_t, long *);
 
 /** My multi-GPU/Hybrid implementations */
-CUresult cuMultiGPUSpotrf(CUcontext *, unsigned int, CBlasUplo, size_t,  float * restrict, size_t, long * restrict);
-CUresult cuMultiGPUDpotrf(CUcontext *, unsigned int, CBlasUplo, size_t, double * restrict, size_t, long * restrict);
-CUresult cuMultiGPUCpotrf(CUcontext *, unsigned int, CBlasUplo, size_t,  float complex * restrict, size_t, long * restrict);
-CUresult cuMultiGPUZpotrf(CUcontext *, unsigned int, CBlasUplo, size_t, double complex * restrict, size_t, long * restrict);
+CUresult cuMultiGPUSpotrf(CUcontext *, int, CBlasUplo, size_t,  float * restrict, size_t, long * restrict);
+CUresult cuMultiGPUDpotrf(CUcontext *, int, CBlasUplo, size_t, double * restrict, size_t, long * restrict);
+CUresult cuMultiGPUCpotrf(CUcontext *, int, CBlasUplo, size_t,  float complex * restrict, size_t, long * restrict);
+CUresult cuMultiGPUZpotrf(CUcontext *, int, CBlasUplo, size_t, double complex * restrict, size_t, long * restrict);
 
-CUresult cuMultiGPUSpotri(CUcontext *, unsigned int, CBlasUplo, size_t,  float * restrict, size_t, long * restrict);
-CUresult cuMultiGPUDpotri(CUcontext *, unsigned int, CBlasUplo, size_t, double * restrict, size_t, long * restrict);
-CUresult cuMultiGPUCpotri(CUcontext *, unsigned int, CBlasUplo, size_t,  float complex * restrict, size_t, long * restrict);
-CUresult cuMultiGPUZpotri(CUcontext *, unsigned int, CBlasUplo, size_t, double complex * restrict, size_t, long * restrict);
+CUresult cuMultiGPUSpotri(CUcontext *, int, CBlasUplo, size_t,  float * restrict, size_t, long * restrict);
+CUresult cuMultiGPUDpotri(CUcontext *, int, CBlasUplo, size_t, double * restrict, size_t, long * restrict);
+CUresult cuMultiGPUCpotri(CUcontext *, int, CBlasUplo, size_t,  float complex * restrict, size_t, long * restrict);
+CUresult cuMultiGPUZpotri(CUcontext *, int, CBlasUplo, size_t, double complex * restrict, size_t, long * restrict);
 
 #ifdef __CUDACC__
 #undef restrict
