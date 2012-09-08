@@ -84,7 +84,7 @@ int main(int argc, char * argv[]) {
 
   float alpha, * A, * B, * refB, * C;
   CUdeviceptr dA, dB;
-  size_t lda, ldb, ldc, dlda, dldb;
+  size_t lda, ldb, ldc, dlda, dldb, * F;
 
   CU_ERROR_CHECK(cuInit(0));
 
@@ -177,6 +177,10 @@ int main(int argc, char * argv[]) {
     fputs("Unable to allocate refB\n", stderr);
     return -4;
   }
+  if ((F = calloc(ldb * n, sizeof(size_t))) == NULL) {
+    fputs("Unable to allocate F\n", stderr);
+    return -5;
+  }
   CU_ERROR_CHECK(cuMemAllocPitch(&dB, &dldb, m * sizeof(float), n, sizeof(float)));
   dldb /= sizeof(float);
 
@@ -190,7 +194,7 @@ int main(int argc, char * argv[]) {
                          m * sizeof(float), n };
   CU_ERROR_CHECK(cuMemcpy2D(&copy));
 
-  strsm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb);
+  strsm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb, F);
   CU_ERROR_CHECK(cuStrsm(module, side, uplo, trans, diag, m, n, alpha, dA, dlda, dB, dldb, NULL));
 
   copy = (CUDA_MEMCPY2D){ 0, 0, CU_MEMORYTYPE_DEVICE, NULL, dB, NULL, dldb * sizeof(float),
@@ -207,29 +211,12 @@ int main(int argc, char * argv[]) {
         diff = d;
 
       if (passed) {
-        size_t k;
-        if (side == CBlasLeft) {
-          if (uplo == CBlasUpper)
-            k = (trans == CBlasNoTrans) ? m - i - 1 : i;
-          else
-            k = (trans == CBlasNoTrans) ? i : m - i - 1;
-        }
-        else {
-          if (uplo == CBlasUpper)
-            k = (trans == CBlasNoTrans) ? j : n - j - 1;
-          else
-            k = (trans == CBlasNoTrans) ? n - j - 1 : j;
-        }
-        if (diag == CBlasNonUnit)
-          k++;
-        if (alpha != 0.0f)
-          k++;
-
-        if (d > (float)k * FLT_EPSILON)
+        if (d > (float)F[j * ldb + i] * 2.0f * FLT_EPSILON)
           passed = false;
       }
     }
   }
+  free(F);
 
   CUevent start, stop;
   CU_ERROR_CHECK(cuEventCreate(&start, CU_EVENT_BLOCKING_SYNC));

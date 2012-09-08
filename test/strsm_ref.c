@@ -1,7 +1,7 @@
 static void strsm_ref(CBlasSide side, CBlasUplo uplo, CBlasTranspose trans,
                       CBlasDiag diag, size_t m, size_t n,
                       float alpha, const float * restrict A, size_t lda,
-                      float * restrict B, size_t ldb) {
+                      float * restrict B, size_t ldb, size_t * E) {
 
   if (m == 0 || n == 0) return;
 
@@ -13,7 +13,7 @@ static void strsm_ref(CBlasSide side, CBlasUplo uplo, CBlasTranspose trans,
     return;
   }
 
-  size_t * E = calloc(n * ldb, sizeof(size_t));
+//   size_t * E = calloc(n * ldb, sizeof(size_t));
 
   if (side == CBlasLeft) {
     if (trans == CBlasNoTrans) {
@@ -126,7 +126,7 @@ static void strsm_ref(CBlasSide side, CBlasUplo uplo, CBlasTranspose trans,
 //     fprintf(stderr, "\n");
 //   }
 
-  free(E);
+//   free(E);
 }
 
 static float gaussian() {
