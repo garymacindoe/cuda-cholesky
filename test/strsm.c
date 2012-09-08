@@ -5,6 +5,11 @@
 #include <float.h>
 #include "strsm_ref.c"
 
+// extern void strsm_(const char *, const char *, const char *, const char *,
+//                    const size_t *, const size_t *,
+//                    const float *, const float *, const size_t *,
+//                    const float *, const size_t *);
+
 int main(int argc, char * argv[]) {
   CBlasSide side;
   CBlasUplo uplo;
@@ -100,11 +105,15 @@ int main(int argc, char * argv[]) {
       for (size_t i = 0; i < m; i++)
         A[j * lda + i] = 0.0f;
       for (size_t l = 0; l < k; l++) {
+        float temp = 0.01f * C[l * ldc + j];
         for (size_t i = 0; i < m; i++)
-          A[j * lda + i] += C[l * ldc + j] * C[l * ldc + i];
+          A[j * lda + i] += temp * C[l * ldc + i];
       }
     }
     free(C);
+
+    for (size_t k = 0; k < m; k++)
+      A[k * lda + k] += 1.0f;
   }
   else {
     lda = (n + 3u) & ~3u;
@@ -127,11 +136,15 @@ int main(int argc, char * argv[]) {
       for (size_t i = 0; i < n; i++)
         A[j * lda + i] = 0.0f;
       for (size_t l = 0; l < k; l++) {
+        float temp = 0.01f * C[l * ldc + j];
         for (size_t i = 0; i < n; i++)
-          A[j * lda + i] += C[l * ldc + j] * C[l * ldc + i];
+          A[j * lda + i] += temp * C[l * ldc + i];
       }
     }
     free(C);
+
+    for (size_t k = 0; k < n; k++)
+      A[k * lda + k] += 1.0f;
   }
 
   ldb = (m + 3u) & ~3u;
@@ -155,6 +168,7 @@ int main(int argc, char * argv[]) {
 
   strsm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb, F);
   strsm(side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb);
+//   strsm_(&s, &u, &t, &d, &m, &n, &alpha, A, &lda, B, &ldb);
 
   bool passed = true;
   float diff = 0.0f;
@@ -175,13 +189,14 @@ int main(int argc, char * argv[]) {
   struct timeval start, stop;
   if (gettimeofday(&start, NULL) != 0) {
     fputs("gettimeofday failed\n", stderr);
-    return -5;
+    return -6;
   }
   for (size_t i = 0; i < 20; i++)
+//     strsm_(&s, &u, &t, &d, &m, &n, &alpha, A, &lda, B, &ldb);
     strsm(side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb);
   if (gettimeofday(&stop, NULL) != 0) {
     fputs("gettimeofday failed\n", stderr);
-    return -6;
+    return -7;
   }
 
   double time = ((double)(stop.tv_sec - start.tv_sec) +

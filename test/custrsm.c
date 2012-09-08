@@ -122,11 +122,15 @@ int main(int argc, char * argv[]) {
       for (size_t i = 0; i < m; i++)
         A[j * lda + i] = 0.0f;
       for (size_t l = 0; l < k; l++) {
+        float temp = 0.01f * C[l * ldc + j];
         for (size_t i = 0; i < m; i++)
-          A[j * lda + i] += C[l * ldc + j] * C[l * ldc + i];
+          A[j * lda + i] += temp * C[l * ldc + i];
       }
     }
     free(C);
+
+    for (size_t k = 0; k < m; k++)
+      A[k * lda + k] += 1.0f;
 
     CUDA_MEMCPY2D copy = { 0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(float),
                            0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(float),
@@ -156,11 +160,15 @@ int main(int argc, char * argv[]) {
       for (size_t i = 0; i < n; i++)
         A[j * lda + i] = 0.0f;
       for (size_t l = 0; l < k; l++) {
+        float temp = 0.01f * C[l * ldc + j];
         for (size_t i = 0; i < n; i++)
-          A[j * lda + i] += C[l * ldc + j] * C[l * ldc + i];
+          A[j * lda + i] += temp * C[l * ldc + i];
       }
     }
     free(C);
+
+    for (size_t k = 0; k < n; k++)
+      A[k * lda + k] += 1.0f;
 
     CUDA_MEMCPY2D copy = { 0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(float),
                            0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(float),

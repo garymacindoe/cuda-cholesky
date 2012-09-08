@@ -84,7 +84,7 @@ int main(int argc, char * argv[]) {
 
   double alpha, * A, * B, * refB, * C;
   CUdeviceptr dA, dB;
-  size_t lda, ldb, ldc, dlda, dldb;
+  size_t lda, ldb, ldc, dlda, dldb, * F;
 
   CU_ERROR_CHECK(cuInit(0));
 
@@ -122,11 +122,15 @@ int main(int argc, char * argv[]) {
       for (size_t i = 0; i < m; i++)
         A[j * lda + i] = 0.0;
       for (size_t l = 0; l < k; l++) {
+        double temp = 0.001 * C[l * ldc + j];
         for (size_t i = 0; i < m; i++)
-          A[j * lda + i] += C[l * ldc + j] * C[l * ldc + i];
+          A[j * lda + i] += temp * C[l * ldc + i];
       }
     }
     free(C);
+
+    for (size_t k = 0; k < m; k++)
+      A[k * lda + k] += 1.0;
 
     CUDA_MEMCPY2D copy = { 0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(double),
                            0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(double),
@@ -156,11 +160,15 @@ int main(int argc, char * argv[]) {
       for (size_t i = 0; i < n; i++)
         A[j * lda + i] = 0.0;
       for (size_t l = 0; l < k; l++) {
+        double temp = 0.001 * C[l * ldc + j];
         for (size_t i = 0; i < n; i++)
-          A[j * lda + i] += C[l * ldc + j] * C[l * ldc + i];
+          A[j * lda + i] += temp * C[l * ldc + i];
       }
     }
     free(C);
+
+    for (size_t k = 0; k < n; k++)
+      A[k * lda + k] += 1.0;
 
     CUDA_MEMCPY2D copy = { 0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(double),
                            0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(double),
@@ -177,6 +185,10 @@ int main(int argc, char * argv[]) {
     fputs("Unable to allocate refB\n", stderr);
     return -4;
   }
+  if ((F = calloc(ldb * n, sizeof(size_t))) == NULL) {
+    fputs("Unable to allocate F\n", stderr);
+    return -5;
+  }
   CU_ERROR_CHECK(cuMemAllocPitch(&dB, &dldb, m * sizeof(double), n, sizeof(double)));
   dldb /= sizeof(double);
 
@@ -190,7 +202,7 @@ int main(int argc, char * argv[]) {
                          m * sizeof(double), n };
   CU_ERROR_CHECK(cuMemcpy2D(&copy));
 
-  dtrsm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb);
+  dtrsm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb, F);
   CU_ERROR_CHECK(cuDtrsm(module, side, uplo, trans, diag, m, n, alpha, dA, dlda, dB, dldb, NULL));
 
   copy = (CUDA_MEMCPY2D){ 0, 0, CU_MEMORYTYPE_DEVICE, NULL, dB, NULL, dldb * sizeof(double),
@@ -207,29 +219,12 @@ int main(int argc, char * argv[]) {
         diff = d;
 
       if (passed) {
-        size_t k;
-        if (side == CBlasLeft) {
-          if (uplo == CBlasUpper)
-            k = (trans == CBlasNoTrans) ? m - i - 1 : i;
-          else
-            k = (trans == CBlasNoTrans) ? i : m - i - 1;
-        }
-        else {
-          if (uplo == CBlasUpper)
-            k = (trans == CBlasNoTrans) ? j : n - j - 1;
-          else
-            k = (trans == CBlasNoTrans) ? n - j - 1 : j;
-        }
-        if (diag == CBlasNonUnit)
-          k++;
-        if (alpha != 0.0)
-          k++;
-
-        if (d > (double)k * DBL_EPSILON)
+        if (d > (double)F[j * ldb + i] * 2.0 * DBL_EPSILON)
           passed = false;
       }
     }
   }
+  free(F);
 
   CUevent start, stop;
   CU_ERROR_CHECK(cuEventCreate(&start, CU_EVENT_BLOCKING_SYNC));

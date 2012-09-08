@@ -75,7 +75,7 @@ int main(int argc, char * argv[]) {
   srand(0);
 
   double alpha, * A, * B, * refB, * C;
-  size_t lda, ldb, ldc;
+  size_t lda, ldb, ldc, * F;
 
   CU_ERROR_CHECK(cuInit(0));
 
@@ -105,18 +105,22 @@ int main(int argc, char * argv[]) {
       return -1;
     }
     for (size_t j = 0; j < k; j++) {
-      for (size_t i = 0; i < m; i++)
+      for (size_t i = 0; i < n; i++)
         C[j * ldc + i] = gaussian();
     }
-    for (size_t j = 0; j < m; j++) {
-      for (size_t i = 0; i < m; i++)
+    for (size_t j = 0; j < n; j++) {
+      for (size_t i = 0; i < n; i++)
         A[j * lda + i] = 0.0;
       for (size_t l = 0; l < k; l++) {
-        for (size_t i = 0; i < m; i++)
-          A[j * lda + i] += C[l * ldc + j] * C[l * ldc + i];
+        double temp = 0.05 * C[l * ldc + j];
+        for (size_t i = 0; i < n; i++)
+          A[j * lda + i] += temp * C[l * ldc + i];
       }
     }
     free(C);
+
+    for (size_t k = 0; k < n; k++)
+      A[k * lda + k] += 1.0;
   }
   else {
     lda = (n + 1u) & ~1u;
@@ -139,11 +143,15 @@ int main(int argc, char * argv[]) {
       for (size_t i = 0; i < n; i++)
         A[j * lda + i] = 0.0;
       for (size_t l = 0; l < k; l++) {
+        double temp = 0.05 * C[l * ldc + j];
         for (size_t i = 0; i < n; i++)
-          A[j * lda + i] += C[l * ldc + j] * C[l * ldc + i];
+          A[j * lda + i] += temp * C[l * ldc + i];
       }
     }
     free(C);
+
+    for (size_t k = 0; k < n; k++)
+      A[k * lda + k] += 1.0;
   }
 
   ldb = (m + 1u) & ~1u;
@@ -155,13 +163,17 @@ int main(int argc, char * argv[]) {
     fputs("Unable to allocate refB\n", stderr);
     return -4;
   }
+  if ((F = calloc(ldb * n, sizeof(size_t))) == NULL) {
+    fputs("Unable to allocate F\n", stderr);
+    return -5;
+  }
 
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < m; i++)
       refB[j * ldb + i] = B[j * ldb + i] = gaussian();
   }
 
-  dtrsm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb);
+  dtrsm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb, F);
   CU_ERROR_CHECK(cuMultiGPUDtrsm(contexts, deviceCount, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb));
 
   bool passed = true;
@@ -173,29 +185,12 @@ int main(int argc, char * argv[]) {
         diff = d;
 
       if (passed) {
-        size_t k;
-        if (side == CBlasLeft) {
-          if (uplo == CBlasUpper)
-            k = (trans == CBlasNoTrans) ? m - i - 1 : i;
-          else
-            k = (trans == CBlasNoTrans) ? i : m - i - 1;
-        }
-        else {
-          if (uplo == CBlasUpper)
-            k = (trans == CBlasNoTrans) ? j : n - j - 1;
-          else
-            k = (trans == CBlasNoTrans) ? n - j - 1 : j;
-        }
-        if (diag == CBlasNonUnit)
-          k++;
-        if (alpha != 0.0)
-          k++;
-
-        if (d > (double)k * DBL_EPSILON)
+        if (d > (double)F[j * ldb + i] * 2.0 * DBL_EPSILON)
           passed = false;
       }
     }
   }
+  free(F);
 
   struct timeval start, stop;
   if (gettimeofday(&start, NULL) != 0) {

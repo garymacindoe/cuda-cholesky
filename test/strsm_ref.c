@@ -13,8 +13,6 @@ static void strsm_ref(CBlasSide side, CBlasUplo uplo, CBlasTranspose trans,
     return;
   }
 
-//   size_t * E = calloc(n * ldb, sizeof(size_t));
-
   if (side == CBlasLeft) {
     if (trans == CBlasNoTrans) {
       if (uplo == CBlasUpper) {
@@ -93,7 +91,7 @@ static void strsm_ref(CBlasSide side, CBlasUplo uplo, CBlasTranspose trans,
         } while (j-- > 0);
       }
     }
-    else {
+    else {//
       if (uplo == CBlasUpper) {
         size_t j = n - 1;
         do {
@@ -119,14 +117,6 @@ static void strsm_ref(CBlasSide side, CBlasUplo uplo, CBlasTranspose trans,
       }
     }
   }
-
-//   for (size_t i = 0; i < m; i++) {
-//     for (size_t j = 0; j < n; j++)
-//       fprintf(stderr, "%4zu", E[j * ldb + i]);
-//     fprintf(stderr, "\n");
-//   }
-
-//   free(E);
 }
 
 static float gaussian() {

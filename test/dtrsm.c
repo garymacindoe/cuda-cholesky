@@ -75,7 +75,7 @@ int main(int argc, char * argv[]) {
   srand(0);
 
   double alpha, * A, * B, * refB, * C;
-  size_t lda, ldb, ldc;
+  size_t lda, ldb, ldc, * F;
 
   alpha = gaussian();
 
@@ -100,11 +100,15 @@ int main(int argc, char * argv[]) {
       for (size_t i = 0; i < m; i++)
         A[j * lda + i] = 0.0;
       for (size_t l = 0; l < k; l++) {
+        double temp = 0.001 * C[l * ldc + j];
         for (size_t i = 0; i < m; i++)
-          A[j * lda + i] += C[l * ldc + j] * C[l * ldc + i];
+          A[j * lda + i] += temp * C[l * ldc + i];
       }
     }
     free(C);
+
+    for (size_t k = 0; k < m; k++)
+      A[k * lda + k] += 1.0;
   }
   else {
     lda = (n + 1u) & ~1u;
@@ -113,8 +117,8 @@ int main(int argc, char * argv[]) {
       return -1;
     }
 
-    size_t k = m * 5;
-    ldc = (m + 1u) & ~1u;
+    size_t k = n * 5;
+    ldc = (n + 1u) & ~1u;
     if ((C = malloc(ldc * k * sizeof(double))) == NULL) {
       fputs("Unable to allocate C\n", stderr);
       return -1;
@@ -127,11 +131,15 @@ int main(int argc, char * argv[]) {
       for (size_t i = 0; i < n; i++)
         A[j * lda + i] = 0.0;
       for (size_t l = 0; l < k; l++) {
+        double temp = 0.001 * C[l * ldc + j];
         for (size_t i = 0; i < n; i++)
-          A[j * lda + i] += C[l * ldc + j] * C[l * ldc + i];
+          A[j * lda + i] += temp * C[l * ldc + i];
       }
     }
     free(C);
+
+    for (size_t k = 0; k < n; k++)
+      A[k * lda + k] += 1.0;
   }
 
   ldb = (m + 1u) & ~1u;
@@ -143,13 +151,17 @@ int main(int argc, char * argv[]) {
     fputs("Unable to allocate refB\n", stderr);
     return -4;
   }
+  if ((F = calloc(ldb * n, sizeof(size_t))) == NULL) {
+    fputs("Unable to allocate F\n", stderr);
+    return -5;
+  }
 
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < m; i++)
       refB[j * ldb + i] = B[j * ldb + i] = gaussian();
   }
 
-  dtrsm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb);
+  dtrsm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb, F);
   dtrsm(side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb);
 
   bool passed = true;
@@ -161,47 +173,30 @@ int main(int argc, char * argv[]) {
         diff = d;
 
       if (passed) {
-        size_t k;
-        if (side == CBlasLeft) {
-          if (uplo == CBlasUpper)
-            k = (trans == CBlasNoTrans) ? m - i - 1 : i;
-          else
-            k = (trans == CBlasNoTrans) ? i : m - i - 1;
-        }
-        else {
-          if (uplo == CBlasUpper)
-            k = (trans == CBlasNoTrans) ? j : n - j - 1;
-          else
-            k = (trans == CBlasNoTrans) ? n - j - 1 : j;
-        }
-        if (diag == CBlasNonUnit)
-          k++;
-        if (alpha != 0.0)
-          k++;
-
-        if (d > (double)k * DBL_EPSILON)
+        if (d > (double)F[j * ldb + i] * 2.0 * DBL_EPSILON)
           passed = false;
       }
     }
   }
+  free(F);
 
   struct timeval start, stop;
   if (gettimeofday(&start, NULL) != 0) {
     fputs("gettimeofday failed\n", stderr);
-    return -5;
+    return -6;
   }
   for (size_t i = 0; i < 20; i++)
     dtrsm(side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb);
   if (gettimeofday(&stop, NULL) != 0) {
     fputs("gettimeofday failed\n", stderr);
-    return -6;
+    return -7;
   }
 
   double time = ((double)(stop.tv_sec - start.tv_sec) +
                  (double)(stop.tv_usec - start.tv_usec) * 1.e-6) / 20.0;
 
   size_t flops = m * n;
-  if (alpha != 0.0f) {
+  if (alpha != 0.0) {
     flops += (side == CBlasLeft) ? m * m * n : m * n * n;
     if (diag == CBlasNonUnit) flops += m * n;
   }
