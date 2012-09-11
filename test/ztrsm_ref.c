@@ -85,7 +85,7 @@ static void ztrsm_ref(CBlasSide side, CBlasUplo uplo, CBlasTranspose trans,
         for (size_t j = 0; j < n; j++) {
           for (size_t i = 0; i < m; i++) {
             double complex temp = alpha * B[j * ldb + i];
-            for (size_t k = j + 1; k < n; k++)
+            for (size_t k = 0; k < j; k++)
               temp -= A[j * lda + k] * B[k * ldb + i];
             if (diag == CBlasNonUnit) temp /= A[j * lda + j];
             B[j * ldb + i] = temp;
@@ -96,7 +96,7 @@ static void ztrsm_ref(CBlasSide side, CBlasUplo uplo, CBlasTranspose trans,
         for (size_t j = 0; j < n; j++) {
           for (size_t i = 0; i < m; i++) {
             double complex temp = alpha * B[j * ldb + i];
-            for (size_t k = 0; k < j; k++)
+            for (size_t k = j + 1; k < n; k++)
               temp -= A[j * lda + k] * B[k * ldb + i];
             if (diag == CBlasNonUnit) temp /= A[j * lda + j];
             B[j * ldb + i] = temp;
@@ -110,12 +110,12 @@ static void ztrsm_ref(CBlasSide side, CBlasUplo uplo, CBlasTranspose trans,
           for (size_t i = 0; i < m; i++) {
             double complex temp = alpha * B[j * ldb + i];
             if (trans == CBlasConjTrans) {
-              for (size_t k = 0; k < j; k++)
+              for (size_t k = j + 1; k < n; k++)
                 temp -= conj(A[k * lda + j]) * B[k * ldb + i];
               if (diag == CBlasNonUnit) temp /= conj(A[j * lda + j]);
             }
             else {
-              for (size_t k = 0; k < j; k++)
+              for (size_t k = j + 1; k < n; k++)
                 temp -= A[k * lda + j] * B[k * ldb + i];
               if (diag == CBlasNonUnit) temp /= A[j * lda + j];
             }
@@ -128,12 +128,12 @@ static void ztrsm_ref(CBlasSide side, CBlasUplo uplo, CBlasTranspose trans,
           for (size_t i = 0; i < m; i++) {
             double complex temp = alpha * B[j * ldb + i];
             if (trans == CBlasConjTrans) {
-              for (size_t k = j + 1; k < n; k++)
+              for (size_t k = 0; k < j; k++)
                 temp -= conj(A[k * lda + j]) * B[k * ldb + i];
               if (diag == CBlasNonUnit) temp /= conj(A[j * lda + j]);
             }
             else {
-              for (size_t k = j + 1; k < n; k++)
+              for (size_t k = 0; k < j; k++)
                 temp -= A[k * lda + j] * B[k * ldb + i];
               if (diag == CBlasNonUnit) temp /= A[j * lda + j];
             }

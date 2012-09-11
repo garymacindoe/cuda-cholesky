@@ -5,8 +5,8 @@ static void cgemm_ref(CBlasTranspose transA, CBlasTranspose transB, size_t m,
 
   if (m == 0 || n == 0 || ((k == 0 || alpha == 0.0f + 0.0f * I) && beta == 1.0f + 0.0f * I)) return;
 
-  if (alpha == 0.0f) {
-    if (beta == 0.0f) {
+  if (alpha == 0.0f + 0.0f * I) {
+    if (beta == 0.0f + 0.0f * I) {
       for (size_t j = 0; j < n; j++) {
         for (size_t i = 0; i < m; i++)
           C[j * ldc + i] = 0.0f + 0.0f * I;

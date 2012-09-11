@@ -91,7 +91,7 @@ static void strsm_ref(CBlasSide side, CBlasUplo uplo, CBlasTranspose trans,
         } while (j-- > 0);
       }
     }
-    else {//
+    else {
       if (uplo == CBlasUpper) {
         size_t j = n - 1;
         do {
