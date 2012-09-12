@@ -93,7 +93,8 @@ static void ctrsm_ref(CBlasSide side, CBlasUplo uplo, CBlasTranspose trans,
         }
       }
       else {
-        for (size_t j = 0; j < n; j++) {
+        size_t j = n - 1;
+        do {
           for (size_t i = 0; i < m; i++) {
             float complex temp = alpha * B[j * ldb + i];
             for (size_t k = j + 1; k < n; k++)
@@ -101,12 +102,13 @@ static void ctrsm_ref(CBlasSide side, CBlasUplo uplo, CBlasTranspose trans,
             if (diag == CBlasNonUnit) temp /= A[j * lda + j];
             B[j * ldb + i] = temp;
           }
-        }
+        } while (j-- > 0);
       }
     }
     else {
       if (uplo == CBlasUpper) {
-        for (size_t j = 0; j < n; j++) {
+        size_t j = n - 1;
+        do {
           for (size_t i = 0; i < m; i++) {
             float complex temp = alpha * B[j * ldb + i];
             if (trans == CBlasConjTrans) {
@@ -121,7 +123,7 @@ static void ctrsm_ref(CBlasSide side, CBlasUplo uplo, CBlasTranspose trans,
             }
             B[j * ldb + i] = temp;
           }
-        }
+        } while (j-- > 0);
       }
       else {
         for (size_t j = 0; j < n; j++) {
