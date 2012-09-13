@@ -5,6 +5,11 @@
 #include <float.h>
 #include "dtrsm_ref.c"
 
+// extern void dtrsm_(const char *, const char *, const char *, const char *,
+//                    const size_t *, const size_t *,
+//                    const double *, const double *, const size_t *,
+//                    const double *, const size_t *);
+
 int main(int argc, char * argv[]) {
   CBlasSide side;
   CBlasUplo uplo;
@@ -87,22 +92,21 @@ int main(int argc, char * argv[]) {
     }
 
     size_t k = m * 5;
-    ldc = (m + 1u) & ~1u;
-    if ((C = malloc(ldc * k * sizeof(double))) == NULL) {
+    ldc = (k + 1u) & ~1u;
+    if ((C = malloc(ldc * m * sizeof(double))) == NULL) {
       fputs("Unable to allocate C\n", stderr);
       return -1;
     }
-    for (size_t j = 0; j < k; j++) {
-      for (size_t i = 0; i < m; i++)
+    for (size_t j = 0; j < m; j++) {
+      for (size_t i = 0; i < k; i++)
         C[j * ldc + i] = gaussian();
     }
     for (size_t j = 0; j < m; j++) {
-      for (size_t i = 0; i < m; i++)
-        A[j * lda + i] = 0.0;
-      for (size_t l = 0; l < k; l++) {
-        double temp = 0.001 * C[l * ldc + j];
-        for (size_t i = 0; i < m; i++)
-          A[j * lda + i] += temp * C[l * ldc + i];
+      for (size_t i = 0; i < m; i++) {
+        double temp = 0.0;
+        for (size_t l = 0; l < k; l++)
+          temp += C[i * ldc + l] * C[j * ldc + l];
+        A[j * lda + i] = 0.01 * temp;
       }
     }
     free(C);
@@ -118,22 +122,21 @@ int main(int argc, char * argv[]) {
     }
 
     size_t k = n * 5;
-    ldc = (n + 1u) & ~1u;
-    if ((C = malloc(ldc * k * sizeof(double))) == NULL) {
+    ldc = (k + 1u) & ~1u;
+    if ((C = malloc(ldc * n * sizeof(double))) == NULL) {
       fputs("Unable to allocate C\n", stderr);
       return -1;
     }
-    for (size_t j = 0; j < k; j++) {
-      for (size_t i = 0; i < n; i++)
+    for (size_t j = 0; j < n; j++) {
+      for (size_t i = 0; i < k; i++)
         C[j * ldc + i] = gaussian();
     }
     for (size_t j = 0; j < n; j++) {
-      for (size_t i = 0; i < n; i++)
-        A[j * lda + i] = 0.0;
-      for (size_t l = 0; l < k; l++) {
-        double temp = 0.001 * C[l * ldc + j];
-        for (size_t i = 0; i < n; i++)
-          A[j * lda + i] += temp * C[l * ldc + i];
+      for (size_t i = 0; i < n; i++) {
+        double temp = 0.0;
+        for (size_t l = 0; l < k; l++)
+          temp += C[i * ldc + l] * C[j * ldc + l];
+        A[j * lda + i] = 0.01 * temp;
       }
     }
     free(C);
@@ -163,6 +166,7 @@ int main(int argc, char * argv[]) {
 
   dtrsm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb, F);
   dtrsm(side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb);
+//   dtrsm_(&s, &u, &t, &d, &m, &n, &alpha, A, &lda, B, &ldb);
 
   bool passed = true;
   double diff = 0.0;
@@ -186,6 +190,7 @@ int main(int argc, char * argv[]) {
     return -6;
   }
   for (size_t i = 0; i < 20; i++)
+//     dtrsm_(&s, &u, &t, &d, &m, &n, &alpha, A, &lda, B, &ldb);
     dtrsm(side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb);
   if (gettimeofday(&stop, NULL) != 0) {
     fputs("gettimeofday failed\n", stderr);

@@ -6,6 +6,11 @@
 #include <complex.h>
 #include "ctrsm_ref.c"
 
+// extern void ctrsm_(const char *, const char *, const char *, const char *,
+//                    const size_t *, const size_t *,
+//                    const float complex *, const float complex *, const size_t *,
+//                    const float complex *, const size_t *);
+
 int main(int argc, char * argv[]) {
   CBlasSide side;
   CBlasUplo uplo;
@@ -88,24 +93,27 @@ int main(int argc, char * argv[]) {
     }
 
     size_t k = m * 5;
-    ldc = (m + 1u) & ~1u;
-    if ((C = malloc(ldc * k * sizeof(float complex))) == NULL) {
+    ldc = (k + 1u) & ~1u;
+    if ((C = malloc(ldc * m * sizeof(float complex))) == NULL) {
       fputs("Unable to allocate C\n", stderr);
       return -1;
     }
-    for (size_t j = 0; j < k; j++) {
-      for (size_t i = 0; i < m; i++)
+    for (size_t j = 0; j < m; j++) {
+      for (size_t i = 0; i < k; i++)
         C[j * ldc + i] = gaussian();
     }
     for (size_t j = 0; j < m; j++) {
-      for (size_t i = 0; i < m; i++)
-        A[j * lda + i] = 0.0f + 0.0f * I;
-      for (size_t l = 0; l < k; l++) {
-        for (size_t i = 0; i < m; i++)
-          A[j * lda + i] += C[l * ldc + j] * C[l * ldc + i];
+      for (size_t i = 0; i < m; i++) {
+        float complex temp = 0.0f;
+        for (size_t l = 0; l < k; l++)
+          temp += conjf(C[i * ldc + l]) * C[j * ldc + l];
+        A[j * lda + i] = 0.01f * temp;
       }
     }
     free(C);
+
+    for (size_t k = 0; k < m; k++)
+      A[k * lda + k] += 1.0f;
   }
   else {
     lda = (n + 1u) & ~1u;
@@ -115,24 +123,27 @@ int main(int argc, char * argv[]) {
     }
 
     size_t k = n * 5;
-    ldc = (n + 1u) & ~1u;
-    if ((C = malloc(ldc * k * sizeof(float complex))) == NULL) {
+    ldc = (k + 1u) & ~1u;
+    if ((C = malloc(ldc * n * sizeof(float complex))) == NULL) {
       fputs("Unable to allocate C\n", stderr);
       return -1;
     }
-    for (size_t j = 0; j < k; j++) {
-      for (size_t i = 0; i < n; i++)
+    for (size_t j = 0; j < n; j++) {
+      for (size_t i = 0; i < k; i++)
         C[j * ldc + i] = gaussian();
     }
     for (size_t j = 0; j < n; j++) {
-      for (size_t i = 0; i < n; i++)
-        A[j * lda + i] = 0.0f + 0.0f * I;
-      for (size_t l = 0; l < k; l++) {
-        for (size_t i = 0; i < n; i++)
-          A[j * lda + i] += C[l * ldc + j] * C[l * ldc + i];
+      for (size_t i = 0; i < n; i++) {
+        float complex temp = 0.0f;
+        for (size_t l = 0; l < k; l++)
+          temp += conjf(C[i * ldc + l]) * C[j * ldc + l];
+        A[j * lda + i] = 0.01f * temp;
       }
     }
     free(C);
+
+    for (size_t k = 0; k < n; k++)
+      A[k * lda + k] += 1.0f;
   }
 
   ldb = (m + 1u) & ~1u;
@@ -152,6 +163,7 @@ int main(int argc, char * argv[]) {
 
   ctrsm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb);
   ctrsm(side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb);
+//   ctrsm_(&s, &u, &t, &d, &m, &n, &alpha, A, &lda, B, &ldb);
 
   bool passed = true;
   float rdiff = 0.0f, idiff = 0.0f;
@@ -196,6 +208,7 @@ int main(int argc, char * argv[]) {
     return -5;
   }
   for (size_t i = 0; i < 20; i++)
+//     ctrsm_(&s, &u, &t, &d, &m, &n, &alpha, A, &lda, B, &ldb);
     ctrsm(side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb);
   if (gettimeofday(&stop, NULL) != 0) {
     fputs("gettimeofday failed\n", stderr);

@@ -122,22 +122,21 @@ int main(int argc, char * argv[]) {
     }
 
     size_t k = n * 5;
-    ldc = (n + 3u) & ~3u;
-    if ((C = malloc(ldc * k * sizeof(float))) == NULL) {
+    ldc = (k + 3u) & ~3u;
+    if ((C = malloc(ldc * n * sizeof(float))) == NULL) {
       fputs("Unable to allocate C\n", stderr);
       return -1;
     }
-    for (size_t j = 0; j < k; j++) {
-      for (size_t i = 0; i < n; i++)
+    for (size_t j = 0; j < n; j++) {
+      for (size_t i = 0; i < k; i++)
         C[j * ldc + i] = gaussian();
     }
     for (size_t j = 0; j < n; j++) {
-      for (size_t i = 0; i < n; i++)
-        A[j * lda + i] = 0.0f;
-      for (size_t l = 0; l < k; l++) {
-        float temp = 0.01f * C[l * ldc + j];
-        for (size_t i = 0; i < n; i++)
-          A[j * lda + i] += temp * C[l * ldc + i];
+      for (size_t i = 0; i < n; i++) {
+        float temp = 0.0f;
+        for (size_t l = 0; l < k; l++)
+          temp += C[i * ldc + l] * C[j * ldc + l];
+        A[j * lda + i] = 0.01f * temp;
       }
     }
     free(C);
@@ -182,6 +181,11 @@ int main(int argc, char * argv[]) {
           passed = false;
       }
     }
+  }
+  for (size_t i = 0; i < m; i++) {
+    for (size_t j = 0; j < n; j++)
+      fprintf(stderr, "%4zu", F[j * ldb + i]);
+    fprintf(stderr, "\n");
   }
   free(F);
 
