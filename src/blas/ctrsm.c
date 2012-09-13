@@ -55,7 +55,7 @@ void ctrsm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag
   if (side == CBlasLeft) {
     if (transA == CBlasNoTrans) {
       if (uplo == CBlasUpper) {
-// #pragma omp parallel for
+#pragma omp parallel for
         for (size_t j = 0; j < n; j++) {
           if (alpha != one) {
             for (size_t i = 0; i < m; i++)
