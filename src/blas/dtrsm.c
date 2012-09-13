@@ -29,7 +29,7 @@ static const double zero = 0.0;
 static const double one = 1.0;
 
 void dtrsm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag, size_t m, size_t n, double alpha, const double * restrict A, size_t lda, double * restrict B, size_t ldb) {
-  size_t nRowA = (side == CBlasLeft) ? m : n;
+  const size_t nRowA = (side == CBlasLeft) ? m : n;
 
   int info = 0;
   if (lda < nRowA)

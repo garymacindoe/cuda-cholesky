@@ -29,7 +29,7 @@ static const float complex zero = 0.0f + 0.0f * I;
 static const float complex one = 1.0f + 0.0f * I;
 
 void ctrsm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag, size_t m, size_t n, float complex alpha, const float complex * restrict A, size_t lda, float complex * restrict B, size_t ldb) {
-  size_t nRowA = (side == CBlasLeft) ? m : n;
+  const size_t nRowA = (side == CBlasLeft) ? m : n;
 
   int info = 0;
   if (lda < nRowA)
@@ -55,7 +55,7 @@ void ctrsm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag
   if (side == CBlasLeft) {
     if (transA == CBlasNoTrans) {
       if (uplo == CBlasUpper) {
-#pragma omp parallel for
+// #pragma omp parallel for
         for (size_t j = 0; j < n; j++) {
           if (alpha != one) {
             for (size_t i = 0; i < m; i++)
