@@ -109,22 +109,21 @@ int main(int argc, char * argv[]) {
     dlda /= sizeof(double);
 
     size_t k = m * 5;
-    ldc = (m + 1u) & ~1u;
-    if ((C = malloc(ldc * k * sizeof(double))) == NULL) {
+    ldc = (k + 1u) & ~1u;
+    if ((C = malloc(ldc * m * sizeof(double))) == NULL) {
       fputs("Unable to allocate C\n", stderr);
       return -1;
     }
-    for (size_t j = 0; j < k; j++) {
-      for (size_t i = 0; i < m; i++)
+    for (size_t j = 0; j < m; j++) {
+      for (size_t i = 0; i < k; i++)
         C[j * ldc + i] = gaussian();
     }
     for (size_t j = 0; j < m; j++) {
-      for (size_t i = 0; i < m; i++)
-        A[j * lda + i] = 0.0;
-      for (size_t l = 0; l < k; l++) {
-        double temp = 0.001 * C[l * ldc + j];
-        for (size_t i = 0; i < m; i++)
-          A[j * lda + i] += temp * C[l * ldc + i];
+      for (size_t i = 0; i < m; i++) {
+        double temp = 0.0;
+        for (size_t l = 0; l < k; l++)
+          temp += C[i * ldc + l] * C[j * ldc + l];
+        A[j * lda + i] = 0.01 * temp;
       }
     }
     free(C);
@@ -147,22 +146,21 @@ int main(int argc, char * argv[]) {
     dlda /= sizeof(double);
 
     size_t k = n * 5;
-    ldc = (n + 1u) & ~1u;
-    if ((C = malloc(ldc * k * sizeof(double))) == NULL) {
+    ldc = (k + 1u) & ~1u;
+    if ((C = malloc(ldc * n * sizeof(double))) == NULL) {
       fputs("Unable to allocate C\n", stderr);
       return -1;
     }
-    for (size_t j = 0; j < k; j++) {
-      for (size_t i = 0; i < n; i++)
+    for (size_t j = 0; j < n; j++) {
+      for (size_t i = 0; i < k; i++)
         C[j * ldc + i] = gaussian();
     }
     for (size_t j = 0; j < n; j++) {
-      for (size_t i = 0; i < n; i++)
-        A[j * lda + i] = 0.0;
-      for (size_t l = 0; l < k; l++) {
-        double temp = 0.001 * C[l * ldc + j];
-        for (size_t i = 0; i < n; i++)
-          A[j * lda + i] += temp * C[l * ldc + i];
+      for (size_t i = 0; i < n; i++) {
+        double temp = 0.0;
+        for (size_t l = 0; l < k; l++)
+          temp += C[i * ldc + l] * C[j * ldc + l];
+        A[j * lda + i] = 0.01 * temp;
       }
     }
     free(C);

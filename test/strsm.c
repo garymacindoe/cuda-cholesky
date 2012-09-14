@@ -182,11 +182,11 @@ int main(int argc, char * argv[]) {
       }
     }
   }
-  for (size_t i = 0; i < m; i++) {
-    for (size_t j = 0; j < n; j++)
-      fprintf(stderr, "%4zu", F[j * ldb + i]);
-    fprintf(stderr, "\n");
-  }
+//   for (size_t i = 0; i < m; i++) {
+//     for (size_t j = 0; j < n; j++)
+//       fprintf(stderr, "%4zu", F[j * ldb + i]);
+//     fprintf(stderr, "\n");
+//   }
   free(F);
 
   struct timeval start, stop;

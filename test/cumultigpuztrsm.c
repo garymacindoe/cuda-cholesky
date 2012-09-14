@@ -100,24 +100,27 @@ int main(int argc, char * argv[]) {
     }
 
     size_t k = m * 5;
-    ldc = m;
-    if ((C = malloc(ldc * k * sizeof(double complex))) == NULL) {
+    ldc = k;
+    if ((C = malloc(ldc * m * sizeof(double complex))) == NULL) {
       fputs("Unable to allocate C\n", stderr);
       return -1;
     }
-    for (size_t j = 0; j < k; j++) {
-      for (size_t i = 0; i < m; i++)
+    for (size_t j = 0; j < m; j++) {
+      for (size_t i = 0; i < k; i++)
         C[j * ldc + i] = gaussian();
     }
     for (size_t j = 0; j < m; j++) {
-      for (size_t i = 0; i < m; i++)
-        A[j * lda + i] = 0.0 + 0.0 * I;
-      for (size_t l = 0; l < k; l++) {
-        for (size_t i = 0; i < m; i++)
-          A[j * lda + i] += C[l * ldc + j] * C[l * ldc + i];
+      for (size_t i = 0; i < m; i++) {
+        double complex temp = 0.0;
+        for (size_t l = 0; l < k; l++)
+          temp += conj(C[i * ldc + l]) * C[j * ldc + l];
+        A[j * lda + i] = 0.01 * temp;
       }
     }
     free(C);
+
+    for (size_t k = 0; k < m; k++)
+      A[k * lda + k] += 1.0;
   }
   else {
     lda = n;
@@ -127,24 +130,27 @@ int main(int argc, char * argv[]) {
     }
 
     size_t k = n * 5;
-    ldc = n;
-    if ((C = malloc(ldc * k * sizeof(double complex))) == NULL) {
+    ldc = k;
+    if ((C = malloc(ldc * n * sizeof(double complex))) == NULL) {
       fputs("Unable to allocate C\n", stderr);
       return -1;
     }
-    for (size_t j = 0; j < k; j++) {
-      for (size_t i = 0; i < n; i++)
+    for (size_t j = 0; j < n; j++) {
+      for (size_t i = 0; i < k; i++)
         C[j * ldc + i] = gaussian();
     }
     for (size_t j = 0; j < n; j++) {
-      for (size_t i = 0; i < n; i++)
-        A[j * lda + i] = 0.0 + 0.0 * I;
-      for (size_t l = 0; l < k; l++) {
-        for (size_t i = 0; i < n; i++)
-          A[j * lda + i] += C[l * ldc + j] * C[l * ldc + i];
+      for (size_t i = 0; i < n; i++) {
+        double complex temp = 0.0;
+        for (size_t l = 0; l < k; l++)
+          temp += conj(C[i * ldc + l]) * C[j * ldc + l];
+        A[j * lda + i] = 0.01 * temp;
       }
     }
     free(C);
+
+    for (size_t k = 0; k < n; k++)
+      A[k * lda + k] += 1.0;
   }
 
   ldb = m;

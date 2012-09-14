@@ -110,24 +110,27 @@ int main(int argc, char * argv[]) {
     dlda /= sizeof(float complex);
 
     size_t k = m * 5;
-    ldc = (m + 1u) & ~1u;
-    if ((C = malloc(ldc * k * sizeof(float complex))) == NULL) {
+    ldc = (k + 1u) & ~1u;
+    if ((C = malloc(ldc * m * sizeof(float complex))) == NULL) {
       fputs("Unable to allocate C\n", stderr);
       return -1;
     }
-    for (size_t j = 0; j < k; j++) {
-      for (size_t i = 0; i < m; i++)
+    for (size_t j = 0; j < m; j++) {
+      for (size_t i = 0; i < k; i++)
         C[j * ldc + i] = gaussian();
     }
     for (size_t j = 0; j < m; j++) {
-      for (size_t i = 0; i < m; i++)
-        A[j * lda + i] = 0.0f + 0.0f * I;
-      for (size_t l = 0; l < k; l++) {
-        for (size_t i = 0; i < m; i++)
-          A[j * lda + i] += C[l * ldc + j] * C[l * ldc + i];
+      for (size_t i = 0; i < m; i++) {
+        float complex temp = 0.0f;
+        for (size_t l = 0; l < k; l++)
+          temp += conjf(C[i * ldc + l]) * C[j * ldc + l];
+        A[j * lda + i] = 0.01f * temp;
       }
     }
     free(C);
+
+    for (size_t k = 0; k < m; k++)
+      A[k * lda + k] += 1.0f;
 
     CUDA_MEMCPY2D copy = { 0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(float complex),
                            0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(float complex),
@@ -144,24 +147,27 @@ int main(int argc, char * argv[]) {
     dlda /= sizeof(float complex);
 
     size_t k = n * 5;
-    ldc = (n + 1u) & ~1u;
-    if ((C = malloc(ldc * k * sizeof(float complex))) == NULL) {
+    ldc = (k + 1u) & ~1u;
+    if ((C = malloc(ldc * n * sizeof(float complex))) == NULL) {
       fputs("Unable to allocate C\n", stderr);
       return -1;
     }
-    for (size_t j = 0; j < k; j++) {
-      for (size_t i = 0; i < n; i++)
+    for (size_t j = 0; j < n; j++) {
+      for (size_t i = 0; i < k; i++)
         C[j * ldc + i] = gaussian();
     }
     for (size_t j = 0; j < n; j++) {
-      for (size_t i = 0; i < n; i++)
-        A[j * lda + i] = 0.0f + 0.0f * I;
-      for (size_t l = 0; l < k; l++) {
-        for (size_t i = 0; i < n; i++)
-          A[j * lda + i] += C[l * ldc + j] * C[l * ldc + i];
+      for (size_t i = 0; i < n; i++) {
+        float complex temp = 0.0f;
+        for (size_t l = 0; l < k; l++)
+          temp += conjf(C[i * ldc + l]) * C[j * ldc + l];
+        A[j * lda + i] = 0.01f * temp;
       }
     }
     free(C);
+
+    for (size_t k = 0; k < n; k++)
+      A[k * lda + k] += 1.0f;
 
     CUDA_MEMCPY2D copy = { 0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(float complex),
                            0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(float complex),
