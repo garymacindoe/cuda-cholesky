@@ -261,7 +261,7 @@ $(foreach code,10 11 12 13 20,$(eval $(call ptx_template,$(code))))
 
 # Cubins
 %.cubin: %.cu
-	$(NVCC) $(CPPFLAGS) $(NVCFLAGS) -arch=sm_11 -o $(@) -cubin $(<)
+	$(NVCC) $(CPPFLAGS) $(NVCFLAGS) -arch=sm_13 -o $(@) -cubin $(<)
 
 %.cubin: $(PTXDIR)/%.ptx
 	$(PTXAS) $(PTXASFLAGS) -o $(@) $(<)

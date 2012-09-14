@@ -369,7 +369,6 @@ __global__ void strsm(int m, int n,
         (uplo == CBlasLower && transA != CBlasNoTrans)) {
       // For this case start on the left and work right
       float * X = B;
-      int j = 0;
 
       while (n > 0) {
         // Read the current block of X
@@ -379,8 +378,7 @@ __global__ void strsm(int m, int n,
         // Start at the left of B and move right to X
         const float * _A = A;
         const float * _B = B;
-        int k = j;
-        while (k > 0) {
+        while (_B != X) {
 
           // Read A into shared memory
           if (transA == CBlasNoTrans)
@@ -400,7 +398,6 @@ __global__ void strsm(int m, int n,
           //  Move to the next blocks of A and B
           _A += (transA == CBlasNoTrans) ? nb : nb * lda;
           _B += nb * ldb;
-          k -= nb;
         }
 
         // Read the block of A that matches the block of B which is in registers
@@ -435,7 +432,6 @@ __global__ void strsm(int m, int n,
         A += (transA == CBlasNoTrans) ? nb * lda : nb;
         X += nb * ldb;
         n -= nb;
-        j += nb;
       }
 
       // Update X unrolled (forward loop)
