@@ -434,22 +434,25 @@ __global__ void strsm(int m, int n,
         n -= nb;
       }
 
-      // Update X unrolled (forward loop)
-      if (n > 0) { if (diag == CBlasNonUnit) x[0] /= a[0][0];
-      if (n > 1) { saxpy(n - 1, x[0], &a[0][1], &x[1]); if (diag == CBlasNonUnit) x[1] /= a[1][1];
-      if (n > 2) { saxpy(n - 2, x[1], &a[1][2], &x[2]); if (diag == CBlasNonUnit) x[2] /= a[2][2];
-      if (n > 3) { saxpy(n - 3, x[2], &a[2][3], &x[3]); if (diag == CBlasNonUnit) x[3] /= a[3][3];
-      if (n > 4) { saxpy(n - 4, x[3], &a[3][4], &x[4]); if (diag == CBlasNonUnit) x[4] /= a[4][4];
-      if (n > 5) { saxpy(n - 5, x[4], &a[4][5], &x[5]); if (diag == CBlasNonUnit) x[5] /= a[5][5];
-      if (n > 6) { saxpy(n - 6, x[5], &a[5][6], &x[6]); if (diag == CBlasNonUnit) x[6] /= a[6][6];
-      if (n > 7) { saxpy(n - 7, x[6], &a[6][7], &x[7]); if (diag == CBlasNonUnit) x[7] /= a[7][7]; }}}}}}}}
+      // If there are still elements to update (happens when n % nb != 0)
+      if (n > 0) {
+        // Update X unrolled (forward loop)
+        if (diag == CBlasNonUnit) x[0] /= a[0][0];
+        if (n > 1) { saxpy(n - 1, x[0], &a[0][1], &x[1]); if (diag == CBlasNonUnit) x[1] /= a[1][1];
+        if (n > 2) { saxpy(n - 2, x[1], &a[1][2], &x[2]); if (diag == CBlasNonUnit) x[2] /= a[2][2];
+        if (n > 3) { saxpy(n - 3, x[2], &a[2][3], &x[3]); if (diag == CBlasNonUnit) x[3] /= a[3][3];
+        if (n > 4) { saxpy(n - 4, x[3], &a[3][4], &x[4]); if (diag == CBlasNonUnit) x[4] /= a[4][4];
+        if (n > 5) { saxpy(n - 5, x[4], &a[4][5], &x[5]); if (diag == CBlasNonUnit) x[5] /= a[5][5];
+        if (n > 6) { saxpy(n - 6, x[5], &a[5][6], &x[6]); if (diag == CBlasNonUnit) x[6] /= a[6][6];
+        if (n > 7) { saxpy(n - 7, x[6], &a[6][7], &x[7]); if (diag == CBlasNonUnit) x[7] /= a[7][7]; }}}}}}}
 
-      // Write X
-      if (ti < m) {
-        X[0] = x[0]; if (1 >= n) return; X += ldb; X[0] = x[1]; if (2 >= n) return; X += ldb;
-        X[0] = x[2]; if (3 >= n) return; X += ldb; X[0] = x[3]; if (4 >= n) return; X += ldb;
-        X[0] = x[4]; if (5 >= n) return; X += ldb; X[0] = x[5]; if (6 >= n) return; X += ldb;
-        X[0] = x[6]; if (7 >= n) return; X += ldb; X[0] = x[7];
+        // Write X
+        if (ti < m) {
+          X[0] = x[0]; if (1 >= n) return; X += ldb; X[0] = x[1]; if (2 >= n) return; X += ldb;
+          X[0] = x[2]; if (3 >= n) return; X += ldb; X[0] = x[3]; if (4 >= n) return; X += ldb;
+          X[0] = x[4]; if (5 >= n) return; X += ldb; X[0] = x[5]; if (6 >= n) return; X += ldb;
+          X[0] = x[6]; if (7 >= n) return; X += ldb; X[0] = x[7];
+        }
       }
     }
     else {      /* (uplo == CBlasLower && transA == CBlasNoTrans) || (uplo == CBlasUpper && transA != CBlasNoTrans) */

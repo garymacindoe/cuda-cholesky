@@ -161,7 +161,7 @@ CUresult cuSpotrf(CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, long * in
   CUstream stream0, stream1;
   CUmodule /*spotf2,*/ ssyrk, sgemm, strsm;
 
-  const size_t nb = 64;
+  const size_t nb = (uplo == CBlasUpper) ? 1024 : 128;
 
   CU_ERROR_CHECK(cuMemAlloc(&dInfo, sizeof(long)));
   CU_ERROR_CHECK(cuMemcpyHtoD(dInfo, info, sizeof(long)));
