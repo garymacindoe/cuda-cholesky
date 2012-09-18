@@ -528,17 +528,13 @@ __global__ void ztrsm(int m, int n,
         if (n < nb) break;
 
         // Update X unrolled (forward loop)
-        if (n > 0) {
-          if (diag == CBlasNonUnit)
-            x[0] = cuCdiv(x[0], make_cuDoubleComplex(__hiloint2double(a_real_hi[0][0], a_real_lo[0][0]),
-                                                     __hiloint2double(a_imag_hi[0][0], a_imag_lo[0][0])));
-          if (n > 1) {
-            zaxpy(1, x[0], &a_real_hi[0][1], &a_real_lo[0][1], &a_imag_hi[0][1], &a_imag_lo[0][1], &x[1]);
-            if (diag == CBlasNonUnit)
-              x[1] = cuCdiv(x[1], make_cuDoubleComplex(__hiloint2double(a_real_hi[1][1], a_real_lo[1][1]),
-                                                       __hiloint2double(a_imag_hi[1][1], a_imag_lo[1][1])));
-          }
-        }
+        if (diag == CBlasNonUnit)
+          x[0] = cuCdiv(x[0], make_cuDoubleComplex(__hiloint2double(a_real_hi[0][0], a_real_lo[0][0]),
+                                                   __hiloint2double(a_imag_hi[0][0], a_imag_lo[0][0])));
+        zaxpy(1, x[0], &a_real_hi[0][1], &a_real_lo[0][1], &a_imag_hi[0][1], &a_imag_lo[0][1], &x[1]);
+        if (diag == CBlasNonUnit)
+          x[1] = cuCdiv(x[1], make_cuDoubleComplex(__hiloint2double(a_real_hi[1][1], a_real_lo[1][1]),
+                                                   __hiloint2double(a_imag_hi[1][1], a_imag_lo[1][1])));
 
         // Write X
         if (ti < m) {
@@ -565,11 +561,11 @@ __global__ void ztrsm(int m, int n,
             x[1] = cuCdiv(x[1], make_cuDoubleComplex(__hiloint2double(a_real_hi[1][1], a_real_lo[1][1]),
                                                      __hiloint2double(a_imag_hi[1][1], a_imag_lo[1][1])));
         }
-      }
 
-      // Write X
-      if (ti < m) {
-        X[0] = x[0]; if (1 >= n) return; X += ldb; X[0] = x[1];
+        // Write X
+        if (ti < m) {
+          X[0] = x[0]; if (1 >= n) return; X += ldb; X[0] = x[1];
+        }
       }
     }
     else {      /* (uplo == CBlasLower && transA == CBlasNoTrans) || (uplo == CBlasUpper && transA != CBlasNoTrans) */
@@ -1084,8 +1080,8 @@ __global__ void ztrsm(int m, int n,
         if (n < nb) break;
 
         // Update X unrolled (forward loop)
-        if (n > 0) { if (diag == CBlasNonUnit) x[0] = cuCdiv(x[0], a[0][0]);
-        if (n > 1) { zaxpy(3, x[0], &a[0][1], &x[1]); if (diag == CBlasNonUnit) x[1] = cuCdiv(x[1], a[1][1]); }}
+        if (diag == CBlasNonUnit) x[0] = cuCdiv(x[0], a[0][0]);
+        zaxpy(3, x[0], &a[0][1], &x[1]); if (diag == CBlasNonUnit) x[1] = cuCdiv(x[1], a[1][1]);
 
         // Write X
         if (ti < m) {
@@ -1103,11 +1099,12 @@ __global__ void ztrsm(int m, int n,
 
       // Update X unrolled (forward loop)
       if (n > 0) { if (diag == CBlasNonUnit) x[0] = cuCdiv(x[0], a[0][0]);
-      if (n > 1) { zaxpy(n - 1, x[0], &a[0][1], &x[1]); if (diag == CBlasNonUnit) x[1] = cuCdiv(x[1], a[1][1]); }}
+      if (n > 1) { zaxpy(n - 1, x[0], &a[0][1], &x[1]); if (diag == CBlasNonUnit) x[1] = cuCdiv(x[1], a[1][1]); }
 
-      // Write X
-      if (ti < m) {
-        X[0] = x[0]; if (1 >= n) return; X += ldb; X[0] = x[1];
+        // Write X
+        if (ti < m) {
+          X[0] = x[0]; if (1 >= n) return; X += ldb; X[0] = x[1];
+        }
       }
     }
     else {      /* (uplo == CBlasLower && transA == CBlasNoTrans) || (uplo == CBlasUpper && transA != CBlasNoTrans) */

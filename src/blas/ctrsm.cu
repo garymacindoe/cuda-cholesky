@@ -449,10 +449,10 @@ __global__ void ctrsm(int m, int n,
         if (n < nb) break;
 
         // Update X unrolled (forward loop)
-        if (n > 0) { if (diag == CBlasNonUnit) x[0] = cuCdivf(x[0], make_cuComplex(a_real[0][0], a_imag[0][0]));
-        if (n > 1) { caxpy(3, x[0], &a_real[0][1], &a_imag[0][1], &x[1]); if (diag == CBlasNonUnit) x[1] = cuCdivf(x[1], make_cuComplex(a_real[1][1], a_imag[1][1]));
-        if (n > 2) { caxpy(2, x[1], &a_real[1][2], &a_imag[1][2], &x[2]); if (diag == CBlasNonUnit) x[2] = cuCdivf(x[2], make_cuComplex(a_real[2][2], a_imag[2][2]));
-        if (n > 3) { caxpy(1, x[2], &a_real[2][3], &a_imag[2][3], &x[3]); if (diag == CBlasNonUnit) x[3] = cuCdivf(x[3], make_cuComplex(a_real[3][3], a_imag[3][3])); }}}}
+        if (diag == CBlasNonUnit) x[0] = cuCdivf(x[0], make_cuComplex(a_real[0][0], a_imag[0][0]));
+        caxpy(3, x[0], &a_real[0][1], &a_imag[0][1], &x[1]); if (diag == CBlasNonUnit) x[1] = cuCdivf(x[1], make_cuComplex(a_real[1][1], a_imag[1][1]));
+        caxpy(2, x[1], &a_real[1][2], &a_imag[1][2], &x[2]); if (diag == CBlasNonUnit) x[2] = cuCdivf(x[2], make_cuComplex(a_real[2][2], a_imag[2][2]));
+        caxpy(1, x[2], &a_real[2][3], &a_imag[2][3], &x[3]); if (diag == CBlasNonUnit) x[3] = cuCdivf(x[3], make_cuComplex(a_real[3][3], a_imag[3][3]));
 
         // Write X
         if (ti < m) {
@@ -469,15 +469,17 @@ __global__ void ctrsm(int m, int n,
       }
 
       // Update X unrolled (forward loop)
-      if (n > 0) { if (diag == CBlasNonUnit) x[0] = cuCdivf(x[0], make_cuComplex(a_real[0][0], a_imag[0][0]));
-      if (n > 1) { caxpy(n - 1, x[0], &a_real[0][1], &a_imag[0][1], &x[1]); if (diag == CBlasNonUnit) x[1] = cuCdivf(x[1], make_cuComplex(a_real[1][1], a_imag[1][1]));
-      if (n > 2) { caxpy(n - 2, x[1], &a_real[1][2], &a_imag[1][2], &x[2]); if (diag == CBlasNonUnit) x[2] = cuCdivf(x[2], make_cuComplex(a_real[2][2], a_imag[2][2]));
-      if (n > 3) { caxpy(n - 3, x[2], &a_real[2][3], &a_imag[2][3], &x[3]); if (diag == CBlasNonUnit) x[3] = cuCdivf(x[3], make_cuComplex(a_real[3][3], a_imag[3][3])); }}}}
+      if (n > 0) {
+        if (diag == CBlasNonUnit) x[0] = cuCdivf(x[0], make_cuComplex(a_real[0][0], a_imag[0][0]));
+        if (n > 1) { caxpy(n - 1, x[0], &a_real[0][1], &a_imag[0][1], &x[1]); if (diag == CBlasNonUnit) x[1] = cuCdivf(x[1], make_cuComplex(a_real[1][1], a_imag[1][1]));
+        if (n > 2) { caxpy(n - 2, x[1], &a_real[1][2], &a_imag[1][2], &x[2]); if (diag == CBlasNonUnit) x[2] = cuCdivf(x[2], make_cuComplex(a_real[2][2], a_imag[2][2]));
+        if (n > 3) { caxpy(n - 3, x[2], &a_real[2][3], &a_imag[2][3], &x[3]); if (diag == CBlasNonUnit) x[3] = cuCdivf(x[3], make_cuComplex(a_real[3][3], a_imag[3][3])); }}}
 
-      // Write X
-      if (ti < m) {
-        X[0] = x[0]; if (1 >= n) return; X += ldb; X[0] = x[1]; if (2 >= n) return; X += ldb;
-        X[0] = x[2]; if (3 >= n) return; X += ldb; X[0] = x[3];
+        // Write X
+        if (ti < m) {
+          X[0] = x[0]; if (1 >= n) return; X += ldb; X[0] = x[1]; if (2 >= n) return; X += ldb;
+          X[0] = x[2]; if (3 >= n) return; X += ldb; X[0] = x[3];
+        }
       }
     }
     else {      /* (uplo == CBlasLower && transA == CBlasNoTrans) || (uplo == CBlasUpper && transA != CBlasNoTrans) */
@@ -995,10 +997,10 @@ __global__ void ctrsm(int m, int n,
         if (n < nb) break;
 
         // Update X unrolled (forward loop)
-        if (n > 0) { if (diag == CBlasNonUnit) x[0] = cuCdivf(x[0], a[0][0]);
-        if (n > 1) { caxpy(3, x[0], &a[0][1], &x[1]); if (diag == CBlasNonUnit) x[1] = cuCdivf(x[1], a[1][1]);
-        if (n > 2) { caxpy(2, x[1], &a[1][2], &x[2]); if (diag == CBlasNonUnit) x[2] = cuCdivf(x[2], a[2][2]);
-        if (n > 3) { caxpy(1, x[2], &a[2][3], &x[3]); if (diag == CBlasNonUnit) x[3] = cuCdivf(x[3], a[3][3]); }}}}
+        if (diag == CBlasNonUnit) x[0] = cuCdivf(x[0], a[0][0]);
+        caxpy(3, x[0], &a[0][1], &x[1]); if (diag == CBlasNonUnit) x[1] = cuCdivf(x[1], a[1][1]);
+        caxpy(2, x[1], &a[1][2], &x[2]); if (diag == CBlasNonUnit) x[2] = cuCdivf(x[2], a[2][2]);
+        caxpy(1, x[2], &a[2][3], &x[3]); if (diag == CBlasNonUnit) x[3] = cuCdivf(x[3], a[3][3]);
 
         // Write X
         if (ti < m) {
@@ -1015,15 +1017,17 @@ __global__ void ctrsm(int m, int n,
       }
 
       // Update X unrolled (forward loop)
-      if (n > 0) { if (diag == CBlasNonUnit) x[0] = cuCdivf(x[0], a[0][0]);
-      if (n > 1) { caxpy(n - 1, x[0], &a[0][1], &x[1]); if (diag == CBlasNonUnit) x[1] = cuCdivf(x[1], a[1][1]);
-      if (n > 2) { caxpy(n - 2, x[1], &a[1][2], &x[2]); if (diag == CBlasNonUnit) x[2] = cuCdivf(x[2], a[2][2]);
-      if (n > 3) { caxpy(n - 3, x[2], &a[2][3], &x[3]); if (diag == CBlasNonUnit) x[3] = cuCdivf(x[3], a[3][3]); }}}}
+      if (n > 0) {
+        if (diag == CBlasNonUnit) x[0] = cuCdivf(x[0], a[0][0]);
+        if (n > 1) { caxpy(n - 1, x[0], &a[0][1], &x[1]); if (diag == CBlasNonUnit) x[1] = cuCdivf(x[1], a[1][1]);
+        if (n > 2) { caxpy(n - 2, x[1], &a[1][2], &x[2]); if (diag == CBlasNonUnit) x[2] = cuCdivf(x[2], a[2][2]);
+        if (n > 3) { caxpy(n - 3, x[2], &a[2][3], &x[3]); if (diag == CBlasNonUnit) x[3] = cuCdivf(x[3], a[3][3]); }}}
 
-      // Write X
-      if (ti < m) {
-        X[0] = x[0]; if (1 >= n) return; X += ldb; X[0] = x[1]; if (2 >= n) return; X += ldb;
-        X[0] = x[2]; if (3 >= n) return; X += ldb; X[0] = x[3];
+        // Write X
+        if (ti < m) {
+          X[0] = x[0]; if (1 >= n) return; X += ldb; X[0] = x[1]; if (2 >= n) return; X += ldb;
+          X[0] = x[2]; if (3 >= n) return; X += ldb; X[0] = x[3];
+        }
       }
     }
     else {      /* (uplo == CBlasLower && transA == CBlasNoTrans) || (uplo == CBlasUpper && transA != CBlasNoTrans) */
