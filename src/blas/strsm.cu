@@ -411,14 +411,14 @@ __global__ void strsm(int m, int n,
         if (n < nb) break;
 
         // Update X unrolled (forward loop)
-        if (n > 0) { if (diag == CBlasNonUnit) x[0] /= a[0][0];
-        if (n > 1) { saxpy(7, x[0], &a[0][1], &x[1]); if (diag == CBlasNonUnit) x[1] /= a[1][1];
-        if (n > 2) { saxpy(6, x[1], &a[1][2], &x[2]); if (diag == CBlasNonUnit) x[2] /= a[2][2];
-        if (n > 3) { saxpy(5, x[2], &a[2][3], &x[3]); if (diag == CBlasNonUnit) x[3] /= a[3][3];
-        if (n > 4) { saxpy(4, x[3], &a[3][4], &x[4]); if (diag == CBlasNonUnit) x[4] /= a[4][4];
-        if (n > 5) { saxpy(3, x[4], &a[4][5], &x[5]); if (diag == CBlasNonUnit) x[5] /= a[5][5];
-        if (n > 6) { saxpy(2, x[5], &a[5][6], &x[6]); if (diag == CBlasNonUnit) x[6] /= a[6][6];
-        if (n > 7) { saxpy(1, x[6], &a[6][7], &x[7]); if (diag == CBlasNonUnit) x[7] /= a[7][7]; }}}}}}}}
+        if (diag == CBlasNonUnit) x[0] /= a[0][0];
+        saxpy(7, x[0], &a[0][1], &x[1]); if (diag == CBlasNonUnit) x[1] /= a[1][1];
+        saxpy(6, x[1], &a[1][2], &x[2]); if (diag == CBlasNonUnit) x[2] /= a[2][2];
+        saxpy(5, x[2], &a[2][3], &x[3]); if (diag == CBlasNonUnit) x[3] /= a[3][3];
+        saxpy(4, x[3], &a[3][4], &x[4]); if (diag == CBlasNonUnit) x[4] /= a[4][4];
+        saxpy(3, x[4], &a[4][5], &x[5]); if (diag == CBlasNonUnit) x[5] /= a[5][5];
+        saxpy(2, x[5], &a[5][6], &x[6]); if (diag == CBlasNonUnit) x[6] /= a[6][6];
+        saxpy(1, x[6], &a[6][7], &x[7]); if (diag == CBlasNonUnit) x[7] /= a[7][7];
 
         // Write X
         if (ti < m) {
