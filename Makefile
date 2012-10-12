@@ -13,13 +13,19 @@ NVCPPFLAGS = -Iinclude
 LDFLAGS = -rdynamic -L$(CUDA_HOME)/lib64
 LDLIBS = -lcuda -lrt -ldl
 
+# TODO:  separate no-opt CFLAGS for testing code.
+# TODO:  implement hacks in C codes to vectorise all possible loops.
 ifeq ($(notdir $(CC)), icc)
-  CFLAGS = -xHost -O2 -pipe -std=c99 -Wall -openmp
+  CFLAGS = -xHost -O2 -pipe -std=c99 -Wall -openmp -vec-report=2
   LDFLAGS += -L$(INTEL_HOME)
   LDLIBS += -liomp5
 else
-  CFLAGS = -march=native -O2 -pipe -std=c99 -pedantic -Wall -Wextra -Wconversion -ftree-vectorize -fopenmp
+  CFLAGS = -march=native -O2 -pipe -std=c99 -pedantic -Wall -Wextra -Wconversion -ftree-vectorize -fopenmp -ftree-vectorizer-verbose=2 -ffast-math
   LDLIBS += -lgomp
+endif
+
+ifeq ($(bench), 1)
+  CPPFLAGS += -DBENCH
 endif
 
 RM = rm -f
