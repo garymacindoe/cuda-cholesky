@@ -263,27 +263,21 @@ CUresult cuMultiGPUStrsm(CUcontext * contexts, int deviceCount, CBlasSide side, 
     return CUDA_SUCCESS;
   }
 
-  const size_t mb = (side == CBlasLeft) ?  8 : 16;
-  const size_t nb = (side == CBlasLeft) ? 16 :  8;
-
-  if (m <= mb || n <= nb) {
-    strsm(side, uplo, transA, diag, m, n, alpha, A, lda, B, ldb);
-    return CUDA_SUCCESS;
-  }
-
   if (side == CBlasLeft) {
     if (transA == CBlasNoTrans) {
+      const size_t mb = 576;
+      const size_t nb = 320;
+
       if (uplo == CBlasUpper) {
-        size_t i = (m + mb - 1) & ~(mb - 1);
+        size_t r = m % mb;
+        size_t i = (r == 0) ? m : m + mb - r;
+//         size_t i = m(m + mb - 1) & ~(mb - 1);
         do {
           i -= mb;
           const size_t ib = min(mb, m - i);
-
           for (size_t j = 0; j < n; j += nb) {
             const size_t jb = min(nb, n - j);
-
             CU_ERROR_CHECK(cuMultiGPUSgemm(contexts, deviceCount, CBlasNoTrans, CBlasNoTrans, ib, jb, m - i - ib, -one, &A[(i + ib) * lda + i], lda, &B[j * ldb + i + ib], ldb, alpha, &B[j * ldb + i], ldb));
-
             strsm(CBlasLeft, CBlasUpper, CBlasNoTrans, diag, ib, jb, one, &A[i * lda + i], lda, &B[j * ldb + i], ldb);
           }
         } while (i > 0);
@@ -291,91 +285,91 @@ CUresult cuMultiGPUStrsm(CUcontext * contexts, int deviceCount, CBlasSide side, 
       else {
         for (size_t i = 0; i < m; i += mb) {
           const size_t ib = min(mb, m - i);
-
           for (size_t j = 0; j < n; j += nb) {
             const size_t jb = min(nb, n - j);
-
             CU_ERROR_CHECK(cuMultiGPUSgemm(contexts, deviceCount, CBlasNoTrans, CBlasNoTrans, ib, jb, i, -one, &A[i], lda, &B[j * ldb], ldb, alpha, &B[j * ldb + i], ldb));
-
             strsm(CBlasLeft, CBlasLower, CBlasNoTrans, diag, ib, jb, one, &A[i * lda + i], lda, &B[j * ldb + i], ldb);
           }
         }
       }
+
     }
     else {
+      const size_t mb = 192;
+      const size_t nb = 480;
+
       if (uplo == CBlasUpper) {
         for (size_t i = 0; i < m; i += mb) {
           const size_t ib = min(mb, m - i);
-
           for (size_t j = 0; j < n; j += nb) {
             const size_t jb = min(nb, n - j);
-
             CU_ERROR_CHECK(cuMultiGPUSgemm(contexts, deviceCount, CBlasTrans, CBlasNoTrans, ib, jb, i, -one, &A[i * lda], lda, &B[j * ldb], ldb, alpha, &B[j * ldb + i], ldb));
-
             strsm(CBlasLeft, CBlasUpper, CBlasTrans, diag, ib, jb, one, &A[i * lda + i], lda, &B[j * ldb + i], ldb);
           }
         }
       }
       else {
-        size_t i = (m + mb - 1) & ~(mb - 1);
+        size_t r = m % mb;
+        size_t i = (r == 0) ? m : m + mb - r;
+//         size_t i = (m + mb - 1) & ~(mb - 1);
         do {
           i -= mb;
           const size_t ib = min(mb, m - i);
-
           for (size_t j = 0; j < n; j += nb) {
             const size_t jb = min(nb, n - j);
-
             CU_ERROR_CHECK(cuMultiGPUSgemm(contexts, deviceCount, CBlasTrans, CBlasNoTrans, ib, jb, m - i - ib, -one, &A[i * lda + i + ib], lda, &B[j * ldb + i + ib], ldb, alpha, &B[j * ldb + i], ldb));
-
             strsm(CBlasLeft, CBlasLower, CBlasTrans, diag, ib, jb, one, &A[i * lda + i], lda, &B[j * ldb + i], ldb);
           }
         } while (i > 0);
       }
+
     }
   }
   else {
     if (transA == CBlasNoTrans) {
+      const size_t mb = 576;
+      const size_t nb = 320;
+
       if (uplo == CBlasUpper) {
         for (size_t j = 0; j < n; j += nb) {
           const size_t jb = min(nb, n - j);
-
           for (size_t i = 0; i < m; i += mb) {
             const size_t ib = min(mb, m - i);
-
             CU_ERROR_CHECK(cuMultiGPUSgemm(contexts, deviceCount, CBlasNoTrans, CBlasNoTrans, ib, jb, j, -one, &B[i], ldb, &A[j * lda], lda, alpha, &B[j * ldb + i], ldb));
-
             strsm(CBlasRight, CBlasUpper, CBlasNoTrans, diag, ib, jb, one, &A[j * lda + j], lda, &B[j * ldb + i], ldb);
           }
         }
       }
       else {
-        size_t j = (n + nb - 1) & ~(nb - 1);
+        size_t r = n % nb;
+        size_t j = (r == 0) ? n : n + nb - r;
+//         size_t j = (n + nb - 1) & ~(nb - 1);
         do {
           j -= nb;
           const size_t jb = min(nb, n - j);
-
           for (size_t i = 0; i < m; i += mb) {
             const size_t ib = min(mb, m - i);
-
             CU_ERROR_CHECK(cuMultiGPUSgemm(contexts, deviceCount, CBlasNoTrans, CBlasNoTrans, ib, jb, n - j - jb, -one, &B[(j + jb) * ldb + i], ldb, &A[j * lda + j + jb], lda, alpha, &B[j * ldb + i], ldb));
-
             strsm(CBlasRight, CBlasLower, CBlasNoTrans, diag, ib, jb, one, &A[j * lda + j], lda, &B[j * ldb + i], ldb);
           }
         } while (j > 0);
       }
+
     }
     else {
+      const size_t mb = 576;
+      const size_t nb = 320;
+
       if (uplo == CBlasUpper) {
-        size_t j = (n + nb - 1) & ~(nb - 1);
+        size_t r = n % nb;
+        size_t j = (r == 0) ? n : n + nb - r;
+        //         size_t j = (n + nb - 1) & ~(nb - 1);
         do {
           j -= nb;
           const size_t jb = min(nb, n - j);
-
           for (size_t i = 0; i < m; i += mb) {
             const size_t ib = min(mb, m - i);
-
             CU_ERROR_CHECK(cuMultiGPUSgemm(contexts, deviceCount, CBlasNoTrans, CBlasTrans, ib, jb, n - j - jb, -one, &B[(j + jb) * ldb + i], ldb, &A[(j + jb) * lda + j], lda, alpha, &B[j * ldb + i], ldb));
-
             strsm(CBlasRight, CBlasUpper, CBlasTrans, diag, ib, jb, one, &A[j * lda + j], lda, &B[j * ldb + i], ldb);
           }
         } while (j > 0);
@@ -383,16 +377,14 @@ CUresult cuMultiGPUStrsm(CUcontext * contexts, int deviceCount, CBlasSide side, 
       else {
         for (size_t j = 0; j < n; j += nb) {
           const size_t jb = min(nb, n - j);
-
           for (size_t i = 0; i < m; i += mb) {
             const size_t ib = min(mb, m - i);
-
             CU_ERROR_CHECK(cuMultiGPUSgemm(contexts, deviceCount, CBlasNoTrans, CBlasTrans, ib, jb, j, -one, &B[i], ldb, &A[j], lda, alpha, &B[j * ldb + i], ldb));
-
             strsm(CBlasRight, CBlasLower, CBlasTrans, diag, ib, jb, one, &A[j * lda + j], lda, &B[j * ldb + i], ldb);
           }
         }
       }
+
     }
   }
 

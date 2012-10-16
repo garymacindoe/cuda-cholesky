@@ -203,41 +203,37 @@ CUresult cuMultiGPUSsyrk(CUcontext * contexts, int deviceCount, CBlasUplo uplo, 
   if (n == 0 || ((alpha == zero || k == 0) && beta == one)) return CUDA_SUCCESS;
 
   if (trans == CBlasNoTrans) {
-    if (uplo == CBlasLower) {
-      const size_t nb = 64;
+    const size_t nb = 576;
 
+    if (uplo == CBlasLower) {
       for (size_t j = 0; j < n; j += nb) {
         const size_t jb = min(nb, n - j);
         ssyrk(uplo, trans, jb, k, alpha, &A[j], lda, beta, &C[j * ldc + j], ldc);
         if (j + jb < n)
-          CU_ERROR_CHECK(cuMultiGPUSgemm(contexts, deviceCount, trans, CBlasTrans, n - j - jb, jb, k, alpha, &A[j + jb], lda, &A[j], lda, beta, &C[j * ldc + j + jb], ldc));
+          CU_ERROR_CHECK(cuMultiGPUSgemm(contexts, deviceCount, CBlasNoTrans, CBlasTrans, n - j - jb, jb, k, alpha, &A[j + jb], lda, &A[j], lda, beta, &C[j * ldc + j + jb], ldc));
       }
     }
     else {
-      const size_t nb = 64;
-
       for (size_t j = 0; j < n; j += nb) {
         const size_t jb = min(nb, n - j);
         ssyrk(uplo, trans, jb, k, alpha, &A[j], lda, beta, &C[j * ldc + j], ldc);
         if (j + jb < n)
-          CU_ERROR_CHECK(cuMultiGPUSgemm(contexts, deviceCount, trans, CBlasTrans, jb, n - j - jb, k, alpha, &A[j], lda, &A[j + jb], lda, beta, &C[(j + jb) * ldc + j], ldc));
+          CU_ERROR_CHECK(cuMultiGPUSgemm(contexts, deviceCount, CBlasNoTrans, CBlasTrans, jb, n - j - jb, k, alpha, &A[j], lda, &A[j + jb], lda, beta, &C[(j + jb) * ldc + j], ldc));
       }
     }
   }
   else {
-    if (uplo == CBlasLower) {
-      const size_t nb = 64;
+    const size_t nb = 192;
 
+    if (uplo == CBlasLower) {
       for (size_t j = 0; j < n; j += nb) {
         const size_t jb = min(nb, n - j);
         ssyrk(uplo, trans, jb, k, alpha, &A[j * lda], lda, beta, &C[j * ldc + j], ldc);
         if (j + jb < n)
-          CU_ERROR_CHECK(cuMultiGPUSgemm(contexts, deviceCount, trans, CBlasNoTrans, n - j - jb, jb, k, alpha, &A[(j + jb) * lda], lda, &A[j * lda], lda, beta, &C[j * ldc + j + jb], ldc));
+          CU_ERROR_CHECK(cuMultiGPUSgemm(contexts, deviceCount, CBlasTrans, CBlasNoTrans, n - j - jb, jb, k, alpha, &A[(j + jb) * lda], lda, &A[j * lda], lda, beta, &C[j * ldc + j + jb], ldc));
       }
     }
     else {
-      const size_t nb = 64;
-
       for (size_t j = 0; j < n; j += nb) {
         const size_t jb = min(nb, n - j);
         ssyrk(uplo, trans, jb, k, alpha, &A[j * lda], lda, beta, &C[j * ldc + j], ldc);

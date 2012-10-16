@@ -66,6 +66,10 @@ const char * cuGetErrorString(CUresult result) {
     case CUDA_ERROR_PEER_ACCESS_NOT_ENABLED:       return "Peer access not enabled";
     case CUDA_ERROR_PRIMARY_CONTEXT_ACTIVE:        return "Primary context active";
     case CUDA_ERROR_CONTEXT_IS_DESTROYED:          return "Context is destroyed";
+    case CUDA_ERROR_ASSERT:                        return "Device assert failed";
+    case CUDA_ERROR_TOO_MANY_PEERS:                return "Too many peers";
+    case CUDA_ERROR_HOST_MEMORY_ALREADY_REGISTERED:return "Host memory already registered";
+    case CUDA_ERROR_HOST_MEMORY_NOT_REGISTERED:    return "Host memory not registered";
     case CUDA_ERROR_UNKNOWN:                       return "Unknown error";
     default:                                       return "Unknown error code";
   }

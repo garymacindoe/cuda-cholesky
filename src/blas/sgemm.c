@@ -226,16 +226,27 @@ CUresult cuMultiGPUSgemm(CUcontext * contexts, int deviceCount, CBlasTranspose t
     CU_ERROR_CHECK(cuCtxPopCurrent(&contexts[i]));
   }
 
-  CU_ERROR_CHECK(cuMemHostRegister(C, ldc * n * sizeof(float), CU_MEMHOSTREGISTER_PORTABLE));
-
   int d = 0;
   if (transA == CBlasNoTrans) {
+    /*
+     * Each GPU MP processes blocks of 64x16 using 64 threads per block.
+     * There are 30 MPs on the GTX 280 and each requires a minimum of 3 blocks
+     * to mask memory latency (64 * 3 = 192 threads/6 warps).  We can fit a
+     * maximum of 6 blocks on each MP due to shared memory and register
+     * requirements.  Best performance should therefore occur when we have
+     * between 90 and 180 blocks sent to the GPU.  This requires a 9x20, 12x15,
+     * 6x30, etc. block size here.  9x20 is chosen to retain the m >> n
+     * behaviour needed for SPOTRF('L',..).
+     * mb =  9 * 64 = 576
+     * nb = 20 * 16 = 320
+     * kb defines the amount of work done by each thread and the memory (and
+     * bandwidth) needed for A and B so needs to be tuned to give maximum
+     * performance.  kb = 512 gives 400GFlops/s.
+     * In SPOTRF('L',...) k ~ m so 512 seems sensible.
+     */
+    const size_t mb = 576, nb = 320, kb = 512;
+
     if (transB == CBlasNoTrans) {
-
-      const size_t mb = 1024, nb = 1024, kb = 1024;
-
-      CU_ERROR_CHECK(cuMemHostRegister((void *)A, lda * k * sizeof(float), CU_MEMHOSTREGISTER_PORTABLE));
-      CU_ERROR_CHECK(cuMemHostRegister((void *)B, ldb * n * sizeof(float), CU_MEMHOSTREGISTER_PORTABLE));
 
       for (int d = 0; d < deviceCount; d++) {
         CU_ERROR_CHECK(cuCtxPushCurrent(contexts[d]));
@@ -286,11 +297,6 @@ CUresult cuMultiGPUSgemm(CUcontext * contexts, int deviceCount, CBlasTranspose t
 
     }
     else {
-
-      const size_t mb = 1024, nb = 1024, kb = 1024;
-
-      CU_ERROR_CHECK(cuMemHostRegister((void *)A, lda * k * sizeof(float), CU_MEMHOSTREGISTER_PORTABLE));
-      CU_ERROR_CHECK(cuMemHostRegister((void *)B, ldb * k * sizeof(float), CU_MEMHOSTREGISTER_PORTABLE));
 
       for (int d = 0; d < deviceCount; d++) {
         CU_ERROR_CHECK(cuCtxPushCurrent(contexts[d]));
@@ -342,12 +348,25 @@ CUresult cuMultiGPUSgemm(CUcontext * contexts, int deviceCount, CBlasTranspose t
     }
   }
   else {
+    /*
+     * Each GPU MP processes blocks of 32x32 using 64 threads per block.
+     * There are 30 MPs on the GTX 280 and each requires a minimum of 3 blocks
+     * to mask memory latency (64 * 3 = 192 threads/6 warps).  We can fit a
+     * maximum of 3 blocks on each MP due to shared memory and register
+     * requirements.  Best performance should therefore occur when we have
+     * 90 blocks sent to the GPU.  This requires a 9x10, 6x15, 3x30, etc. block
+     * size here.  6x15 is chosen to retain the m << n behaviour needed for
+     * SPOTRF('U',..).
+     * mb =  6 * 32 = 192
+     * nb = 15 * 32 = 480
+     * kb defines the amount of work done by each thread and the memory (and
+     * bandwidth) needed for A and B so needs to be tuned to give maximum
+     * performance.  kb = 320 gives 250GFlops/s.
+     * In SPOTRF('U',...) k ~ n so 320 seems odd.
+     */
+    const size_t mb = 192, nb = 480, kb = 320;
+
     if (transB == CBlasNoTrans) {
-
-      const size_t mb = 1024, nb = 1024, kb = 1024;
-
-      CU_ERROR_CHECK(cuMemHostRegister((void *)A, lda * m * sizeof(float), CU_MEMHOSTREGISTER_PORTABLE));
-      CU_ERROR_CHECK(cuMemHostRegister((void *)B, ldb * n * sizeof(float), CU_MEMHOSTREGISTER_PORTABLE));
 
       for (int d = 0; d < deviceCount; d++) {
         CU_ERROR_CHECK(cuCtxPushCurrent(contexts[d]));
@@ -395,14 +414,8 @@ CUresult cuMultiGPUSgemm(CUcontext * contexts, int deviceCount, CBlasTranspose t
           d = (d + 1) % deviceCount;
         }
       }
-
     }
     else {
-
-      const size_t mb = 1024, nb = 1024, kb = 1024;
-
-      CU_ERROR_CHECK(cuMemHostRegister((void *)A, lda * m * sizeof(float), CU_MEMHOSTREGISTER_PORTABLE));
-      CU_ERROR_CHECK(cuMemHostRegister((void *)B, ldb * k * sizeof(float), CU_MEMHOSTREGISTER_PORTABLE));
 
       for (int d = 0; d < deviceCount; d++) {
         CU_ERROR_CHECK(cuCtxPushCurrent(contexts[d]));
@@ -453,10 +466,6 @@ CUresult cuMultiGPUSgemm(CUcontext * contexts, int deviceCount, CBlasTranspose t
 
     }
   }
-
-  CU_ERROR_CHECK(cuMemHostUnregister(C));
-  CU_ERROR_CHECK(cuMemHostUnregister((void *)B));
-  CU_ERROR_CHECK(cuMemHostUnregister((void *)A));
 
   for (int d = 0; d < deviceCount; d++) {
     CU_ERROR_CHECK(cuCtxPushCurrent(contexts[d]));
