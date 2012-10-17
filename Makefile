@@ -16,7 +16,7 @@ LDLIBS = -lcuda -lrt -ldl
 # TODO:  separate no-opt CFLAGS for testing code.
 # TODO:  implement hacks in C codes to vectorise all possible loops.
 ifeq ($(notdir $(CC)), icc)
-  CFLAGS = -xHost -O2 -pipe -std=c99 -Wall -openmp -vec-report=2
+  CFLAGS = -xHost -O2 -pipe -std=c99 -Wall -openmp
   LDFLAGS += -L$(INTEL_HOME)
   LDLIBS += -liomp5
 else
