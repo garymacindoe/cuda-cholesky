@@ -5,7 +5,7 @@ CC = gcc
 NVCC = nvcc
 PTXAS = ptxas
 FATBINARY = fatbinary
-NVCFLAGS = -O2 -use_fast_math -maxrregcount=32
+NVCFLAGS = -O2 -use_fast_math -maxrregcount=32 -Xptxas=-v
 PTXASFLAGS = -O2 -maxrregcount=32
 
 CPPFLAGS = -Iinclude -I$(CUDA_HOME)/include

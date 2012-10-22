@@ -145,10 +145,9 @@ __global__ void sgemm(int m, int n, int k, float alpha,
 
   if (bx * by == mb)
     n -= bj;
-  else {
+  else
     n -= bj + 16 * (ti / mb);
-    if (n == 0) return;
-  }
+  if (n <= 0) return;
   if ((bx * by == mb && bi + ti < m) || (bx * by > mb && bi + ti % mb < m)) {
     if (beta == 0.0f) {
       C[0] = alpha * c[ 0]; if ( 1 >= n) return; C += ldc;
@@ -232,5 +231,5 @@ __global__ void sgemm(int m, int n, int k, float alpha,
  */
 template void sgemm<CBlasNoTrans, CBlasNoTrans, 64, 16, 16, 16,  4>(int, int, int, float, const float * __restrict__, int, const float * __restrict__, int, float, float * __restrict__, int);
 template void sgemm<CBlasNoTrans, CBlasTrans,   64, 16, 16, 16,  4>(int, int, int, float, const float * __restrict__, int, const float * __restrict__, int, float, float * __restrict__, int);
-template void sgemm<CBlasTrans,   CBlasNoTrans, 32, 32, 16,  8,  8>(int, int, int, float, const float * __restrict__, int, const float * __restrict__, int, float, float * __restrict__, int);
+template void sgemm<CBlasTrans,   CBlasNoTrans, 32, 32,  8,  8,  8>(int, int, int, float, const float * __restrict__, int, const float * __restrict__, int, float, float * __restrict__, int);
 template void sgemm<CBlasTrans,   CBlasTrans,   32, 32,  8,  8,  8>(int, int, int, float, const float * __restrict__, int, const float * __restrict__, int, float, float * __restrict__, int);
