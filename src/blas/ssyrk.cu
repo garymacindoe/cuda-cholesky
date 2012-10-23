@@ -30,35 +30,36 @@ __global__ void ssyrk(int n, int k, float alpha,
                       const float * __restrict__ A, int lda,
                       float beta, float * __restrict__ C, int ldc) {
 
-  int bi, bj, nnb = (n + nb - 1) / nb;
-  if (uplo == CBlasLower) {
-    bi = blockIdx.x % nnb;
-    bj = blockIdx.x / nnb;
-    if (bi < bj) {
-      bi = nnb - bi - 1;
-      bj = nnb - bj;
-    }
-  }
-  else {
-    bi = blockIdx.x / nnb;
-    bj = blockIdx.x % nnb;
-    if (bj < bi) {
-      bi = nnb - bi;
-      bj = nnb - bj - 1;
-    }
-  }
+//   int bi, bj, nnb = (n + nb - 1) / nb;
+//   if (uplo == CBlasLower) {
+//     bi = blockIdx.x % nnb;
+//     bj = blockIdx.x / nnb;
+//     if (bi < bj) {
+//       bi = nnb - bi - 1;
+//       bj = nnb - bj;
+//     }
+//   }
+//   else {
+//     bi = blockIdx.x / nnb;
+//     bj = blockIdx.x % nnb;
+//     if (bj < bi) {
+//       bi = nnb - bi;
+//       bj = nnb - bj - 1;
+//     }
+//   }
+//
+//   bi *= mb;
+//   bj *= nb;
 
-  bi *= mb;
-  bj *= nb;
-
-//   const int bi = blockIdx.x * mb;
-//   const int bj = blockIdx.y * nb;
+  const int bi = blockIdx.x * mb;
+  const int bj = blockIdx.y * nb;
 
   const int ti = threadIdx.y * bx + threadIdx.x;        // Unwrapped thread index [0, bx * by]
 
   /*
    * Cause blocks that are entirely above or below the diagonal to exit now.
    */
+//   if (mb == nb && blockIdx.y < blockIdx.x) return;
   if ((uplo == CBlasUpper && bj + nb - 1 < bi) ||
       (uplo == CBlasLower && bi + mb - 1 < bj))
     return;

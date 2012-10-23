@@ -182,10 +182,10 @@ CUresult cuSsyrk(CUmodule module, CBlasUplo uplo, CBlasTranspose trans, size_t n
 
   void * params[] = { &n, &k, &alpha, &A, &lda, &beta, &C, &ldc };
 
-  unsigned int blocks = (unsigned int)(n + nb - 1) / nb;
-  blocks = (blocks * (blocks + 1)) / 2;
+//   unsigned int blocks = (unsigned int)(n + nb - 1) / nb;
+//   blocks = (blocks * (blocks + 1)) / 2;
 
-  CU_ERROR_CHECK(cuLaunchKernel(function, blocks, 1/*(unsigned int)(n + mb - 1) / mb, (unsigned int)(n + nb - 1) / nb*/, 1, bx, by, 1, 0, stream, params, NULL));
+  CU_ERROR_CHECK(cuLaunchKernel(function, /*blocks, 1*/(unsigned int)(n + mb - 1) / mb, (unsigned int)(n + nb - 1) / nb, 1, bx, by, 1, 0, stream, params, NULL));
 
   return CUDA_SUCCESS;
 }
