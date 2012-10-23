@@ -3,7 +3,6 @@
 #include <stdio.h>
 
 static inline size_t min(size_t a, size_t b) { return (a < b) ? a : b; }
-static inline size_t max(size_t a, size_t b) { return (a > b) ? a : b; }
 
 static inline CUresult cuMemcpyHtoD2DAsync(CUdeviceptr A, size_t lda, size_t ai, size_t aj,
                                           const void * B, size_t ldb, size_t bi, size_t bj,
@@ -170,7 +169,7 @@ CUresult cuSgemm(CUmodule module, CBlasTranspose transA, CBlasTranspose transB, 
 
   void * params[] = { &m, &n, &k, &alpha, &A, &lda, &B, &ldb, &beta, &C, &ldc };
 
-  CU_ERROR_CHECK(cuLaunchKernel(function, (unsigned int)max(1, (m + mb - 1) / mb), (unsigned int)max(1, (n + nb - 1) / nb), 1, bx, by, 1, 0, stream, params, NULL));
+  CU_ERROR_CHECK(cuLaunchKernel(function, (unsigned int)(m + mb - 1) / mb, (unsigned int)(n + nb - 1) / nb, 1, bx, by, 1, 0, stream, params, NULL));
 
   return CUDA_SUCCESS;
 }

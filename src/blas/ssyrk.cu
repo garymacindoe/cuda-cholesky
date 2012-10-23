@@ -145,6 +145,7 @@ __global__ void ssyrk(int n, int k, float alpha,
   const unsigned int j = (bx * by == mb) ? bj : bj + 16 * (ti / mb);
   if (i < n) {
     n -= j;
+    if (n <= 0) return;
     if (beta == 0.0f) {
       if ((uplo == CBlasUpper && i <= j +  0) || (uplo == CBlasLower && i >= j +  0)) C[0] = alpha * c[ 0]; if ( 1 >= n) return; C += ldc;
       if ((uplo == CBlasUpper && i <= j +  1) || (uplo == CBlasLower && i >= j +  1)) C[0] = alpha * c[ 1]; if ( 2 >= n) return; C += ldc;
