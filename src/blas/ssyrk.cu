@@ -30,8 +30,30 @@ __global__ void ssyrk(int n, int k, float alpha,
                       const float * __restrict__ A, int lda,
                       float beta, float * __restrict__ C, int ldc) {
 
-  const int bi = blockIdx.x * mb;       // Starting row of block of C
-  const int bj = blockIdx.y * nb;       // Starting column of block of C
+  int bi, bj, nnb = (n + nb - 1) / nb;
+  if (uplo == CBlasLower) {
+    bi = blockIdx.x % nnb;
+    bj = blockIdx.x / nnb;
+    if (bi < bj) {
+      bi = nnb - bi - 1;
+      bj = nnb - bj;
+    }
+  }
+  else {
+    bi = blockIdx.x / nnb;
+    bj = blockIdx.x % nnb;
+    if (bj < bi) {
+      bi = nnb - bi;
+      bj = nnb - bj - 1;
+    }
+  }
+
+  bi *= mb;
+  bj *= nb;
+
+//   const int bi = blockIdx.x * mb;
+//   const int bj = blockIdx.y * nb;
+
   const int ti = threadIdx.y * bx + threadIdx.x;        // Unwrapped thread index [0, bx * by]
 
   /*
