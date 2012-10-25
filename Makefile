@@ -5,7 +5,7 @@ CC = gcc
 NVCC = nvcc
 PTXAS = ptxas
 FATBINARY = fatbinary
-NVCFLAGS = -O2 -use_fast_math -maxrregcount=32
+NVCFLAGS = -O2 -use_fast_math -maxrregcount=32 -Xptxas=-v
 PTXASFLAGS = -O2 -maxrregcount=32
 
 CPPFLAGS = -Iinclude -I$(CUDA_HOME)/include
@@ -267,7 +267,7 @@ $(foreach code,10 11 12 13 20,$(eval $(call ptx_template,$(code))))
 
 # Cubins
 %.cubin: %.cu
-	$(NVCC) $(CPPFLAGS) $(NVCFLAGS) -arch=sm_13 -o $(@) -cubin $(<)
+	$(NVCC) $(CPPFLAGS) $(NVCFLAGS) -arch=sm_11 -o $(@) -cubin $(<)
 
 %.cubin: $(PTXDIR)/%.ptx
 	$(PTXAS) $(PTXASFLAGS) -o $(@) $(<)
