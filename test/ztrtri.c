@@ -136,7 +136,7 @@ int main(int argc, char * argv[]) {
 
   double time = ((double)(stop.tv_sec - start.tv_sec) + (double)(stop.tv_usec - start.tv_usec) * 1.e-6) / 20.0;
   size_t flops = (((n * n * n) / 6) + ((n * n) / 2) + (n / 3)) * 6 +
-  (((n * n * n) / 6) - ((n * n) / 2) + (n / 3)) * 2;
+                 (((n * n * n) / 6) - ((n * n) / 2) + (n / 3)) * 2;
   fprintf(stdout, "%.3es %.3gGFlops/s Error: %.3e + %.3ei\n%sED!\n", time, ((double)flops * 1.e-9) / time, rdiff, idiff, (passed) ? "PASS" : "FAIL");
 
   free(A);
