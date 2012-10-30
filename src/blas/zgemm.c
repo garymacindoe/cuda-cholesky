@@ -216,7 +216,7 @@ void zgemm(CBlasTranspose transA, CBlasTranspose transB, size_t m, size_t n, siz
   }
 }
 
-CUresult cuZgemm(CUmodule module, CBlasTranspose transA, CBlasTranspose transB, size_t m, size_t n, size_t k, double complex alpha, CUdeviceptr A, size_t lda, CUdeviceptr B, size_t ldb, double complex beta, CUdeviceptr C, size_t ldc, CUstream stream) {
+CUresult cuZgemm2(CUmodule module, CBlasTranspose transA, CBlasTranspose transB, size_t m, size_t n, size_t k, double complex alpha, CUdeviceptr A, size_t lda, CUdeviceptr B, size_t ldb, double complex beta, CUdeviceptr C, size_t ldc, CUdeviceptr D, size_t ldd, CUstream stream) {
   size_t nRowA = (transA == CBlasNoTrans) ? m : k;
   size_t nRowB = (transB == CBlasNoTrans) ? k : n;
 
@@ -227,6 +227,8 @@ CUresult cuZgemm(CUmodule module, CBlasTranspose transA, CBlasTranspose transB, 
     info = 10;
   else if (ldc < m)
     info = 13;
+  else if (ldd < m)
+    info = 15;
   if (info != 0) {
     XERBLA(info);
     return CUDA_ERROR_INVALID_VALUE;
@@ -240,13 +242,13 @@ CUresult cuZgemm(CUmodule module, CBlasTranspose transA, CBlasTranspose transB, 
   const unsigned int bx = (transA == CBlasNoTrans) ? ((transB == CBlasNoTrans) ? 16 :  4) :  8;
   const unsigned int by =  4;
 
-  char name[92];
-  snprintf(name, 92, "_Z5zgemmIL14CBlasTranspose%dELS0_%dELj%uELj%uELj%uELj%uELj%uEEviii7double2PKS1_iS3_iS1_PS1_i", transA, transB, mb, nb, kb, bx, by);
+  char name[96];
+  snprintf(name, 96, "_Z5zgemmIL14CBlasTranspose%dELS0_%dELj%uELj%uELj%uELj%uELj%uEEviii7double2PKS1_iS3_iS1_S3_iPS1_i", transA, transB, mb, nb, kb, bx, by);
 
   CUfunction function;
   CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
 
-  void * params[] = { &m, &n, &k, &alpha, &A, &lda, &B, &ldb, &beta, &C, &ldc };
+  void * params[] = { &m, &n, &k, &alpha, &A, &lda, &B, &ldb, &beta, &C, &ldc, &D, &ldd };
 
   CU_ERROR_CHECK(cuLaunchKernel(function, (unsigned int)max(1, (m + mb - 1) / mb), (unsigned int)max(1, (n + nb - 1) / nb), 1, bx, by, 1, 0, stream, params, NULL));
 

@@ -15,16 +15,18 @@ __device__ void daxpy(double alpha, int * x_hi, int * x_lo, double * y) {
 }
 
 /**
+ * This implementation is out-of-place.  For in-place call with D = C and ldd = ldc.
+ *
  * DGEMM:
- *   C := alpha * AB   + beta * C for transA == CBlasNoTrans and transB == CBlasNoTrans
- *   C := alpha * AB'  + beta * C for transA == CBlasNoTrans and transB == CBlasTrans
- *   C := alpha * A'B  + beta * C for transA == CBlasTrans and transB == CBlasNoTrans
- *   C := alpha * A'B' + beta * C for transA == CBlasTrans and transB == CBlasTrans
+ *   D := alpha * AB   + beta * C for transA == CBlasNoTrans and transB == CBlasNoTrans
+ *   D := alpha * AB'  + beta * C for transA == CBlasNoTrans and transB == CBlasTrans
+ *   D := alpha * A'B  + beta * C for transA == CBlasTrans and transB == CBlasNoTrans
+ *   D := alpha * A'B' + beta * C for transA == CBlasTrans and transB == CBlasTrans
  *
  * @param transA  transpose for A.
  * @param transB  transpose for B.
- * @param mb      the number of rows in the block of C.
- * @param nb      the number of columns in the block of C.
+ * @param mb      the number of rows in the block of C/D.
+ * @param nb      the number of columns in the block of C/D.
  * @param kb      how far to unroll the inner loop.
  * @param bx      blockDim.x.
  * @param by      blockDim.y.
@@ -32,36 +34,38 @@ __device__ void daxpy(double alpha, int * x_hi, int * x_lo, double * y) {
 template <CBlasTranspose transA, CBlasTranspose transB,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void dgemm(int m, int n, int k, double alpha, const double * A, int lda,
-                      const double * B, int ldb, double beta, double * C, int ldc) {
+__global__ void dgemm(int m, int n, int k,
+                      double alpha, const double * A, int lda, const double * B, int ldb,
+                      double beta, const double * C, int ldc, double * D, int ldd) {
 
-  const int bi = blockIdx.x * mb;       // Starting row of block of C
-  const int bj = blockIdx.y * nb;       // Starting column of block of C
+  const int bi = blockIdx.x * mb;       // Starting row of block of C/D
+  const int bj = blockIdx.y * nb;       // Starting column of block of C/D
   const int ti = threadIdx.y * bx + threadIdx.x;        // Unwrapped thread index [0, bx * by]
 
   /*
-   * Compute our starting points in A, B and C.
+   * Compute our starting points in A, B, C and D.
    *
    * For transA != CBlasNoTrans A is cached in shared memory so the unwrapped
-   * thread index can be re-wrapped around mb when calculating C.
+   * thread index can be re-wrapped around mb when calculating D.
    *
    * If transA == CBlasNoTrans then bx * by == mb (checked later on) so there
    * doesn't need to be a separate check for transA == CBlasNoTrans in
-   * calculating the start of C here.
+   * calculating the start of C/D here.
    */
   A += (transA == CBlasNoTrans) ? bi + ti : (bi + threadIdx.y) * lda + threadIdx.x;
   B += (transB == CBlasNoTrans) ? (bj + threadIdx.y) * ldb + threadIdx.x : threadIdx.y * ldb + bj + threadIdx.x;
   C += (bx * by == mb) ? bj * ldc + bi + ti : (bj + 8 * (ti / mb)) * ldc + bi + ti % mb;
+  D += (bx * by == mb) ? bj * ldd + bi + ti : (bj + 8 * (ti / mb)) * ldd + bi + ti % mb;
 
   /*
-   * Blocks of A and B in shared memory and C in registers.
+   * Blocks of A and B in shared memory and D in registers.
    */
   __shared__ int a_hi[mb][kb + 1];       // Optimised away when transA == CBlasNoTrans
   __shared__ int a_lo[mb][kb + 1];       // Optimised away when transA == CBlasNoTrans
   __shared__ int b_hi[kb][(transB == CBlasNoTrans) ? nb + 1 : nb];
   __shared__ int b_lo[kb][(transB == CBlasNoTrans) ? nb + 1 : nb];
 
-  double c[] = { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+  double d[] = { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
 
   while (k > 0) {
     // If A is to be transposed cache it in shared memory
@@ -120,7 +124,7 @@ __global__ void dgemm(int m, int n, int k, double alpha, const double * A, int l
 //       typedef char y[(nb == 8) ? 1 : -1]; // nb must equal the size of row per thread
 #pragma unroll
       for (int l = 0; l < kb; l++) {
-        daxpy(A[0], b_hi[l], b_lo[l], c);
+        daxpy(A[0], b_hi[l], b_lo[l], d);
         A += lda;
       }
     }
@@ -135,7 +139,7 @@ __global__ void dgemm(int m, int n, int k, double alpha, const double * A, int l
         daxpy(__hiloint2double(a_hi[(bx * by == mb) ? ti : ti % mb][l],
                                a_lo[(bx * by == mb) ? ti : ti % mb][l]),
               &b_hi[l][(bx * by == mb) ? 0 : 8 * (ti / mb)],
-              &b_lo[l][(bx * by == mb) ? 0 : 8 * (ti / mb)], c);
+              &b_lo[l][(bx * by == mb) ? 0 : 8 * (ti / mb)], d);
     }
 
     __syncthreads();
@@ -146,7 +150,7 @@ __global__ void dgemm(int m, int n, int k, double alpha, const double * A, int l
 
   if (transA == CBlasNoTrans) {
     for (int l = 0; l < k; l++) {
-      daxpy(A[0], b_hi[l], b_lo[l], c);
+      daxpy(A[0], b_hi[l], b_lo[l], d);
       A += lda;
     }
   }
@@ -155,7 +159,7 @@ __global__ void dgemm(int m, int n, int k, double alpha, const double * A, int l
       daxpy(__hiloint2double(a_hi[(bx * by == mb) ? ti : ti % mb][l],
                              a_lo[(bx * by == mb) ? ti : ti % mb][l]),
             &b_hi[l][(bx * by == mb) ? 0 : 8 * (ti / mb)],
-            &b_lo[l][(bx * by == mb) ? 0 : 8 * (ti / mb)], c);
+            &b_lo[l][(bx * by == mb) ? 0 : 8 * (ti / mb)], d);
   }
 
   if (bx * by == mb)
@@ -166,24 +170,24 @@ __global__ void dgemm(int m, int n, int k, double alpha, const double * A, int l
   }
   if ((bx * by == mb && bi + ti < m) || (bx * by > mb && bi + ti % mb < m)) {
     if (beta == 0.0) {
-      C[0] = alpha * c[0]; if (1 >= n) return; C += ldc;
-      C[0] = alpha * c[1]; if (2 >= n) return; C += ldc;
-      C[0] = alpha * c[2]; if (3 >= n) return; C += ldc;
-      C[0] = alpha * c[3]; if (4 >= n) return; C += ldc;
-      C[0] = alpha * c[4]; if (5 >= n) return; C += ldc;
-      C[0] = alpha * c[5]; if (6 >= n) return; C += ldc;
-      C[0] = alpha * c[6]; if (7 >= n) return; C += ldc;
-      C[0] = alpha * c[7];
+      D[0] = alpha * d[0]; if (1 >= n) return; D += ldd;
+      D[0] = alpha * d[1]; if (2 >= n) return; D += ldd;
+      D[0] = alpha * d[2]; if (3 >= n) return; D += ldd;
+      D[0] = alpha * d[3]; if (4 >= n) return; D += ldd;
+      D[0] = alpha * d[4]; if (5 >= n) return; D += ldd;
+      D[0] = alpha * d[5]; if (6 >= n) return; D += ldd;
+      D[0] = alpha * d[6]; if (7 >= n) return; D += ldd;
+      D[0] = alpha * d[7];
     }
     else {
-      C[0] = alpha * c[0] + beta * C[0]; if (1 >= n) return; C += ldc;
-      C[0] = alpha * c[1] + beta * C[0]; if (2 >= n) return; C += ldc;
-      C[0] = alpha * c[2] + beta * C[0]; if (3 >= n) return; C += ldc;
-      C[0] = alpha * c[3] + beta * C[0]; if (4 >= n) return; C += ldc;
-      C[0] = alpha * c[4] + beta * C[0]; if (5 >= n) return; C += ldc;
-      C[0] = alpha * c[5] + beta * C[0]; if (6 >= n) return; C += ldc;
-      C[0] = alpha * c[6] + beta * C[0]; if (7 >= n) return; C += ldc;
-      C[0] = alpha * c[7] + beta * C[0];
+      D[0] = alpha * d[0] + beta * C[0]; if (1 >= n) return; C += ldc; D += ldd;
+      D[0] = alpha * d[1] + beta * C[0]; if (2 >= n) return; C += ldc; D += ldd;
+      D[0] = alpha * d[2] + beta * C[0]; if (3 >= n) return; C += ldc; D += ldd;
+      D[0] = alpha * d[3] + beta * C[0]; if (4 >= n) return; C += ldc; D += ldd;
+      D[0] = alpha * d[4] + beta * C[0]; if (5 >= n) return; C += ldc; D += ldd;
+      D[0] = alpha * d[5] + beta * C[0]; if (6 >= n) return; C += ldc; D += ldd;
+      D[0] = alpha * d[6] + beta * C[0]; if (7 >= n) return; C += ldc; D += ldd;
+      D[0] = alpha * d[7] + beta * C[0];
     }
   }
 }
@@ -197,16 +201,18 @@ __device__ void daxpy(double alpha, double * x, double * y) {
 }
 
 /**
+ * This implementation is out-of-place.  For in-place call with D = C and ldd = ldc.
+ *
  * DGEMM:
- *   C := alpha * AB   + beta * C for transA == CBlasNoTrans and transB == CBlasNoTrans
- *   C := alpha * AB'  + beta * C for transA == CBlasNoTrans and transB == CBlasTrans
- *   C := alpha * A'B  + beta * C for transA == CBlasTrans and transB == CBlasNoTrans
- *   C := alpha * A'B' + beta * C for transA == CBlasTrans and transB == CBlasTrans
+ *   D := alpha * AB   + beta * C for transA == CBlasNoTrans and transB == CBlasNoTrans
+ *   D := alpha * AB'  + beta * C for transA == CBlasNoTrans and transB == CBlasTrans
+ *   D := alpha * A'B  + beta * C for transA == CBlasTrans and transB == CBlasNoTrans
+ *   D := alpha * A'B' + beta * C for transA == CBlasTrans and transB == CBlasTrans
  *
  * @param transA  transpose for A.
  * @param transB  transpose for B.
- * @param mb      the number of rows in the block of C.
- * @param nb      the number of columns in the block of C.
+ * @param mb      the number of rows in the block of C/D.
+ * @param nb      the number of columns in the block of C/D.
  * @param kb      how far to unroll the inner loop.
  * @param bx      blockDim.x.
  * @param by      blockDim.y.
@@ -214,34 +220,36 @@ __device__ void daxpy(double alpha, double * x, double * y) {
 template <CBlasTranspose transA, CBlasTranspose transB,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void dgemm(int m, int n, int k, double alpha, const double * A, int lda,
-                      const double * B, int ldb, double beta, double * C, int ldc) {
+__global__ void dgemm(int m, int n, int k,
+                      double alpha, const double * A, int lda, const double * B, int ldb,
+                      double beta, const double * C, int ldc, double * D, int ldd) {
 
-  const int bi = blockIdx.x * mb;       // Starting row of block of C
-  const int bj = blockIdx.y * nb;       // Starting column of block of C
+  const int bi = blockIdx.x * mb;       // Starting row of block of C/D
+  const int bj = blockIdx.y * nb;       // Starting column of block of C/D
   const int ti = threadIdx.y * bx + threadIdx.x;        // Unwrapped thread index [0, bx * by]
 
   /*
-   * Compute our starting points in A, B and C.
+   * Compute our starting points in A, B, C and D.
    *
    * For transA != CBlasNoTrans A is cached in shared memory so the unwrapped
-   * thread index can be re-wrapped around mb when calculating C.
+   * thread index can be re-wrapped around mb when calculating D.
    *
    * If transA == CBlasNoTrans then bx * by == mb (checked later on) so there
    * doesn't need to be a separate check for transA == CBlasNoTrans in
-   * calculating the start of C here.
+   * calculating the start of C/D here.
    */
   A += (transA == CBlasNoTrans) ? bi + ti : (bi + threadIdx.y) * lda + threadIdx.x;
   B += (transB == CBlasNoTrans) ? (bj + threadIdx.y) * ldb + threadIdx.x : threadIdx.y * ldb + bj + threadIdx.x;
   C += (bx * by == mb) ? bj * ldc + bi + ti : (bj + 8 * (ti / mb)) * ldc + bi + ti % mb;
+  D += (bx * by == mb) ? bj * ldd + bi + ti : (bj + 8 * (ti / mb)) * ldd + bi + ti % mb;
 
   /*
-   * Blocks of A and B in shared memory and C in registers.
+   * Blocks of A and B in shared memory and D in registers.
    */
   __shared__ double a[mb][kb + 1];       // Optimised away when transA == CBlasNoTrans
   __shared__ double b[kb][(transB == CBlasNoTrans) ? nb + 1 : nb];
 
-  double c[] = { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+  double d[] = { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
 
   while (k > 0) {
     // If A is to be transposed cache it in shared memory
@@ -294,7 +302,7 @@ __global__ void dgemm(int m, int n, int k, double alpha, const double * A, int l
 //       typedef char y[(nb == 8) ? 1 : -1]; // nb must equal the size of row per thread
 #pragma unroll
       for (int l = 0; l < kb; l++) {
-        daxpy(A[0], b[l], c);
+        daxpy(A[0], b[l], d);
         A += lda;
       }
     }
@@ -307,7 +315,7 @@ __global__ void dgemm(int m, int n, int k, double alpha, const double * A, int l
 #pragma unroll
       for (int l = 0; l < kb; l++)
         daxpy(a[(bx * by == mb) ? ti : ti % mb][l],
-              &b[l][(bx * by == mb) ? 0 : 8 * (ti / mb)], c);
+              &b[l][(bx * by == mb) ? 0 : 8 * (ti / mb)], d);
     }
 
     __syncthreads();
@@ -318,14 +326,14 @@ __global__ void dgemm(int m, int n, int k, double alpha, const double * A, int l
 
   if (transA == CBlasNoTrans) {
     for (int l = 0; l < k; l++) {
-      daxpy(A[0], b[l], c);
+      daxpy(A[0], b[l], d);
       A += lda;
     }
   }
   else {
     for (int l = 0; l < k; l++)
       daxpy(a[(bx * by == mb) ? ti : ti % mb][l],
-            &b[l][(bx * by == mb) ? 0 : 8 * (ti / mb)], c);
+            &b[l][(bx * by == mb) ? 0 : 8 * (ti / mb)], d);
   }
 
   if (bx * by == mb)
@@ -336,24 +344,24 @@ __global__ void dgemm(int m, int n, int k, double alpha, const double * A, int l
   }
   if ((bx * by == mb && bi + ti < m) || (bx * by > mb && bi + ti % mb < m)) {
     if (beta == 0.0) {
-      C[0] = alpha * c[0]; if (1 >= n) return; C += ldc;
-      C[0] = alpha * c[1]; if (2 >= n) return; C += ldc;
-      C[0] = alpha * c[2]; if (3 >= n) return; C += ldc;
-      C[0] = alpha * c[3]; if (4 >= n) return; C += ldc;
-      C[0] = alpha * c[4]; if (5 >= n) return; C += ldc;
-      C[0] = alpha * c[5]; if (6 >= n) return; C += ldc;
-      C[0] = alpha * c[6]; if (7 >= n) return; C += ldc;
-      C[0] = alpha * c[7];
+      D[0] = alpha * d[0]; if (1 >= n) return; D += ldd;
+      D[0] = alpha * d[1]; if (2 >= n) return; D += ldd;
+      D[0] = alpha * d[2]; if (3 >= n) return; D += ldd;
+      D[0] = alpha * d[3]; if (4 >= n) return; D += ldd;
+      D[0] = alpha * d[4]; if (5 >= n) return; D += ldd;
+      D[0] = alpha * d[5]; if (6 >= n) return; D += ldd;
+      D[0] = alpha * d[6]; if (7 >= n) return; D += ldd;
+      D[0] = alpha * d[7];
     }
     else {
-      C[0] = alpha * c[0] + beta * C[0]; if (1 >= n) return; C += ldc;
-      C[0] = alpha * c[1] + beta * C[0]; if (2 >= n) return; C += ldc;
-      C[0] = alpha * c[2] + beta * C[0]; if (3 >= n) return; C += ldc;
-      C[0] = alpha * c[3] + beta * C[0]; if (4 >= n) return; C += ldc;
-      C[0] = alpha * c[4] + beta * C[0]; if (5 >= n) return; C += ldc;
-      C[0] = alpha * c[5] + beta * C[0]; if (6 >= n) return; C += ldc;
-      C[0] = alpha * c[6] + beta * C[0]; if (7 >= n) return; C += ldc;
-      C[0] = alpha * c[7] + beta * C[0];
+      D[0] = alpha * d[0] + beta * C[0]; if (1 >= n) return; C += ldc; D += ldd;
+      D[0] = alpha * d[1] + beta * C[0]; if (2 >= n) return; C += ldc; D += ldd;
+      D[0] = alpha * d[2] + beta * C[0]; if (3 >= n) return; C += ldc; D += ldd;
+      D[0] = alpha * d[3] + beta * C[0]; if (4 >= n) return; C += ldc; D += ldd;
+      D[0] = alpha * d[4] + beta * C[0]; if (5 >= n) return; C += ldc; D += ldd;
+      D[0] = alpha * d[5] + beta * C[0]; if (6 >= n) return; C += ldc; D += ldd;
+      D[0] = alpha * d[6] + beta * C[0]; if (7 >= n) return; C += ldc; D += ldd;
+      D[0] = alpha * d[7] + beta * C[0];
     }
   }
 }
@@ -361,7 +369,7 @@ __global__ void dgemm(int m, int n, int k, double alpha, const double * A, int l
 #endif
 
 /**
- * For C = aAB + bC:
+ * For D = aAB + bC:
  *   mb must be a multiple of the warp size (32) and less than or equal to the
  *        maximum number of threads per block (512).
  *   nb must be less than or equal to 20 (registers start spilling to global
@@ -401,7 +409,7 @@ __global__ void dgemm(int m, int n, int k, double alpha, const double * A, int l
  * kb is chosen to be the largest multiple of 16 such that the number of blocks
  * per multiprocessor is limited by the register usage.
  */
-template void dgemm<CBlasNoTrans, CBlasNoTrans, 64,  8, 16, 16,  4>(int, int, int, double, const double *, int, const double *, int, double, double *, int);
-template void dgemm<CBlasNoTrans, CBlasTrans,   64,  8, 16,  8,  8>(int, int, int, double, const double *, int, const double *, int, double, double *, int);
-template void dgemm<CBlasTrans,   CBlasNoTrans, 32, 16,  8,  8,  8>(int, int, int, double, const double *, int, const double *, int, double, double *, int);
-template void dgemm<CBlasTrans,   CBlasTrans,   32, 16,  8,  8,  8>(int, int, int, double, const double *, int, const double *, int, double, double *, int);
+template void dgemm<CBlasNoTrans, CBlasNoTrans, 64,  8, 16, 16,  4>(int, int, int, double, const double *, int, const double *, int, double, const double *, int, double *, int);
+template void dgemm<CBlasNoTrans, CBlasTrans,   64,  8, 16,  8,  8>(int, int, int, double, const double *, int, const double *, int, double, const double *, int, double *, int);
+template void dgemm<CBlasTrans,   CBlasNoTrans, 32, 16,  8,  8,  8>(int, int, int, double, const double *, int, const double *, int, double, const double *, int, double *, int);
+template void dgemm<CBlasTrans,   CBlasTrans,   32, 16,  8,  8,  8>(int, int, int, double, const double *, int, const double *, int, double, const double *, int, double *, int);

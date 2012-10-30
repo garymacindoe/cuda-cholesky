@@ -88,7 +88,7 @@ void ztrmm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag
               B[j * ldb + k] = temp;
               if (diag == CBlasNonUnit) B[j * ldb + k] *= A[k * lda + k];
               for (size_t i = k + 1; i < m; i++)
-                B[j * ldb + i] -= temp * A[k * lda + i];
+                B[j * ldb + i] += temp * A[k * lda + i];
             }
           } while (k-- > 0);
         }
@@ -152,7 +152,7 @@ void ztrmm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag
                 B[j * ldb + i] += temp * B[k * ldb + i];
             }
           }
-        } while (j-- > n);
+        } while (j-- > 0);
       }
       else {
         for (size_t j = 0; j < n; j++) {
@@ -175,16 +175,16 @@ void ztrmm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag
         for (size_t k = 0; k < n; k++) {
           for (size_t j = 0; j < k; j++) {
             if (A[k * lda + j] != zero) {
-              register double temp = alpha * ((transA == CBlasTrans) ? A[k * lda + j] : conj(A[k * lda + j]));
+              register double complex temp = alpha * ((transA == CBlasTrans) ? A[k * lda + j] : conj(A[k * lda + j]));
               for (size_t i = 0; i < m; i++)
                 B[j * ldb + i] += temp * B[k * ldb + i];
             }
           }
-          register double temp = alpha;
+          register double complex temp = alpha;
           if (diag == CBlasNonUnit) temp *= ((transA == CBlasTrans) ? A[k * lda + k] : conj(A[k * lda + k]));
           if (temp != one) {
             for (size_t i = 0; i < m; i++)
-              B[k * ldb + i] *= alpha;
+              B[k * ldb + i] *= temp;
           }
         }
       }
@@ -193,16 +193,16 @@ void ztrmm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag
         do {
           for (size_t j = k + 1; j < n; j++) {
             if (A[k * lda + j] != zero) {
-              register double temp = alpha * ((transA == CBlasTrans) ? A[k * lda + j] : conj(A[k * lda + j]));
+              register double complex temp = alpha * ((transA == CBlasTrans) ? A[k * lda + j] : conj(A[k * lda + j]));
               for (size_t i = 0; i < m; i++)
                 B[j * ldb + i] += temp * B[k * ldb + i];
             }
           }
-          register double temp = alpha;
+          register double complex temp = alpha;
           if (diag == CBlasNonUnit) temp *= ((transA == CBlasTrans) ? A[k * lda + k] : conj(A[k * lda + k]));
           if (temp != one) {
             for (size_t i = 0; i < m; i++)
-              B[k * ldb + i] *= alpha;
+              B[k * ldb + i] *= temp;
           }
         } while (k-- > 0);
       }
@@ -210,7 +210,7 @@ void ztrmm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag
   }
 }
 
-CUresult cuZtrmm(CUmodule module, CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag, size_t m, size_t n, double complex alpha, CUdeviceptr A, size_t lda, CUdeviceptr B, size_t ldb, CUstream stream) {
+CUresult cuZtrmm(CUmodule module, CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag, size_t m, size_t n, double complex alpha, CUdeviceptr A, size_t lda, CUdeviceptr B, size_t ldb, CUdeviceptr X, CUstream stream) {
   const size_t nRowA = (side == CBlasLeft) ? m : n;
 
   int info = 0;
@@ -236,7 +236,7 @@ CUresult cuZtrmm(CUmodule module, CBlasSide side, CBlasUplo uplo, CBlasTranspose
   CUfunction function;
   CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
 
-  void * params[] = { &m, &n, &alpha, &A, &lda, &B, &ldb };
+  void * params[] = { &m, &n, &alpha, &A, &lda, &B, &ldb, &X };
 
   const unsigned int gx = (side == CBlasLeft) ? 1 : (unsigned int)max(1, (m + mb - 1) / mb);
   const unsigned int gy = (side == CBlasLeft) ? (unsigned int)max(1, (n + nb - 1) / nb) : 1;

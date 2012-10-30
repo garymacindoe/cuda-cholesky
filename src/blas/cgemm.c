@@ -216,7 +216,7 @@ void cgemm(CBlasTranspose transA, CBlasTranspose transB, size_t m, size_t n, siz
   }
 }
 
-CUresult cuCgemm(CUmodule module, CBlasTranspose transA, CBlasTranspose transB, size_t m, size_t n, size_t k, float complex alpha, CUdeviceptr A, size_t lda, CUdeviceptr B, size_t ldb, float complex beta, CUdeviceptr C, size_t ldc, CUstream stream) {
+CUresult cuCgemm2(CUmodule module, CBlasTranspose transA, CBlasTranspose transB, size_t m, size_t n, size_t k, float complex alpha, CUdeviceptr A, size_t lda, CUdeviceptr B, size_t ldb, float complex beta, CUdeviceptr C, size_t ldc, CUdeviceptr D, size_t ldd, CUstream stream) {
   size_t nRowA = (transA == CBlasNoTrans) ? m : k;
   size_t nRowB = (transB == CBlasNoTrans) ? k : n;
 
@@ -227,6 +227,8 @@ CUresult cuCgemm(CUmodule module, CBlasTranspose transA, CBlasTranspose transB, 
     info = 10;
   else if (ldc < m)
     info = 13;
+  else if (ldd < m)
+    info = 15;
   if (info != 0) {
     XERBLA(info);
     return CUDA_ERROR_INVALID_VALUE;
@@ -240,13 +242,13 @@ CUresult cuCgemm(CUmodule module, CBlasTranspose transA, CBlasTranspose transB, 
   const unsigned int bx = (transA == CBlasNoTrans) ? ((transB == CBlasNoTrans) ? 16 : 8) :  8;
   const unsigned int by = (transA == CBlasNoTrans) ? ((transB == CBlasNoTrans) ?  4 : 8) :  8;
 
-  char name[92];
-  snprintf(name, 92, "_Z5cgemmIL14CBlasTranspose%dELS0_%dELj%uELj%uELj%uELj%uELj%uEEviii6float2PKS1_iS3_iS1_PS1_i", transA, transB, mb, nb, kb, bx, by);
+  char name[95];
+  snprintf(name, 95, "_Z5cgemmIL14CBlasTranspose%dELS0_%dELj%uELj%uELj%uELj%uELj%uEEviii6float2PKS1_iS3_iS1_S3_iPS1_i", transA, transB, mb, nb, kb, bx, by);
 
   CUfunction function;
   CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
 
-  void * params[] = { &m, &n, &k, &alpha, &A, &lda, &B, &ldb, &beta, &C, &ldc };
+  void * params[] = { &m, &n, &k, &alpha, &A, &lda, &B, &ldb, &beta, &C, &ldc, &D, &ldd };
 
   CU_ERROR_CHECK(cuLaunchKernel(function, (unsigned int)max(1, (m + mb - 1) / mb), (unsigned int)max(1, (n + nb - 1) / nb), 1, bx, by, 1, 0, stream, params, NULL));
 

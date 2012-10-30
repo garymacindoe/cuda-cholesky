@@ -5,7 +5,6 @@
 #include <stdbool.h>
 #include <complex.h>
 #include <cuda.h>
-#include <cublas_v2.h>
 
 // nvcc uses __restrict__ instead of C99's restrict keyword
 // CUDA Programming Guide v4.1 Appendix B.2.4
@@ -28,15 +27,9 @@ typedef enum { CBlasNonUnit = 'N', CBlasUnit = 'U' } CBlasDiag;
 /**
  * Prefixes:
  *      <none>: Hand coded to run on the CPU using arguments in system memory
- *          cu: Hand coded to run on the GPU (or hybrid CPU/GPU) using arguments in graphics memory
- *  cuMultiGPU: Hand coded to run on multiple GPUs (or hybrid CPU/GPUs) using arguments in system memory
+ *          cu: Hand coded to run on the GPU using arguments in graphics memory
+ *  cuMultiGPU: Hand coded to run on the CPU and multiple GPUs using arguments in system memory
  */
-
-/** CUBLAS Helper macros */
-#define cublasUplo(uplo) (((uplo) == CBlasUpper) ? CUBLAS_FILL_MODE_UPPER : CUBLAS_FILL_MODE_LOWER)
-#define cublasDiag(diag) (((diag) == CBlasNonUnit) ? CUBLAS_DIAG_NON_UNIT : CUBLAS_DIAG_UNIT)
-#define cublasSide(side) (((side) == CBlasLeft) ? CUBLAS_SIDE_LEFT : CUBLAS_SIDE_RIGHT)
-#define cublasTrans(trans)(((trans) == CBlasNoTrans) ? CUBLAS_OP_N : ((trans == CBlasTrans) ? CUBLAS_OP_T : CUBLAS_OP_C))
 
 /** Error function */
 typedef void (*xerbla_t)(const char *, long);
@@ -69,22 +62,27 @@ void dtrsm(CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag, size_t, size_t, doub
 void ctrsm(CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag, size_t, size_t,  float complex, const  float complex * restrict, size_t,  float complex * restrict, size_t);
 void ztrsm(CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag, size_t, size_t, double complex, const double complex * restrict, size_t, double complex * restrict, size_t);
 
-/** My GPU/Hybrid implementations */
+/** My GPU implementations */
 CUresult cuSsyrk(CUmodule, CBlasUplo, CBlasTranspose, size_t, size_t,  float, CUdeviceptr, size_t,  float, CUdeviceptr, size_t, CUstream);
 CUresult cuDsyrk(CUmodule, CBlasUplo, CBlasTranspose, size_t, size_t, double, CUdeviceptr, size_t, double, CUdeviceptr, size_t, CUstream);
 
 CUresult cuCherk(CUmodule, CBlasUplo, CBlasTranspose, size_t, size_t,  float, CUdeviceptr, size_t,  float, CUdeviceptr, size_t, CUstream);
 CUresult cuZherk(CUmodule, CBlasUplo, CBlasTranspose, size_t, size_t, double, CUdeviceptr, size_t, double, CUdeviceptr, size_t, CUstream);
 
-CUresult cuSgemm(CUmodule, CBlasTranspose, CBlasTranspose, size_t, size_t, size_t,  float, CUdeviceptr, size_t, CUdeviceptr, size_t,  float, CUdeviceptr, size_t, CUstream);
-CUresult cuDgemm(CUmodule, CBlasTranspose, CBlasTranspose, size_t, size_t, size_t, double, CUdeviceptr, size_t, CUdeviceptr, size_t, double, CUdeviceptr, size_t, CUstream);
-CUresult cuCgemm(CUmodule, CBlasTranspose, CBlasTranspose, size_t, size_t, size_t,  float complex, CUdeviceptr, size_t, CUdeviceptr, size_t,  float complex, CUdeviceptr, size_t, CUstream);
-CUresult cuZgemm(CUmodule, CBlasTranspose, CBlasTranspose, size_t, size_t, size_t, double complex, CUdeviceptr, size_t, CUdeviceptr, size_t, double complex, CUdeviceptr, size_t, CUstream);
+#define cuSgemm(module, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, stream) cuSgemm2(module, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, C, ldc, stream)
+#define cuDgemm(module, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, stream) cuDgemm2(module, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, C, ldc, stream)
+#define cuCgemm(module, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, stream) cuCgemm2(module, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, C, ldc, stream)
+#define cuZgemm(module, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, stream) cuZgemm2(module, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, C, ldc, stream)
 
-CUresult cuStrmm(CUmodule, CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag, size_t, size_t,  float, CUdeviceptr, size_t, CUdeviceptr, size_t, CUstream);
-CUresult cuDtrmm(CUmodule, CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag, size_t, size_t, double, CUdeviceptr, size_t, CUdeviceptr, size_t, CUstream);
-CUresult cuCtrmm(CUmodule, CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag, size_t, size_t,  float complex, CUdeviceptr, size_t, CUdeviceptr, size_t, CUstream);
-CUresult cuZtrmm(CUmodule, CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag, size_t, size_t, double complex, CUdeviceptr, size_t, CUdeviceptr, size_t, CUstream);
+CUresult cuSgemm2(CUmodule, CBlasTranspose, CBlasTranspose, size_t, size_t, size_t,  float, CUdeviceptr, size_t, CUdeviceptr, size_t,  float, CUdeviceptr, size_t, CUdeviceptr, size_t, CUstream);
+CUresult cuDgemm2(CUmodule, CBlasTranspose, CBlasTranspose, size_t, size_t, size_t, double, CUdeviceptr, size_t, CUdeviceptr, size_t, double, CUdeviceptr, size_t, CUdeviceptr, size_t, CUstream);
+CUresult cuCgemm2(CUmodule, CBlasTranspose, CBlasTranspose, size_t, size_t, size_t,  float complex, CUdeviceptr, size_t, CUdeviceptr, size_t,  float complex, CUdeviceptr, size_t, CUdeviceptr, size_t, CUstream);
+CUresult cuZgemm2(CUmodule, CBlasTranspose, CBlasTranspose, size_t, size_t, size_t, double complex, CUdeviceptr, size_t, CUdeviceptr, size_t, double complex, CUdeviceptr, size_t, CUdeviceptr, size_t, CUstream);
+
+CUresult cuStrmm(CUmodule, CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag, size_t, size_t,  float, CUdeviceptr, size_t, CUdeviceptr, size_t, CUdeviceptr, size_t, CUstream);
+CUresult cuDtrmm(CUmodule, CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag, size_t, size_t, double, CUdeviceptr, size_t, CUdeviceptr, size_t, CUdeviceptr, size_t, CUstream);
+CUresult cuCtrmm(CUmodule, CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag, size_t, size_t,  float complex, CUdeviceptr, size_t, CUdeviceptr, size_t, CUdeviceptr, size_t, CUstream);
+CUresult cuZtrmm(CUmodule, CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag, size_t, size_t, double complex, CUdeviceptr, size_t, CUdeviceptr, size_t, CUdeviceptr, size_t, CUstream);
 
 CUresult cuStrsm(CUmodule, CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag, size_t, size_t,  float, CUdeviceptr, size_t, CUdeviceptr, size_t, CUstream);
 CUresult cuDtrsm(CUmodule, CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag, size_t, size_t, double, CUdeviceptr, size_t, CUdeviceptr, size_t, CUstream);
