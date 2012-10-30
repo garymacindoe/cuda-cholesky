@@ -106,7 +106,7 @@ int main(int argc, char * argv[]) {
       for (size_t i = 0; i < m; i++) {
         double complex temp = 0.0;
         for (size_t l = 0; l < k; l++)
-          temp += conjf(C[i * ldc + l]) * C[j * ldc + l];
+          temp += conj(C[i * ldc + l]) * C[j * ldc + l];
         A[j * lda + i] = 0.01 * temp;
       }
     }
@@ -136,7 +136,7 @@ int main(int argc, char * argv[]) {
       for (size_t i = 0; i < n; i++) {
         double complex temp = 0.0;
         for (size_t l = 0; l < k; l++)
-          temp += conjf(C[i * ldc + l]) * C[j * ldc + l];
+          temp += conj(C[i * ldc + l]) * C[j * ldc + l];
         A[j * lda + i] = 0.01 * temp;
       }
     }
@@ -187,7 +187,7 @@ int main(int argc, char * argv[]) {
       flops *= 3;
 
       if (d > (double)flops * 2.0 * DBL_EPSILON ||
-        c > (double)flops * 2.0 * DBL_EPSILON)
+          c > (double)flops * 2.0 * DBL_EPSILON)
         passed = false;
     }
   }
@@ -199,14 +199,14 @@ int main(int argc, char * argv[]) {
   }
   for (size_t i = 0; i < 20; i++)
 //     ztrmm_(&s, &u, &t, &d, &m, &n, &alpha, A, &lda, B, &ldb);
-  ztrmm(side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb);
+    ztrmm(side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb);
   if (gettimeofday(&stop, NULL) != 0) {
     fputs("gettimeofday failed\n", stderr);
     return -6;
   }
 
   double time = ((double)(stop.tv_sec - start.tv_sec) +
-  (double)(stop.tv_usec - start.tv_usec) * 1.e-6) / 20.0;
+                 (double)(stop.tv_usec - start.tv_usec) * 1.e-6) / 20.0;
 
   size_t flops = 6 * m * n;
   if (alpha != 0.0 + 0.0 * I) {

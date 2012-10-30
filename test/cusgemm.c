@@ -3,10 +3,7 @@
 #include <stdio.h>
 #include <sys/time.h>
 #include <float.h>
-#ifndef BENCH
-#include <string.h>
 #include "sgemm_ref.c"
-#endif
 
 int main(int argc, char * argv[]) {
   CBlasTranspose transA, transB;
@@ -65,7 +62,7 @@ int main(int argc, char * argv[]) {
 
   srand(0);
 
-  float alpha, beta, * A, * B, * C;
+  float alpha, beta, * A, * B, * C, * refC;
   CUdeviceptr dA, dB, dC;
   size_t lda, ldb, ldc, dlda, dldb, dldc;
 
@@ -166,28 +163,22 @@ int main(int argc, char * argv[]) {
     fputs("Unable to allocate C\n", stderr);
     return -3;
   }
+  if ((refC = malloc(ldc * n * sizeof(float))) == NULL) {
+    fputs("Unable to allocate refC\n", stderr);
+    return -4;
+  }
+  CU_ERROR_CHECK(cuMemAllocPitch(&dC, &dldc, m * sizeof(float), n, sizeof(float)));
+  dldc /= sizeof(float);
 
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < m; i++)
-      C[j * ldc + i] = (float)rand() / (float)RAND_MAX;
+      refC[j * ldc + i] = C[j * ldc + i] = (float)rand() / (float)RAND_MAX;
   }
-
-  CU_ERROR_CHECK(cuMemAllocPitch(&dC, &dldc, m * sizeof(float), n, sizeof(float)));
-  dldc /= sizeof(float);
 
   CUDA_MEMCPY2D copy = { 0, 0, CU_MEMORYTYPE_HOST, C, 0, NULL, ldc * sizeof(float),
                          0, 0, CU_MEMORYTYPE_DEVICE, NULL, dC, NULL, dldc * sizeof(float),
                          m * sizeof(float), n };
   CU_ERROR_CHECK(cuMemcpy2D(&copy));
-#ifndef BENCH
-  float * refC;
-  if ((refC = malloc(ldc * n * sizeof(float))) == NULL) {
-    fputs("Unable to allocate refC\n", stderr);
-    return -4;
-  }
-
-  for (size_t j = 0; j < n; j++)
-    memcpy(&refC[j * ldc], &C[j * ldc], m * sizeof(float));
 
   sgemm_ref(transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, refC, ldc);
   CU_ERROR_CHECK(cuSgemm(module, transA, transB, m, n, k, alpha, dA, dlda, dB, dldb, beta, dC, dldc, NULL));
@@ -205,9 +196,7 @@ int main(int argc, char * argv[]) {
         diff = d;
     }
   }
-
   free(refC);
-#endif
 
   CUevent start, stop;
   CU_ERROR_CHECK(cuEventCreate(&start, CU_EVENT_BLOCKING_SYNC));
@@ -226,9 +215,6 @@ int main(int argc, char * argv[]) {
   CU_ERROR_CHECK(cuEventDestroy(start));
   CU_ERROR_CHECK(cuEventDestroy(stop));
 
-#ifdef BENCH
-  fprintf(stderr, "SGEMM,%c,%c,%zu,%zu,%zu,%.3e\n", transA, transB, m, n, k, time);
-#else
   size_t flops = 2 * k - 1;
   if (alpha != 1.0f)
     flops += 1;
@@ -239,7 +225,6 @@ int main(int argc, char * argv[]) {
 
   bool passed = (diff <= error);
   fprintf(stdout, "%.3ems %.3gGFlops/s Error: %.3e\n%sED!\n", time, ((float)flops * 1.e-6f) / time, diff, (passed) ? "PASS" : "FAIL");
-#endif
 
   free(A);
   free(B);
@@ -250,9 +235,5 @@ int main(int argc, char * argv[]) {
 
   CU_ERROR_CHECK(cuCtxDestroy(context));
 
-#ifdef BENCH
-  return 0;
-#else
   return (int)!passed;
-#endif
 }

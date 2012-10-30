@@ -84,7 +84,7 @@ int main(int argc, char * argv[]) {
 
   double alpha, * A, * B, * refB, * C;
   CUdeviceptr dA, dB, dX;
-  size_t lda, ldb, ldc, dlda, dldb;
+  size_t lda, ldb, ldc, dlda, dldb, dldx;
 
   CU_ERROR_CHECK(cuInit(0));
 
@@ -184,8 +184,9 @@ int main(int argc, char * argv[]) {
     return -4;
   }
   CU_ERROR_CHECK(cuMemAllocPitch(&dB, &dldb, m * sizeof(double), n, sizeof(double)));
-  CU_ERROR_CHECK(cuMemAllocPitch(&dX, &dldb, m * sizeof(double), n, sizeof(double)));
   dldb /= sizeof(double);
+  CU_ERROR_CHECK(cuMemAllocPitch(&dX, &dldx, m * sizeof(double), n, sizeof(double)));
+  dldx /= sizeof(double);
 
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < m; i++)
@@ -198,9 +199,9 @@ int main(int argc, char * argv[]) {
   CU_ERROR_CHECK(cuMemcpy2D(&copy));
 
   dtrmm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb);
-  CU_ERROR_CHECK(cuDtrmm(module, side, uplo, trans, diag, m, n, alpha, dA, dlda, dB, dldb, dX, NULL));
+  CU_ERROR_CHECK(cuDtrmm(module, side, uplo, trans, diag, m, n, alpha, dA, dlda, dB, dldb, dX, dldx, NULL));
 
-  copy = (CUDA_MEMCPY2D){ 0, 0, CU_MEMORYTYPE_DEVICE, NULL, dX, NULL, dldb * sizeof(double),
+  copy = (CUDA_MEMCPY2D){ 0, 0, CU_MEMORYTYPE_DEVICE, NULL, dX, NULL, dldx * sizeof(double),
   0, 0, CU_MEMORYTYPE_HOST, B, 0, NULL, ldb * sizeof(double),
   m * sizeof(double), n };
   CU_ERROR_CHECK(cuMemcpy2D(&copy));
@@ -232,7 +233,7 @@ int main(int argc, char * argv[]) {
 
   CU_ERROR_CHECK(cuEventRecord(start, NULL));
   for (size_t i = 0; i < 20; i++)
-    CU_ERROR_CHECK(cuDtrmm(module, side, uplo, trans, diag, m, n, alpha, dA, dlda, dB, dldb, dX, NULL));
+    CU_ERROR_CHECK(cuDtrmm(module, side, uplo, trans, diag, m, n, alpha, dA, dlda, dB, dldb, dX, dldx, NULL));
   CU_ERROR_CHECK(cuEventRecord(stop, NULL));
   CU_ERROR_CHECK(cuEventSynchronize(stop));
 

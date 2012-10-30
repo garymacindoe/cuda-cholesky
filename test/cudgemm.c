@@ -196,6 +196,7 @@ int main(int argc, char * argv[]) {
         diff = d;
     }
   }
+  free(refC);
 
   CUevent start, stop;
   CU_ERROR_CHECK(cuEventCreate(&start, CU_EVENT_BLOCKING_SYNC));
@@ -228,7 +229,6 @@ int main(int argc, char * argv[]) {
   free(A);
   free(B);
   free(C);
-  free(refC);
   CU_ERROR_CHECK(cuMemFree(dA));
   CU_ERROR_CHECK(cuMemFree(dB));
   CU_ERROR_CHECK(cuMemFree(dC));

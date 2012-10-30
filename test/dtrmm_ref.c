@@ -5,10 +5,10 @@ static void dtrmm_ref(CBlasSide side, CBlasUplo uplo, CBlasTranspose trans,
 
   if (m == 0 || n == 0) return;
 
-  if (alpha == 0.0f) {
+  if (alpha == 0.0) {
     for (size_t j = 0; j < n; j++) {
       for (size_t i = 0; i < m; i++)
-        B[j * ldb + i] = 0.0f;
+        B[j * ldb + i] = 0.0;
     }
     return;
   }

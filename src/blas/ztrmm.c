@@ -210,7 +210,7 @@ void ztrmm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag
   }
 }
 
-CUresult cuZtrmm(CUmodule module, CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag, size_t m, size_t n, double complex alpha, CUdeviceptr A, size_t lda, CUdeviceptr B, size_t ldb, CUdeviceptr X, CUstream stream) {
+CUresult cuZtrmm(CUmodule module, CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag, size_t m, size_t n, double complex alpha, CUdeviceptr A, size_t lda, CUdeviceptr B, size_t ldb, CUdeviceptr X, size_t ldx, CUstream stream) {
   const size_t nRowA = (side == CBlasLeft) ? m : n;
 
   int info = 0;
@@ -218,6 +218,8 @@ CUresult cuZtrmm(CUmodule module, CBlasSide side, CBlasUplo uplo, CBlasTranspose
     info = 9;
   else if (ldb < m)
     info = 11;
+  else if (ldx < m)
+    info = 13;
   if (info != 0) {
     XERBLA(info);
     return CUDA_ERROR_INVALID_VALUE;
@@ -236,7 +238,7 @@ CUresult cuZtrmm(CUmodule module, CBlasSide side, CBlasUplo uplo, CBlasTranspose
   CUfunction function;
   CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
 
-  void * params[] = { &m, &n, &alpha, &A, &lda, &B, &ldb, &X };
+  void * params[] = { &m, &n, &alpha, &A, &lda, &B, &ldb, &X, &ldx };
 
   const unsigned int gx = (side == CBlasLeft) ? 1 : (unsigned int)max(1, (m + mb - 1) / mb);
   const unsigned int gy = (side == CBlasLeft) ? (unsigned int)max(1, (n + nb - 1) / nb) : 1;

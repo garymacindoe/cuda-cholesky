@@ -228,7 +228,7 @@ int main(int argc, char * argv[]) {
 
   bool passed = (rdiff <= error) && (idiff <= error);
   fprintf(stdout, "%.3es %.3gGFlops/s Error: %.3e + %.3ei\n%sED!\n", time,
-          ((double)flops * 1.e-9) / time, rdiff, idiff, (passed) ? "PASS" : "FAIL");
+          ((float)flops * 1.e-9f) / time, rdiff, idiff, (passed) ? "PASS" : "FAIL");
 
   free(A);
   free(B);

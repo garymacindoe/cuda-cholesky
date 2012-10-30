@@ -60,7 +60,7 @@ int main(int argc, char * argv[]) {
   switch (di) {
     case 'N': case 'n': diag = CBlasNonUnit; break;
     case 'U': case 'u': diag = CBlasUnit; break;
-    default: fprintf(stderr, "Unknown diag '%c'\n", t); return 4;
+    default: fprintf(stderr, "Unknown diag '%c'\n", di); return 4;
   }
 
   if (sscanf(argv[5], "%zu", &m) != 1) {

@@ -85,7 +85,7 @@ int main(int argc, char * argv[]) {
 
   float complex alpha, * A, * B, * refB, * C;
   CUdeviceptr dA, dB, dX;
-  size_t lda, ldb, ldc, dlda, dldb;
+  size_t lda, ldb, ldc, dlda, dldb, dldx;
 
   CU_ERROR_CHECK(cuInit(0));
 
@@ -185,8 +185,9 @@ int main(int argc, char * argv[]) {
     return -4;
   }
   CU_ERROR_CHECK(cuMemAllocPitch(&dB, &dldb, m * sizeof(float complex), n, sizeof(float complex)));
-  CU_ERROR_CHECK(cuMemAllocPitch(&dX, &dldb, m * sizeof(float complex), n, sizeof(float complex)));
   dldb /= sizeof(float complex);
+  CU_ERROR_CHECK(cuMemAllocPitch(&dX, &dldx, m * sizeof(float complex), n, sizeof(float complex)));
+  dldx /= sizeof(float complex);
 
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < m; i++)
@@ -199,11 +200,11 @@ int main(int argc, char * argv[]) {
   CU_ERROR_CHECK(cuMemcpy2D(&copy));
 
   ctrmm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb);
-  CU_ERROR_CHECK(cuCtrmm(module, side, uplo, trans, diag, m, n, alpha, dA, dlda, dB, dldb, dX, NULL));
+  CU_ERROR_CHECK(cuCtrmm(module, side, uplo, trans, diag, m, n, alpha, dA, dlda, dB, dldb, dX, dldx, NULL));
 
-  copy = (CUDA_MEMCPY2D){ 0, 0, CU_MEMORYTYPE_DEVICE, NULL, dX, NULL, dldb * sizeof(float complex),
-           0, 0, CU_MEMORYTYPE_HOST, B, 0, NULL, ldb * sizeof(float complex),
-           m * sizeof(float complex), n };
+  copy = (CUDA_MEMCPY2D){ 0, 0, CU_MEMORYTYPE_DEVICE, NULL, dX, NULL, dldx * sizeof(float complex),
+                          0, 0, CU_MEMORYTYPE_HOST, B, 0, NULL, ldb * sizeof(float complex),
+                          m * sizeof(float complex), n };
   CU_ERROR_CHECK(cuMemcpy2D(&copy));
 
   bool passed = true;
@@ -228,7 +229,7 @@ int main(int argc, char * argv[]) {
       flops *= 3;
 
       if (d > (float)flops * 2.0f * FLT_EPSILON ||
-        c > (float)flops * 2.0f * FLT_EPSILON)
+          c > (float)flops * 2.0f * FLT_EPSILON)
         passed = false;
     }
   }
@@ -239,7 +240,7 @@ int main(int argc, char * argv[]) {
 
   CU_ERROR_CHECK(cuEventRecord(start, NULL));
   for (size_t i = 0; i < 20; i++)
-    CU_ERROR_CHECK(cuCtrmm(module, side, uplo, trans, diag, m, n, alpha, dA, dlda, dB, dldb, dX, NULL));
+    CU_ERROR_CHECK(cuCtrmm(module, side, uplo, trans, diag, m, n, alpha, dA, dlda, dB, dldb, dX, dldx, NULL));
   CU_ERROR_CHECK(cuEventRecord(stop, NULL));
   CU_ERROR_CHECK(cuEventSynchronize(stop));
 
@@ -264,6 +265,7 @@ int main(int argc, char * argv[]) {
   free(refB);
   CU_ERROR_CHECK(cuMemFree(dA));
   CU_ERROR_CHECK(cuMemFree(dB));
+  CU_ERROR_CHECK(cuMemFree(dX));
 
   CU_ERROR_CHECK(cuCtxDestroy(context));
 
