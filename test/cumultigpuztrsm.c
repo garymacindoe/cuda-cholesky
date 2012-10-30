@@ -224,7 +224,7 @@ int main(int argc, char * argv[]) {
                  (double)(stop.tv_usec - start.tv_usec) * 1.e-6) / 20.0;
 
   size_t flops = 6 * m * n;
-  if (alpha != 0.0f + 0.0f * I) {
+  if (alpha != 0.0 + 0.0 * I) {
     flops += (side == CBlasLeft) ? 2 * m * n * (2 * m - 1) : 2 * m * n * (2 * n - 1);
     if (diag == CBlasNonUnit) flops += 18 * m * n;
   }

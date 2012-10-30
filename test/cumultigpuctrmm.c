@@ -174,8 +174,7 @@ int main(int argc, char * argv[]) {
   }
 
   ctrmm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb);
-  ctrmm(side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb);
-//   ctrmm_(&s, &u, &t, &d, &m, &n, &alpha, A, &lda, B, &ldb);
+  CU_ERROR_CHECK(cuMultiGPUCtrmm(contexts, deviceCount, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb));
 
   bool passed = true;
   float rdiff = 0.0f, idiff = 0.0f;
@@ -210,8 +209,7 @@ int main(int argc, char * argv[]) {
     return -5;
   }
   for (size_t i = 0; i < 20; i++)
-//     ctrmm_(&s, &u, &t, &d, &m, &n, &alpha, A, &lda, B, &ldb);
-    ctrmm(side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb);
+    CU_ERROR_CHECK(cuMultiGPUCtrmm(contexts, deviceCount, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb));
   if (gettimeofday(&stop, NULL) != 0) {
     fputs("gettimeofday failed\n", stderr);
     return -6;

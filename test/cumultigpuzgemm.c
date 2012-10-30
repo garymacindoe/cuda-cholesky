@@ -143,10 +143,10 @@ int main(int argc, char * argv[]) {
   double rdiff = 0.0, idiff = 0.0;
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < m; i++) {
-      double d = fabsf(crealf(C[j * ldc + i]) - crealf(refC[j * ldc + i]));
+      double d = fabs(creal(C[j * ldc + i]) - creal(refC[j * ldc + i]));
       if (d > rdiff)
         rdiff = d;
-      d = fabsf(cimagf(C[j * ldc + i]) - cimagf(refC[j * ldc + i]));
+      d = fabs(cimag(C[j * ldc + i]) - cimag(refC[j * ldc + i]));
       if (d > idiff)
         idiff = d;
     }

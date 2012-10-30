@@ -193,20 +193,20 @@ int main(int argc, char * argv[]) {
   struct timeval start, stop;
   if (gettimeofday(&start, NULL) != 0) {
     fputs("gettimeofday failed\n", stderr);
-    return -5;
+    return -6;
   }
   for (size_t i = 0; i < 20; i++)
     CU_ERROR_CHECK(cuMultiGPUDtrsm(contexts, deviceCount, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb));
   if (gettimeofday(&stop, NULL) != 0) {
     fputs("gettimeofday failed\n", stderr);
-    return -6;
+    return -7;
   }
 
   double time = ((double)(stop.tv_sec - start.tv_sec) +
                  (double)(stop.tv_usec - start.tv_usec) * 1.e-6) / 20.0;
 
   size_t flops = m * n;
-  if (alpha != 0.0f) {
+  if (alpha != 0.0) {
     flops += (side == CBlasLeft) ? m * m * n : m * n * n;
     if (diag == CBlasNonUnit) flops += m * n;
   }
