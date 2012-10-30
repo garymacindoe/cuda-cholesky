@@ -15,9 +15,9 @@ int main(int argc, char * argv[]) {
 
   if (argc != 4) {
     fprintf(stderr, "Usage: %s <uplo> <diag> <n>\nwhere:\n"
-    "  uplo is 'u' or 'U' for CBlasUpper or 'l' or 'L' for CBlasLower\n"
-    "  diag is 'u' or 'U' for CBlasUnit or 'n' or 'N' for CBlasNonUnit\n"
-    "  n                  is the size of the matrix\n", argv[0]);
+                    "  uplo is 'u' or 'U' for CBlasUpper or 'l' or 'L' for CBlasLower\n"
+                    "  diag is 'u' or 'U' for CBlasUnit or 'n' or 'N' for CBlasNonUnit\n"
+                    "  n                  is the size of the matrix\n", argv[0]);
     return 1;
   }
 

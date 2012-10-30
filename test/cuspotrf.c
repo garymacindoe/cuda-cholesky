@@ -3,9 +3,7 @@
 #include <stdio.h>
 #include <sys/time.h>
 #include <float.h>
-#ifndef BENCH
 #include "spotrf_ref.c"
-#endif
 
 int main(int argc, char * argv[]) {
   CBlasUplo uplo;
@@ -44,9 +42,9 @@ int main(int argc, char * argv[]) {
 
   srand(0);
 
-  float * A;
-  size_t lda;
-  long info;
+  float * A, * C, * refA;
+  size_t lda, ldc, k = 5 * n;
+  long info, rInfo;
   CUdeviceptr dA;
   size_t dlda;
   CUDA_MEMCPY2D copy;
@@ -73,11 +71,6 @@ int main(int argc, char * argv[]) {
     dA = 0;
     dlda = 0;
   }
-
-#ifndef BENCH
-  float * C, * refA;
-  size_t ldc, k = 5 * n;
-  long rInfo;
 
   if ((refA = malloc(lda * n * sizeof(float))) == NULL) {
     fprintf(stderr, "Unable to allocate refA\n");
@@ -126,7 +119,6 @@ int main(int argc, char * argv[]) {
         diff = d;
     }
   }
-#endif
 
   // Set A to identity so that repeated applications of the cholesky
   // decomposition while benchmarking do not exit early due to
@@ -158,15 +150,6 @@ int main(int argc, char * argv[]) {
   CU_ERROR_CHECK(cuEventDestroy(start));
   CU_ERROR_CHECK(cuEventDestroy(stop));
 
-#ifdef BENCH
-  fprintf(stderr, "SPOTRF,%c,%zu,%.3E\n", uplo, n, time);
-
-  free(A);
-  if (dA != 0)
-    CU_ERROR_CHECK(cuMemFree(dA));
-
-  return 0;
-#else
   size_t flops = ((n * n * n) / 3) + ((n * n) / 2) + (n / 6);
 
   fprintf(stdout, "%.3es %.3gGFlops/s Error: %.3e\n%sED!\n", time, ((float)flops * 1.e-9f) / time, diff, (passed) ? "PASS" : "FAIL");
@@ -177,5 +160,4 @@ int main(int argc, char * argv[]) {
     CU_ERROR_CHECK(cuMemFree(dA));
 
   return (int)!passed;
-#endif
 }

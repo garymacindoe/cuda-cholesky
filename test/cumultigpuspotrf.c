@@ -69,11 +69,11 @@ int main(int argc, char * argv[]) {
       C[j * ldc + i] = gaussian();
   }
   for (size_t j = 0; j < n; j++) {
-    for (size_t i = 0; i < n; i++)
-      refA[j * lda + i] = A[j * lda + i] = 0.0f;
-    for (size_t l = 0; l < k; l++) {
-      for (size_t i = 0; i < n; i++)
-        refA[j * lda + i] = A[j * lda + i] += C[l * ldc + j] * C[l * ldc + i];
+    for (size_t i = 0; i < n; i++) {
+      float temp = 0.0f;
+      for (size_t l = 0; l < k; l++)
+        temp += C[i * ldc + l] * C[j * ldc + l];
+      refA[j * lda + i] = A[j * lda + i] = temp;
     }
   }
   free(C);
@@ -113,7 +113,7 @@ int main(int argc, char * argv[]) {
 
   double time = ((double)(stop.tv_sec - start.tv_sec) + (double)(stop.tv_usec - start.tv_usec) * 1.e-6) / 20.0;
   size_t flops = ((n * n * n) / 3) + ((n * n) / 2) + (n / 6);
-  fprintf(stdout, "%.3es %.3gGFlops/s Error: %.3e\n%sED!\n", time, ((float)flops * 1.e-9f) / time, diff, (passed) ? "PASS" : "FAIL");
+  fprintf(stdout, "%.3es %.3gGFlops/s Error: %.3e\n%sED!\n", time, ((double)flops * 1.e-9) / time, diff, (passed) ? "PASS" : "FAIL");
 
   free(A);
   free(refA);

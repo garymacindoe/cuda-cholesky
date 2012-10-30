@@ -3,9 +3,7 @@
 #include <stdio.h>
 #include <sys/time.h>
 #include <float.h>
-#ifndef BENCH
 #include "spotrf_ref.c"
-#endif
 
 int main(int argc, char * argv[]) {
   CBlasUplo uplo;
@@ -34,20 +32,15 @@ int main(int argc, char * argv[]) {
 
   srand(0);
 
-  float * A;
-  size_t lda;
-  long info;
+  float * A, * C, * refA;
+  size_t lda, ldc, k = 5 * n;
+  long info, rInfo;
 
   lda = (n + 3u) & ~3u;
   if ((A = malloc(lda *  n * sizeof(float))) == NULL) {
     fprintf(stderr, "Unable to allocate A\n");
     return -1;
   }
-#ifndef BENCH
-  float * C, * refA;
-  size_t ldc, k = 5 * n;
-  long rInfo;
-
   if ((refA = malloc(lda * n * sizeof(float))) == NULL) {
     fprintf(stderr, "Unable to allocate refA\n");
     return -2;
@@ -85,7 +78,6 @@ int main(int argc, char * argv[]) {
         diff = d;
     }
   }
-#endif
 
   // Set A to identity so that repeated applications of the cholesky
   // decomposition while benchmarking do not exit early due to
@@ -108,19 +100,11 @@ int main(int argc, char * argv[]) {
   }
 
   double time = ((double)(stop.tv_sec - start.tv_sec) + (double)(stop.tv_usec - start.tv_usec) * 1.e-6) / 20.0;
-#ifdef BENCH
-  fprintf(stderr, "SPOTRF,%c,%zu,%.3E\n", uplo, n, time);
-
-  free(A);
-
-  return 0;
-#else
   size_t flops = ((n * n * n) / 3) + ((n * n) / 2) + (n / 6);
-  fprintf(stdout, "%.3es %.3gGFlops/s Error: %.3e\n%sED!\n", time, ((float)flops * 1.e-9f) / time, diff, (passed) ? "PASS" : "FAIL");
+  fprintf(stdout, "%.3es %.3gGFlops/s Error: %.3e\n%sED!\n", time, ((double)flops * 1.e-9) / time, diff, (passed) ? "PASS" : "FAIL");
 
   free(A);
   free(refA);
 
   return (int)!passed;
-#endif
 }
