@@ -18,7 +18,7 @@ static void dpotrf_ref(CBlasUplo uplo, size_t n, double * restrict A, size_t lda
         if (i == j) {
           if (temp <= 0.0 || isnan(temp)) {
             A[j * lda + j] = temp;
-            *info = (long)j;
+            *info = (long)j + 1;
             return;
           }
           A[j * lda + j] = sqrt(temp);
@@ -37,7 +37,7 @@ static void dpotrf_ref(CBlasUplo uplo, size_t n, double * restrict A, size_t lda
         if (i == j) {
           if (temp <= 0.0 || isnan(temp)) {
             A[j * lda + j] = temp;
-            *info = (long)j;
+            *info = (long)j + 1;
             return;
           }
           A[j * lda + j] = sqrt(temp);

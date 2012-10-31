@@ -23,7 +23,7 @@ static void zpotrf_ref(CBlasUplo uplo, size_t n, double complex * restrict A, si
         ajj -= A[j * lda + k] * conj(A[j * lda + k]);
       if (ajj <= 0.0 || isnan(ajj)) {
         A[j * lda + j] = ajj;
-        *info = (long)j;
+        *info = (long)j + 1;
         return;
       }
       else
@@ -41,7 +41,7 @@ static void zpotrf_ref(CBlasUplo uplo, size_t n, double complex * restrict A, si
       double ajj = creal(A[j * lda + j]);
       if (ajj <= 0.0 || isnan(ajj)) {
         A[j * lda + j] = ajj;
-        *info = (long)j;
+        *info = (long)j + 1;
         return;
       }
       ajj = sqrt(ajj);

@@ -23,7 +23,7 @@ static void cpotrf_ref(CBlasUplo uplo, size_t n, float complex * restrict A, siz
         ajj -= A[j * lda + k] * conjf(A[j * lda + k]);
       if (ajj <= 0.0f || isnan(ajj)) {
         A[j * lda + j] = ajj;
-        *info = (long)j;
+        *info = (long)j + 1;
         return;
       }
       else
@@ -41,7 +41,7 @@ static void cpotrf_ref(CBlasUplo uplo, size_t n, float complex * restrict A, siz
       float ajj = crealf(A[j * lda + j]);
       if (ajj <= 0.0f || isnan(ajj)) {
         A[j * lda + j] = ajj;
-        *info = (long)j;
+        *info = (long)j + 1;
         return;
       }
       ajj = sqrtf(ajj);

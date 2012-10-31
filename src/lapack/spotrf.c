@@ -38,7 +38,7 @@ static inline void spotf2(CBlasUplo uplo, size_t n, float * restrict A, size_t l
       register float aii = A[i * lda + i] - temp;
       if (aii <= zero || isnan(aii)) {
         A[i * lda + i] = aii;
-        *info = (long)i;
+        *info = (long)i + 1;
         return;
       }
       aii = sqrtf(aii);
@@ -62,7 +62,7 @@ static inline void spotf2(CBlasUplo uplo, size_t n, float * restrict A, size_t l
 
       register float ajj = A[j * lda + j];
       if (ajj <= zero || isnan(ajj)) {
-        *info = (long)j;
+        *info = (long)j + 1;
         return;
       }
       ajj = sqrtf(ajj);

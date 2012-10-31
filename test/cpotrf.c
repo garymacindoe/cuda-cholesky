@@ -33,7 +33,7 @@ int main(int argc, char * argv[]) {
 
   srand(0);
 
-  float complex * A, * C, * refC;
+  float complex * A, * C, * refA;
   size_t lda, ldc, k = 5 * n;
   long info, rInfo;
 
@@ -106,7 +106,7 @@ int main(int argc, char * argv[]) {
 
   double time = ((double)(stop.tv_sec - start.tv_sec) + (double)(stop.tv_usec - start.tv_usec) * 1.e-6) / 20.0;
   size_t flops = (((n * n * n) / 6) + ((n * n) / 2) + (n / 3)) * 6 + (((n * n * n) / 6) - (n / 6)) * 2;
-  fprintf(stdout, "%.3es %.3gGFlops/s Error: %.3e\n%sED!\n", time, ((double)flops * 1.e-9) / time, diff, (passed) ? "PASS" : "FAIL");
+  fprintf(stdout, "%.3es %.3gGFlops/s Error: %.3e + %.3ei\n%sED!\n", time, ((double)flops * 1.e-9) / time, rdiff, idiff, (passed) ? "PASS" : "FAIL");
 
   free(A);
   free(refA);

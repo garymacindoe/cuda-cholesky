@@ -24,10 +24,6 @@ else
   LDLIBS += -lgomp
 endif
 
-ifeq ($(bench), 1)
-  CPPFLAGS += -DBENCH
-endif
-
 RM = rm -f
 RMDIR = rm -rf
 MKDIR = mkdir

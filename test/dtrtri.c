@@ -197,7 +197,7 @@ static void dtrtri_ref(CBlasUplo uplo, CBlasDiag diag, size_t n, double * restri
         size_t i = n - 1;
         do {
           if (A[j * lda + i] != 0.0) {
-            double temp = A[j * lda + i];
+            register double temp = A[j * lda + i];
             if (diag == CBlasNonUnit) A[j * lda + i] *= A[i * lda + i];
             for (size_t k = i + 1; k < n; k++)
               A[j * lda + k] += temp * A[i * lda + k];

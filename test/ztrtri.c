@@ -6,7 +6,7 @@
 #include <float.h>
 #include <complex.h>
 
-static void ctrtri_ref(CBlasUplo, CBlasDiag, size_t, double complex * restrict, size_t, long * restrict);
+static void ztrtri_ref(CBlasUplo, CBlasDiag, size_t, double complex * restrict, size_t, long * restrict);
 static double complex gaussian();
 
 int main(int argc, char * argv[]) {
