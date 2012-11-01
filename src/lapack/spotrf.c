@@ -128,18 +128,17 @@ void spotrf(CBlasUplo uplo, size_t n, float * restrict A, size_t lda, long * res
 }
 
 static inline CUresult cuSpotf2(CUmodule module, CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, CUdeviceptr info, CUstream stream) {
-  const unsigned int bx = (uplo == CBlasUpper) ?  8 : 16;
-  const unsigned int by = (uplo == CBlasUpper) ?  8 :  4;
+  const unsigned int bx = 64;
 
-  char name[43];
-  snprintf(name, 43, "_Z6spotf2IL9CBlasUplo%dELj%uELj%uEEviPfiPi", uplo, bx, by);
+  char name[39];
+  snprintf(name, 39, "_Z6spotf2IL9CBlasUplo%dELj%uEEviPfiPi", uplo, bx);
 
   CUfunction function;
   CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
 
   void * params[] = { &n, &A, &lda, &info };
 
-  CU_ERROR_CHECK(cuLaunchKernel(function, 1, 1, 1, bx, by, 1, 0, stream, params, NULL));
+  CU_ERROR_CHECK(cuLaunchKernel(function, 1, 1, 1, bx, 1, 1, 0, stream, params, NULL));
 
   return CUDA_SUCCESS;
 }

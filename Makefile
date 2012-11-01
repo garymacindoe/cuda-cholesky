@@ -5,7 +5,7 @@ CC = gcc
 NVCC = nvcc
 PTXAS = ptxas
 FATBINARY = fatbinary
-NVCFLAGS = -O2 -arch=sm_13 -use_fast_math -maxrregcount=32
+NVCFLAGS = -O2 -arch=sm_11 -use_fast_math -maxrregcount=32
 PTXASFLAGS = -O2 -maxrregcount=32
 
 CPPFLAGS = -Iinclude -I$(CUDA_HOME)/include
@@ -15,6 +15,7 @@ LDLIBS = -lcuda -lrt -ldl -lblas -llapack
 
 # TODO:  separate no-opt CFLAGS for testing code.
 # TODO:  implement hacks in C codes to vectorise all possible loops.
+# TODO:  fatbins and arches
 ifeq ($(notdir $(CC)), icc)
   CFLAGS = -xHost -O2 -pipe -std=c99 -Wall -openmp
   LDFLAGS += -L$(INTEL_HOME)
@@ -24,11 +25,15 @@ else
   LDLIBS += -lgomp
 endif
 
+ifeq ($(verbose), 1)
+  NVCFLAGS += -Xptxas=-v
+endif
+
 RM = rm -f
 RMDIR = rm -rf
 MKDIR = mkdir
 
-VPATH = include src src/blas
+VPATH = include src src/blas src/lapack
 
 OBJDIR = obj
 PTXDIR = ptx
@@ -54,7 +59,8 @@ TEST_PROGS = sgemm dgemm cgemm zgemm \
 TEST_CUBINS = sgemm.cubin dgemm.cubin cgemm.cubin zgemm.cubin \
               ssyrk.cubin dsyrk.cubin cherk.cubin zherk.cubin \
               strmm.cubin dtrmm.cubin ctrmm.cubin ztrmm.cubin \
-              strsm.cubin dtrsm.cubin ctrsm.cubin ztrsm.cubin
+              strsm.cubin dtrsm.cubin ctrsm.cubin ztrsm.cubin \
+              spotrf.cubin dpotrf.cubin cpotrf.cubin zpotrf.cubin
 
 all: $(TEST_PROGS)
 
@@ -111,10 +117,10 @@ cudtrsm: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dg
 cuctrsm: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/src/blas/ctrsm.o $(OBJDIR)/test/cuctrsm.o | ctrsm.cubin
 cuztrsm: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/blas/ztrsm.o $(OBJDIR)/test/cuztrsm.o | ztrsm.cubin
 
-cuspotrf: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/src/blas/ssyrk.o $(OBJDIR)/src/blas/strsm.o $(OBJDIR)/src/lapack/spotrf.o $(OBJDIR)/test/cuspotrf.o | sgemm.cubin ssyrk.cubin strsm.cubin
-cudpotrf: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/src/blas/dsyrk.o $(OBJDIR)/src/blas/dtrsm.o $(OBJDIR)/src/lapack/dpotrf.o $(OBJDIR)/test/cudpotrf.o | dgemm.cubin dsyrk.cubin dtrsm.cubin
-cucpotrf: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/src/blas/cherk.o $(OBJDIR)/src/blas/ctrsm.o $(OBJDIR)/src/lapack/cpotrf.o $(OBJDIR)/test/cucpotrf.o | cgemm.cubin cherk.cubin ctrsm.cubin
-cuzpotrf: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/blas/zherk.o $(OBJDIR)/src/blas/ztrsm.o $(OBJDIR)/src/lapack/zpotrf.o $(OBJDIR)/test/cuzpotrf.o | zgemm.cubin zherk.cubin ztrsm.cubin
+cuspotrf: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/src/blas/ssyrk.o $(OBJDIR)/src/blas/strsm.o $(OBJDIR)/src/lapack/spotrf.o $(OBJDIR)/test/cuspotrf.o | sgemm.cubin ssyrk.cubin strsm.cubin spotrf.cubin
+cudpotrf: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/src/blas/dsyrk.o $(OBJDIR)/src/blas/dtrsm.o $(OBJDIR)/src/lapack/dpotrf.o $(OBJDIR)/test/cudpotrf.o | dgemm.cubin dsyrk.cubin dtrsm.cubin dpotrf.cubin
+cucpotrf: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/src/blas/cherk.o $(OBJDIR)/src/blas/ctrsm.o $(OBJDIR)/src/lapack/cpotrf.o $(OBJDIR)/test/cucpotrf.o | cgemm.cubin cherk.cubin ctrsm.cubin cpotrf.cubin
+cuzpotrf: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/blas/zherk.o $(OBJDIR)/src/blas/ztrsm.o $(OBJDIR)/src/lapack/zpotrf.o $(OBJDIR)/test/cuzpotrf.o | zgemm.cubin zherk.cubin ztrsm.cubin zpotrf.cubin
 
 cumultigpusgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/test/cumultigpusgemm.o | sgemm.cubin
 cumultigpudgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/test/cumultigpudgemm.o | dgemm.cubin
