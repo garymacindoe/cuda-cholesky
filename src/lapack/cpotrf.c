@@ -129,19 +129,18 @@ void cpotrf(CBlasUplo uplo, size_t n, float complex * restrict A, size_t lda, lo
   }
 }
 
-static inline CUresult cuCpotf2(CUmodule module, CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, CUdeviceptr info, CUstream stream) {
-  const unsigned int bx = (uplo == CBlasUpper) ?  8 : 16;
-  const unsigned int by = (uplo == CBlasUpper) ?  8 :  4;
+/*static inline*/ CUresult cuCpotf2(CUmodule module, CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, CUdeviceptr info, CUstream stream) {
+  const unsigned int bx = 32;
 
-  char name[43];
-  snprintf(name, 43, "_Z6cpotf2IL9CBlasUplo%dELj%uELj%uEEviPfiPi", uplo, bx, by);
+  char name[45];
+  snprintf(name, 45, "_Z6cpotf2IL9CBlasUplo%dELj%uEEviP6float2iPi", uplo, bx);
 
   CUfunction function;
   CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
 
   void * params[] = { &n, &A, &lda, &info };
 
-  CU_ERROR_CHECK(cuLaunchKernel(function, 1, 1, 1, bx, by, 1, 0, stream, params, NULL));
+  CU_ERROR_CHECK(cuLaunchKernel(function, 1, 1, 1, bx, 1, 1, 0, stream, params, NULL));
 
   return CUDA_SUCCESS;
 }

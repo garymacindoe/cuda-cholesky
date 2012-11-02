@@ -1,4 +1,3 @@
-// nvcc -I../../include -O2 -arch=compute_13 -code=sm_13 -use_fast_math -Xptxas=-v -maxrregcount=32 -cubin spotrf.cu
 #include "blas.h"
 
 /*

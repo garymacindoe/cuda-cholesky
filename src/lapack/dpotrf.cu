@@ -1,112 +1,151 @@
-// nvcc -I../../include -O2 -arch=compute_13 -code=sm_13 -use_fast_math -Xptxas=-v -maxrregcount=32 -cubin dpotrf.cu
 #include "blas.h"
 
-template <unsigned int bs>
-__device__ double ddot(int ti, int n, const double * x, const double * y) {
-  __shared__ double temp[bs];
-
-  double res = 0.0;
-
-  for (int i = ti; i < n; i += bs * 2) {
-    res += x[i] * y[i];
-    if (i + bs < n)
-      res += x[i + bs] * y[i + bs];
-  }
-
-  temp[ti] = res;
-  __syncthreads();
-
-  if (bs >= 512) { if (ti < 256) { temp[ti] = res = res + temp[ti + 256]; } __syncthreads(); }
-  if (bs >= 256) { if (ti < 128) { temp[ti] = res = res + temp[ti + 128]; } __syncthreads(); }
-  if (bs >= 128) { if (ti <  64) { temp[ti] = res = res + temp[ti +  64]; } __syncthreads(); }
-
-  if (ti < 32) {
-    volatile double * vtemp = temp;
-    if (bs >= 64) { vtemp[ti] = res = res + vtemp[ti + 32]; }
-    if (bs >= 32) { vtemp[ti] = res = res + vtemp[ti + 16]; }
-    if (bs >= 16) { vtemp[ti] = res = res + vtemp[ti +  8]; }
-    if (bs >=  8) { vtemp[ti] = res = res + vtemp[ti +  4]; }
-    if (bs >=  4) { vtemp[ti] = res = res + vtemp[ti +  2]; }
-    if (bs >=  2) { vtemp[ti] = res = res + vtemp[ti +  1]; }
-  }
-
-  return res;
+/*
+ * Indexing function for upper triangular packed storage mode.  Only works when
+ * i <= j otherwise generates an out-of-bounds access in shared memory and CUDA
+ * will segfault.
+ */
+__device__ int upper(int i, int j) {
+  return ((j * (j + 1)) / 2) + i;
 }
 
-template <CBlasUplo uplo, unsigned int bx, unsigned int by>
-__global__ void dpotf2(int n, double * A, int lda, int * info) {
-  const int ti = threadIdx.y * bx + threadIdx.x;
+/*
+ * Indexing function for lower triangular packed storage mode.  Only works when
+ * i >= j otherwise generates an out-of-bounds access in shared memory and CUDA
+ * will segfault.
+ */
+template <unsigned int bx>
+__device__ int lower(int i, int j) {
+  return ((2 * bx - j - 1) * j) / 2 + i;
+}
 
-  __shared__ int s_info;
-  if (ti == 0)
-    s_info = 0;
+template <CBlasUplo uplo, unsigned int bx>
+__global__ void dpotf2(int n, double * A, int lda, int * info) {
+  // info parameter cached in shared memory for fast access by all threads in the block
+  __shared__ int sinfo;
+
+  // thread 0 is the only thread to write to info in shared or global memory
+  if (threadIdx.x == 0)
+    *info = sinfo = 0;  // initialise info to zero and cache
+
+  /*
+   * For efficient data reuse A needs to be cached in shared memory.  In order
+   * to get maximum instruction throughput 32 threads are needed but this would
+   * use 8192 bytes (32 * 32 * sizeof(double)) of shared memory to store A.
+   * Triangular packed storage mode is therefore used to store only the
+   * triangle of A being updated using 4224 bytes((32 * (32 + 1)) / 2 * sizeof(double))
+   * of shared memory.
+   * Since this is only ever going to be run using one thread block shared
+   * memory and register use can be higher than when trying to fit multiple
+   * thread blocks onto each multiprocessor.
+   */
+  __shared__ double a[(bx * (bx + 1)) / 2];
 
   if (uplo == CBlasUpper) {
-    for (int i = 0; i < n; i++) {
-      double temp = ddot<bx * by>(ti, i, &A[i * lda], &A[i * lda]);
+    // Read upper triangle of A into shared memory
+    #pragma unroll
+    for (int j = 0; j < bx; j++) {
+      if (threadIdx.x <= j)
+        a[upper(threadIdx.x, j)] = A[j * lda + threadIdx.x];
+    }
 
-      double aii;
-      if (ti == 0) {
-        temp = A[i * lda + i] - temp;
-        if (temp <= 0.0 || isnan(temp)) {
-          A[i * lda + i] = temp;
-          *info = s_info = i;
+    __syncthreads();
+
+    // Perform the cholesky decomposition
+    // Accesses do not have to be coalesced or aligned as they would if A were
+    // in global memory.  Using triangular packed storage also neatly avoids
+    // bank conflicts.
+    for (int j = 0; j < n; j++) {
+      double temp;
+      if (threadIdx.x >= j) {
+        // DGEMV/DSYRK
+        temp = a[upper(j, threadIdx.x)];
+        for (int k = 0; k < j; k++)
+          temp -= a[upper(k, j)] * a[upper(k, threadIdx.x)];
+
+        // Thread zero calculates the diagonal element
+        if (threadIdx.x == j) {
+          if (temp <= 0.0 || isnan(temp)) {
+            *info = sinfo = j + 1;      // update info in shared and global memory
+            a[upper(j, threadIdx.x)] = temp;
+          }
+          else
+            a[upper(j, threadIdx.x)] = sqrt(temp);
         }
-        else
-          A[i * lda + i] = aii = sqrt(temp);
       }
 
       __syncthreads();
 
-      if (s_info != 0)
+      // If info != 0 return (matrix is not positive definite)
+      if (sinfo != 0)
         return;
 
-      for (int j = i + 1; j < n; j++) {
-        temp = ddot<bx * by>(ti, i, &A[i * lda], &A[j * lda]);
-        if (ti == 0)
-          A[j * lda + i] = (A[j * lda + i] - temp) / aii;
-      }
+      // DSCAL
+      if (threadIdx.x > j)
+        a[upper(j, threadIdx.x)] = temp / a[upper(j, j)];
 
       __syncthreads();
+    }
+
+    // Write the upper triangle of A back to global memory
+    for (int j = 0; j < n; j++) {
+      if (threadIdx.x <= j)
+        A[j * lda + threadIdx.x] = a[upper(threadIdx.x, j)];
     }
   }
   else {
-    __shared__ double ajj;
-    for (int j = 0; j < n; j++) {
-      if (j + ti < n) {
-        double temp = A[j * lda + j + ti];
-        for (int k = 0; k < j; k++)
-          temp -= A[k * lda + j] * A[k * lda + j + ti];
+    // Read lower triangle of A into shared memory
+    #pragma unroll
+    for (int j = 0; j < bx; j++) {
+      if (threadIdx.x >= j)
+        a[lower<bx>(threadIdx.x, j)] = A[j * lda + threadIdx.x];
+    }
 
-        if (ti == 0) {
+    __syncthreads();
+
+    // Perform the cholesky decomposition
+    // Accesses do not have to be coalesced or aligned as they would if A were
+    // in global memory.  Using triangular packed storage also neatly avoids
+    // bank conflicts.
+    for (int j = 0; j < n; j++) {
+      double temp;
+      if (threadIdx.x >= j) {
+        // DGEMV/DSYRK
+        temp = a[lower<bx>(threadIdx.x, j)];
+        for (int k = 0; k < j; k++)
+          temp -= a[lower<bx>(j, k)] * a[lower<bx>(threadIdx.x, k)];
+
+        // Thread zero calculates the diagonal element
+        if (threadIdx.x == j) {
           if (temp <= 0.0 || isnan(temp)) {
-            A[j * lda + j] = temp;
-            *info = s_info = j;
+            *info = sinfo = j + 1;      // update info in shared and global memory
+            a[lower<bx>(threadIdx.x, j)] = temp;
           }
           else
-            A[j * lda + j] = ajj = sqrt(temp);
+            a[lower<bx>(threadIdx.x, j)] = sqrt(temp);
         }
-
-        __syncthreads();
-
-        if (s_info != 0)
-          return;
-
-        if (ti > 0)
-          A[j * lda + j + ti] = temp / ajj;
-      }
-
-      for (int i = j + bx * by + ti; i < n; i += bx * by) {
-        double temp = A[j * lda + i];
-        for (int k = 0; k < j; k++)
-          temp -= A[k * lda + j] * A[k * lda + i];
-        A[j * lda + i] = temp / ajj;
       }
 
       __syncthreads();
+
+      // If info != 0 return (matrix is not positive definite)
+      if (sinfo != 0)
+        return;
+
+      // DSCAL
+      if (threadIdx.x > j)
+        a[lower<bx>(threadIdx.x, j)] = temp / a[lower<bx>(j, j)];
+
+      __syncthreads();
+    }
+
+    // Write the lower triangle of A back to global memory
+    for (int j = 0; j < n; j++) {
+      if (threadIdx.x >= j)
+        A[j * lda + threadIdx.x] = a[lower<bx>(threadIdx.x, j)];
     }
   }
 }
 
-template void dpotf2<CBlasUpper,  8, 8>(int, double *, int, int *);
-template void dpotf2<CBlasLower, 16, 4>(int, double *, int, int *);
+template void dpotf2<CBlasUpper, 32>(int, double *, int, int *);
+template void dpotf2<CBlasLower, 32>(int, double *, int, int *);

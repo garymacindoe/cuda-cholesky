@@ -6,6 +6,8 @@
 #include <complex.h>
 #include "cpotrf_ref.c"
 
+CUresult cuCpotf2(CUmodule module, CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, CUdeviceptr info, CUstream stream);
+
 int main(int argc, char * argv[]) {
   CBlasUplo uplo;
   size_t n;
@@ -103,13 +105,21 @@ int main(int argc, char * argv[]) {
   n * sizeof(float complex), n };
   CU_ERROR_CHECK(cuMemcpy2D(&copy));
 
+  CUdeviceptr dInfo;
+  CU_ERROR_CHECK(cuMemAlloc(&dInfo, sizeof(long)));
+
+  CUmodule cpotrf;
+  CU_ERROR_CHECK(cuModuleLoad(&cpotrf, "cpotrf.cubin"));
+
   cpotrf_ref(uplo, n, refA, lda, &rInfo);
-  CU_ERROR_CHECK(cuCpotrf(uplo, n, dA, dlda, &info));
+  CU_ERROR_CHECK(cuCpotf2(cpotrf, uplo, n, dA, dlda, dInfo, 0));
 
   copy = (CUDA_MEMCPY2D){ 0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(float complex),
   0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(float complex),
   n * sizeof(float complex), n };
   CU_ERROR_CHECK(cuMemcpy2D(&copy));
+
+  CU_ERROR_CHECK(cuMemcpyDtoH(&info, dInfo, sizeof(long)));
 
   bool passed = (info == rInfo);
   float rdiff = 0.0f, idiff = 0.0f;
@@ -144,7 +154,7 @@ int main(int argc, char * argv[]) {
 
   CU_ERROR_CHECK(cuEventRecord(start, NULL));
   for (size_t i = 0; i < 20; i++)
-    CU_ERROR_CHECK(cuCpotrf(uplo, n, dA, dlda, &info));
+    CU_ERROR_CHECK(cuCpotf2(cpotrf, uplo, n, dA, dlda, dInfo, 0));
   CU_ERROR_CHECK(cuEventRecord(stop, NULL));
   CU_ERROR_CHECK(cuEventSynchronize(stop));
 
@@ -156,12 +166,15 @@ int main(int argc, char * argv[]) {
   CU_ERROR_CHECK(cuEventDestroy(stop));
 
   size_t flops = (((n * n * n) / 6) + ((n * n) / 2) + (n / 3)) * 6 + (((n * n * n) / 6) - (n / 6)) * 2;
-  fprintf(stdout, "%.3es %.3gGFlops/s Error: %.3e\n%sED!\n", time, ((float)flops * 1.e-9f) / time, diff, (passed) ? "PASS" : "FAIL");
+  fprintf(stdout, "%.3es %.3gGFlops/s Error: %.3e + %.3ei\n%sED!\n", time, ((float)flops * 1.e-9f) / time, rdiff, idiff, (passed) ? "PASS" : "FAIL");
 
   free(A);
   free(refA);
   if (dA != 0)
     CU_ERROR_CHECK(cuMemFree(dA));
+
+  CU_ERROR_CHECK(cuModuleUnload(cpotrf));
+  CU_ERROR_CHECK(cuMemFree(dInfo));
 
   return (int)!passed;
 }

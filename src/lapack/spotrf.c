@@ -127,7 +127,7 @@ void spotrf(CBlasUplo uplo, size_t n, float * restrict A, size_t lda, long * res
   }
 }
 
-static inline CUresult cuSpotf2(CUmodule module, CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, CUdeviceptr info, CUstream stream) {
+/*static inline */CUresult cuSpotf2(CUmodule module, CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, CUdeviceptr info, CUstream stream) {
   const unsigned int bx = 64;
 
   char name[39];

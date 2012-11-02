@@ -1,115 +1,179 @@
-// nvcc -I../../include -O2 -arch=compute_13 -code=sm_13 -use_fast_math -Xptxas=-v -maxrregcount=32 -cubin zpotrf.cu
 #include "blas.h"
 #include <cuComplex.h>
 
-template <unsigned int bs>
-__device__ cuDoubleComplex zdotc(int ti, int n, const cuDoubleComplex * x, const cuDoubleComplex * y) {
-  __shared__ double temp_real[bs], temp_imag[bs];
+/*
+ * cuComplex.h provides cuCfma but not cuCfsm.
+ *
+ * cuCfma: x * y + d
+ * cuCfms: x * y - d
+ * cuCfsm: d - x * y
+ */
+__device__ cuDoubleComplex cuCfsm(cuDoubleComplex x, cuDoubleComplex y, cuDoubleComplex d) {
+    double real_res;
+    double imag_res;
 
-  cuDoubleComplex res = make_cuDoubleComplex(0.0, 0.0);
+    real_res = -(cuCreal(x) * cuCreal(y)) + cuCreal(d);
+    imag_res = -(cuCreal(x) * cuCimag(y)) + cuCimag(d);
 
-  for (int i = ti; i < n; i += bs * 2) {
-    res = cuCfma(cuConj(x[i]), y[i], res);
-    if (i + bs < n)
-      res = cuCfma(cuConj(x[i + bs]), y[i + bs], res);
-  }
+    real_res =  (cuCimag(x) * cuCimag(y)) + real_res;
+    imag_res = -(cuCimag(x) * cuCreal(y)) + imag_res;
 
-  temp_real[ti] = cuCreal(res);
-  temp_imag[ti] = cuCimag(res);
-  __syncthreads();
-
-  if (bs >= 512) { if (ti < 256) res = make_cuDoubleComplex(temp_real[ti] = cuCreal(res) + temp_real[ti + 256], temp_imag[ti] = cuCimag(res) + temp_imag[ti + 256]); __syncthreads(); }
-  if (bs >= 256) { if (ti < 128) res = make_cuDoubleComplex(temp_real[ti] = cuCreal(res) + temp_real[ti + 128], temp_imag[ti] = cuCimag(res) + temp_imag[ti + 128]); __syncthreads(); }
-  if (bs >= 128) { if (ti <  64) res = make_cuDoubleComplex(temp_real[ti] = cuCreal(res) + temp_real[ti +  64], temp_imag[ti] = cuCimag(res) + temp_imag[ti +  64]); __syncthreads(); }
-
-  if (ti < 32) {
-    volatile double * vtemp_real = temp_real;
-    volatile double * vtemp_imag = temp_imag;
-    if (bs >= 64) { res = make_cuDoubleComplex(vtemp_real[ti] = cuCreal(res) + vtemp_real[ti + 32], vtemp_imag[ti] = cuCimag(res) + vtemp_imag[ti + 32]); }
-    if (bs >= 32) { res = make_cuDoubleComplex(vtemp_real[ti] = cuCreal(res) + vtemp_real[ti + 16], vtemp_imag[ti] = cuCimag(res) + vtemp_imag[ti + 16]); }
-    if (bs >= 16) { res = make_cuDoubleComplex(vtemp_real[ti] = cuCreal(res) + vtemp_real[ti +  8], vtemp_imag[ti] = cuCimag(res) + vtemp_imag[ti +  8]); }
-    if (bs >=  8) { res = make_cuDoubleComplex(vtemp_real[ti] = cuCreal(res) + vtemp_real[ti +  4], vtemp_imag[ti] = cuCimag(res) + vtemp_imag[ti +  4]); }
-    if (bs >=  4) { res = make_cuDoubleComplex(vtemp_real[ti] = cuCreal(res) + vtemp_real[ti +  2], vtemp_imag[ti] = cuCimag(res) + vtemp_imag[ti +  2]); }
-    if (bs >=  2) { res = make_cuDoubleComplex(vtemp_real[ti] = cuCreal(res) + vtemp_real[ti +  1], vtemp_imag[ti] = cuCimag(res) + vtemp_imag[ti +  1]); }
-  }
-
-  return res;
+    return make_cuDoubleComplex(real_res, imag_res);
 }
 
-template <CBlasUplo uplo, unsigned int bx, unsigned int by>
-__global__ void zpotf2(int n, cuDoubleComplex * A, int lda, int * info) {
-  const int ti = threadIdx.y * bx + threadIdx.x;
+/*
+ * Divide complex by scalar.
+ */
+__device__ cuDoubleComplex cuDiva(cuDoubleComplex x, double a) {
+  return make_cuDoubleComplex(cuCreal(x) / a, cuCimag(x) / a);
+}
 
-  __shared__ int s_info;
-  if (ti == 0)
-    s_info = 0;
+/*
+ * Indexing function for upper triangular packed storage mode.  Only works when
+ * i <= j otherwise generates an out-of-bounds access in shared memory and CUDA
+ * will segfault.
+ */
+__device__ int upper(int i, int j) {
+  return ((j * (j + 1)) / 2) + i;
+}
+
+/*
+ * Indexing function for lower triangular packed storage mode.  Only works when
+ * i >= j otherwise generates an out-of-bounds access in shared memory and CUDA
+ * will segfault.
+ */
+template <unsigned int bx>
+__device__ int lower(int i, int j) {
+  return ((2 * bx - j - 1) * j) / 2 + i;
+}
+
+template <CBlasUplo uplo, unsigned int bx>
+__global__ void zpotf2(int n, cuDoubleComplex * A, int lda, int * info) {
+  // info parameter cached in shared memory for fast access by all threads in the block
+  __shared__ int sinfo;
+
+  // thread 0 is the only thread to write to info in shared or global memory
+  if (threadIdx.x == 0)
+    *info = sinfo = 0;  // initialise info to zero and cache
+
+  /*
+   * For efficient data reuse A needs to be cached in shared memory.  In order
+   * to get maximum instruction throughput 32 threads are needed but this would
+   * use 8192 bytes (32 * 32 * sizeof(cuComplex)) of shared memory to store A.
+   * Triangular packed storage mode is therefore used to store only the
+   * triangle of A being updated using 4224 bytes((32 * (32 + 1)) / 2 * sizeof(cuComplex))
+   * of shared memory.
+   * Since this is only ever going to be run using one thread block shared
+   * memory and register use can be higher than when trying to fit multiple
+   * thread blocks onto each multiprocessor.
+   */
+  __shared__ cuDoubleComplex a[(bx * (bx + 1)) / 2];
 
   if (uplo == CBlasUpper) {
-    for (int i = 0; i < n; i++) {
-      cuDoubleComplex temp = zdotc<bx * by>(ti, i, &A[i * lda], &A[i * lda]);
+    // Read upper triangle of A into shared memory
+    #pragma unroll
+    for (int j = 0; j < bx; j++) {
+      if (threadIdx.x <= j)
+        a[upper(threadIdx.x, j)] = A[j * lda + threadIdx.x];
+    }
 
-      double aii;
-      if (ti == 0) {
-        aii = cuCreal(A[i * lda + i]) - cuCreal(temp);
-        if (aii <= 0.0 || isnan(aii)) {
-          A[i * lda + i] = temp;
-          *info = s_info = i;
+    __syncthreads();
+
+    // Perform the cholesky decomposition
+    // Accesses do not have to be coalesced or aligned as they would if A were
+    // in global memory.  Using triangular packed storage also neatly avoids
+    // bank conflicts.
+    for (int j = 0; j < n; j++) {
+      cuDoubleComplex temp;
+      if (threadIdx.x >= j) {
+        // ZGEMV/ZHERK
+        temp = a[upper(j, threadIdx.x)];
+        for (int k = 0; k < j; k++)
+          temp = cuCfsm(a[upper(k, j)], cuConj(a[upper(k, threadIdx.x)]), temp);
+
+        // Thread zero calculates the diagonal element
+        if (threadIdx.x == j) {
+          if (cuCreal(temp) <= 0.0 || isnan(cuCreal(temp))) {
+            *info = sinfo = j + 1;      // update info in shared and global memory
+            a[upper(j, threadIdx.x)] = temp;
+          }
+          else
+            a[upper(j, threadIdx.x)] = make_cuDoubleComplex(sqrt(cuCreal(temp)), 0.0);
         }
-        else
-          A[i * lda + i] = make_cuDoubleComplex(aii = sqrt(aii), 0.0);
       }
 
       __syncthreads();
 
-      if (s_info != 0)
+      // If info != 0 return (matrix is not positive definite)
+      if (sinfo != 0)
         return;
 
-      for (int j = i + 1; j < n; j++) {
-        temp = zdotc<bx * by>(ti, i, &A[i * lda], &A[j * lda]);
-        if (ti == 0)
-          A[j * lda + i] = make_cuDoubleComplex((cuCreal(A[j * lda + i]) - cuCreal(temp)) / aii, (cuCimag(A[j * lda + i]) - cuCimag(temp)) / aii);
-      }
+      // ZSSCAL
+      if (threadIdx.x > j)
+        a[upper(j, threadIdx.x)] = cuDiva(temp, cuCreal(a[upper(j, j)]));
 
       __syncthreads();
+    }
+
+    // Write the upper triangle of A back to global memory
+    for (int j = 0; j < n; j++) {
+      if (threadIdx.x <= j)
+        A[j * lda + threadIdx.x] = a[upper(threadIdx.x, j)];
     }
   }
   else {
-    __shared__ double ajj;
-    for (int j = 0; j < n; j++) {
-      if (j + ti < n) {
-        cuDoubleComplex temp = A[j * lda + j + ti];
-        for (int k = 0; k < j; k++)
-          temp = cuCsub(temp, cuCmul(cuConj(A[k * lda + j]), A[k * lda + j + ti]));
+    // Read lower triangle of A into shared memory
+    #pragma unroll
+    for (int j = 0; j < bx; j++) {
+      if (threadIdx.x >= j)
+        a[lower<bx>(threadIdx.x, j)] = A[j * lda + threadIdx.x];
+    }
 
-        if (ti == 0) {
+    __syncthreads();
+
+    // Perform the cholesky decomposition
+    // Accesses do not have to be coalesced or aligned as they would if A were
+    // in global memory.  Using triangular packed storage also neatly avoids
+    // bank conflicts.
+    for (int j = 0; j < n; j++) {
+      cuDoubleComplex temp;
+      if (threadIdx.x >= j) {
+        // ZGEMV/ZHERK
+        temp = a[lower<bx>(threadIdx.x, j)];
+        for (int k = 0; k < j; k++)
+          temp = cuCfsm(a[lower<bx>(j, k)], cuConj(a[lower<bx>(threadIdx.x, k)]), temp);
+
+        // Thread zero calculates the diagonal element
+        if (threadIdx.x == j) {
           if (cuCreal(temp) <= 0.0 || isnan(cuCreal(temp))) {
-            A[j * lda + j] = temp;
-            *info = s_info = j;
+            *info = sinfo = j + 1;      // update info in shared and global memory
+            a[lower<bx>(threadIdx.x, j)] = make_cuDoubleComplex(cuCreal(temp), 0.0);
           }
           else
-            A[j * lda + j] = make_cuDoubleComplex(ajj = sqrt(cuCreal(temp)), 0.0);
+            a[lower<bx>(threadIdx.x, j)] = make_cuDoubleComplex(sqrt(cuCreal(temp)), 0.0);
         }
-
-        __syncthreads();
-
-        if (s_info != 0)
-          return;
-
-        if (ti > 0)
-          A[j * lda + j + ti] = make_cuDoubleComplex(cuCreal(temp) / ajj, cuCimag(temp) / ajj);
-      }
-
-      for (int i = j + bx * by + ti; i < n; i += bx * by) {
-        cuDoubleComplex temp = A[j * lda + i];
-        for (int k = 0; k < j; k++)
-          temp = cuCsub(temp, cuCmul(cuConj(A[k * lda + j]), A[k * lda + i]));
-        A[j * lda + i] = make_cuDoubleComplex(cuCreal(temp) / ajj, cuCimag(temp) / ajj);
       }
 
       __syncthreads();
+
+      // If info != 0 return (matrix is not positive definite)
+      if (sinfo != 0)
+        return;
+
+      // ZSSCAL
+      if (threadIdx.x > j)
+        a[lower<bx>(threadIdx.x, j)] = cuDiva(temp, cuCreal(a[lower<bx>(j, j)]));
+
+      __syncthreads();
+    }
+
+    // Write the lower triangle of A back to global memory
+    for (int j = 0; j < n; j++) {
+      if (threadIdx.x >= j)
+        A[j * lda + threadIdx.x] = a[lower<bx>(threadIdx.x, j)];
     }
   }
 }
 
-template void zpotf2<CBlasUpper,  8, 8>(int, cuDoubleComplex *, int, int *);
-template void zpotf2<CBlasLower, 16, 4>(int, cuDoubleComplex *, int, int *);
+template void zpotf2<CBlasUpper, 32>(int, cuDoubleComplex *, int, int *);
+template void zpotf2<CBlasLower, 32>(int, cuDoubleComplex *, int, int *);
