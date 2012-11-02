@@ -111,7 +111,7 @@ int main(int argc, char * argv[]) {
   CU_ERROR_CHECK(cuMemcpy2D(&copy));
 
   zpotrf_ref(uplo, n, refA, lda, &rInfo);
-  CU_ERROR_CHECK(cuZpotf2(zpotrf, uplo, n, dA, dlda, &dInfo, 0));
+  CU_ERROR_CHECK(cuZpotf2(zpotrf, uplo, n, dA, dlda, dInfo, 0));
 
   copy = (CUDA_MEMCPY2D){ 0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(double complex),
   0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(double complex),
