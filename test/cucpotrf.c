@@ -160,13 +160,15 @@ int main(int argc, char * argv[]) {
 
   float time;
   CU_ERROR_CHECK(cuEventElapsedTime(&time, start, stop));
-  time /= 20000;
+  time /= 20;
 
   CU_ERROR_CHECK(cuEventDestroy(start));
   CU_ERROR_CHECK(cuEventDestroy(stop));
 
-  size_t flops = (((n * n * n) / 6) + ((n * n) / 2) + (n / 3)) * 6 + (((n * n * n) / 6) - (n / 6)) * 2;
-  fprintf(stdout, "%.3es %.3gGFlops/s Error: %.3e + %.3ei\n%sED!\n", time, ((float)flops * 1.e-9f) / time, rdiff, idiff, (passed) ? "PASS" : "FAIL");
+  size_t flops = (((n * n * n) / 6) + ((n * n) / 2) + (n / 3)) * 6
+               + (((n * n * n) / 6) - (n / 6)) * 2;
+  fprintf(stdout, "%.3ems %.3gGFlops/s Error: %.3e + %.3ei\n%sED!\n", time,
+          ((float)flops * 1.e-6f) / time, rdiff, idiff, (passed) ? "PASS" : "FAIL");
 
   free(A);
   free(refA);
