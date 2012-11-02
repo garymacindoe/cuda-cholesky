@@ -6,8 +6,6 @@
 #include <complex.h>
 #include "zpotrf_ref.c"
 
-CUresult cuZpotf2(CUmodule module, CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, CUdeviceptr info, CUstream stream);
-
 int main(int argc, char * argv[]) {
   CBlasUplo uplo;
   size_t n;
@@ -48,7 +46,7 @@ int main(int argc, char * argv[]) {
   double complex * A, * C, * refA;
   size_t lda, ldc, k = 5 * n;
   long info, rInfo;
-  CUdeviceptr dA, dInfo;
+  CUdeviceptr dA;
   size_t dlda;
   CUDA_MEMCPY2D copy;
 
@@ -59,11 +57,6 @@ int main(int argc, char * argv[]) {
 
   CUcontext context;
   CU_ERROR_CHECK(cuCtxCreate(&context, CU_CTX_BLOCKING_SYNC, device));
-
-  CUmodule zpotrf;
-  CU_ERROR_CHECK(cuModuleLoad(&zpotrf, "zpotrf.fatbin"));
-
-  CU_ERROR_CHECK(cuMemAlloc(&dInfo, sizeof(long)));
 
   lda = n;
   if ((A = malloc(lda *  n * sizeof(double complex))) == NULL) {
@@ -111,14 +104,12 @@ int main(int argc, char * argv[]) {
   CU_ERROR_CHECK(cuMemcpy2D(&copy));
 
   zpotrf_ref(uplo, n, refA, lda, &rInfo);
-  CU_ERROR_CHECK(cuZpotf2(zpotrf, uplo, n, dA, dlda, dInfo, 0));
+  CU_ERROR_CHECK(cuZpotrf(uplo, n, dA, dlda, &info));
 
   copy = (CUDA_MEMCPY2D){ 0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(double complex),
   0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(double complex),
   n * sizeof(double complex), n };
   CU_ERROR_CHECK(cuMemcpy2D(&copy));
-
-  CU_ERROR_CHECK(cuMemcpyDtoH(&info, dInfo, sizeof(long)));
 
   bool passed = (info == rInfo);
   double rdiff = 0.0, idiff = 0.0;
@@ -153,7 +144,7 @@ int main(int argc, char * argv[]) {
 
   CU_ERROR_CHECK(cuEventRecord(start, NULL));
   for (size_t i = 0; i < 20; i++)
-    CU_ERROR_CHECK(cuZpotf2(zpotrf, uplo, n, dA, dlda, dInfo, 0));
+    CU_ERROR_CHECK(cuZpotrf(uplo, n, dA, dlda, &info));
   CU_ERROR_CHECK(cuEventRecord(stop, NULL));
   CU_ERROR_CHECK(cuEventSynchronize(stop));
 
@@ -173,9 +164,6 @@ int main(int argc, char * argv[]) {
   free(refA);
   if (dA != 0)
     CU_ERROR_CHECK(cuMemFree(dA));
-  CU_ERROR_CHECK(cuMemFree(dInfo));
-
-  CU_ERROR_CHECK(cuModuleUnload(zpotrf));
 
   CU_ERROR_CHECK(cuCtxDestroy(context));
 

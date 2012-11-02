@@ -129,7 +129,7 @@ void zpotrf(CBlasUplo uplo, size_t n, double complex * restrict A, size_t lda, l
   }
 }
 
-/*static inline */CUresult cuZpotf2(CUmodule module, CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, CUdeviceptr info, CUstream stream) {
+static inline CUresult cuZpotf2(CUmodule module, CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, CUdeviceptr info, CUstream stream) {
   const unsigned int bx = 32;
 
   char name[46];
@@ -168,7 +168,7 @@ CUresult cuZpotrf(CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, long * in
   CU_ERROR_CHECK(cuMemcpyHtoD(dInfo, info, sizeof(long)));
 
 //   if (n < nb) {
-//     CU_ERROR_CHECK(cuModuleLoad(&zpotf2, "zpotrf.cubin"));
+//     CU_ERROR_CHECK(cuModuleLoad(&zpotf2, "zpotrf.fatbin"));
 //     CU_ERROR_CHECK(cuZpotf2(zpotf2, uplo, n, A, lda, dInfo, NULL));
 //     CU_ERROR_CHECK(cuModuleUnload(zpotf2));
 //     return CUDA_SUCCESS;
@@ -179,10 +179,10 @@ CUresult cuZpotrf(CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, long * in
   CU_ERROR_CHECK(cuStreamCreate(&stream0, 0));
   CU_ERROR_CHECK(cuStreamCreate(&stream1, 0));
 
-  CU_ERROR_CHECK(cuModuleLoad(&zherk, "zherk.cubin"));
-//   CU_ERROR_CHECK(cuModuleLoad(&zpotf2, "zpotrf.cubin"));
-  CU_ERROR_CHECK(cuModuleLoad(&zgemm, "zgemm.cubin"));
-  CU_ERROR_CHECK(cuModuleLoad(&ztrsm, "ztrsm.cubin"));
+  CU_ERROR_CHECK(cuModuleLoad(&zherk, "zherk.fatbin"));
+//   CU_ERROR_CHECK(cuModuleLoad(&zpotf2, "zpotrf.fatbin"));
+  CU_ERROR_CHECK(cuModuleLoad(&zgemm, "zgemm.fatbin"));
+  CU_ERROR_CHECK(cuModuleLoad(&ztrsm, "ztrsm.fatbin"));
 
   if (uplo == CBlasUpper) {
     for (size_t j = 0; j < n; j += nb) {

@@ -5,8 +5,6 @@
 #include <float.h>
 #include "spotrf_ref.c"
 
-CUresult cuSpotf2(CUmodule, CBlasUplo, size_t, CUdeviceptr, size_t, CUdeviceptr, CUstream);
-
 int main(int argc, char * argv[]) {
   CBlasUplo uplo;
   size_t n;
@@ -47,7 +45,7 @@ int main(int argc, char * argv[]) {
   float * A, * C, * refA;
   size_t lda, ldc, k = 5 * n;
   long info, rInfo;
-  CUdeviceptr dA, dInfo;
+  CUdeviceptr dA;
   size_t dlda;
   CUDA_MEMCPY2D copy;
 
@@ -58,11 +56,6 @@ int main(int argc, char * argv[]) {
 
   CUcontext context;
   CU_ERROR_CHECK(cuCtxCreate(&context, CU_CTX_BLOCKING_SYNC, device));
-
-  CUmodule spotrf;
-  CU_ERROR_CHECK(cuModuleLoad(&spotrf, "spotrf.fatbin"));
-
-  CU_ERROR_CHECK(cuMemAlloc(&dInfo, sizeof(long)));
 
   lda = (n + 3u) & ~3u;
   if ((A = malloc(lda *  n * sizeof(float))) == NULL) {
@@ -110,14 +103,12 @@ int main(int argc, char * argv[]) {
   CU_ERROR_CHECK(cuMemcpy2D(&copy));
 
   spotrf_ref(uplo, n, refA, lda, &rInfo);
-  CU_ERROR_CHECK(cuSpotf2(spotrf, uplo, n, dA, dlda, dInfo, 0));
+  CU_ERROR_CHECK(cuSpotrf(uplo, n, dA, dlda, &info));
 
   copy = (CUDA_MEMCPY2D){ 0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(float),
                           0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(float),
                           n * sizeof(float), n };
   CU_ERROR_CHECK(cuMemcpy2D(&copy));
-
-  CU_ERROR_CHECK(cuMemcpyDtoH(&info, dInfo, sizeof(long)));
 
   bool passed = (info == rInfo);
   float diff = 0.0f;
@@ -148,7 +139,7 @@ int main(int argc, char * argv[]) {
 
   CU_ERROR_CHECK(cuEventRecord(start, NULL));
   for (size_t i = 0; i < 20; i++)
-    CU_ERROR_CHECK(cuSpotf2(spotrf, uplo, n, dA, dlda, dInfo, 0));
+    CU_ERROR_CHECK(cuSpotrf(uplo, n, dA, dlda, &info));
   CU_ERROR_CHECK(cuEventRecord(stop, NULL));
   CU_ERROR_CHECK(cuEventSynchronize(stop));
 
@@ -168,9 +159,6 @@ int main(int argc, char * argv[]) {
   free(refA);
   if (dA != 0)
     CU_ERROR_CHECK(cuMemFree(dA));
-  CU_ERROR_CHECK(cuMemFree(dInfo));
-
-  CU_ERROR_CHECK(cuModuleUnload(spotrf));
 
   CU_ERROR_CHECK(cuCtxDestroy(context));
 
