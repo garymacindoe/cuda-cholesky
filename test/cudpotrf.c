@@ -60,7 +60,7 @@ int main(int argc, char * argv[]) {
   CU_ERROR_CHECK(cuCtxCreate(&context, CU_CTX_BLOCKING_SYNC, device));
 
   CUmodule dpotrf;
-  CU_ERROR_CHECK(cuModuleLoad(&dpotrf, "dpotrf.cubin"));
+  CU_ERROR_CHECK(cuModuleLoad(&dpotrf, "dpotrf.fatbin"));
 
   CU_ERROR_CHECK(cuMemAlloc(&dInfo, sizeof(long)));
 

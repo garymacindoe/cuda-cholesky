@@ -8,7 +8,7 @@
  * cuCfms: x * y - d
  * cuCfsm: d - x * y
  */
-__device__ cuDoubleComplex cuCfsm(cuDoubleComplex x, cuDoubleComplex y, cuDoubleComplex d) {
+__device__ cuDoubleComplex cuCfsm(cuDoubleComplex d, cuDoubleComplex x, cuDoubleComplex y) {
     double real_res;
     double imag_res;
 
@@ -24,7 +24,7 @@ __device__ cuDoubleComplex cuCfsm(cuDoubleComplex x, cuDoubleComplex y, cuDouble
 /*
  * Divide complex by scalar.
  */
-__device__ cuDoubleComplex cuDiva(cuDoubleComplex x, double a) {
+__device__ cuDoubleComplex cusDiv(cuDoubleComplex x, double a) {
   return make_cuDoubleComplex(cuCreal(x) / a, cuCimag(x) / a);
 }
 
@@ -59,10 +59,11 @@ __global__ void zpotf2(int n, cuDoubleComplex * A, int lda, int * info) {
   /*
    * For efficient data reuse A needs to be cached in shared memory.  In order
    * to get maximum instruction throughput 32 threads are needed but this would
-   * use 8192 bytes (32 * 32 * sizeof(cuComplex)) of shared memory to store A.
+   * use 19384 bytes (32 * 32 * sizeof(cuDoubleComplex)) of shared memory to
+   * store A.
    * Triangular packed storage mode is therefore used to store only the
-   * triangle of A being updated using 4224 bytes((32 * (32 + 1)) / 2 * sizeof(cuComplex))
-   * of shared memory.
+   * triangle of A being updated using 8448 bytes((32 * (32 + 1)) / 2 *
+   * sizeof(cuDoubleComplex)) of shared memory.
    * Since this is only ever going to be run using one thread block shared
    * memory and register use can be higher than when trying to fit multiple
    * thread blocks onto each multiprocessor.
@@ -89,7 +90,7 @@ __global__ void zpotf2(int n, cuDoubleComplex * A, int lda, int * info) {
         // ZGEMV/ZHERK
         temp = a[upper(j, threadIdx.x)];
         for (int k = 0; k < j; k++)
-          temp = cuCfsm(a[upper(k, j)], cuConj(a[upper(k, threadIdx.x)]), temp);
+          temp = cuCfsm(temp, cuConj(a[upper(k, j)]), a[upper(k, threadIdx.x)]);
 
         // Thread zero calculates the diagonal element
         if (threadIdx.x == j) {
@@ -108,9 +109,9 @@ __global__ void zpotf2(int n, cuDoubleComplex * A, int lda, int * info) {
       if (sinfo != 0)
         return;
 
-      // ZSSCAL
+      // ZDSCAL
       if (threadIdx.x > j)
-        a[upper(j, threadIdx.x)] = cuDiva(temp, cuCreal(a[upper(j, j)]));
+        a[upper(j, threadIdx.x)] = cusDiv(temp, cuCreal(a[upper(j, j)]));
 
       __syncthreads();
     }
@@ -141,7 +142,7 @@ __global__ void zpotf2(int n, cuDoubleComplex * A, int lda, int * info) {
         // ZGEMV/ZHERK
         temp = a[lower<bx>(threadIdx.x, j)];
         for (int k = 0; k < j; k++)
-          temp = cuCfsm(a[lower<bx>(j, k)], cuConj(a[lower<bx>(threadIdx.x, k)]), temp);
+          temp = cuCfsm(temp, cuConj(a[lower<bx>(j, k)]), a[lower<bx>(threadIdx.x, k)]);
 
         // Thread zero calculates the diagonal element
         if (threadIdx.x == j) {
@@ -160,9 +161,9 @@ __global__ void zpotf2(int n, cuDoubleComplex * A, int lda, int * info) {
       if (sinfo != 0)
         return;
 
-      // ZSSCAL
+      // CSSCAL
       if (threadIdx.x > j)
-        a[lower<bx>(threadIdx.x, j)] = cuDiva(temp, cuCreal(a[lower<bx>(j, j)]));
+        a[lower<bx>(threadIdx.x, j)] = cusDiv(temp, cuCreal(a[lower<bx>(j, j)]));
 
       __syncthreads();
     }

@@ -157,8 +157,8 @@ int main(int argc, char * argv[]) {
 
   size_t flops = (((n * n * n) / 6) + ((n * n) / 2) + (n / 3)) * 6
                + (((n * n * n) / 6) - (n / 6)) * 2;
-  fprintf(stdout, "%.3ems %.3gGFlops/s Error: %.3e\n%sED!\n", time,
-          ((float)flops * 1.e-6f) / time, diff, (passed) ? "PASS" : "FAIL");
+  fprintf(stdout, "%.3ems %.3gGFlops/s Error: %.3e + %.3ei\n%sED!\n", time,
+          ((float)flops * 1.e-6f) / time, rdiff, idiff, (passed) ? "PASS" : "FAIL");
 
   free(A);
   free(refA);

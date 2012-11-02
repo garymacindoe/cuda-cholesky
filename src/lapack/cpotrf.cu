@@ -8,7 +8,7 @@
  * cuCfmsf: x * y - d
  * cuCfsmf: d - x * y
  */
-__device__ cuComplex cuCfsmf(cuComplex x, cuComplex y, cuComplex d) {
+__device__ cuComplex cuCfsmf(cuComplex d, cuComplex x, cuComplex y) {
     float real_res;
     float imag_res;
 
@@ -89,7 +89,7 @@ __global__ void cpotf2(int n, cuComplex * A, int lda, int * info) {
         // CGEMV/CHERK
         temp = a[upper(j, threadIdx.x)];
         for (int k = 0; k < j; k++)
-          temp = cuCsubf(temp, cuCmulf(a[upper(k, j)], cuConjf(a[upper(k, threadIdx.x)])));//cuCfsmf(a[upper(k, j)], cuConjf(a[upper(k, threadIdx.x)]), temp);
+          temp = cuCfsmf(temp, cuConjf(a[upper(k, j)]), a[upper(k, threadIdx.x)]);
 
         // Thread zero calculates the diagonal element
         if (threadIdx.x == j) {
@@ -110,7 +110,7 @@ __global__ void cpotf2(int n, cuComplex * A, int lda, int * info) {
 
       // CSSCAL
       if (threadIdx.x > j)
-        a[upper(j, threadIdx.x)] = make_cuComplex(cuCrealf(temp) / cuCrealf(a[upper(j, j)]), cuCimagf(temp) / cuCrealf(a[upper(j, j)]));//cusDivf(temp, cuCrealf(a[upper(j, j)]));
+        a[upper(j, threadIdx.x)] = cusDivf(temp, cuCrealf(a[upper(j, j)]));
 
       __syncthreads();
     }
@@ -141,7 +141,7 @@ __global__ void cpotf2(int n, cuComplex * A, int lda, int * info) {
         // CGEMV/CHERK
         temp = a[lower<bx>(threadIdx.x, j)];
         for (int k = 0; k < j; k++)
-          temp = cuCfsmf(a[lower<bx>(j, k)], cuConjf(a[lower<bx>(threadIdx.x, k)]), temp);
+          temp = cuCfsmf(temp, cuConjf(a[lower<bx>(j, k)]), a[lower<bx>(threadIdx.x, k)]);
 
         // Thread zero calculates the diagonal element
         if (threadIdx.x == j) {
@@ -150,7 +150,7 @@ __global__ void cpotf2(int n, cuComplex * A, int lda, int * info) {
             a[lower<bx>(threadIdx.x, j)] = make_cuComplex(cuCrealf(temp), 0.0f);
           }
           else
-            a[lower<bx>(threadIdx.x, j)] = make_cuComplex(sqrt(cuCrealf(temp)), 0.0f);
+            a[lower<bx>(threadIdx.x, j)] = make_cuComplex(sqrtf(cuCrealf(temp)), 0.0f);
         }
       }
 

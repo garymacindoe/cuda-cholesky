@@ -48,7 +48,7 @@ int main(int argc, char * argv[]) {
   float complex * A, * C, * refA;
   size_t lda, ldc, k = 5 * n;
   long info, rInfo;
-  CUdeviceptr dA;
+  CUdeviceptr dA, dInfo;
   size_t dlda;
   CUDA_MEMCPY2D copy;
 
@@ -59,6 +59,11 @@ int main(int argc, char * argv[]) {
 
   CUcontext context;
   CU_ERROR_CHECK(cuCtxCreate(&context, CU_CTX_BLOCKING_SYNC, device));
+
+  CUmodule cpotrf;
+  CU_ERROR_CHECK(cuModuleLoad(&cpotrf, "cpotrf.fatbin"));
+
+  CU_ERROR_CHECK(cuMemAlloc(&dInfo, sizeof(long)));
 
   lda = (n + 1u) & ~1u;
   if ((A = malloc(lda *  n * sizeof(float complex))) == NULL) {
@@ -104,12 +109,6 @@ int main(int argc, char * argv[]) {
   0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(float complex),
   n * sizeof(float complex), n };
   CU_ERROR_CHECK(cuMemcpy2D(&copy));
-
-  CUdeviceptr dInfo;
-  CU_ERROR_CHECK(cuMemAlloc(&dInfo, sizeof(long)));
-
-  CUmodule cpotrf;
-  CU_ERROR_CHECK(cuModuleLoad(&cpotrf, "cpotrf.cubin"));
 
   cpotrf_ref(uplo, n, refA, lda, &rInfo);
   CU_ERROR_CHECK(cuCpotf2(cpotrf, uplo, n, dA, dlda, dInfo, 0));
@@ -174,9 +173,9 @@ int main(int argc, char * argv[]) {
   free(refA);
   if (dA != 0)
     CU_ERROR_CHECK(cuMemFree(dA));
+  CU_ERROR_CHECK(cuMemFree(dInfo));
 
   CU_ERROR_CHECK(cuModuleUnload(cpotrf));
-  CU_ERROR_CHECK(cuMemFree(dInfo));
 
   return (int)!passed;
 }
