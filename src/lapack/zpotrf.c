@@ -129,7 +129,7 @@ void zpotrf(CBlasUplo uplo, size_t n, double complex * restrict A, size_t lda, l
   }
 }
 
-static inline CUresult cuZpotf2(CUmodule module, CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, CUdeviceptr info, CUstream stream) {
+/*static inline */CUresult cuZpotf2(CUmodule module, CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, CUdeviceptr info, CUstream stream) {
   const unsigned int bx = (uplo == CBlasUpper) ?  8 : 16;
   const unsigned int by = (uplo == CBlasUpper) ?  8 :  4;
 
