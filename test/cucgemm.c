@@ -76,7 +76,7 @@ int main(int argc, char * argv[]) {
   CU_ERROR_CHECK(cuCtxCreate(&context, CU_CTX_BLOCKING_SYNC, device));
 
   CUmodule module;
-  CU_ERROR_CHECK(cuModuleLoad(&module, "cgemm.cubin"));
+  CU_ERROR_CHECK(cuModuleLoad(&module, "cgemm.fatbin"));
 
   alpha = ((float)rand() / (float)RAND_MAX) + ((float)rand() / (float)RAND_MAX) * I;
   beta = ((float)rand() / (float)RAND_MAX) + ((float)rand() / (float)RAND_MAX) * I;
@@ -237,6 +237,8 @@ int main(int argc, char * argv[]) {
   CU_ERROR_CHECK(cuMemFree(dA));
   CU_ERROR_CHECK(cuMemFree(dB));
   CU_ERROR_CHECK(cuMemFree(dC));
+
+  CU_ERROR_CHECK(cuModuleUnload(module));
 
   CU_ERROR_CHECK(cuCtxDestroy(context));
 

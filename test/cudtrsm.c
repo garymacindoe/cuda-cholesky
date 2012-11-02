@@ -95,7 +95,7 @@ int main(int argc, char * argv[]) {
   CU_ERROR_CHECK(cuCtxCreate(&context, CU_CTX_BLOCKING_SYNC, device));
 
   CUmodule module;
-  CU_ERROR_CHECK(cuModuleLoad(&module, "dtrsm.cubin"));
+  CU_ERROR_CHECK(cuModuleLoad(&module, "dtrsm.fatbin"));
 
   alpha = gaussian();
 
@@ -254,6 +254,8 @@ int main(int argc, char * argv[]) {
   free(refB);
   CU_ERROR_CHECK(cuMemFree(dA));
   CU_ERROR_CHECK(cuMemFree(dB));
+
+  CU_ERROR_CHECK(cuModuleUnload(module));
 
   CU_ERROR_CHECK(cuCtxDestroy(context));
 
