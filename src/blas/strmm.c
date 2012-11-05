@@ -186,7 +186,7 @@ void strmm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag
   }
 }
 
-CUresult cuStrmm(CUmodule module, CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag, size_t m, size_t n, float alpha, CUdeviceptr A, size_t lda, CUdeviceptr B, size_t ldb, CUdeviceptr X, size_t ldx, CUstream stream) {
+CUresult cuStrmm(CUmodule module, CBlasSide side, CBlasUplo uplo, CBlasTranspose trans, CBlasDiag diag, size_t m, size_t n, float alpha, CUdeviceptr A, size_t lda, CUdeviceptr B, size_t ldb, CUdeviceptr X, size_t ldx, CUstream stream) {
   const size_t nRowA = (side == CBlasLeft) ? m : n;
 
   int info = 0;
@@ -203,13 +203,14 @@ CUresult cuStrmm(CUmodule module, CBlasSide side, CBlasUplo uplo, CBlasTranspose
 
   if (m == 0 || n == 0) return CUDA_SUCCESS;
 
-  const unsigned int bx =  8;
-  const unsigned int by =  8;
-  const unsigned int mb = (side == CBlasLeft) ?  8 : 64;
-  const unsigned int nb = (side == CBlasLeft) ? 64 :  8;
+  const unsigned int mb = 64;
+  const unsigned int nb = 16;
+  const unsigned int kb = 16;
+  const unsigned int bx = 16;
+  const unsigned int by =  4;
 
-  char name[102];
-  snprintf(name, 102, "_Z5strmmIL9CBlasSide%dEL9CBlasUplo%dEL14CBlasTranspose%dEL9CBlasDiag%dELj%uELj%uELj%uELj%uEEviifPKfiPfi", side, uplo, transA, diag, mb, nb, bx, by);
+  char name[113];
+  snprintf(name, 113, "_Z5strmmIL9CBlasSide%dEL9CBlasUplo%dEL14CBlasTranspose%dEL9CBlasDiag%dELj%uELj%uELj%uELj%uELj%uEEviifPKfiS5_iPfi", side, uplo, trans, diag, mb, nb, kb, bx, by);
 
   CUfunction function;
   CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
