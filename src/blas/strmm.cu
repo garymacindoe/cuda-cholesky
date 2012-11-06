@@ -3,18 +3,18 @@
 // y(1:16) += alpha * x(1:16)
 __device__ void saxpy(float alpha, const float * x, float * y) {
   y[ 0] += alpha * x[ 0]; y[ 1] += alpha * x[ 1]; y[ 2] += alpha * x[ 2]; y[ 3] += alpha * x[ 3];
-  y[ 4] += alpha * x[ 4]; y[ 5] += alpha * x[ 5]; y[ 6] += alpha * x[ 6]; y[ 7] += alpha * x[ 7];
-  y[ 8] += alpha * x[ 8]; y[ 9] += alpha * x[ 9]; y[10] += alpha * x[10]; y[11] += alpha * x[11];
-  y[12] += alpha * x[12]; y[13] += alpha * x[13]; y[14] += alpha * x[14]; y[15] += alpha * x[15];
+//   y[ 4] += alpha * x[ 4]; y[ 5] += alpha * x[ 5]; y[ 6] += alpha * x[ 6]; y[ 7] += alpha * x[ 7];
+//   y[ 8] += alpha * x[ 8]; y[ 9] += alpha * x[ 9]; y[10] += alpha * x[10]; y[11] += alpha * x[11];
+//   y[12] += alpha * x[12]; y[13] += alpha * x[13]; y[14] += alpha * x[14]; y[15] += alpha * x[15];
 }
 
 // y(1:16) = x(1:16)
-__device__ void scopy(const float * x, float * y) {
-  y[ 0] = x[ 0]; y[ 1] = x[ 1]; y[ 2] = x[ 2]; y[ 3] = x[ 3];
-  y[ 4] = x[ 4]; y[ 5] = x[ 5]; y[ 6] = x[ 6]; y[ 7] = x[ 7];
-  y[ 8] = x[ 8]; y[ 9] = x[ 9]; y[10] = x[10]; y[11] = x[11];
-  y[12] = x[12]; y[13] = x[13]; y[14] = x[14]; y[15] = x[15];
-}
+// __device__ void scopy(const float * x, float * y) {
+//   y[ 0] = x[ 0]; y[ 1] = x[ 1]; y[ 2] = x[ 2]; y[ 3] = x[ 3];
+//   y[ 4] = x[ 4]; y[ 5] = x[ 5]; y[ 6] = x[ 6]; y[ 7] = x[ 7];
+//   y[ 8] = x[ 8]; y[ 9] = x[ 9]; y[10] = x[10]; y[11] = x[11];
+//   y[12] = x[12]; y[13] = x[13]; y[14] = x[14]; y[15] = x[15];
+// }
 
 /**
  * This implementation is out-of-place.  Calling with X = B results in undefined
@@ -95,8 +95,8 @@ __global__ void strmm(int m, int n,
   // B is optimised away when side == CBlasRight
   __shared__ float b[kb][nb + 1];
 
-  float x[] = { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
-                0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
+  float x[] = { 0.0f, 0.0f, 0.0f, 0.0f };//, 0.0f, 0.0f, 0.0f, 0.0f,
+//                 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
 
   int k = 0;
   while (k < m) {
@@ -125,7 +125,7 @@ __global__ void strmm(int m, int n,
 #pragma unroll
       for (int l = 0; l < kb; l++) {
         if (k + l == ti)
-          scopy(b[l], x);
+          saxpy(1.0f, b[l], x);
         if ((uplo == CBlasUpper && k + l > ti) ||
             (uplo == CBlasLower && k + l < ti))
           saxpy(A[0], b[l], x);
@@ -151,7 +151,7 @@ __global__ void strmm(int m, int n,
   else {
     for (int l = 0; l < kk; l++) {
       if (k + l == ti)
-        scopy(b[l], x);
+        saxpy(1.0f, b[l], x);
       if ((uplo == CBlasUpper && k + l > ti) ||
           (uplo == CBlasLower && k + l < ti))
         saxpy(A[0], b[l], x);
@@ -164,7 +164,7 @@ __global__ void strmm(int m, int n,
     X[0] = alpha * x[ 0]; if ( 1 >= n) return; X += ldx;
     X[0] = alpha * x[ 1]; if ( 2 >= n) return; X += ldx;
     X[0] = alpha * x[ 2]; if ( 3 >= n) return; X += ldx;
-    X[0] = alpha * x[ 3]; if ( 4 >= n) return; X += ldx;
+    X[0] = alpha * x[ 3]; /*if ( 4 >= n) return; X += ldx;
     X[0] = alpha * x[ 4]; if ( 5 >= n) return; X += ldx;
     X[0] = alpha * x[ 5]; if ( 6 >= n) return; X += ldx;
     X[0] = alpha * x[ 6]; if ( 7 >= n) return; X += ldx;
@@ -176,7 +176,7 @@ __global__ void strmm(int m, int n,
     X[0] = alpha * x[12]; if (13 >= n) return; X += ldx;
     X[0] = alpha * x[13]; if (14 >= n) return; X += ldx;
     X[0] = alpha * x[14]; if (15 >= n) return; X += ldx;
-    X[0] = alpha * x[15];
+    X[0] = alpha * x[15];*/
   }
 }
 
@@ -225,7 +225,7 @@ template void strmm<CBlasLeft,  CBlasUpper, CBlasNoTrans, CBlasNonUnit, 64, 16, 
 template void strmm<CBlasLeft,  CBlasUpper, CBlasNoTrans, CBlasUnit,    64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
 // template void strmm<CBlasLeft,  CBlasUpper, CBlasTrans,   CBlasNonUnit, 32, 32,  8,  8,  8>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
 // template void strmm<CBlasLeft,  CBlasUpper, CBlasTrans,   CBlasUnit,    32, 32,  8,  8,  8>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
-template void strmm<CBlasLeft,  CBlasLower, CBlasNoTrans, CBlasNonUnit, 64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
+template void strmm<CBlasLeft,  CBlasLower, CBlasNoTrans, CBlasNonUnit, 8, 4, 4, 4,  2>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
 template void strmm<CBlasLeft,  CBlasLower, CBlasNoTrans, CBlasUnit,    64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
 // template void strmm<CBlasLeft,  CBlasLower, CBlasTrans,   CBlasNonUnit, 32, 32,  8,  8,  8>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
 // template void strmm<CBlasLeft,  CBlasLower, CBlasTrans,   CBlasUnit,    32, 32,  8,  8,  8>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
