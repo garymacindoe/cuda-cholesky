@@ -124,6 +124,7 @@ __global__ void strmm(int m, int n,
         saxpy(A[0], b[l], x);
       A += lda;
     }
+  }
   else {
     for (int l = 0; l < kk; l++) {
       if (k + l == ti)
