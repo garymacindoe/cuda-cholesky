@@ -60,11 +60,31 @@ __global__ void strmm(int m, int n,
    * doesn't need to be a separate check for trans == CBlasNoTrans in
    * calculating the start of X here.
    */
-  A += bi * lda + bi + ti;
-  B += (bj + threadIdx.y) * ldb + bi + threadIdx.x;
-  X += bj * ldx + bi + ti;
-  m -= bi;
-  n -= bj;
+  if (side == CBlasLeft) {
+    if (trans == CBlasNoTrans) {
+      if (uplo == CBlasUpper) {
+        /* Left, Upper, NoTrans */
+        A += bi * lda + bi + ti;        // Start on the diagonal
+        B += (bj + threadIdx.y) * ldb + bi + threadIdx.x;  // Start halfway down
+      }
+      else {
+        /* Left, Lower, NoTrans */
+        A += bi + ti;   // Start on the left
+        B += (bj + threadIdx.y) * ldb + threadIdx.x;    // Start at the top
+      }
+      X += bj * ldx + bi + ti;
+      m -= bi;
+      n -= bj;
+    }
+    else {
+      if (uplo == CBlasUpper) {
+      }
+      else {
+      }
+    }
+  }
+  else {
+  }
 
   /*
    * Blocks of A and B in shared memory and X in registers.
@@ -95,7 +115,8 @@ __global__ void strmm(int m, int n,
     if (diag == CBlasNonUnit) {
 #pragma unroll
       for (int l = 0; l < kb; l++) {
-        if (k + l >= ti)
+        if ((uplo == CBlasUpper && k + l >= ti) ||
+            (uplo == CBlasLower && k + l <= ti))
           saxpy(A[0], b[l], x);
         A += lda;
       }
@@ -105,7 +126,8 @@ __global__ void strmm(int m, int n,
       for (int l = 0; l < kb; l++) {
         if (k + l == ti)
           scopy(b[l], x);
-        if (k + l > ti)
+        if ((uplo == CBlasUpper && k + l > ti) ||
+            (uplo == CBlasLower && k + l < ti))
           saxpy(A[0], b[l], x);
         A += lda;
       }
@@ -120,7 +142,8 @@ __global__ void strmm(int m, int n,
   int kk = m - k;
   if (diag == CBlasNonUnit) {
     for (int l = 0; l < kk; l++) {
-      if (k + l >= ti)
+      if ((uplo == CBlasUpper && k + l >= ti) ||
+          (uplo == CBlasLower && k + l <= ti))
         saxpy(A[0], b[l], x);
       A += lda;
     }
@@ -129,7 +152,8 @@ __global__ void strmm(int m, int n,
     for (int l = 0; l < kk; l++) {
       if (k + l == ti)
         scopy(b[l], x);
-      if (k + l > ti)
+      if ((uplo == CBlasUpper && k + l > ti) ||
+          (uplo == CBlasLower && k + l < ti))
         saxpy(A[0], b[l], x);
       A += lda;
     }
@@ -201,8 +225,8 @@ template void strmm<CBlasLeft,  CBlasUpper, CBlasNoTrans, CBlasNonUnit, 64, 16, 
 template void strmm<CBlasLeft,  CBlasUpper, CBlasNoTrans, CBlasUnit,    64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
 // template void strmm<CBlasLeft,  CBlasUpper, CBlasTrans,   CBlasNonUnit, 32, 32,  8,  8,  8>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
 // template void strmm<CBlasLeft,  CBlasUpper, CBlasTrans,   CBlasUnit,    32, 32,  8,  8,  8>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
-// template void strmm<CBlasLeft,  CBlasLower, CBlasNoTrans, CBlasNonUnit, 64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
-// template void strmm<CBlasLeft,  CBlasLower, CBlasNoTrans, CBlasUnit,    64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
+template void strmm<CBlasLeft,  CBlasLower, CBlasNoTrans, CBlasNonUnit, 64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
+template void strmm<CBlasLeft,  CBlasLower, CBlasNoTrans, CBlasUnit,    64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
 // template void strmm<CBlasLeft,  CBlasLower, CBlasTrans,   CBlasNonUnit, 32, 32,  8,  8,  8>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
 // template void strmm<CBlasLeft,  CBlasLower, CBlasTrans,   CBlasUnit,    32, 32,  8,  8,  8>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
 // template void strmm<CBlasRight, CBlasUpper, CBlasNoTrans, CBlasNonUnit, 64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);

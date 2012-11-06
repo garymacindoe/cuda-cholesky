@@ -98,6 +98,7 @@ int main(int argc, char * argv[]) {
   CU_ERROR_CHECK(cuModuleLoad(&module, "strmm.fatbin"));
 
   alpha = gaussian();
+  fprintf(stderr, "alpha =\n%15.6f\n", alpha);
 
   if (side == CBlasLeft) {
     lda = (m + 3u) & ~3u;
@@ -135,6 +136,13 @@ int main(int argc, char * argv[]) {
     0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(float),
     m * sizeof(float), m };
     CU_ERROR_CHECK(cuMemcpy2D(&copy));
+
+    fprintf(stderr, "A =\n");
+    for (size_t i = 0; i < m; i++) {
+      for (size_t j = 0; j < m; j++)
+        fprintf(stderr, "%15.6f", A[j * lda + i]);
+      fprintf(stderr, "\n");
+    }
   }
   else {
     lda = (n + 3u) & ~3u;
@@ -172,6 +180,13 @@ int main(int argc, char * argv[]) {
     0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(float),
     n * sizeof(float), n };
     CU_ERROR_CHECK(cuMemcpy2D(&copy));
+
+    fprintf(stderr, "A =\n");
+    for (size_t i = 0; i < n; i++) {
+      for (size_t j = 0; j < n; j++)
+        fprintf(stderr, "%15.6f", A[j * lda + i]);
+      fprintf(stderr, "\n");
+    }
   }
 
   ldb = (m + 3u) & ~3u;
@@ -193,6 +208,13 @@ int main(int argc, char * argv[]) {
       refB[j * ldb + i] = B[j * ldb + i] = gaussian();
   }
 
+  fprintf(stderr, "B =\n");
+  for (size_t i = 0; i < m; i++) {
+    for (size_t j = 0; j < n; j++)
+      fprintf(stderr, "%15.6f", B[j * ldb + i]);
+    fprintf(stderr, "\n");
+  }
+
   CUDA_MEMCPY2D copy = { 0, 0, CU_MEMORYTYPE_HOST, B, 0, NULL, ldb * sizeof(float),
   0, 0, CU_MEMORYTYPE_DEVICE, NULL, dB, NULL, dldb * sizeof(float),
   m * sizeof(float), n };
@@ -205,6 +227,20 @@ int main(int argc, char * argv[]) {
   0, 0, CU_MEMORYTYPE_HOST, B, 0, NULL, ldb * sizeof(float),
   m * sizeof(float), n };
   CU_ERROR_CHECK(cuMemcpy2D(&copy));
+
+  fprintf(stderr, "refB =\n");
+  for (size_t i = 0; i < m; i++) {
+    for (size_t j = 0; j < n; j++)
+      fprintf(stderr, "%15.6f", refB[j * ldb + i]);
+    fprintf(stderr, "\n");
+  }
+
+  fprintf(stderr, "B =\n");
+  for (size_t i = 0; i < m; i++) {
+    for (size_t j = 0; j < n; j++)
+      fprintf(stderr, "%15.6f", B[j * ldb + i]);
+    fprintf(stderr, "\n");
+  }
 
   bool passed = true;
   float diff = 0.0f;
