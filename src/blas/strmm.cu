@@ -8,6 +8,14 @@ __device__ void saxpy(float alpha, const float * x, float * y) {
   y[12] += alpha * x[12]; y[13] += alpha * x[13]; y[14] += alpha * x[14]; y[15] += alpha * x[15];
 }
 
+// y(1:16) = x(1:16)
+__device__ void scopy(const float * x, float * y) {
+  y[ 0] = x[ 0]; y[ 1] = x[ 1]; y[ 2] = x[ 2]; y[ 3] = x[ 3];
+  y[ 4] = x[ 4]; y[ 5] = x[ 5]; y[ 6] = x[ 6]; y[ 7] = x[ 7];
+  y[ 8] = x[ 8]; y[ 9] = x[ 9]; y[10] = x[10]; y[11] = x[11];
+  y[12] = x[12]; y[13] = x[13]; y[14] = x[14]; y[15] = x[15];
+}
+
 /**
  * This implementation is out-of-place.  Calling with X = B results in undefined
  * behaviour.
@@ -84,11 +92,23 @@ __global__ void strmm(int m, int n,
     if (k + kb > m) break;
 
     // Read A straight from global memory.
+    if (diag == CBlasNonUnit) {
 #pragma unroll
-    for (int l = 0; l < kb; l++) {
-      if (k + l >= ti)
-        saxpy(A[0], b[l], x);
-      A += lda;
+      for (int l = 0; l < kb; l++) {
+        if (k + l >= ti)
+          saxpy(A[0], b[l], x);
+        A += lda;
+      }
+    }
+    else {
+#pragma unroll
+      for (int l = 0; l < kb; l++) {
+        if (k + l == ti)
+          scopy(b[l], x);
+        if (k + l > ti)
+          saxpy(A[0], b[l], x);
+        A += lda;
+      }
     }
 
     __syncthreads();
@@ -98,10 +118,20 @@ __global__ void strmm(int m, int n,
   }
 
   int kk = m - k;
-  for (int l = 0; l < kk; l++) {
-    if (k + l >= ti)
-      saxpy(A[0], b[l], x);
-    A += lda;
+  if (diag == CBlasNonUnit) {
+    for (int l = 0; l < kk; l++) {
+      if (k + l >= ti)
+        saxpy(A[0], b[l], x);
+      A += lda;
+    }
+  else {
+    for (int l = 0; l < kk; l++) {
+      if (k + l == ti)
+        scopy(b[l], x);
+      if (k + l > ti)
+        saxpy(A[0], b[l], x);
+      A += lda;
+    }
   }
 
   if (n <= 0) return;
@@ -167,7 +197,7 @@ __global__ void strmm(int m, int n,
  * per multiprocessor is limited by the register usage.
  */
 template void strmm<CBlasLeft,  CBlasUpper, CBlasNoTrans, CBlasNonUnit, 64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
-// template void strmm<CBlasLeft,  CBlasUpper, CBlasNoTrans, CBlasUnit,    64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
+template void strmm<CBlasLeft,  CBlasUpper, CBlasNoTrans, CBlasUnit,    64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
 // template void strmm<CBlasLeft,  CBlasUpper, CBlasTrans,   CBlasNonUnit, 32, 32,  8,  8,  8>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
 // template void strmm<CBlasLeft,  CBlasUpper, CBlasTrans,   CBlasUnit,    32, 32,  8,  8,  8>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
 // template void strmm<CBlasLeft,  CBlasLower, CBlasNoTrans, CBlasNonUnit, 64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
