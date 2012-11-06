@@ -203,11 +203,11 @@ CUresult cuStrmm(CUmodule module, CBlasSide side, CBlasUplo uplo, CBlasTranspose
 
   if (m == 0 || n == 0) return CUDA_SUCCESS;
 
-  const unsigned int mb = 8;
-  const unsigned int nb = 4;
-  const unsigned int kb = 4;
-  const unsigned int bx = 4;
-  const unsigned int by = 2;
+  const unsigned int mb = 64;
+  const unsigned int nb = 16;
+  const unsigned int kb = 16;
+  const unsigned int bx = 16;
+  const unsigned int by =  4;
 
   char name[113];
   snprintf(name, 113, "_Z5strmmIL9CBlasSide%dEL9CBlasUplo%dEL14CBlasTranspose%dEL9CBlasDiag%dELj%uELj%uELj%uELj%uELj%uEEviifPKfiS5_iPfi", side, uplo, trans, diag, mb, nb, kb, bx, by);
