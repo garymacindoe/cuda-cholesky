@@ -86,7 +86,7 @@ __global__ void strmm(int m, int n,
     // Read A straight from global memory.
 #pragma unroll
     for (int l = 0; l < kb; l++) {
-      if (k + l >= bi + ti)
+      if (k + l >= ti)
         saxpy(A[0], b[l], x);
       A += lda;
     }
@@ -99,11 +99,12 @@ __global__ void strmm(int m, int n,
 
   int kk = m - k;
   for (int l = 0; l < kk; l++) {
-    if (k + l >= bi + ti)
+    if (k + l >= ti)
       saxpy(A[0], b[l], x);
     A += lda;
   }
 
+  if (n <= 0) return;
   if (ti < m) {
     X[0] = alpha * x[ 0]; if ( 1 >= n) return; X += ldx;
     X[0] = alpha * x[ 1]; if ( 2 >= n) return; X += ldx;

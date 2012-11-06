@@ -203,11 +203,11 @@ CUresult cuStrmm(CUmodule module, CBlasSide side, CBlasUplo uplo, CBlasTranspose
 
   if (m == 0 || n == 0) return CUDA_SUCCESS;
 
-  const unsigned int mb = 64;
-  const unsigned int nb = 16;
-  const unsigned int kb = 16;
-  const unsigned int bx = 16;
-  const unsigned int by =  4;
+  const unsigned int mb = 8;
+  const unsigned int nb = 4;
+  const unsigned int kb = 4;
+  const unsigned int bx = 4;
+  const unsigned int by = 2;
 
   char name[113];
   snprintf(name, 113, "_Z5strmmIL9CBlasSide%dEL9CBlasUplo%dEL14CBlasTranspose%dEL9CBlasDiag%dELj%uELj%uELj%uELj%uELj%uEEviifPKfiS5_iPfi", side, uplo, trans, diag, mb, nb, kb, bx, by);
@@ -217,9 +217,10 @@ CUresult cuStrmm(CUmodule module, CBlasSide side, CBlasUplo uplo, CBlasTranspose
 
   void * params[] = { &m, &n, &alpha, &A, &lda, &B, &ldb, &X, &ldx };
 
-  const unsigned int gx = (side == CBlasLeft) ? 1 : (unsigned int)max(1, (m + mb - 1) / mb);
-  const unsigned int gy = (side == CBlasLeft) ? (unsigned int)max(1, (n + nb - 1) / nb) : 1;
-  CU_ERROR_CHECK(cuLaunchKernel(function, gx, gy, 1, bx, by, 1, 0, stream, params, NULL));
+  CU_ERROR_CHECK(cuLaunchKernel(function,
+                                (unsigned int)(m + mb - 1) / mb, (unsigned int)(n + nb - 1) / nb, 1,
+                                bx, by, 1,
+                                0, stream, params, NULL));
 
   return CUDA_SUCCESS;
 }
