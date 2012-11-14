@@ -1,10 +1,11 @@
 #include "blas.h"
 #include "error.h"
+#include "cuhandle.h"
 #include <stdio.h>
 #include <sys/time.h>
 #include <float.h>
 #include <complex.h>
-#include "ztrmm_ref.c"
+#include "ctrmm_ref.c"
 
 int main(int argc, char * argv[]) {
   CBlasSide side;
@@ -83,7 +84,7 @@ int main(int argc, char * argv[]) {
 
   srand(0);
 
-  double complex alpha, * A, * B, * refB, * C;
+  float complex alpha, * A, * B, * refB, * C;
   CUdeviceptr dA, dB, dX;
   size_t lda, ldb, ldc, dlda, dldb, dldx;
 
@@ -92,26 +93,23 @@ int main(int argc, char * argv[]) {
   CUdevice device;
   CU_ERROR_CHECK(cuDeviceGet(&device, d));
 
-  CUcontext context;
-  CU_ERROR_CHECK(cuCtxCreate(&context, CU_CTX_BLOCKING_SYNC, device));
-
-  CUmodule module;
-  CU_ERROR_CHECK(cuModuleLoad(&module, "ztrmm.fatbin"));
+  CUhandle handle;
+  CU_ERROR_CHECK(cuHandleCreate(&handle, CU_CTX_BLOCKING_SYNC, device));
 
   alpha = gaussian();
 
   if (side == CBlasLeft) {
     lda = (m + 1u) & ~1u;
-    if ((A = malloc(lda * m * sizeof(double complex))) == NULL) {
+    if ((A = malloc(lda * m * sizeof(float complex))) == NULL) {
       fputs("Unable to allocate A\n", stderr);
       return -1;
     }
-    CU_ERROR_CHECK(cuMemAllocPitch(&dA, &dlda, m * sizeof(double complex), m, sizeof(double complex)));
-    dlda /= sizeof(double complex);
+    CU_ERROR_CHECK(cuMemAllocPitch(&dA, &dlda, m * sizeof(float complex), m, sizeof(float complex)));
+    dlda /= sizeof(float complex);
 
     size_t k = m * 5;
     ldc = (k + 1u) & ~1u;
-    if ((C = malloc(ldc * m * sizeof(double complex))) == NULL) {
+    if ((C = malloc(ldc * m * sizeof(float complex))) == NULL) {
       fputs("Unable to allocate C\n", stderr);
       return -1;
     }
@@ -121,34 +119,34 @@ int main(int argc, char * argv[]) {
     }
     for (size_t j = 0; j < m; j++) {
       for (size_t i = 0; i < m; i++) {
-        double complex temp = 0.0;
+        float complex temp = 0.0f;
         for (size_t l = 0; l < k; l++)
-          temp += conj(C[i * ldc + l]) * C[j * ldc + l];
-        A[j * lda + i] = 0.01 * temp;
+          temp += conjf(C[i * ldc + l]) * C[j * ldc + l];
+        A[j * lda + i] = 0.01f * temp;
       }
     }
     free(C);
 
     for (size_t k = 0; k < m; k++)
-      A[k * lda + k] += 1.0;
+      A[k * lda + k] += 1.0f;
 
-    CUDA_MEMCPY2D copy = { 0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(double complex),
-                           0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(double complex),
-                           m * sizeof(double complex), m };
+    CUDA_MEMCPY2D copy = { 0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(float complex),
+                           0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(float complex),
+                           m * sizeof(float complex), m };
     CU_ERROR_CHECK(cuMemcpy2D(&copy));
   }
   else {
     lda = (n + 1u) & ~1u;
-    if ((A = malloc(lda * n * sizeof(double complex))) == NULL) {
+    if ((A = malloc(lda * n * sizeof(float complex))) == NULL) {
       fputs("Unable to allocate A\n", stderr);
       return -1;
     }
-    CU_ERROR_CHECK(cuMemAllocPitch(&dA, &dlda, n * sizeof(double complex), n, sizeof(double complex)));
-    dlda /= sizeof(double complex);
+    CU_ERROR_CHECK(cuMemAllocPitch(&dA, &dlda, n * sizeof(float complex), n, sizeof(float complex)));
+    dlda /= sizeof(float complex);
 
     size_t k = n * 5;
     ldc = (k + 1u) & ~1u;
-    if ((C = malloc(ldc * n * sizeof(double complex))) == NULL) {
+    if ((C = malloc(ldc * n * sizeof(float complex))) == NULL) {
       fputs("Unable to allocate C\n", stderr);
       return -1;
     }
@@ -158,64 +156,64 @@ int main(int argc, char * argv[]) {
     }
     for (size_t j = 0; j < n; j++) {
       for (size_t i = 0; i < n; i++) {
-        double complex temp = 0.0;
+        float complex temp = 0.0f;
         for (size_t l = 0; l < k; l++)
-          temp += conj(C[i * ldc + l]) * C[j * ldc + l];
-        A[j * lda + i] = 0.01 * temp;
+          temp += conjf(C[i * ldc + l]) * C[j * ldc + l];
+        A[j * lda + i] = 0.01f * temp;
       }
     }
     free(C);
 
     for (size_t k = 0; k < n; k++)
-      A[k * lda + k] += 1.0;
+      A[k * lda + k] += 1.0f;
 
-    CUDA_MEMCPY2D copy = { 0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(double complex),
-                           0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(double complex),
-                           n * sizeof(double complex), n };
+    CUDA_MEMCPY2D copy = { 0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(float complex),
+                           0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(float complex),
+                           n * sizeof(float complex), n };
     CU_ERROR_CHECK(cuMemcpy2D(&copy));
   }
 
   ldb = (m + 1u) & ~1u;
-  if ((B = malloc(ldb * n * sizeof(double complex))) == NULL) {
+  if ((B = malloc(ldb * n * sizeof(float complex))) == NULL) {
     fputs("Unable to allocate B\n", stderr);
     return -3;
   }
-  if ((refB = malloc(ldb * n * sizeof(double complex))) == NULL) {
+  if ((refB = malloc(ldb * n * sizeof(float complex))) == NULL) {
     fputs("Unable to allocate refB\n", stderr);
     return -4;
   }
-  CU_ERROR_CHECK(cuMemAllocPitch(&dB, &dldb, m * sizeof(double complex), n, sizeof(double complex)));
-  dldb /= sizeof(double complex);
-  CU_ERROR_CHECK(cuMemAllocPitch(&dX, &dldx, m * sizeof(double complex), n, sizeof(double complex)));
-  dldx /= sizeof(double complex);
+  CU_ERROR_CHECK(cuMemAllocPitch(&dB, &dldb, m * sizeof(float complex), n, sizeof(float complex)));
+  dldb /= sizeof(float complex);
+  CU_ERROR_CHECK(cuMemAllocPitch(&dX, &dldx, m * sizeof(float complex), n, sizeof(float complex)));
+  dldx /= sizeof(float complex);
 
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < m; i++)
       refB[j * ldb + i] = B[j * ldb + i] = gaussian();
   }
 
-  CUDA_MEMCPY2D copy = { 0, 0, CU_MEMORYTYPE_HOST, B, 0, NULL, ldb * sizeof(double complex),
-                         0, 0, CU_MEMORYTYPE_DEVICE, NULL, dB, NULL, dldb * sizeof(double complex),
-                         m * sizeof(double complex), n };
+  CUDA_MEMCPY2D copy = { 0, 0, CU_MEMORYTYPE_HOST, B, 0, NULL, ldb * sizeof(float complex),
+                         0, 0, CU_MEMORYTYPE_DEVICE, NULL, dB, NULL, dldb * sizeof(float complex),
+                         m * sizeof(float complex), n };
   CU_ERROR_CHECK(cuMemcpy2D(&copy));
 
-  ztrmm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb);
-  CU_ERROR_CHECK(cuZtrmm(module, side, uplo, trans, diag, m, n, alpha, dA, dlda, dB, dldb, dX, dldx, NULL));
+  ctrmm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb);
+  CU_ERROR_CHECK(cuCtrmm2(handle, side, uplo, trans, diag, m, n, alpha, dA, dlda, dB, dldb, dX, dldx, NULL));
 
-  copy = (CUDA_MEMCPY2D){ 0, 0, CU_MEMORYTYPE_DEVICE, NULL, dX, NULL, dldx * sizeof(double complex),
-                          0, 0, CU_MEMORYTYPE_HOST, B, 0, NULL, ldb * sizeof(double complex),
-                          m * sizeof(double complex), n };
+  copy = (CUDA_MEMCPY2D){ 0, 0, CU_MEMORYTYPE_DEVICE, NULL, dX, NULL, dldx * sizeof(float complex),
+                          0, 0, CU_MEMORYTYPE_HOST, B, 0, NULL, ldb * sizeof(float complex),
+                          m * sizeof(float complex), n };
   CU_ERROR_CHECK(cuMemcpy2D(&copy));
 
   bool passed = true;
-  double rdiff = 0.0, idiff = 0.0;
+  float rdiff = 0.0f, idiff = 0.0f;
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < m; i++) {
-      double d = fabs(creal(B[j * ldb + i]) - creal(refB[j * ldb + i]));
+      float d = fabsf(crealf(B[j * ldb + i]) - crealf(refB[j * ldb + i]));
       if (d > rdiff)
         rdiff = d;
 
-      double c = fabs(cimag(B[j * ldb + i]) - cimag(refB[j * ldb + i]));
+      float c = fabsf(cimagf(B[j * ldb + i]) - cimagf(refB[j * ldb + i]));
       if (c > idiff)
         idiff = c;
 
@@ -228,8 +226,8 @@ int main(int argc, char * argv[]) {
         flops++;
       flops *= 3;
 
-      if (d > (double)flops * 2.0 * DBL_EPSILON ||
-          c > (double)flops * 2.0 * DBL_EPSILON)
+      if (d > (float)flops * 2.0f * FLT_EPSILON ||
+          c > (float)flops * 2.0f * FLT_EPSILON)
         passed = false;
     }
   }
@@ -240,7 +238,7 @@ int main(int argc, char * argv[]) {
 
   CU_ERROR_CHECK(cuEventRecord(start, NULL));
   for (size_t i = 0; i < 20; i++)
-    CU_ERROR_CHECK(cuZtrmm(module, side, uplo, trans, diag, m, n, alpha, dA, dlda, dB, dldb, dX, dldx, NULL));
+    CU_ERROR_CHECK(cuCtrmm2(handle, side, uplo, trans, diag, m, n, alpha, dA, dlda, dB, dldb, dX, dldx, NULL));
   CU_ERROR_CHECK(cuEventRecord(stop, NULL));
   CU_ERROR_CHECK(cuEventSynchronize(stop));
 
@@ -252,7 +250,7 @@ int main(int argc, char * argv[]) {
   CU_ERROR_CHECK(cuEventDestroy(stop));
 
   size_t flops = 6 * m * n;
-  if (alpha != 0.0 + 0.0 * I) {
+  if (alpha != 0.0f + 0.0f * I) {
     flops += (side == CBlasLeft) ? 2 * m * n * (2 * m - 1) : 2 * m * n * (2 * n - 1);
     if (diag == CBlasNonUnit) flops += 18 * m * n;
   }
@@ -267,9 +265,7 @@ int main(int argc, char * argv[]) {
   CU_ERROR_CHECK(cuMemFree(dB));
   CU_ERROR_CHECK(cuMemFree(dX));
 
-  CU_ERROR_CHECK(cuModuleUnload(module));
-
-  CU_ERROR_CHECK(cuCtxDestroy(context));
+  CU_ERROR_CHECK(cuHandleDestroy(handle));
 
   return (int)!passed;
 }

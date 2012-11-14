@@ -1,5 +1,6 @@
 #include "blas.h"
 #include "error.h"
+#include "cuhandle.h"
 #include <stdio.h>
 #include <sys/time.h>
 #include <float.h>
@@ -72,11 +73,8 @@ int main(int argc, char * argv[]) {
   CUdevice device;
   CU_ERROR_CHECK(cuDeviceGet(&device, d));
 
-  CUcontext context;
-  CU_ERROR_CHECK(cuCtxCreate(&context, CU_CTX_BLOCKING_SYNC, device));
-
-  CUmodule module;
-  CU_ERROR_CHECK(cuModuleLoad(&module, "zgemm.fatbin"));
+  CUhandle handle;
+  CU_ERROR_CHECK(cuHandleCreate(&handle, CU_CTX_BLOCKING_SYNC, device));
 
   alpha = ((double)rand() / (double)RAND_MAX) + ((double)rand() / (double)RAND_MAX) * I;
   beta = ((double)rand() / (double)RAND_MAX) + ((double)rand() / (double)RAND_MAX) * I;
@@ -184,7 +182,7 @@ int main(int argc, char * argv[]) {
   CU_ERROR_CHECK(cuMemcpy2D(&copy));
 
   zgemm_ref(transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, refC, ldc);
-  CU_ERROR_CHECK(cuZgemm2(module, transA, transB, m, n, k, alpha, dA, dlda, dB, dldb, beta, dC, dldc, dD, dldd, NULL));
+  CU_ERROR_CHECK(cuZgemm2(handle, transA, transB, m, n, k, alpha, dA, dlda, dB, dldb, beta, dC, dldc, dD, dldd, NULL));
 
   copy = (CUDA_MEMCPY2D){ 0, 0, CU_MEMORYTYPE_DEVICE, NULL, dC, NULL, dldc * sizeof(double complex),
            0, 0, CU_MEMORYTYPE_HOST, C, 0, NULL, ldc * sizeof(double complex),
@@ -209,7 +207,7 @@ int main(int argc, char * argv[]) {
 
   CU_ERROR_CHECK(cuEventRecord(start, NULL));
   for (size_t i = 0; i < 20; i++)
-    CU_ERROR_CHECK(cuZgemm2(module, transA, transB, m, n, k, alpha, dA, dlda, dB, dldb, beta, dC, dldc, dD, dldd, NULL));
+    CU_ERROR_CHECK(cuZgemm2(handle, transA, transB, m, n, k, alpha, dA, dlda, dB, dldb, beta, dC, dldc, dD, dldd, NULL));
   CU_ERROR_CHECK(cuEventRecord(stop, NULL));
   CU_ERROR_CHECK(cuEventSynchronize(stop));
 
@@ -241,9 +239,7 @@ int main(int argc, char * argv[]) {
   CU_ERROR_CHECK(cuMemFree(dC));
   CU_ERROR_CHECK(cuMemFree(dD));
 
-  CU_ERROR_CHECK(cuModuleUnload(module));
-
-  CU_ERROR_CHECK(cuCtxDestroy(context));
+  CU_ERROR_CHECK(cuHandleDestroy(handle));
 
   return (int)!passed;
 }

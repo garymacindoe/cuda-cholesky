@@ -34,7 +34,12 @@ __global__ void sgemm(int m, int n, int k,
 
   const int bi = blockIdx.x * mb;       // Starting row of block of C/D
   const int bj = blockIdx.y * nb;       // Starting column of block of C/D
-  const int ti = threadIdx.y * bx + threadIdx.x;        // Unwrapped thread index [0, bx * by]
+  int ti = threadIdx.y * bx + threadIdx.x;
+  int tj = 0;
+  if (transA != CBlasNoTrans) {
+    tj = 16 * (ti / mb);
+    ti = ti % mb;
+  }
 
   /*
    * Compute our starting points in A, B, C and D.
@@ -48,8 +53,10 @@ __global__ void sgemm(int m, int n, int k,
    */
   A += (transA == CBlasNoTrans) ? bi + ti : (bi + threadIdx.y) * lda + threadIdx.x;
   B += (transB == CBlasNoTrans) ? (bj + threadIdx.y) * ldb + threadIdx.x : threadIdx.y * ldb + bj + threadIdx.x;
-  C += (bx * by == mb) ? bj * ldc + bi + ti : (bj + 16 * (ti / mb)) * ldc + bi + ti % mb;
-  D += (bx * by == mb) ? bj * ldd + bi + ti : (bj + 16 * (ti / mb)) * ldd + bi + ti % mb;
+  C += (bj + tj) * ldc + bi + ti;
+  D += (bj + tj) * ldd + bi + ti;
+  n -= bj + tj;
+  m -= bi + ti;
 
   /*
    * Blocks of A and B in shared memory and D in registers.
@@ -65,9 +72,6 @@ __global__ void sgemm(int m, int n, int k,
     if (transA != CBlasNoTrans) {
 //       typedef char x[(kb % bx == 0) ? 1 : -1];  // bx must be a multiple of kb
 //       typedef char y[(mb % by == 0) ? 1 : -1];  // by must be a multiple of mb
-      // If bx or by is equal to kb or mb then nvcc will optimise one of these
-      // loops away.  This is the source of the "warning: expression has no
-      // effect" compiler messages.
 #pragma unroll
       for (int l = 0; l < kb; l += bx) {
 #pragma unroll
@@ -123,8 +127,7 @@ __global__ void sgemm(int m, int n, int k,
 //       typedef char y[((bx * by * 16) / mb == nb) ? 1 : -1];     // when the threads are wrapped around mb they must spread along to nb
 #pragma unroll
       for (int l = 0; l < kb; l++)
-        saxpy(a[(bx * by == mb) ? ti : ti % mb][l],
-              &b[l][(bx * by == mb) ? 0 : 16 * (ti / mb)], d);
+        saxpy(a[ti][l], &b[l][tj], d);
     }
 
     __syncthreads();
@@ -141,52 +144,45 @@ __global__ void sgemm(int m, int n, int k,
   }
   else {
     for (int l = 0; l < k; l++)
-      saxpy(a[(bx * by == mb) ? ti : ti % mb][l],
-            &b[l][(bx * by == mb) ? 0 : 16 * (ti / mb)], d);
+      saxpy(a[ti][l], &b[l][tj], d);
   }
 
-  if (bx * by == mb)
-    n -= bj;
-  else
-    n -= bj + 16 * (ti / mb);
-  if (n <= 0) return;
-  if ((bx * by == mb && bi + ti < m) || (bx * by > mb && bi + ti % mb < m)) {
-    if (beta == 0.0f) {
-      D[0] = alpha * d[ 0]; if ( 1 >= n) return; D += ldd;
-      D[0] = alpha * d[ 1]; if ( 2 >= n) return; D += ldd;
-      D[0] = alpha * d[ 2]; if ( 3 >= n) return; D += ldd;
-      D[0] = alpha * d[ 3]; if ( 4 >= n) return; D += ldd;
-      D[0] = alpha * d[ 4]; if ( 5 >= n) return; D += ldd;
-      D[0] = alpha * d[ 5]; if ( 6 >= n) return; D += ldd;
-      D[0] = alpha * d[ 6]; if ( 7 >= n) return; D += ldd;
-      D[0] = alpha * d[ 7]; if ( 8 >= n) return; D += ldd;
-      D[0] = alpha * d[ 8]; if ( 9 >= n) return; D += ldd;
-      D[0] = alpha * d[ 9]; if (10 >= n) return; D += ldd;
-      D[0] = alpha * d[10]; if (11 >= n) return; D += ldd;
-      D[0] = alpha * d[11]; if (12 >= n) return; D += ldd;
-      D[0] = alpha * d[12]; if (13 >= n) return; D += ldd;
-      D[0] = alpha * d[13]; if (14 >= n) return; D += ldd;
-      D[0] = alpha * d[14]; if (15 >= n) return; D += ldd;
-      D[0] = alpha * d[15];
-    }
-    else {
-      D[0] = alpha * d[ 0] + beta * C[0]; if ( 1 >= n) return; C += ldc; D += ldd;
-      D[0] = alpha * d[ 1] + beta * C[0]; if ( 2 >= n) return; C += ldc; D += ldd;
-      D[0] = alpha * d[ 2] + beta * C[0]; if ( 3 >= n) return; C += ldc; D += ldd;
-      D[0] = alpha * d[ 3] + beta * C[0]; if ( 4 >= n) return; C += ldc; D += ldd;
-      D[0] = alpha * d[ 4] + beta * C[0]; if ( 5 >= n) return; C += ldc; D += ldd;
-      D[0] = alpha * d[ 5] + beta * C[0]; if ( 6 >= n) return; C += ldc; D += ldd;
-      D[0] = alpha * d[ 6] + beta * C[0]; if ( 7 >= n) return; C += ldc; D += ldd;
-      D[0] = alpha * d[ 7] + beta * C[0]; if ( 8 >= n) return; C += ldc; D += ldd;
-      D[0] = alpha * d[ 8] + beta * C[0]; if ( 9 >= n) return; C += ldc; D += ldd;
-      D[0] = alpha * d[ 9] + beta * C[0]; if (10 >= n) return; C += ldc; D += ldd;
-      D[0] = alpha * d[10] + beta * C[0]; if (11 >= n) return; C += ldc; D += ldd;
-      D[0] = alpha * d[11] + beta * C[0]; if (12 >= n) return; C += ldc; D += ldd;
-      D[0] = alpha * d[12] + beta * C[0]; if (13 >= n) return; C += ldc; D += ldd;
-      D[0] = alpha * d[13] + beta * C[0]; if (14 >= n) return; C += ldc; D += ldd;
-      D[0] = alpha * d[14] + beta * C[0]; if (15 >= n) return; C += ldc; D += ldd;
-      D[0] = alpha * d[15] + beta * C[0];
-    }
+  if (n <= 0 || m <= 0) return;
+  if (beta == 0.0f) {
+    D[0] = alpha * d[ 0]; if ( 1 >= n) return; D += ldd;
+    D[0] = alpha * d[ 1]; if ( 2 >= n) return; D += ldd;
+    D[0] = alpha * d[ 2]; if ( 3 >= n) return; D += ldd;
+    D[0] = alpha * d[ 3]; if ( 4 >= n) return; D += ldd;
+    D[0] = alpha * d[ 4]; if ( 5 >= n) return; D += ldd;
+    D[0] = alpha * d[ 5]; if ( 6 >= n) return; D += ldd;
+    D[0] = alpha * d[ 6]; if ( 7 >= n) return; D += ldd;
+    D[0] = alpha * d[ 7]; if ( 8 >= n) return; D += ldd;
+    D[0] = alpha * d[ 8]; if ( 9 >= n) return; D += ldd;
+    D[0] = alpha * d[ 9]; if (10 >= n) return; D += ldd;
+    D[0] = alpha * d[10]; if (11 >= n) return; D += ldd;
+    D[0] = alpha * d[11]; if (12 >= n) return; D += ldd;
+    D[0] = alpha * d[12]; if (13 >= n) return; D += ldd;
+    D[0] = alpha * d[13]; if (14 >= n) return; D += ldd;
+    D[0] = alpha * d[14]; if (15 >= n) return; D += ldd;
+    D[0] = alpha * d[15];
+  }
+  else {
+    D[0] = alpha * d[ 0] + beta * C[0]; if ( 1 >= n) return; C += ldc; D += ldd;
+    D[0] = alpha * d[ 1] + beta * C[0]; if ( 2 >= n) return; C += ldc; D += ldd;
+    D[0] = alpha * d[ 2] + beta * C[0]; if ( 3 >= n) return; C += ldc; D += ldd;
+    D[0] = alpha * d[ 3] + beta * C[0]; if ( 4 >= n) return; C += ldc; D += ldd;
+    D[0] = alpha * d[ 4] + beta * C[0]; if ( 5 >= n) return; C += ldc; D += ldd;
+    D[0] = alpha * d[ 5] + beta * C[0]; if ( 6 >= n) return; C += ldc; D += ldd;
+    D[0] = alpha * d[ 6] + beta * C[0]; if ( 7 >= n) return; C += ldc; D += ldd;
+    D[0] = alpha * d[ 7] + beta * C[0]; if ( 8 >= n) return; C += ldc; D += ldd;
+    D[0] = alpha * d[ 8] + beta * C[0]; if ( 9 >= n) return; C += ldc; D += ldd;
+    D[0] = alpha * d[ 9] + beta * C[0]; if (10 >= n) return; C += ldc; D += ldd;
+    D[0] = alpha * d[10] + beta * C[0]; if (11 >= n) return; C += ldc; D += ldd;
+    D[0] = alpha * d[11] + beta * C[0]; if (12 >= n) return; C += ldc; D += ldd;
+    D[0] = alpha * d[12] + beta * C[0]; if (13 >= n) return; C += ldc; D += ldd;
+    D[0] = alpha * d[13] + beta * C[0]; if (14 >= n) return; C += ldc; D += ldd;
+    D[0] = alpha * d[14] + beta * C[0]; if (15 >= n) return; C += ldc; D += ldd;
+    D[0] = alpha * d[15] + beta * C[0];
   }
 }
 

@@ -1,6 +1,5 @@
 #include "blas.h"
 #include "error.h"
-#include "cuhandle.h"
 #include <stdio.h>
 #include <sys/time.h>
 #include <float.h>
@@ -84,18 +83,6 @@ int main(int argc, char * argv[]) {
   float complex alpha, * A, * B, * refB, * C;
   size_t lda, ldb, ldc;
 
-  CU_ERROR_CHECK(cuInit(0));
-
-  int deviceCount;
-  CU_ERROR_CHECK(cuDeviceGetCount(&deviceCount));
-
-  CUhandle handles[deviceCount];
-  for (int i = 0; i < deviceCount; i++) {
-    CUdevice device;
-    CU_ERROR_CHECK(cuDeviceGet(&device, i));
-    CU_ERROR_CHECK(cuHandleCreate(&handles[i], CU_CTX_BLOCKING_SYNC, device));
-  }
-
   alpha = gaussian();
 
   if (side == CBlasLeft) {
@@ -168,6 +155,11 @@ int main(int argc, char * argv[]) {
     fputs("Unable to allocate refB\n", stderr);
     return -4;
   }
+  ldc = (m + 1u) & ~1u;
+  if ((C = malloc(ldc * n * sizeof(float complex))) == NULL) {
+    fputs("Unable to allocate C\n", stderr);
+    return -5;
+  }
 
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < m; i++)
@@ -175,17 +167,18 @@ int main(int argc, char * argv[]) {
   }
 
   ctrmm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb);
-  CU_ERROR_CHECK(cuMultiGPUCtrmm(handles, deviceCount, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb));
+  ctrmm2(side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb, C, ldc);
+//   ctrmm_(&s, &u, &t, &d, &m, &n, &alpha, A, &lda, B, &ldb);
 
   bool passed = true;
   float rdiff = 0.0f, idiff = 0.0f;
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < m; i++) {
-      float d = fabsf(crealf(B[j * ldb + i]) - crealf(refB[j * ldb + i]));
+      float d = fabsf(crealf(C[j * ldc + i]) - crealf(refB[j * ldb + i]));
       if (d > rdiff)
         rdiff = d;
 
-      float c = fabsf(cimagf(B[j * ldb + i]) - cimagf(refB[j * ldb + i]));
+      float c = fabsf(cimagf(C[j * ldc + i]) - cimagf(refB[j * ldb + i]));
       if (c > idiff)
         idiff = c;
 
@@ -210,7 +203,8 @@ int main(int argc, char * argv[]) {
     return -5;
   }
   for (size_t i = 0; i < 20; i++)
-    CU_ERROR_CHECK(cuMultiGPUCtrmm(handles, deviceCount, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb));
+//     ctrmm_(&s, &u, &t, &d, &m, &n, &alpha, A, &lda, B, &ldb);
+    ctrmm2(side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb, C, ldc);
   if (gettimeofday(&stop, NULL) != 0) {
     fputs("gettimeofday failed\n", stderr);
     return -6;
@@ -230,10 +224,8 @@ int main(int argc, char * argv[]) {
 
   free(A);
   free(B);
+  free(C);
   free(refB);
-
-  for (int i = 0; i < deviceCount; i++)
-    CU_ERROR_CHECK(cuHandleDestroy(handles[i]));
 
   return (int)!passed;
 }

@@ -1,5 +1,6 @@
 #include "blas.h"
 #include "error.h"
+#include "cuhandle.h"
 #include <stdio.h>
 #include <sys/time.h>
 #include <float.h>
@@ -82,22 +83,19 @@ int main(int argc, char * argv[]) {
 
   srand(0);
 
-  float alpha, * A, * B, * refB, * C;
+  float alpha, * A, * B, * refB;
   CUdeviceptr dA, dB, dX;
-  size_t lda, ldb, ldc, dlda, dldb, dldx;
+  size_t lda, ldb, dlda, dldb, dldx;
 
   CU_ERROR_CHECK(cuInit(0));
 
   CUdevice device;
   CU_ERROR_CHECK(cuDeviceGet(&device, d));
 
-  CUcontext context;
-  CU_ERROR_CHECK(cuCtxCreate(&context, CU_CTX_BLOCKING_SYNC, device));
+  CUhandle handle;
+  CU_ERROR_CHECK(cuHandleCreate(&handle, CU_CTX_BLOCKING_SYNC, device));
 
-  CUmodule module;
-  CU_ERROR_CHECK(cuModuleLoad(&module, "strmm.fatbin"));
-
-  alpha = gaussian();
+  alpha = (float)rand() / (float)RAND_MAX;
   fprintf(stderr, "alpha =\n%15.6f\n", alpha);
 
   if (side == CBlasLeft) {
@@ -109,28 +107,10 @@ int main(int argc, char * argv[]) {
     CU_ERROR_CHECK(cuMemAllocPitch(&dA, &dlda, m * sizeof(float), m, sizeof(float)));
     dlda /= sizeof(float);
 
-    size_t k = m * 5;
-    ldc = (k + 3u) & ~3u;
-    if ((C = malloc(ldc * m * sizeof(float))) == NULL) {
-      fputs("Unable to allocate C\n", stderr);
-      return -1;
-    }
     for (size_t j = 0; j < m; j++) {
-      for (size_t i = 0; i < k; i++)
-        C[j * ldc + i] = gaussian();
+      for (size_t i = 0; i < m; i++)
+        A[j * lda + i] = (float)rand() / (float)RAND_MAX;
     }
-    for (size_t j = 0; j < m; j++) {
-      for (size_t i = 0; i < m; i++) {
-        float temp = 0.0f;
-        for (size_t l = 0; l < k; l++)
-          temp += C[i * ldc + l] * C[j * ldc + l];
-        A[j * lda + i] = 0.01f * temp;
-      }
-    }
-    free(C);
-
-    for (size_t k = 0; k < m; k++)
-      A[k * lda + k] += 1.0f;
 
     CUDA_MEMCPY2D copy = { 0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(float),
     0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(float),
@@ -153,28 +133,10 @@ int main(int argc, char * argv[]) {
     CU_ERROR_CHECK(cuMemAllocPitch(&dA, &dlda, n * sizeof(float), n, sizeof(float)));
     dlda /= sizeof(float);
 
-    size_t k = n * 5;
-    ldc = (k + 3u) & ~3u;
-    if ((C = malloc(ldc * n * sizeof(float))) == NULL) {
-      fputs("Unable to allocate C\n", stderr);
-      return -1;
-    }
     for (size_t j = 0; j < n; j++) {
-      for (size_t i = 0; i < k; i++)
-        C[j * ldc + i] = gaussian();
+      for (size_t i = 0; i < n; i++)
+        A[j * lda + i] = (float)rand() / (float)RAND_MAX;
     }
-    for (size_t j = 0; j < n; j++) {
-      for (size_t i = 0; i < n; i++) {
-        float temp = 0.0f;
-        for (size_t l = 0; l < k; l++)
-          temp += C[i * ldc + l] * C[j * ldc + l];
-        A[j * lda + i] = 0.01f * temp;
-      }
-    }
-    free(C);
-
-    for (size_t k = 0; k < n; k++)
-      A[k * lda + k] += 1.0f;
 
     CUDA_MEMCPY2D copy = { 0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(float),
     0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(float),
@@ -205,7 +167,7 @@ int main(int argc, char * argv[]) {
 
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < m; i++)
-      refB[j * ldb + i] = B[j * ldb + i] = gaussian();
+      refB[j * ldb + i] = B[j * ldb + i] = (float)rand() / (float)RAND_MAX;
   }
 
   fprintf(stderr, "B =\n");
@@ -221,7 +183,7 @@ int main(int argc, char * argv[]) {
   CU_ERROR_CHECK(cuMemcpy2D(&copy));
 
   strmm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb);
-  CU_ERROR_CHECK(cuStrmm(module, side, uplo, trans, diag, m, n, alpha, dA, dlda, dB, dldb, dX, dldx, NULL));
+  CU_ERROR_CHECK(cuStrmm2(handle, side, uplo, trans, diag, m, n, alpha, dA, dlda, dB, dldb, dX, dldx, NULL));
 
   copy = (CUDA_MEMCPY2D){ 0, 0, CU_MEMORYTYPE_DEVICE, NULL, dX, NULL, dldx * sizeof(float),
   0, 0, CU_MEMORYTYPE_HOST, B, 0, NULL, ldb * sizeof(float),
@@ -258,8 +220,10 @@ int main(int argc, char * argv[]) {
       if (diag == CBlasNonUnit)
         flops++;
 
-      if (d > (float)flops * 2.0f * FLT_EPSILON)
+      if (d > (float)flops * 2.0f * FLT_EPSILON) {
         passed = false;
+        fprintf(stderr, "%zu, %zu: %15.6f != %15.6f\n", i, j, B[j * ldb + i], refB[j * ldb + i]);
+      }
     }
   }
 
@@ -269,7 +233,7 @@ int main(int argc, char * argv[]) {
 
   CU_ERROR_CHECK(cuEventRecord(start, NULL));
   for (size_t i = 0; i < 20; i++)
-    CU_ERROR_CHECK(cuStrmm(module, side, uplo, trans, diag, m, n, alpha, dA, dlda, dB, dldb, dX, dldx, NULL));
+    CU_ERROR_CHECK(cuStrmm2(handle, side, uplo, trans, diag, m, n, alpha, dA, dlda, dB, dldb, dX, dldx, NULL));
   CU_ERROR_CHECK(cuEventRecord(stop, NULL));
   CU_ERROR_CHECK(cuEventSynchronize(stop));
 
@@ -296,9 +260,7 @@ int main(int argc, char * argv[]) {
   CU_ERROR_CHECK(cuMemFree(dB));
   CU_ERROR_CHECK(cuMemFree(dX));
 
-  CU_ERROR_CHECK(cuModuleUnload(module));
-
-  CU_ERROR_CHECK(cuCtxDestroy(context));
+  CU_ERROR_CHECK(cuHandleDestroy(handle));
 
   return (int)!passed;
 }

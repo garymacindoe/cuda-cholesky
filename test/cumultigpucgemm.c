@@ -1,5 +1,6 @@
 #include "blas.h"
 #include "error.h"
+#include "cuhandle.h"
 #include <stdio.h>
 #include <sys/time.h>
 #include <float.h>
@@ -62,11 +63,11 @@ int main(int argc, char * argv[]) {
   int deviceCount;
   CU_ERROR_CHECK(cuDeviceGetCount(&deviceCount));
 
-  CUcontext contexts[deviceCount];
+  CUhandle handles[deviceCount];
   for (int i = 0; i < deviceCount; i++) {
     CUdevice device;
     CU_ERROR_CHECK(cuDeviceGet(&device, i));
-    CU_ERROR_CHECK(cuCtxCreate(&contexts[i], CU_CTX_BLOCKING_SYNC, device));
+    CU_ERROR_CHECK(cuHandleCreate(&handles[i], CU_CTX_BLOCKING_SYNC, device));
   }
 
   alpha = ((float)rand() / (float)RAND_MAX) + ((float)rand() / (float)RAND_MAX) * I;
@@ -138,7 +139,7 @@ int main(int argc, char * argv[]) {
   }
 
   cgemm_ref(transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, refC, ldc);
-  CU_ERROR_CHECK(cuMultiGPUCgemm(contexts, deviceCount, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc));
+  CU_ERROR_CHECK(cuMultiGPUCgemm(handles, deviceCount, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc));
 
   float rdiff = 0.0f, idiff = 0.0f;
   for (size_t j = 0; j < n; j++) {
@@ -158,7 +159,7 @@ int main(int argc, char * argv[]) {
     return -5;
   }
   for (size_t i = 0; i < 20; i++)
-    CU_ERROR_CHECK(cuMultiGPUCgemm(contexts, deviceCount, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc));
+    CU_ERROR_CHECK(cuMultiGPUCgemm(handles, deviceCount, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc));
   if (gettimeofday(&stop, NULL) != 0) {
     fputs("gettimeofday failed\n", stderr);
     return -6;
@@ -185,7 +186,7 @@ int main(int argc, char * argv[]) {
   free(refC);
 
   for (int i = 0; i < deviceCount; i++)
-    CU_ERROR_CHECK(cuCtxDestroy(contexts[i]));
+    CU_ERROR_CHECK(cuHandleDestroy(handles[i]));
 
   return (int)!passed;
 }

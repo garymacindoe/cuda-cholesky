@@ -1,6 +1,7 @@
 #include "blas.h"
 #include "error.h"
 #include <stdio.h>
+#include "../handle.h"
 
 static inline size_t min(size_t a, size_t b) { return (a < b) ? a : b; }
 static inline size_t max(size_t a, size_t b) { return (a > b) ? a : b; }
@@ -28,7 +29,10 @@ static inline CUresult cuMemcpyDtoH2DAsync(void * A, size_t lda, size_t ai, size
 static const float zero = 0.0f;
 static const float one = 1.0f;
 
-void strsm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag, size_t m, size_t n, float alpha, const float * restrict A, size_t lda, float * restrict B, size_t ldb) {
+void strsm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag,
+           size_t m, size_t n,
+           float alpha, const float * restrict A, size_t lda,
+           float * restrict B, size_t ldb) {
   const size_t nRowA = (side == CBlasLeft) ? m : n;
 
   int info = 0;
@@ -208,7 +212,11 @@ void strsm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag
   }
 }
 
-CUresult cuStrsm(CUmodule module, CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag, size_t m, size_t n, float alpha, CUdeviceptr A, size_t lda, CUdeviceptr B, size_t ldb, CUstream stream) {
+CUresult cuStrsm(CUhandle handle,
+                 CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag,
+                 size_t m, size_t n,
+                 float alpha, CUdeviceptr A, size_t lda,
+                 CUdeviceptr B, size_t ldb, CUstream stream) {
   const size_t nRowA = (side == CBlasLeft) ? m : n;
 
   int info = 0;
@@ -229,21 +237,30 @@ CUresult cuStrsm(CUmodule module, CBlasSide side, CBlasUplo uplo, CBlasTranspose
   const unsigned int nb = (side == CBlasLeft) ? 64 :  8;
 
   char name[102];
-  snprintf(name, 102, "_Z5strsmIL9CBlasSide%dEL9CBlasUplo%dEL14CBlasTranspose%dEL9CBlasDiag%dELj%uELj%uELj%uELj%uEEviifPKfiPfi", side, uplo, transA, diag, mb, nb, bx, by);
+  snprintf(name, 102,
+           "_Z5strsmIL9CBlasSide%dEL9CBlasUplo%dEL14CBlasTranspose%dEL9CBlasDiag%dELj%uELj%uELj%uELj%uEEviifPKfiPfi",
+           side, uplo, transA, diag, mb, nb, bx, by);
+
+  CUmodule module;
+  CU_ERROR_CHECK(cuHandleGetModule(handle, &module, CU_HANDLE_SINGLE, CU_HANDLE_TRSM));
 
   CUfunction function;
   CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
 
   void * params[] = { &m, &n, &alpha, &A, &lda, &B, &ldb };
 
-  const unsigned int gx = (side == CBlasLeft) ? 1 : (unsigned int)max(1, (m + mb - 1) / mb);
-  const unsigned int gy = (side == CBlasLeft) ? (unsigned int)max(1, (n + nb - 1) / nb) : 1;
+  const unsigned int gx = (side == CBlasLeft) ? 1 : (unsigned int)(m + mb - 1) / mb;
+  const unsigned int gy = (side == CBlasLeft) ? (unsigned int)(n + nb - 1) / nb : 1;
   CU_ERROR_CHECK(cuLaunchKernel(function, gx, gy, 1, bx, by, 1, 0, stream, params, NULL));
 
   return CUDA_SUCCESS;
 }
 
-CUresult cuMultiGPUStrsm(CUcontext * contexts, int deviceCount, CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag, size_t m, size_t n, float alpha, const float * restrict A, size_t lda, float * restrict B, size_t ldb) {
+CUresult cuMultiGPUStrsm(CUhandle * handles, int deviceCount,
+                         CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag,
+                         size_t m, size_t n,
+                         float alpha, const float * restrict A, size_t lda,
+                         float * restrict B, size_t ldb) {
   const size_t nRowA = (side == CBlasLeft) ? m : n;
 
   int info = 0;
@@ -256,7 +273,8 @@ CUresult cuMultiGPUStrsm(CUcontext * contexts, int deviceCount, CBlasSide side, 
     return CUDA_ERROR_INVALID_VALUE;
   }
 
-  if (m == 0 || n == 0) return CUDA_SUCCESS;
+  if (m == 0 || n == 0)
+    return CUDA_SUCCESS;
 
   if (alpha == zero) {
     sgemm(CBlasNoTrans, CBlasNoTrans, m, n, 0, zero, A, lda, B, ldb, zero, B, ldb);
@@ -277,7 +295,7 @@ CUresult cuMultiGPUStrsm(CUcontext * contexts, int deviceCount, CBlasSide side, 
           const size_t ib = min(mb, m - i);
           for (size_t j = 0; j < n; j += nb) {
             const size_t jb = min(nb, n - j);
-            CU_ERROR_CHECK(cuMultiGPUSgemm(contexts, deviceCount, CBlasNoTrans, CBlasNoTrans, ib, jb, m - i - ib, -one, &A[(i + ib) * lda + i], lda, &B[j * ldb + i + ib], ldb, alpha, &B[j * ldb + i], ldb));
+            CU_ERROR_CHECK(cuMultiGPUSgemm(handles, deviceCount, CBlasNoTrans, CBlasNoTrans, ib, jb, m - i - ib, -one, &A[(i + ib) * lda + i], lda, &B[j * ldb + i + ib], ldb, alpha, &B[j * ldb + i], ldb));
             strsm(CBlasLeft, CBlasUpper, CBlasNoTrans, diag, ib, jb, one, &A[i * lda + i], lda, &B[j * ldb + i], ldb);
           }
         } while (i > 0);
@@ -287,7 +305,7 @@ CUresult cuMultiGPUStrsm(CUcontext * contexts, int deviceCount, CBlasSide side, 
           const size_t ib = min(mb, m - i);
           for (size_t j = 0; j < n; j += nb) {
             const size_t jb = min(nb, n - j);
-            CU_ERROR_CHECK(cuMultiGPUSgemm(contexts, deviceCount, CBlasNoTrans, CBlasNoTrans, ib, jb, i, -one, &A[i], lda, &B[j * ldb], ldb, alpha, &B[j * ldb + i], ldb));
+            CU_ERROR_CHECK(cuMultiGPUSgemm(handles, deviceCount, CBlasNoTrans, CBlasNoTrans, ib, jb, i, -one, &A[i], lda, &B[j * ldb], ldb, alpha, &B[j * ldb + i], ldb));
             strsm(CBlasLeft, CBlasLower, CBlasNoTrans, diag, ib, jb, one, &A[i * lda + i], lda, &B[j * ldb + i], ldb);
           }
         }
@@ -303,7 +321,7 @@ CUresult cuMultiGPUStrsm(CUcontext * contexts, int deviceCount, CBlasSide side, 
           const size_t ib = min(mb, m - i);
           for (size_t j = 0; j < n; j += nb) {
             const size_t jb = min(nb, n - j);
-            CU_ERROR_CHECK(cuMultiGPUSgemm(contexts, deviceCount, CBlasTrans, CBlasNoTrans, ib, jb, i, -one, &A[i * lda], lda, &B[j * ldb], ldb, alpha, &B[j * ldb + i], ldb));
+            CU_ERROR_CHECK(cuMultiGPUSgemm(handles, deviceCount, CBlasTrans, CBlasNoTrans, ib, jb, i, -one, &A[i * lda], lda, &B[j * ldb], ldb, alpha, &B[j * ldb + i], ldb));
             strsm(CBlasLeft, CBlasUpper, CBlasTrans, diag, ib, jb, one, &A[i * lda + i], lda, &B[j * ldb + i], ldb);
           }
         }
@@ -317,7 +335,7 @@ CUresult cuMultiGPUStrsm(CUcontext * contexts, int deviceCount, CBlasSide side, 
           const size_t ib = min(mb, m - i);
           for (size_t j = 0; j < n; j += nb) {
             const size_t jb = min(nb, n - j);
-            CU_ERROR_CHECK(cuMultiGPUSgemm(contexts, deviceCount, CBlasTrans, CBlasNoTrans, ib, jb, m - i - ib, -one, &A[i * lda + i + ib], lda, &B[j * ldb + i + ib], ldb, alpha, &B[j * ldb + i], ldb));
+            CU_ERROR_CHECK(cuMultiGPUSgemm(handles, deviceCount, CBlasTrans, CBlasNoTrans, ib, jb, m - i - ib, -one, &A[i * lda + i + ib], lda, &B[j * ldb + i + ib], ldb, alpha, &B[j * ldb + i], ldb));
             strsm(CBlasLeft, CBlasLower, CBlasTrans, diag, ib, jb, one, &A[i * lda + i], lda, &B[j * ldb + i], ldb);
           }
         } while (i > 0);
@@ -335,7 +353,7 @@ CUresult cuMultiGPUStrsm(CUcontext * contexts, int deviceCount, CBlasSide side, 
           const size_t jb = min(nb, n - j);
           for (size_t i = 0; i < m; i += mb) {
             const size_t ib = min(mb, m - i);
-            CU_ERROR_CHECK(cuMultiGPUSgemm(contexts, deviceCount, CBlasNoTrans, CBlasNoTrans, ib, jb, j, -one, &B[i], ldb, &A[j * lda], lda, alpha, &B[j * ldb + i], ldb));
+            CU_ERROR_CHECK(cuMultiGPUSgemm(handles, deviceCount, CBlasNoTrans, CBlasNoTrans, ib, jb, j, -one, &B[i], ldb, &A[j * lda], lda, alpha, &B[j * ldb + i], ldb));
             strsm(CBlasRight, CBlasUpper, CBlasNoTrans, diag, ib, jb, one, &A[j * lda + j], lda, &B[j * ldb + i], ldb);
           }
         }
@@ -349,7 +367,7 @@ CUresult cuMultiGPUStrsm(CUcontext * contexts, int deviceCount, CBlasSide side, 
           const size_t jb = min(nb, n - j);
           for (size_t i = 0; i < m; i += mb) {
             const size_t ib = min(mb, m - i);
-            CU_ERROR_CHECK(cuMultiGPUSgemm(contexts, deviceCount, CBlasNoTrans, CBlasNoTrans, ib, jb, n - j - jb, -one, &B[(j + jb) * ldb + i], ldb, &A[j * lda + j + jb], lda, alpha, &B[j * ldb + i], ldb));
+            CU_ERROR_CHECK(cuMultiGPUSgemm(handles, deviceCount, CBlasNoTrans, CBlasNoTrans, ib, jb, n - j - jb, -one, &B[(j + jb) * ldb + i], ldb, &A[j * lda + j + jb], lda, alpha, &B[j * ldb + i], ldb));
             strsm(CBlasRight, CBlasLower, CBlasNoTrans, diag, ib, jb, one, &A[j * lda + j], lda, &B[j * ldb + i], ldb);
           }
         } while (j > 0);
@@ -369,7 +387,7 @@ CUresult cuMultiGPUStrsm(CUcontext * contexts, int deviceCount, CBlasSide side, 
           const size_t jb = min(nb, n - j);
           for (size_t i = 0; i < m; i += mb) {
             const size_t ib = min(mb, m - i);
-            CU_ERROR_CHECK(cuMultiGPUSgemm(contexts, deviceCount, CBlasNoTrans, CBlasTrans, ib, jb, n - j - jb, -one, &B[(j + jb) * ldb + i], ldb, &A[(j + jb) * lda + j], lda, alpha, &B[j * ldb + i], ldb));
+            CU_ERROR_CHECK(cuMultiGPUSgemm(handles, deviceCount, CBlasNoTrans, CBlasTrans, ib, jb, n - j - jb, -one, &B[(j + jb) * ldb + i], ldb, &A[(j + jb) * lda + j], lda, alpha, &B[j * ldb + i], ldb));
             strsm(CBlasRight, CBlasUpper, CBlasTrans, diag, ib, jb, one, &A[j * lda + j], lda, &B[j * ldb + i], ldb);
           }
         } while (j > 0);
@@ -379,7 +397,7 @@ CUresult cuMultiGPUStrsm(CUcontext * contexts, int deviceCount, CBlasSide side, 
           const size_t jb = min(nb, n - j);
           for (size_t i = 0; i < m; i += mb) {
             const size_t ib = min(mb, m - i);
-            CU_ERROR_CHECK(cuMultiGPUSgemm(contexts, deviceCount, CBlasNoTrans, CBlasTrans, ib, jb, j, -one, &B[i], ldb, &A[j], lda, alpha, &B[j * ldb + i], ldb));
+            CU_ERROR_CHECK(cuMultiGPUSgemm(handles, deviceCount, CBlasNoTrans, CBlasTrans, ib, jb, j, -one, &B[i], ldb, &A[j], lda, alpha, &B[j * ldb + i], ldb));
             strsm(CBlasRight, CBlasLower, CBlasTrans, diag, ib, jb, one, &A[j * lda + j], lda, &B[j * ldb + i], ldb);
           }
         }

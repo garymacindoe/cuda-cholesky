@@ -31,6 +31,17 @@ int main() {
     CUdevice device;
     CU_ERROR_CHECK(cuDeviceGet(&device, i));
 
+    char name[256];
+    CU_ERROR_CHECK(cuDeviceGetName(name, 256, device));
+
+    size_t bytes;
+    CU_ERROR_CHECK(cuDeviceTotalMem(&bytes, device));
+
+    int major, minor;
+    CU_ERROR_CHECK(cuDeviceComputeCapability(&major, &minor, device));
+
+    fprintf(stdout, "Device %d (%s, CC %d.%d, %zuMB):\n", i, name, major, minor, bytes >> 20);
+
     CUcontext context;
     CU_ERROR_CHECK(cuCtxCreate(&context, 0, device));
 
@@ -39,8 +50,6 @@ int main() {
 
     void * hPointer;
     CU_ERROR_CHECK(cuMemAllocHost(&hPointer, SIZE));
-
-    fprintf(stdout, "Device %d:\n", i);
 
     double sumX = 0.0, sumXX = 0.0, sumY = 0.0, sumXY = 0.0;
     size_t n = SIZE / INCREMENT;

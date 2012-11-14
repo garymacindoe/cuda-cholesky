@@ -1,16 +1,9 @@
 #include "blas.h"
 #include "error.h"
-#include "cuhandle.h"
 #include <stdio.h>
 #include <sys/time.h>
 #include <float.h>
-#include <complex.h>
-#include "ctrmm_ref.c"
-
-// extern void ctrmm_(const char *, const char *, const char *, const char *,
-//                    const size_t *, const size_t *,
-//                    const float complex *, const float complex *, const size_t *,
-//                    const float complex *, const size_t *);
+#include "strmm_ref.c"
 
 int main(int argc, char * argv[]) {
   CBlasSide side;
@@ -81,33 +74,21 @@ int main(int argc, char * argv[]) {
 
   srand(0);
 
-  float complex alpha, * A, * B, * refB, * C;
+  float alpha, * A, * B, * refB, * C;
   size_t lda, ldb, ldc;
-
-  CU_ERROR_CHECK(cuInit(0));
-
-  int deviceCount;
-  CU_ERROR_CHECK(cuDeviceGetCount(&deviceCount));
-
-  CUhandle handles[deviceCount];
-  for (int i = 0; i < deviceCount; i++) {
-    CUdevice device;
-    CU_ERROR_CHECK(cuDeviceGet(&device, i));
-    CU_ERROR_CHECK(cuHandleCreate(&handles[i], CU_CTX_BLOCKING_SYNC, device));
-  }
 
   alpha = gaussian();
 
   if (side == CBlasLeft) {
-    lda = (m + 1u) & ~1u;
-    if ((A = malloc(lda * m * sizeof(float complex))) == NULL) {
+    lda = (m + 3u) & ~3u;
+    if ((A = malloc(lda * m * sizeof(float))) == NULL) {
       fputs("Unable to allocate A\n", stderr);
       return -1;
     }
 
     size_t k = m * 5;
-    ldc = (k + 1u) & ~1u;
-    if ((C = malloc(ldc * m * sizeof(float complex))) == NULL) {
+    ldc = (k + 3u) & ~3u;
+    if ((C = malloc(ldc * m * sizeof(float))) == NULL) {
       fputs("Unable to allocate C\n", stderr);
       return -1;
     }
@@ -117,9 +98,9 @@ int main(int argc, char * argv[]) {
     }
     for (size_t j = 0; j < m; j++) {
       for (size_t i = 0; i < m; i++) {
-        float complex temp = 0.0f;
+        float temp = 0.0f;
         for (size_t l = 0; l < k; l++)
-          temp += conjf(C[i * ldc + l]) * C[j * ldc + l];
+          temp += C[i * ldc + l] * C[j * ldc + l];
         A[j * lda + i] = 0.01f * temp;
       }
     }
@@ -129,15 +110,15 @@ int main(int argc, char * argv[]) {
       A[k * lda + k] += 1.0f;
   }
   else {
-    lda = (n + 1u) & ~1u;
-    if ((A = malloc(lda * n * sizeof(float complex))) == NULL) {
+    lda = (n + 3u) & ~3u;
+    if ((A = malloc(lda * n * sizeof(float))) == NULL) {
       fputs("Unable to allocate A\n", stderr);
       return -1;
     }
 
     size_t k = n * 5;
-    ldc = (k + 1u) & ~1u;
-    if ((C = malloc(ldc * n * sizeof(float complex))) == NULL) {
+    ldc = (k + 3u) & ~3u;
+    if ((C = malloc(ldc * n * sizeof(float))) == NULL) {
       fputs("Unable to allocate C\n", stderr);
       return -1;
     }
@@ -147,9 +128,9 @@ int main(int argc, char * argv[]) {
     }
     for (size_t j = 0; j < n; j++) {
       for (size_t i = 0; i < n; i++) {
-        float complex temp = 0.0f;
+        float temp = 0.0f;
         for (size_t l = 0; l < k; l++)
-          temp += conjf(C[i * ldc + l]) * C[j * ldc + l];
+          temp += C[i * ldc + l] * C[j * ldc + l];
         A[j * lda + i] = 0.01f * temp;
       }
     }
@@ -159,14 +140,19 @@ int main(int argc, char * argv[]) {
       A[k * lda + k] += 1.0f;
   }
 
-  ldb = (m + 1u) & ~1u;
-  if ((B = malloc(ldb * n * sizeof(float complex))) == NULL) {
+  ldb = (m + 3u) & ~3u;
+  if ((B = malloc(ldb * n * sizeof(float))) == NULL) {
     fputs("Unable to allocate B\n", stderr);
     return -3;
   }
-  if ((refB = malloc(ldb * n * sizeof(float complex))) == NULL) {
+  if ((refB = malloc(ldb * n * sizeof(float))) == NULL) {
     fputs("Unable to allocate refB\n", stderr);
     return -4;
+  }
+  ldc = (m + 3u) & ~3u;
+  if ((C = malloc(ldc * n * sizeof(float))) == NULL) {
+    fputs("Unable to allocate C\n", stderr);
+    return -5;
   }
 
   for (size_t j = 0; j < n; j++) {
@@ -174,20 +160,16 @@ int main(int argc, char * argv[]) {
       refB[j * ldb + i] = B[j * ldb + i] = gaussian();
   }
 
-  ctrmm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb);
-  CU_ERROR_CHECK(cuMultiGPUCtrmm(handles, deviceCount, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb));
+  strmm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb);
+  strmm2(side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb, C, ldc);
 
   bool passed = true;
-  float rdiff = 0.0f, idiff = 0.0f;
+  float diff = 0.0f;
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < m; i++) {
-      float d = fabsf(crealf(B[j * ldb + i]) - crealf(refB[j * ldb + i]));
-      if (d > rdiff)
-        rdiff = d;
-
-      float c = fabsf(cimagf(B[j * ldb + i]) - cimagf(refB[j * ldb + i]));
-      if (c > idiff)
-        idiff = c;
+      float d = fabsf(C[j * ldc + i] - refB[j * ldb + i]);
+      if (d > diff)
+        diff = d;
 
       size_t flops;
       if (side == CBlasLeft)
@@ -196,10 +178,8 @@ int main(int argc, char * argv[]) {
         flops = 2 * j + 1;
       if (diag == CBlasNonUnit)
         flops++;
-      flops *= 3;
 
-      if (d > (float)flops * 2.0f * FLT_EPSILON ||
-          c > (float)flops * 2.0f * FLT_EPSILON)
+      if (d > (float)flops * 2.0f * FLT_EPSILON)
         passed = false;
     }
   }
@@ -207,33 +187,31 @@ int main(int argc, char * argv[]) {
   struct timeval start, stop;
   if (gettimeofday(&start, NULL) != 0) {
     fputs("gettimeofday failed\n", stderr);
-    return -5;
+    return -6;
   }
   for (size_t i = 0; i < 20; i++)
-    CU_ERROR_CHECK(cuMultiGPUCtrmm(handles, deviceCount, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb));
+    strmm2(side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb, C, ldc);
   if (gettimeofday(&stop, NULL) != 0) {
     fputs("gettimeofday failed\n", stderr);
-    return -6;
+    return -7;
   }
 
   double time = ((double)(stop.tv_sec - start.tv_sec) +
                  (double)(stop.tv_usec - start.tv_usec) * 1.e-6) / 20.0;
 
-  size_t flops = 6 * m * n;
-  if (alpha != 0.0f + 0.0f * I) {
-    flops += (side == CBlasLeft) ? 2 * m * n * (2 * m - 1) : 2 * m * n * (2 * n - 1);
-    if (diag == CBlasNonUnit) flops += 18 * m * n;
+  size_t flops = m * n;
+  if (alpha != 0.0f) {
+    flops += (side == CBlasLeft) ? m * m * n : m * n * n;
+    if (diag == CBlasNonUnit) flops += m * n;
   }
 
-  fprintf(stdout, "%.3es %.3gGFlops/s Error: %.3e + %.3ei\n%sED!\n", time,
-          ((double)flops * 1.e-9) / time, rdiff, idiff, (passed) ? "PASS" : "FAIL");
+  fprintf(stdout, "%.3es %.3gGFlops/s Error: %.3e\n%sED!\n", time,
+          ((double)flops * 1.e-9) / time, diff, (passed) ? "PASS" : "FAIL");
 
   free(A);
   free(B);
+  free(C);
   free(refB);
-
-  for (int i = 0; i < deviceCount; i++)
-    CU_ERROR_CHECK(cuHandleDestroy(handles[i]));
 
   return (int)!passed;
 }

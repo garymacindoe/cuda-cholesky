@@ -1,6 +1,7 @@
 #include "lapack.h"
 #include "error.h"
 #include <stdio.h>
+#include "../handle.h"
 
 static inline size_t min(size_t a, size_t b) { return (a < b) ? a : b; }
 
@@ -127,11 +128,14 @@ void dpotrf(CBlasUplo uplo, size_t n, double * restrict A, size_t lda, long * re
   }
 }
 
-static inline CUresult cuDpotf2(CUmodule module, CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, CUdeviceptr info, CUstream stream) {
+static inline CUresult cuDpotf2(CUhandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, CUdeviceptr info, CUstream stream) {
   const unsigned int bx = 32;
 
   char name[39];
   snprintf(name, 39, "_Z6dpotf2IL9CBlasUplo%dELj%uEEviPdiPi", uplo, bx);
+
+  CUmodule module;
+  CU_ERROR_CHECK(cuHandleGetModule(handle, &module, CU_HANDLE_DOUBLE, CU_HANDLE_POTRF));
 
   CUfunction function;
   CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
@@ -143,7 +147,7 @@ static inline CUresult cuDpotf2(CUmodule module, CBlasUplo uplo, size_t n, CUdev
   return CUDA_SUCCESS;
 }
 
-CUresult cuDpotrf(CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, long * info) {
+CUresult cuDpotrf(CUhandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, long * info) {
   *info = 0;
   if (lda < n)
     *info = -4;
@@ -174,21 +178,13 @@ CUresult cuDpotrf(CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, long * in
 
   CU_ERROR_CHECK(cuMemAllocHost((void **)&B, (ldb = (nb + 1u) & ~1u) * nb * sizeof(double)));
 
-  CU_ERROR_CHECK(cuStreamCreate(&stream0, 0));
-  CU_ERROR_CHECK(cuStreamCreate(&stream1, 0));
-
-  CU_ERROR_CHECK(cuModuleLoad(&dsyrk, "dsyrk.fatbin"));
-//   CU_ERROR_CHECK(cuModuleLoad(&dpotf2, "dpotrf.fatbin"));
-  CU_ERROR_CHECK(cuModuleLoad(&dgemm, "dgemm.fatbin"));
-  CU_ERROR_CHECK(cuModuleLoad(&dtrsm, "dtrsm.fatbin"));
-
   if (uplo == CBlasUpper) {
     for (size_t j = 0; j < n; j += nb) {
       const size_t jb = min(nb, n - j);
 
-      CU_ERROR_CHECK(cuDsyrk(dsyrk, CBlasUpper, CBlasTrans, jb, j, -one, A + j * lda * sizeof(double), lda, one, A + (j * lda + j) * sizeof(double), lda, stream0));
+      CU_ERROR_CHECK(cuDsyrk(handle, CBlasUpper, CBlasTrans, jb, j, -one, A + j * lda * sizeof(double), lda, one, A + (j * lda + j) * sizeof(double), lda, stream0));
       CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(B, ldb, 0, 0, A, lda, j, j, jb, jb, sizeof(double), stream0));
-      CU_ERROR_CHECK(cuDgemm(dgemm, CBlasTrans, CBlasNoTrans, jb, n - j - jb, j, -one, A + j * lda * sizeof(double), lda, A + (j + jb) * lda * sizeof(double), lda, one, A + ((j + jb) * lda + j) * sizeof(double), lda, stream1));
+      CU_ERROR_CHECK(cuDgemm(handle, CBlasTrans, CBlasNoTrans, jb, n - j - jb, j, -one, A + j * lda * sizeof(double), lda, A + (j + jb) * lda * sizeof(double), lda, one, A + ((j + jb) * lda + j) * sizeof(double), lda, stream1));
       CU_ERROR_CHECK(cuStreamSynchronize(stream0));
       dpotrf(CBlasUpper, jb, B, ldb, info);
       if (*info != 0) {
@@ -197,16 +193,16 @@ CUresult cuDpotrf(CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, long * in
       }
       CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A, lda, j, j, B, ldb, 0, 0, jb, jb, sizeof(double), stream0));
       CU_ERROR_CHECK(cuStreamSynchronize(stream1));
-      CU_ERROR_CHECK(cuDtrsm(dtrsm, CBlasLeft, CBlasUpper, CBlasTrans, CBlasNonUnit, jb, n - j - jb, one, A + (j * lda + j) * sizeof(double), lda, A + ((j + jb) * lda + j) * sizeof(double), lda, stream0));
+      CU_ERROR_CHECK(cuDtrsm(handle, CBlasLeft, CBlasUpper, CBlasTrans, CBlasNonUnit, jb, n - j - jb, one, A + (j * lda + j) * sizeof(double), lda, A + ((j + jb) * lda + j) * sizeof(double), lda, stream0));
     }
   }
   else {
     for (size_t j = 0; j < n; j += nb) {
       const size_t jb = min(nb, n - j);
 
-      CU_ERROR_CHECK(cuDsyrk(dsyrk, CBlasLower, CBlasNoTrans, jb, j, -one, A + j * sizeof(double), lda, one, A + (j * lda + j) * sizeof(double), lda, stream0));
+      CU_ERROR_CHECK(cuDsyrk(handle, CBlasLower, CBlasNoTrans, jb, j, -one, A + j * sizeof(double), lda, one, A + (j * lda + j) * sizeof(double), lda, stream0));
       CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(B, ldb, 0, 0, A, lda, j, j, jb, jb, sizeof(double), stream0));
-      CU_ERROR_CHECK(cuDgemm(dgemm, CBlasNoTrans, CBlasTrans, n - j - jb, jb, j, -one, A + (j + jb) * sizeof(double), lda, A + j * sizeof(double), lda, one, A + (j * lda + j + jb) * sizeof(double), lda, stream1));
+      CU_ERROR_CHECK(cuDgemm(handle, CBlasNoTrans, CBlasTrans, n - j - jb, jb, j, -one, A + (j + jb) * sizeof(double), lda, A + j * sizeof(double), lda, one, A + (j * lda + j + jb) * sizeof(double), lda, stream1));
       CU_ERROR_CHECK(cuStreamSynchronize(stream0));
       dpotrf(CBlasLower, jb, B, ldb, info);
       if (*info != 0) {
@@ -215,24 +211,16 @@ CUresult cuDpotrf(CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, long * in
       }
       CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A, lda, j, j, B, ldb, 0, 0, jb, jb, sizeof(double), stream0));
       CU_ERROR_CHECK(cuStreamSynchronize(stream1));
-      CU_ERROR_CHECK(cuDtrsm(dtrsm, CBlasRight, CBlasLower, CBlasTrans, CBlasNonUnit, n - j - jb, jb, one, A + (j * lda + j) * sizeof(double), lda, A + (j * lda + j + jb) * sizeof(double), lda, stream0));
+      CU_ERROR_CHECK(cuDtrsm(handle, CBlasRight, CBlasLower, CBlasTrans, CBlasNonUnit, n - j - jb, jb, one, A + (j * lda + j) * sizeof(double), lda, A + (j * lda + j + jb) * sizeof(double), lda, stream0));
     }
   }
-
-  CU_ERROR_CHECK(cuModuleUnload(dsyrk));
-//   CU_ERROR_CHECK(cuModuleUnload(dpotf2));
-  CU_ERROR_CHECK(cuModuleUnload(dgemm));
-  CU_ERROR_CHECK(cuModuleUnload(dtrsm));
-
-  CU_ERROR_CHECK(cuStreamDestroy(stream0));
-  CU_ERROR_CHECK(cuStreamDestroy(stream1));
 
   CU_ERROR_CHECK(cuMemFreeHost(B));
 
   return CUDA_SUCCESS;
 }
 
-CUresult cuMultiGPUDpotrf(CUcontext * contexts, int deviceCount, CBlasUplo uplo, size_t n, double * restrict A, size_t lda, long * restrict info) {
+CUresult cuMultiGPUDpotrf(CUhandle * handles, int deviceCount, CBlasUplo uplo, size_t n, double * restrict A, size_t lda, long * restrict info) {
   *info = 0;
   if (lda < n)
     *info = -4;
@@ -254,7 +242,7 @@ CUresult cuMultiGPUDpotrf(CUcontext * contexts, int deviceCount, CBlasUplo uplo,
     for (size_t j = 0; j < n; j += nb) {
       const size_t jb = min(nb, n - j);
 
-      CU_ERROR_CHECK(cuMultiGPUDsyrk(contexts, deviceCount, CBlasUpper, CBlasTrans, jb, j, -one, &A[j * lda], lda, one, &A[j * lda + j], lda));
+      CU_ERROR_CHECK(cuMultiGPUDsyrk(handles, deviceCount, CBlasUpper, CBlasTrans, jb, j, -one, &A[j * lda], lda, one, &A[j * lda + j], lda));
       dpotf2(CBlasUpper, jb, &A[j * lda + j], lda, info);
       if (*info != 0) {
         (*info) += (long)j;
@@ -262,8 +250,8 @@ CUresult cuMultiGPUDpotrf(CUcontext * contexts, int deviceCount, CBlasUplo uplo,
       }
 
       if (j + jb < n) {
-        CU_ERROR_CHECK(cuMultiGPUDgemm(contexts, deviceCount, CBlasTrans, CBlasNoTrans, jb, n - j - jb, j, -one, &A[j * lda], lda, &A[(j + jb) * lda], lda, one, &A[(j + jb) * lda + j], lda));
-        CU_ERROR_CHECK(cuMultiGPUDtrsm(contexts, deviceCount, CBlasLeft, CBlasUpper, CBlasTrans, CBlasNonUnit, jb, n - j - jb, one, &A[j * lda + j], lda, &A[(j + jb) * lda + j], lda));
+        CU_ERROR_CHECK(cuMultiGPUDgemm(handles, deviceCount, CBlasTrans, CBlasNoTrans, jb, n - j - jb, j, -one, &A[j * lda], lda, &A[(j + jb) * lda], lda, one, &A[(j + jb) * lda + j], lda));
+        CU_ERROR_CHECK(cuMultiGPUDtrsm(handles, deviceCount, CBlasLeft, CBlasUpper, CBlasTrans, CBlasNonUnit, jb, n - j - jb, one, &A[j * lda + j], lda, &A[(j + jb) * lda + j], lda));
       }
     }
   }
@@ -271,7 +259,7 @@ CUresult cuMultiGPUDpotrf(CUcontext * contexts, int deviceCount, CBlasUplo uplo,
     for (size_t j = 0; j < n; j += nb) {
       const size_t jb = min(nb, n - j);
 
-      CU_ERROR_CHECK(cuMultiGPUDsyrk(contexts, deviceCount, CBlasLower, CBlasNoTrans, jb, j, -one, &A[j], lda, one, &A[j * lda + j], lda));
+      CU_ERROR_CHECK(cuMultiGPUDsyrk(handles, deviceCount, CBlasLower, CBlasNoTrans, jb, j, -one, &A[j], lda, one, &A[j * lda + j], lda));
       dpotf2(CBlasLower, jb, &A[j * lda + j], lda, info);
       if (*info != 0) {
         (*info) += (long)j;
@@ -279,8 +267,8 @@ CUresult cuMultiGPUDpotrf(CUcontext * contexts, int deviceCount, CBlasUplo uplo,
       }
 
       if (j + jb < n) {
-        CU_ERROR_CHECK(cuMultiGPUDgemm(contexts, deviceCount, CBlasNoTrans, CBlasTrans, n - j - jb, jb, j, -one, &A[j + jb], lda, &A[j], lda, one, &A[j * lda + j + jb], lda));
-        CU_ERROR_CHECK(cuMultiGPUDtrsm(contexts, deviceCount, CBlasRight, CBlasLower, CBlasTrans, CBlasNonUnit, n - j - jb, jb, one, &A[j * lda + j], lda, &A[j * lda + j + jb], lda));
+        CU_ERROR_CHECK(cuMultiGPUDgemm(handles, deviceCount, CBlasNoTrans, CBlasTrans, n - j - jb, jb, j, -one, &A[j + jb], lda, &A[j], lda, one, &A[j * lda + j + jb], lda));
+        CU_ERROR_CHECK(cuMultiGPUDtrsm(handles, deviceCount, CBlasRight, CBlasLower, CBlasTrans, CBlasNonUnit, n - j - jb, jb, one, &A[j * lda + j], lda, &A[j * lda + j + jb], lda));
       }
     }
   }

@@ -1,6 +1,7 @@
 #include "blas.h"
 #include "error.h"
 #include <stdio.h>
+#include "../handle.h"
 
 static inline size_t min(size_t a, size_t b) { return (a < b) ? a : b; }
 static inline size_t max(size_t a, size_t b) { return (a > b) ? a : b; }
@@ -28,7 +29,10 @@ static inline CUresult cuMemcpyDtoH2DAsync(void * A, size_t lda, size_t ai, size
 static const float complex zero = 0.0f + 0.0f * I;
 static const float complex one = 1.0f + 0.0f * I;
 
-void ctrsm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag, size_t m, size_t n, float complex alpha, const float complex * restrict A, size_t lda, float complex * restrict B, size_t ldb) {
+void ctrsm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag,
+           size_t m, size_t n,
+           float complex alpha, const float complex * restrict A, size_t lda,
+           float complex * restrict B, size_t ldb) {
   const size_t nRowA = (side == CBlasLeft) ? m : n;
 
   int info = 0;
@@ -41,7 +45,8 @@ void ctrsm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag
     return;
   }
 
-  if (m == 0 || n == 0) return;
+  if (m == 0 || n == 0)
+    return;
 
   if (alpha == zero) {
 #pragma omp parallel for
@@ -181,13 +186,21 @@ void ctrsm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag
         size_t k = n - 1;
         do {
           if (diag == CBlasNonUnit) {
-            register float complex temp = (transA == CBlasTrans) ? one / A[k * lda + k] : one / conjf(A[k * lda + k]);
+            register float complex temp;
+            if (transA == CBlasTrans)
+              temp = one / A[k * lda + k];
+            else
+              temp = one / conjf(A[k * lda + k]);
             for (size_t i = 0; i < m; i++)
               B[k * ldb + i] *= temp;
           }
           for (size_t j = 0; j < k; j++) {
             if (A[k * lda + j] != zero) {
-              register float complex temp = (transA == CBlasTrans) ? A[k * lda + j] : conjf(A[k * lda + j]);
+              register float complex temp;
+              if (transA == CBlasTrans)
+                temp = A[k * lda + j];
+              else
+                temp = conjf(A[k * lda + j]);
               for (size_t i = 0; i < m; i++)
                 B[j * ldb + i] -= temp * B[k * ldb + i];
             }
@@ -201,13 +214,21 @@ void ctrsm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag
       else {
         for (size_t k = 0; k < n; k++) {
           if (diag == CBlasNonUnit) {
-            register float complex temp = (transA == CBlasTrans) ? one / A[k * lda + k] : one / conjf(A[k * lda + k]);
+            register float complex temp;
+            if (transA == CBlasTrans)
+              temp = one / A[k * lda + k];
+            else
+              temp = one / conjf(A[k * lda + k]);
             for (size_t i = 0; i < m; i++)
               B[k * ldb + i] *= temp;
           }
           for (size_t j = k + 1; j < n; j++) {
             if (A[k * lda + j] != zero) {
-              register float complex temp = (transA == CBlasTrans) ? A[k * lda + j] : conjf(A[k * lda + j]);
+              register float complex temp;
+              if (transA == CBlasTrans)
+                temp = A[k * lda + j];
+              else
+                temp = conjf(A[k * lda + j]);
               for (size_t i = 0; i < m; i++)
                 B[j * ldb + i] -= temp * B[k * ldb + i];
             }
@@ -222,7 +243,11 @@ void ctrsm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag
   }
 }
 
-CUresult cuCtrsm(CUmodule module, CBlasSide side, CBlasUplo uplo, CBlasTranspose trans, CBlasDiag diag, size_t m, size_t n, float complex alpha, CUdeviceptr A, size_t lda, CUdeviceptr B, size_t ldb, CUstream stream) {
+CUresult cuCtrsm(CUhandle handle,
+                 CBlasSide side, CBlasUplo uplo, CBlasTranspose trans, CBlasDiag diag,
+                 size_t m, size_t n,
+                 float complex alpha, CUdeviceptr A, size_t lda,
+                 CUdeviceptr B, size_t ldb, CUstream stream) {
   size_t nRowA = (side == CBlasLeft) ? m : n;
 
   int info = 0;
@@ -235,7 +260,8 @@ CUresult cuCtrsm(CUmodule module, CBlasSide side, CBlasUplo uplo, CBlasTranspose
     return CUDA_ERROR_INVALID_VALUE;
   }
 
-  if (m == 0 || n == 0) return CUDA_SUCCESS;
+  if (m == 0 || n == 0)
+    return CUDA_SUCCESS;
 
   const unsigned int bx =  4;
   const unsigned int by =  4;
@@ -243,19 +269,29 @@ CUresult cuCtrsm(CUmodule module, CBlasSide side, CBlasUplo uplo, CBlasTranspose
   const unsigned int nb = (side == CBlasLeft) ? 16 :  4;
 
   char name[116];
-  snprintf(name, 116, "_Z5ctrsmIL9CBlasSide%dEL9CBlasUplo%dEL14CBlasTranspose%dEL9CBlasDiag%dELj%uELj%uELj%uELj%uEEvii6float2PKS4_iPS4_i", side, uplo, trans, diag, mb, nb, bx, by);
+  snprintf(name, 116,
+           "_Z5ctrsmIL9CBlasSide%dEL9CBlasUplo%dEL14CBlasTranspose%dEL9CBlasDiag%dELj%uELj%uELj%uELj%uEEvii6float2PKS4_iPS4_i",
+           side, uplo, trans, diag, mb, nb, bx, by);
+
+  CUmodule module;
+  CU_ERROR_CHECK(cuHandleGetModule(handle, &module, CU_HANDLE_COMPLEX, CU_HANDLE_TRSM));
 
   CUfunction function;
   CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
 
   void * params[] = { &m, &n, &alpha, &A, &lda, &B, &ldb };
 
-  CU_ERROR_CHECK(cuLaunchKernel(function, (unsigned int)max(1, (m + mb - 1) / mb), (unsigned int)max(1, (n + nb - 1) / nb), 1, bx, by, 1, 0, stream, params, NULL));
+  CU_ERROR_CHECK(cuLaunchKernel(function, (unsigned int)(m + mb - 1) / mb, (unsigned int)(n + nb - 1) / nb, 1,
+                                bx, by, 1, 0, stream, params, NULL));
 
   return CUDA_SUCCESS;
 }
 
-CUresult cuMultiGPUCtrsm(CUcontext * contexts, int deviceCount, CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag, size_t m, size_t n, float complex alpha, const float complex * restrict A, size_t lda, float complex * restrict B, size_t ldb) {
+CUresult cuMultiGPUCtrsm(CUhandle * handles, int deviceCount,
+                         CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag,
+                         size_t m, size_t n,
+                         float complex alpha, const float complex * restrict A, size_t lda,
+                         float complex * restrict B, size_t ldb) {
   const size_t nRowA = (side == CBlasLeft) ? m : n;
 
   int info = 0;
@@ -268,7 +304,8 @@ CUresult cuMultiGPUCtrsm(CUcontext * contexts, int deviceCount, CBlasSide side, 
     return CUDA_ERROR_INVALID_VALUE;
   }
 
-  if (m == 0 || n == 0) return CUDA_SUCCESS;
+  if (m == 0 || n == 0)
+    return CUDA_SUCCESS;
 
   if (alpha == zero) {
     cgemm(CBlasNoTrans, CBlasNoTrans, m, n, 0, zero, A, lda, B, ldb, zero, B, ldb);
@@ -294,7 +331,7 @@ CUresult cuMultiGPUCtrsm(CUcontext * contexts, int deviceCount, CBlasSide side, 
           for (size_t j = 0; j < n; j += nb) {
             const size_t jb = min(nb, n - j);
 
-            CU_ERROR_CHECK(cuMultiGPUCgemm(contexts, deviceCount, CBlasNoTrans, CBlasNoTrans, ib, jb, m - i - ib, -one, &A[(i + ib) * lda + i], lda, &B[j * ldb + i + ib], ldb, alpha, &B[j * ldb + i], ldb));
+            CU_ERROR_CHECK(cuMultiGPUCgemm(handles, deviceCount, CBlasNoTrans, CBlasNoTrans, ib, jb, m - i - ib, -one, &A[(i + ib) * lda + i], lda, &B[j * ldb + i + ib], ldb, alpha, &B[j * ldb + i], ldb));
 
             ctrsm(CBlasLeft, CBlasUpper, CBlasNoTrans, diag, ib, jb, one, &A[i * lda + i], lda, &B[j * ldb + i], ldb);
           }
@@ -307,7 +344,7 @@ CUresult cuMultiGPUCtrsm(CUcontext * contexts, int deviceCount, CBlasSide side, 
           for (size_t j = 0; j < n; j += nb) {
             const size_t jb = min(nb, n - j);
 
-            CU_ERROR_CHECK(cuMultiGPUCgemm(contexts, deviceCount, CBlasNoTrans, CBlasNoTrans, ib, jb, i, -one, &A[i], lda, &B[j * ldb], ldb, alpha, &B[j * ldb + i], ldb));
+            CU_ERROR_CHECK(cuMultiGPUCgemm(handles, deviceCount, CBlasNoTrans, CBlasNoTrans, ib, jb, i, -one, &A[i], lda, &B[j * ldb], ldb, alpha, &B[j * ldb + i], ldb));
 
             ctrsm(CBlasLeft, CBlasLower, CBlasNoTrans, diag, ib, jb, one, &A[i * lda + i], lda, &B[j * ldb + i], ldb);
           }
@@ -322,7 +359,7 @@ CUresult cuMultiGPUCtrsm(CUcontext * contexts, int deviceCount, CBlasSide side, 
           for (size_t j = 0; j < n; j += nb) {
             const size_t jb = min(nb, n - j);
 
-            CU_ERROR_CHECK(cuMultiGPUCgemm(contexts, deviceCount, transA, CBlasNoTrans, ib, jb, i, -one, &A[i * lda], lda, &B[j * ldb], ldb, alpha, &B[j * ldb + i], ldb));
+            CU_ERROR_CHECK(cuMultiGPUCgemm(handles, deviceCount, transA, CBlasNoTrans, ib, jb, i, -one, &A[i * lda], lda, &B[j * ldb], ldb, alpha, &B[j * ldb + i], ldb));
 
             ctrsm(CBlasLeft, CBlasUpper, transA, diag, ib, jb, one, &A[i * lda + i], lda, &B[j * ldb + i], ldb);
           }
@@ -337,7 +374,7 @@ CUresult cuMultiGPUCtrsm(CUcontext * contexts, int deviceCount, CBlasSide side, 
           for (size_t j = 0; j < n; j += nb) {
             const size_t jb = min(nb, n - j);
 
-            CU_ERROR_CHECK(cuMultiGPUCgemm(contexts, deviceCount, transA, CBlasNoTrans, ib, jb, m - i - ib, -one, &A[i * lda + i + ib], lda, &B[j * ldb + i + ib], ldb, alpha, &B[j * ldb + i], ldb));
+            CU_ERROR_CHECK(cuMultiGPUCgemm(handles, deviceCount, transA, CBlasNoTrans, ib, jb, m - i - ib, -one, &A[i * lda + i + ib], lda, &B[j * ldb + i + ib], ldb, alpha, &B[j * ldb + i], ldb));
 
             ctrsm(CBlasLeft, CBlasLower, transA, diag, ib, jb, one, &A[i * lda + i], lda, &B[j * ldb + i], ldb);
           }
@@ -354,7 +391,7 @@ CUresult cuMultiGPUCtrsm(CUcontext * contexts, int deviceCount, CBlasSide side, 
           for (size_t i = 0; i < m; i += mb) {
             const size_t ib = min(mb, m - i);
 
-            CU_ERROR_CHECK(cuMultiGPUCgemm(contexts, deviceCount, CBlasNoTrans, CBlasNoTrans, ib, jb, j, -one, &B[i], ldb, &A[j * lda], lda, alpha, &B[j * ldb + i], ldb));
+            CU_ERROR_CHECK(cuMultiGPUCgemm(handles, deviceCount, CBlasNoTrans, CBlasNoTrans, ib, jb, j, -one, &B[i], ldb, &A[j * lda], lda, alpha, &B[j * ldb + i], ldb));
 
             ctrsm(CBlasRight, CBlasUpper, CBlasNoTrans, diag, ib, jb, one, &A[j * lda + j], lda, &B[j * ldb + i], ldb);
           }
@@ -369,7 +406,7 @@ CUresult cuMultiGPUCtrsm(CUcontext * contexts, int deviceCount, CBlasSide side, 
           for (size_t i = 0; i < m; i += mb) {
             const size_t ib = min(mb, m - i);
 
-            CU_ERROR_CHECK(cuMultiGPUCgemm(contexts, deviceCount, CBlasNoTrans, CBlasNoTrans, ib, jb, n - j - jb, -one, &B[(j + jb) * ldb + i], ldb, &A[j * lda + j + jb], lda, alpha, &B[j * ldb + i], ldb));
+            CU_ERROR_CHECK(cuMultiGPUCgemm(handles, deviceCount, CBlasNoTrans, CBlasNoTrans, ib, jb, n - j - jb, -one, &B[(j + jb) * ldb + i], ldb, &A[j * lda + j + jb], lda, alpha, &B[j * ldb + i], ldb));
 
             ctrsm(CBlasRight, CBlasLower, CBlasNoTrans, diag, ib, jb, one, &A[j * lda + j], lda, &B[j * ldb + i], ldb);
           }
@@ -386,7 +423,7 @@ CUresult cuMultiGPUCtrsm(CUcontext * contexts, int deviceCount, CBlasSide side, 
           for (size_t i = 0; i < m; i += mb) {
             const size_t ib = min(mb, m - i);
 
-            CU_ERROR_CHECK(cuMultiGPUCgemm(contexts, deviceCount, CBlasNoTrans, transA, ib, jb, n - j - jb, -one, &B[(j + jb) * ldb + i], ldb, &A[(j + jb) * lda + j], lda, alpha, &B[j * ldb + i], ldb));
+            CU_ERROR_CHECK(cuMultiGPUCgemm(handles, deviceCount, CBlasNoTrans, transA, ib, jb, n - j - jb, -one, &B[(j + jb) * ldb + i], ldb, &A[(j + jb) * lda + j], lda, alpha, &B[j * ldb + i], ldb));
 
             ctrsm(CBlasRight, CBlasUpper, transA, diag, ib, jb, one, &A[j * lda + j], lda, &B[j * ldb + i], ldb);
           }
@@ -399,7 +436,7 @@ CUresult cuMultiGPUCtrsm(CUcontext * contexts, int deviceCount, CBlasSide side, 
           for (size_t i = 0; i < m; i += mb) {
             const size_t ib = min(mb, m - i);
 
-            CU_ERROR_CHECK(cuMultiGPUCgemm(contexts, deviceCount, CBlasNoTrans, transA, ib, jb, j, -one, &B[i], ldb, &A[j], lda, alpha, &B[j * ldb + i], ldb));
+            CU_ERROR_CHECK(cuMultiGPUCgemm(handles, deviceCount, CBlasNoTrans, transA, ib, jb, j, -one, &B[i], ldb, &A[j], lda, alpha, &B[j * ldb + i], ldb));
 
             ctrsm(CBlasRight, CBlasLower, transA, diag, ib, jb, one, &A[j * lda + j], lda, &B[j * ldb + i], ldb);
           }

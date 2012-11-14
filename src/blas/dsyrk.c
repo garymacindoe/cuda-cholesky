@@ -1,6 +1,7 @@
 #include "blas.h"
 #include "error.h"
 #include <stdio.h>
+#include "../handle.h"
 
 static inline size_t min(size_t a, size_t b) { return (a < b) ? a : b; }
 static inline size_t max(size_t a, size_t b) { return (a > b) ? a : b; }
@@ -28,7 +29,10 @@ static inline CUresult cuMemcpyDtoH2DAsync(void * A, size_t lda, size_t ai, size
 static const double zero = 0.0;
 static const double one = 1.0;
 
-void dsyrk(CBlasUplo uplo, CBlasTranspose trans, size_t n, size_t k, double alpha, const double * restrict A, size_t lda, double beta, double * restrict C, size_t ldc) {
+void dsyrk(CBlasUplo uplo, CBlasTranspose trans,
+           size_t n, size_t k,
+           double alpha, const double * restrict A, size_t lda,
+           double beta, double * restrict C, size_t ldc) {
   size_t nRowA = (trans == CBlasNoTrans) ? n : k;
 
   int info = 0;
@@ -41,7 +45,8 @@ void dsyrk(CBlasUplo uplo, CBlasTranspose trans, size_t n, size_t k, double alph
     return;
   }
 
-  if (n == 0 || ((alpha == zero || k == 0) && beta == one)) return;
+  if (n == 0 || ((alpha == zero || k == 0) && beta == one))
+    return;
 
   if (alpha == zero) {
     if (uplo == CBlasUpper) {
@@ -153,7 +158,10 @@ void dsyrk(CBlasUplo uplo, CBlasTranspose trans, size_t n, size_t k, double alph
   }
 }
 
-CUresult cuDsyrk(CUmodule module, CBlasUplo uplo, CBlasTranspose trans, size_t n, size_t k, double alpha, CUdeviceptr A, size_t lda, double beta, CUdeviceptr C, size_t ldc, CUstream stream) {
+CUresult cuDsyrk(CUhandle handle, CBlasUplo uplo, CBlasTranspose trans,
+                 size_t n, size_t k,
+                 double alpha, CUdeviceptr A, size_t lda,
+                 double beta, CUdeviceptr C, size_t ldc, CUstream stream) {
   size_t nRowA = (trans == CBlasNoTrans) ? n : k;
 
   int info = 0;
@@ -166,7 +174,8 @@ CUresult cuDsyrk(CUmodule module, CBlasUplo uplo, CBlasTranspose trans, size_t n
     return CUDA_ERROR_INVALID_VALUE;
   }
 
-  if (n == 0 || ((alpha == zero || k == 0) && beta == one)) return CUDA_SUCCESS;
+  if (n == 0 || ((alpha == zero || k == 0) && beta == one))
+    return CUDA_SUCCESS;
 
   const unsigned int mb = (trans == CBlasNoTrans) ? 64 : 32;
   const unsigned int nb = (trans == CBlasNoTrans) ?  8 : 16;
@@ -175,19 +184,29 @@ CUresult cuDsyrk(CUmodule module, CBlasUplo uplo, CBlasTranspose trans, size_t n
   const unsigned int by = 8;
 
   char name[82];
-  snprintf(name, 82, "_Z5dsyrkIL9CBlasUplo%dEL14CBlasTranspose%dELj%uELj%uELj%uELj%uELj%uEEviidPKdidPdi", uplo, trans, mb, nb, kb, bx, by);
+  snprintf(name, 82,
+           "_Z5dsyrkIL9CBlasUplo%dEL14CBlasTranspose%dELj%uELj%uELj%uELj%uELj%uEEviidPKdidPdi",
+           uplo, trans, mb, nb, kb, bx, by);
+
+  CUmodule module;
+  CU_ERROR_CHECK(cuHandleGetModule(handle, &module, CU_HANDLE_DOUBLE, CU_HANDLE_SYRK));
 
   CUfunction function;
   CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
 
   void * params[] = { &n, &k, &alpha, &A, &lda, &beta, &C, &ldc };
 
-  CU_ERROR_CHECK(cuLaunchKernel(function, (unsigned int)max(1, (n + mb - 1) / mb), (unsigned int)max(1, (n + nb - 1) / nb), 1, bx, by, 1, 0, stream, params, NULL));
+  CU_ERROR_CHECK(cuLaunchKernel(function, (unsigned int)(n + mb - 1) / mb, (unsigned int)(n + nb - 1) / nb, 1,
+                                bx, by, 1, 0, stream, params, NULL));
 
   return CUDA_SUCCESS;
 }
 
-CUresult cuMultiGPUDsyrk(CUcontext * contexts, int deviceCount, CBlasUplo uplo, CBlasTranspose trans, size_t n, size_t k, double alpha, const double * restrict A, size_t lda, double beta, double * restrict C, size_t ldc) {
+CUresult cuMultiGPUDsyrk(CUhandle * handles, int deviceCount,
+                         CBlasUplo uplo, CBlasTranspose trans,
+                         size_t n, size_t k,
+                         double alpha, const double * restrict A, size_t lda,
+                         double beta, double * restrict C, size_t ldc) {
   size_t nRowA = (trans == CBlasNoTrans) ? n : k;
 
   int info = 0;
@@ -200,49 +219,46 @@ CUresult cuMultiGPUDsyrk(CUcontext * contexts, int deviceCount, CBlasUplo uplo, 
     return CUDA_ERROR_INVALID_VALUE;
   }
 
-  if (n == 0 || ((alpha == zero || k == 0) && beta == one)) return CUDA_SUCCESS;
+  if (n == 0 || ((alpha == zero || k == 0) && beta == one))
+    return CUDA_SUCCESS;
 
   if (trans == CBlasNoTrans) {
-    if (uplo == CBlasLower) {
-      const size_t nb = 64;
+    const size_t nb = 576;
 
+    if (uplo == CBlasLower) {
       for (size_t j = 0; j < n; j += nb) {
         const size_t jb = min(nb, n - j);
         dsyrk(uplo, trans, jb, k, alpha, &A[j], lda, beta, &C[j * ldc + j], ldc);
         if (j + jb < n)
-          CU_ERROR_CHECK(cuMultiGPUDgemm(contexts, deviceCount, trans, CBlasTrans, n - j - jb, jb, k, alpha, &A[j + jb], lda, &A[j], lda, beta, &C[j * ldc + j + jb], ldc));
+          CU_ERROR_CHECK(cuMultiGPUDgemm(handles, deviceCount, trans, CBlasTrans, n - j - jb, jb, k, alpha, &A[j + jb], lda, &A[j], lda, beta, &C[j * ldc + j + jb], ldc));
       }
     }
     else {
-      const size_t nb = 64;
-
       for (size_t j = 0; j < n; j += nb) {
         const size_t jb = min(nb, n - j);
         dsyrk(uplo, trans, jb, k, alpha, &A[j], lda, beta, &C[j * ldc + j], ldc);
         if (j + jb < n)
-          CU_ERROR_CHECK(cuMultiGPUDgemm(contexts, deviceCount, trans, CBlasTrans, jb, n - j - jb, k, alpha, &A[j], lda, &A[j + jb], lda, beta, &C[(j + jb) * ldc + j], ldc));
+          CU_ERROR_CHECK(cuMultiGPUDgemm(handles, deviceCount, trans, CBlasTrans, jb, n - j - jb, k, alpha, &A[j], lda, &A[j + jb], lda, beta, &C[(j + jb) * ldc + j], ldc));
       }
     }
   }
   else {
-    if (uplo == CBlasLower) {
-      const size_t nb = 64;
+    const size_t nb = 192;
 
+    if (uplo == CBlasLower) {
       for (size_t j = 0; j < n; j += nb) {
         const size_t jb = min(nb, n - j);
         dsyrk(uplo, trans, jb, k, alpha, &A[j * lda], lda, beta, &C[j * ldc + j], ldc);
         if (j + jb < n)
-          CU_ERROR_CHECK(cuMultiGPUDgemm(contexts, deviceCount, trans, CBlasNoTrans, n - j - jb, jb, k, alpha, &A[(j + jb) * lda], lda, &A[j * lda], lda, beta, &C[j * ldc + j + jb], ldc));
+          CU_ERROR_CHECK(cuMultiGPUDgemm(handles, deviceCount, trans, CBlasNoTrans, n - j - jb, jb, k, alpha, &A[(j + jb) * lda], lda, &A[j * lda], lda, beta, &C[j * ldc + j + jb], ldc));
       }
     }
     else {
-      const size_t nb = 64;
-
       for (size_t j = 0; j < n; j += nb) {
         const size_t jb = min(nb, n - j);
         dsyrk(uplo, trans, jb, k, alpha, &A[j * lda], lda, beta, &C[j * ldc + j], ldc);
         if (j + jb < n)
-          CU_ERROR_CHECK(cuMultiGPUDgemm(contexts, deviceCount, CBlasTrans, CBlasNoTrans, jb, n - j - jb, k, alpha, &A[j * lda], lda, &A[(j + jb) * lda], lda, beta, &C[(j + jb) * ldc + j], ldc));
+          CU_ERROR_CHECK(cuMultiGPUDgemm(handles, deviceCount, CBlasTrans, CBlasNoTrans, jb, n - j - jb, k, alpha, &A[j * lda], lda, &A[(j + jb) * lda], lda, beta, &C[(j + jb) * ldc + j], ldc));
       }
     }
   }

@@ -1,6 +1,7 @@
 #include "blas.h"
 #include "error.h"
 #include <stdio.h>
+#include "../handle.h"
 
 static inline size_t min(size_t a, size_t b) { return (a < b) ? a : b; }
 static inline size_t max(size_t a, size_t b) { return (a > b) ? a : b; }
@@ -27,8 +28,12 @@ static inline CUresult cuMemcpyDtoH2DAsync(void * A, size_t lda, size_t ai, size
 
 static const double zero = 0.0;
 static const double one = 1.0;
+static const double complex czero = 0.0 + 0.0 * I;
 
-void zherk(CBlasUplo uplo, CBlasTranspose trans, size_t n, size_t k, double alpha, const double complex * restrict A, size_t lda, double beta, double complex * restrict C, size_t ldc) {
+void zherk(CBlasUplo uplo, CBlasTranspose trans,
+           size_t n, size_t k,
+           double alpha, const double complex * restrict A, size_t lda,
+           double beta, double complex * restrict C, size_t ldc) {
   size_t nRowA = (trans == CBlasNoTrans) ? n : k;
 
   int info = 0;
@@ -43,7 +48,8 @@ void zherk(CBlasUplo uplo, CBlasTranspose trans, size_t n, size_t k, double alph
     return;
   }
 
-  if (n == 0 || ((alpha == zero || k == 0) && beta == one)) return;
+  if (n == 0 || ((alpha == zero || k == 0) && beta == one))
+    return;
 
   if (alpha == zero) {
     if (uplo == CBlasUpper) {
@@ -138,7 +144,7 @@ void zherk(CBlasUplo uplo, CBlasTranspose trans, size_t n, size_t k, double alph
 #pragma omp parallel for
       for (size_t j = 0; j < n; j++) {
         for (size_t i = 0; i < j; i++) {
-          register double complex temp = zero + zero * I;
+          register double complex temp = czero;
           for (size_t l = 0; l < k; l++)
             temp += conj(A[i * lda + l]) * A[j * lda + l];
           if (beta == zero)
@@ -166,7 +172,7 @@ void zherk(CBlasUplo uplo, CBlasTranspose trans, size_t n, size_t k, double alph
         else
           C[j * ldc + j] = alpha * rtemp + beta * creal(C[j * ldc + j]);
         for (size_t i = j + 1; i < n; i++) {
-          register double complex temp = zero + zero * I;
+          register double complex temp = czero;
           for (size_t l = 0; l < k; l++)
             temp += conj(A[i * lda + l]) * A[j * lda + l];
           if (beta == zero)
@@ -179,7 +185,11 @@ void zherk(CBlasUplo uplo, CBlasTranspose trans, size_t n, size_t k, double alph
   }
 }
 
-CUresult cuZherk(CUmodule module, CBlasUplo uplo, CBlasTranspose trans, size_t n, size_t k, double alpha, CUdeviceptr A, size_t lda, double beta, CUdeviceptr C, size_t ldc, CUstream stream) {
+CUresult cuZherk(CUhandle handle,
+                 CBlasUplo uplo, CBlasTranspose trans,
+                 size_t n, size_t k,
+                 double alpha, CUdeviceptr A, size_t lda,
+                 double beta, CUdeviceptr C, size_t ldc, CUstream stream) {
   size_t nRowA = (trans == CBlasNoTrans) ? n : k;
 
   int info = 0;
@@ -194,7 +204,8 @@ CUresult cuZherk(CUmodule module, CBlasUplo uplo, CBlasTranspose trans, size_t n
     return CUDA_ERROR_INVALID_VALUE;
   }
 
-  if (n == 0 || ((alpha == zero || k == 0) && beta == one)) return CUDA_SUCCESS;
+  if (n == 0 || ((alpha == zero || k == 0) && beta == one))
+    return CUDA_SUCCESS;
 
   const unsigned int mb = 16;
   const unsigned int nb = (trans == CBlasNoTrans) ?  4 :  8;
@@ -203,19 +214,29 @@ CUresult cuZherk(CUmodule module, CBlasUplo uplo, CBlasTranspose trans, size_t n
   const unsigned int by = 4;
 
   char name[90];
-  snprintf(name, 90, "_Z5zherkIL9CBlasUplo%dEL14CBlasTranspose%dELj%uELj%uELj%uELj%uELj%uEEviidPK7double2idPS2_i", uplo, trans, mb, nb, kb, bx, by);
+  snprintf(name, 90,
+           "_Z5zherkIL9CBlasUplo%dEL14CBlasTranspose%dELj%uELj%uELj%uELj%uELj%uEEviidPK7double2idPS2_i",
+           uplo, trans, mb, nb, kb, bx, by);
+
+  CUmodule module;
+  CU_ERROR_CHECK(cuHandleGetModule(handle, &module, CU_HANDLE_DOUBLE_COMPLEX, CU_HANDLE_HERK));
 
   CUfunction function;
   CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
 
   void * params[] = { &n, &k, &alpha, &A, &lda, &beta, &C, &ldc };
 
-  CU_ERROR_CHECK(cuLaunchKernel(function, (unsigned int)max(1, (n + mb - 1) / mb), (unsigned int)max(1, (n + nb - 1) / nb), 1, bx, by, 1, 0, stream, params, NULL));
+  CU_ERROR_CHECK(cuLaunchKernel(function, (unsigned int)(n + mb - 1) / mb, (unsigned int)(n + nb - 1) / nb, 1,
+                                bx, by, 1, 0, stream, params, NULL));
 
   return CUDA_SUCCESS;
 }
 
-CUresult cuMultiGPUZherk(CUcontext * contexts, int deviceCount, CBlasUplo uplo, CBlasTranspose trans, size_t n, size_t k, double alpha, const double complex * restrict A, size_t lda, double beta, double complex * restrict C, size_t ldc) {
+CUresult cuMultiGPUZherk(CUhandle * handles, int deviceCount,
+                         CBlasUplo uplo, CBlasTranspose trans,
+                         size_t n, size_t k,
+                         double alpha, const double complex * restrict A, size_t lda,
+                         double beta, double complex * restrict C, size_t ldc) {
   size_t nRowA = (trans == CBlasNoTrans) ? n : k;
 
   int info = 0;
@@ -233,46 +254,42 @@ CUresult cuMultiGPUZherk(CUcontext * contexts, int deviceCount, CBlasUplo uplo, 
   if (n == 0 || ((alpha == zero || k == 0) && beta == one)) return CUDA_SUCCESS;
 
   if (trans == CBlasNoTrans) {
-    if (uplo == CBlasLower) {
-      const size_t nb = 64;
+    const size_t nb = 64;
 
+    if (uplo == CBlasLower) {
       for (size_t j = 0; j < n; j += nb) {
         const size_t jb = min(nb, n - j);
         zherk(uplo, trans, jb, k, alpha, &A[j], lda, beta, &C[j * ldc + j], ldc);
         if (j + jb < n)
-          CU_ERROR_CHECK(cuMultiGPUZgemm(contexts, deviceCount, trans, CBlasTrans, n - j - jb, jb, k, alpha, &A[j + jb], lda, &A[j], lda, beta, &C[j * ldc + j + jb], ldc));
+          CU_ERROR_CHECK(cuMultiGPUZgemm(handles, deviceCount, trans, CBlasTrans, n - j - jb, jb, k, alpha, &A[j + jb], lda, &A[j], lda, beta, &C[j * ldc + j + jb], ldc));
       }
     }
     else {
-      const size_t nb = 64;
-
       for (size_t j = 0; j < n; j += nb) {
         const size_t jb = min(nb, n - j);
         zherk(uplo, trans, jb, k, alpha, &A[j], lda, beta, &C[j * ldc + j], ldc);
         if (j + jb < n)
-          CU_ERROR_CHECK(cuMultiGPUZgemm(contexts, deviceCount, trans, CBlasTrans, jb, n - j - jb, k, alpha, &A[j], lda, &A[j + jb], lda, beta, &C[(j + jb) * ldc + j], ldc));
+          CU_ERROR_CHECK(cuMultiGPUZgemm(handles, deviceCount, trans, CBlasTrans, jb, n - j - jb, k, alpha, &A[j], lda, &A[j + jb], lda, beta, &C[(j + jb) * ldc + j], ldc));
       }
     }
   }
   else {
-    if (uplo == CBlasLower) {
-      const size_t nb = 64;
+    const size_t nb = 64;
 
+    if (uplo == CBlasLower) {
       for (size_t j = 0; j < n; j += nb) {
         const size_t jb = min(nb, n - j);
         zherk(uplo, trans, jb, k, alpha, &A[j * lda], lda, beta, &C[j * ldc + j], ldc);
         if (j + jb < n)
-          CU_ERROR_CHECK(cuMultiGPUZgemm(contexts, deviceCount, trans, CBlasNoTrans, n - j - jb, jb, k, alpha, &A[(j + jb) * lda], lda, &A[j * lda], lda, beta, &C[j * ldc + j + jb], ldc));
+          CU_ERROR_CHECK(cuMultiGPUZgemm(handles, deviceCount, trans, CBlasNoTrans, n - j - jb, jb, k, alpha, &A[(j + jb) * lda], lda, &A[j * lda], lda, beta, &C[j * ldc + j + jb], ldc));
       }
     }
     else {
-      const size_t nb = 64;
-
       for (size_t j = 0; j < n; j += nb) {
         const size_t jb = min(nb, n - j);
         zherk(uplo, trans, jb, k, alpha, &A[j * lda], lda, beta, &C[j * ldc + j], ldc);
         if (j + jb < n)
-          CU_ERROR_CHECK(cuMultiGPUZgemm(contexts, deviceCount, CBlasTrans, CBlasNoTrans, jb, n - j - jb, k, alpha, &A[j * lda], lda, &A[(j + jb) * lda], lda, beta, &C[(j + jb) * ldc + j], ldc));
+          CU_ERROR_CHECK(cuMultiGPUZgemm(handles, deviceCount, CBlasTrans, CBlasNoTrans, jb, n - j - jb, k, alpha, &A[j * lda], lda, &A[(j + jb) * lda], lda, beta, &C[(j + jb) * ldc + j], ldc));
       }
     }
   }

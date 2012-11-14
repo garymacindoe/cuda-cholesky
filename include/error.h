@@ -9,14 +9,47 @@
 #define STRINGx(x) #x
 #define STRING(x) STRINGx(x)
 
+/**
+ * Function to transfer integer error codes into character string descriptions.
+ *
+ * @param error  integer error code.
+ * @return human-readable description of the error code.
+ */
 typedef const char * (*strerror_t)(int);
 
-typedef void (*errorHandler_t)(const char *, const char *, const char *, unsigned int, int, strerror_t);
+/**
+ * Error handler function type.
+ *
+ * @param call      the function call that threw the error.
+ * @param function  the calling function where the error occurred.
+ * @param file      the file the error occured in.
+ * @param line      the line number within the file.
+ * @param error     the integer error code.
+ * @param strerror  the error description function for the type of error that
+ *                  occurred.
+ */
+typedef void (*errorHandler_t)(const char *, const char *, const char *,
+                               unsigned int, int, strerror_t);
 
+/**
+ * Error handler (may be NULL).
+ */
 extern errorHandler_t errorHandler;
 
+/**
+ * CUDA Driver API error string function.
+ *
+ * @param error  the CUDA driver API error code.
+ * @return a human-readable description of the error that occurred.
+ */
 const char * cuGetErrorString(CUresult);
 
+/**
+ * CUBLAS error string function.
+ *
+ * @param error  the CUBLAS error status.
+ * @return a human-readable description on the error that occurred.
+ */
 const char * cublasGetErrorString(cublasStatus_t);
 
 #define ERROR_CHECK(call, strerror) \

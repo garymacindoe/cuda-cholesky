@@ -1,6 +1,7 @@
 #include "blas.h"
 #include "error.h"
 #include <stdio.h>
+#include "../handle.h"
 
 static inline size_t min(size_t a, size_t b) { return (a < b) ? a : b; }
 static inline size_t max(size_t a, size_t b) { return (a > b) ? a : b; }
@@ -28,7 +29,10 @@ static inline CUresult cuMemcpyDtoH2DAsync(void * A, size_t lda, size_t ai, size
 static const double complex zero = 0.0 + 0.0 * I;
 static const double complex one = 1.0 + 0.0 * I;
 
-void ztrsm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag, size_t m, size_t n, double complex alpha, const double complex * restrict A, size_t lda, double complex * restrict B, size_t ldb) {
+void ztrsm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag,
+           size_t m, size_t n,
+           double complex alpha, const double complex * restrict A, size_t lda,
+           double complex * restrict B, size_t ldb) {
   const size_t nRowA = (side == CBlasLeft) ? m : n;
 
   int info = 0;
@@ -41,7 +45,8 @@ void ztrsm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag
     return;
   }
 
-  if (m == 0 || n == 0) return;
+  if (m == 0 || n == 0)
+    return;
 
   if (alpha == zero) {
 #pragma omp parallel for
@@ -64,7 +69,8 @@ void ztrsm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag
           size_t k = m - 1;
           do {
             if (B[j * ldb + k] != zero) {
-              if (diag == CBlasNonUnit) B[j * ldb + k] /= A[k * lda + k];
+              if (diag == CBlasNonUnit)
+                B[j * ldb + k] /= A[k * lda + k];
               register double complex temp = B[j * ldb + k];
               for (size_t i = 0; i < k; i++)
                 B[j * ldb + i] -= temp * A[k * lda + i];
@@ -81,7 +87,8 @@ void ztrsm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag
           }
           for (size_t k = 0; k < m; k++) {
             if (B[j * ldb + k] != zero) {
-              if (diag == CBlasNonUnit) B[j * ldb + k] /= A[k * lda + k];
+              if (diag == CBlasNonUnit)
+                B[j * ldb + k] /= A[k * lda + k];
               register double complex temp = B[j * ldb + k];
               for (size_t i = k + 1; i < m; i++)
                 B[j * ldb + i] -= temp * A[k * lda + i];
@@ -99,12 +106,14 @@ void ztrsm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag
             if (transA == CBlasTrans) {
               for (size_t k = 0; k < i; k++)
                 temp -= A[i * lda + k] * B[j * ldb + k];
-              if (diag == CBlasNonUnit) temp /= A[i * lda + i];
+              if (diag == CBlasNonUnit)
+                temp /= A[i * lda + i];
             }
             else {
               for (size_t k = 0; k < i; k++)
                 temp -= conj(A[i * lda + k]) * B[j * ldb + k];
-              if (diag == CBlasNonUnit) temp /= conj(A[i * lda + i]);
+              if (diag == CBlasNonUnit)
+                temp /= conj(A[i * lda + i]);
             }
             B[j * ldb + i] = temp;
           }
@@ -119,12 +128,14 @@ void ztrsm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag
             if (transA == CBlasTrans) {
               for (size_t k = i + 1; k < m; k++)
                 temp -= A[i * lda + k] * B[j * ldb + k];
-              if (diag == CBlasNonUnit) temp /= A[i * lda + i];
+              if (diag == CBlasNonUnit)
+                temp /= A[i * lda + i];
             }
             else {
               for (size_t k = i + 1; k < m; k++)
                 temp -= conj(A[i * lda + k]) * B[j * ldb + k];
-              if (diag == CBlasNonUnit) temp /= conj(A[i * lda + i]);
+              if (diag == CBlasNonUnit)
+                temp /= conj(A[i * lda + i]);
             }
             B[j * ldb + i] = temp;
           } while (i-- > 0);
@@ -181,13 +192,21 @@ void ztrsm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag
         size_t k = n - 1;
         do {
           if (diag == CBlasNonUnit) {
-            register double complex temp = (transA == CBlasTrans) ? one / A[k * lda + k] : one / conj(A[k * lda + k]);
+            register double complex temp;
+            if (transA == CBlasTrans)
+              temp = one / A[k * lda + k];
+            else
+              temp = one / conj(A[k * lda + k]);
             for (size_t i = 0; i < m; i++)
               B[k * ldb + i] *= temp;
           }
           for (size_t j = 0; j < k; j++) {
             if (A[k * lda + j] != zero) {
-              register double complex temp = (transA == CBlasTrans) ? A[k * lda + j] : conj(A[k * lda + j]);
+              register double complex temp;
+              if (transA == CBlasTrans)
+                temp = one / A[k * lda + j];
+              else
+                temp = one / conj(A[k * lda + j]);
               for (size_t i = 0; i < m; i++)
                 B[j * ldb + i] -= temp * B[k * ldb + i];
             }
@@ -201,13 +220,21 @@ void ztrsm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag
       else {
         for (size_t k = 0; k < n; k++) {
           if (diag == CBlasNonUnit) {
-            register double complex temp = (transA == CBlasTrans) ? one / A[k * lda + k] : one / conj(A[k * lda + k]);
+            register double complex temp;
+            if (transA == CBlasTrans)
+              temp = one / A[k * lda + k];
+            else
+              temp = one / conj(A[k * lda + k]);
             for (size_t i = 0; i < m; i++)
               B[k * ldb + i] *= temp;
           }
           for (size_t j = k + 1; j < n; j++) {
             if (A[k * lda + j] != zero) {
-              register double complex temp = (transA == CBlasTrans) ? A[k * lda + j] : conj(A[k * lda + j]);
+              register double complex temp;
+              if (transA == CBlasTrans)
+                temp = one / A[k * lda + j];
+              else
+                temp = one / conj(A[k * lda + j]);
               for (size_t i = 0; i < m; i++)
                 B[j * ldb + i] -= temp * B[k * ldb + i];
             }
@@ -222,7 +249,10 @@ void ztrsm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag
   }
 }
 
-CUresult cuZtrsm(CUmodule module, CBlasSide side, CBlasUplo uplo, CBlasTranspose trans, CBlasDiag diag, size_t m, size_t n, double complex alpha, CUdeviceptr A, size_t lda, CUdeviceptr B, size_t ldb, CUstream stream) {
+CUresult cuZtrsm(CUhandle handle, CBlasSide side, CBlasUplo uplo, CBlasTranspose trans, CBlasDiag diag,
+                 size_t m, size_t n,
+                 double complex alpha, CUdeviceptr A, size_t lda,
+                 CUdeviceptr B, size_t ldb, CUstream stream) {
   size_t nRowA = (side == CBlasLeft) ? m : n;
 
   int info = 0;
@@ -243,19 +273,29 @@ CUresult cuZtrsm(CUmodule module, CBlasSide side, CBlasUplo uplo, CBlasTranspose
   const unsigned int nb = (side == CBlasLeft) ?  8 :  2;
 
   char name[116];
-  snprintf(name, 116, "_Z5ztrsmIL9CBlasSide%dEL9CBlasUplo%dEL14CBlasTranspose%dEL9CBlasDiag%dELj%uELj%uELj%uELj%uEEvii7double2PKS4_iPS4_i", side, uplo, trans, diag, mb, nb, bx, by);
+  snprintf(name, 116,
+           "_Z5ztrsmIL9CBlasSide%dEL9CBlasUplo%dEL14CBlasTranspose%dEL9CBlasDiag%dELj%uELj%uELj%uELj%uEEvii7double2PKS4_iPS4_i",
+           side, uplo, trans, diag, mb, nb, bx, by);
+
+  CUmodule module;
+  CU_ERROR_CHECK(cuHandleGetModule(handle, &module, CU_HANDLE_DOUBLE_COMPLEX, CU_HANDLE_TRSM));
 
   CUfunction function;
   CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
 
   void * params[] = { &m, &n, &alpha, &A, &lda, &B, &ldb };
 
-  CU_ERROR_CHECK(cuLaunchKernel(function, (unsigned int)max(1, (m + mb - 1) / mb), (unsigned int)max(1, (n + nb - 1) / nb), 1, bx, by, 1, 0, stream, params, NULL));
+  CU_ERROR_CHECK(cuLaunchKernel(function, (unsigned int)(m + mb - 1) / mb, (unsigned int)(n + nb - 1) / nb, 1,
+                                bx, by, 1, 0, stream, params, NULL));
 
   return CUDA_SUCCESS;
 }
 
-CUresult cuMultiGPUZtrsm(CUcontext * contexts, int deviceCount, CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag, size_t m, size_t n, double complex alpha, const double complex * restrict A, size_t lda, double complex * restrict B, size_t ldb) {
+CUresult cuMultiGPUZtrsm(CUhandle * handles, int deviceCount,
+                         CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag,
+                         size_t m, size_t n,
+                         double complex alpha, const double complex * restrict A, size_t lda,
+                         double complex * restrict B, size_t ldb) {
   const size_t nRowA = (side == CBlasLeft) ? m : n;
 
   int info = 0;
@@ -268,7 +308,8 @@ CUresult cuMultiGPUZtrsm(CUcontext * contexts, int deviceCount, CBlasSide side, 
     return CUDA_ERROR_INVALID_VALUE;
   }
 
-  if (m == 0 || n == 0) return CUDA_SUCCESS;
+  if (m == 0 || n == 0)
+    return CUDA_SUCCESS;
 
   if (alpha == zero) {
     zgemm(CBlasNoTrans, CBlasNoTrans, m, n, 0, zero, A, lda, B, ldb, zero, B, ldb);
@@ -294,7 +335,7 @@ CUresult cuMultiGPUZtrsm(CUcontext * contexts, int deviceCount, CBlasSide side, 
           for (size_t j = 0; j < n; j += nb) {
             const size_t jb = min(nb, n - j);
 
-            CU_ERROR_CHECK(cuMultiGPUZgemm(contexts, deviceCount, CBlasNoTrans, CBlasNoTrans, ib, jb, m - i - ib, -one, &A[(i + ib) * lda + i], lda, &B[j * ldb + i + ib], ldb, alpha, &B[j * ldb + i], ldb));
+            CU_ERROR_CHECK(cuMultiGPUZgemm(handles, deviceCount, CBlasNoTrans, CBlasNoTrans, ib, jb, m - i - ib, -one, &A[(i + ib) * lda + i], lda, &B[j * ldb + i + ib], ldb, alpha, &B[j * ldb + i], ldb));
 
             ztrsm(CBlasLeft, CBlasUpper, CBlasNoTrans, diag, ib, jb, one, &A[i * lda + i], lda, &B[j * ldb + i], ldb);
           }
@@ -307,7 +348,7 @@ CUresult cuMultiGPUZtrsm(CUcontext * contexts, int deviceCount, CBlasSide side, 
           for (size_t j = 0; j < n; j += nb) {
             const size_t jb = min(nb, n - j);
 
-            CU_ERROR_CHECK(cuMultiGPUZgemm(contexts, deviceCount, CBlasNoTrans, CBlasNoTrans, ib, jb, i, -one, &A[i], lda, &B[j * ldb], ldb, alpha, &B[j * ldb + i], ldb));
+            CU_ERROR_CHECK(cuMultiGPUZgemm(handles, deviceCount, CBlasNoTrans, CBlasNoTrans, ib, jb, i, -one, &A[i], lda, &B[j * ldb], ldb, alpha, &B[j * ldb + i], ldb));
 
             ztrsm(CBlasLeft, CBlasLower, CBlasNoTrans, diag, ib, jb, one, &A[i * lda + i], lda, &B[j * ldb + i], ldb);
           }
@@ -322,7 +363,7 @@ CUresult cuMultiGPUZtrsm(CUcontext * contexts, int deviceCount, CBlasSide side, 
           for (size_t j = 0; j < n; j += nb) {
             const size_t jb = min(nb, n - j);
 
-            CU_ERROR_CHECK(cuMultiGPUZgemm(contexts, deviceCount, transA, CBlasNoTrans, ib, jb, i, -one, &A[i * lda], lda, &B[j * ldb], ldb, alpha, &B[j * ldb + i], ldb));
+            CU_ERROR_CHECK(cuMultiGPUZgemm(handles, deviceCount, transA, CBlasNoTrans, ib, jb, i, -one, &A[i * lda], lda, &B[j * ldb], ldb, alpha, &B[j * ldb + i], ldb));
 
             ztrsm(CBlasLeft, CBlasUpper, transA, diag, ib, jb, one, &A[i * lda + i], lda, &B[j * ldb + i], ldb);
           }
@@ -337,7 +378,7 @@ CUresult cuMultiGPUZtrsm(CUcontext * contexts, int deviceCount, CBlasSide side, 
           for (size_t j = 0; j < n; j += nb) {
             const size_t jb = min(nb, n - j);
 
-            CU_ERROR_CHECK(cuMultiGPUZgemm(contexts, deviceCount, transA, CBlasNoTrans, ib, jb, m - i - ib, -one, &A[i * lda + i + ib], lda, &B[j * ldb + i + ib], ldb, alpha, &B[j * ldb + i], ldb));
+            CU_ERROR_CHECK(cuMultiGPUZgemm(handles, deviceCount, transA, CBlasNoTrans, ib, jb, m - i - ib, -one, &A[i * lda + i + ib], lda, &B[j * ldb + i + ib], ldb, alpha, &B[j * ldb + i], ldb));
 
             ztrsm(CBlasLeft, CBlasLower, transA, diag, ib, jb, one, &A[i * lda + i], lda, &B[j * ldb + i], ldb);
           }
@@ -354,7 +395,7 @@ CUresult cuMultiGPUZtrsm(CUcontext * contexts, int deviceCount, CBlasSide side, 
           for (size_t i = 0; i < m; i += mb) {
             const size_t ib = min(mb, m - i);
 
-            CU_ERROR_CHECK(cuMultiGPUZgemm(contexts, deviceCount, CBlasNoTrans, CBlasNoTrans, ib, jb, j, -one, &B[i], ldb, &A[j * lda], lda, alpha, &B[j * ldb + i], ldb));
+            CU_ERROR_CHECK(cuMultiGPUZgemm(handles, deviceCount, CBlasNoTrans, CBlasNoTrans, ib, jb, j, -one, &B[i], ldb, &A[j * lda], lda, alpha, &B[j * ldb + i], ldb));
 
             ztrsm(CBlasRight, CBlasUpper, CBlasNoTrans, diag, ib, jb, one, &A[j * lda + j], lda, &B[j * ldb + i], ldb);
           }
@@ -369,7 +410,7 @@ CUresult cuMultiGPUZtrsm(CUcontext * contexts, int deviceCount, CBlasSide side, 
           for (size_t i = 0; i < m; i += mb) {
             const size_t ib = min(mb, m - i);
 
-            CU_ERROR_CHECK(cuMultiGPUZgemm(contexts, deviceCount, CBlasNoTrans, CBlasNoTrans, ib, jb, n - j - jb, -one, &B[(j + jb) * ldb + i], ldb, &A[j * lda + j + jb], lda, alpha, &B[j * ldb + i], ldb));
+            CU_ERROR_CHECK(cuMultiGPUZgemm(handles, deviceCount, CBlasNoTrans, CBlasNoTrans, ib, jb, n - j - jb, -one, &B[(j + jb) * ldb + i], ldb, &A[j * lda + j + jb], lda, alpha, &B[j * ldb + i], ldb));
 
             ztrsm(CBlasRight, CBlasLower, CBlasNoTrans, diag, ib, jb, one, &A[j * lda + j], lda, &B[j * ldb + i], ldb);
           }
@@ -386,7 +427,7 @@ CUresult cuMultiGPUZtrsm(CUcontext * contexts, int deviceCount, CBlasSide side, 
           for (size_t i = 0; i < m; i += mb) {
             const size_t ib = min(mb, m - i);
 
-            CU_ERROR_CHECK(cuMultiGPUZgemm(contexts, deviceCount, CBlasNoTrans, transA, ib, jb, n - j - jb, -one, &B[(j + jb) * ldb + i], ldb, &A[(j + jb) * lda + j], lda, alpha, &B[j * ldb + i], ldb));
+            CU_ERROR_CHECK(cuMultiGPUZgemm(handles, deviceCount, CBlasNoTrans, transA, ib, jb, n - j - jb, -one, &B[(j + jb) * ldb + i], ldb, &A[(j + jb) * lda + j], lda, alpha, &B[j * ldb + i], ldb));
 
             ztrsm(CBlasRight, CBlasUpper, transA, diag, ib, jb, one, &A[j * lda + j], lda, &B[j * ldb + i], ldb);
           }
@@ -399,7 +440,7 @@ CUresult cuMultiGPUZtrsm(CUcontext * contexts, int deviceCount, CBlasSide side, 
           for (size_t i = 0; i < m; i += mb) {
             const size_t ib = min(mb, m - i);
 
-            CU_ERROR_CHECK(cuMultiGPUZgemm(contexts, deviceCount, CBlasNoTrans, transA, ib, jb, j, -one, &B[i], ldb, &A[j], lda, alpha, &B[j * ldb + i], ldb));
+            CU_ERROR_CHECK(cuMultiGPUZgemm(handles, deviceCount, CBlasNoTrans, transA, ib, jb, j, -one, &B[i], ldb, &A[j], lda, alpha, &B[j * ldb + i], ldb));
 
             ztrsm(CBlasRight, CBlasLower, transA, diag, ib, jb, one, &A[j * lda + j], lda, &B[j * ldb + i], ldb);
           }

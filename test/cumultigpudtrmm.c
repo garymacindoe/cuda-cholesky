@@ -1,5 +1,6 @@
 #include "blas.h"
 #include "error.h"
+#include "cuhandle.h"
 #include <stdio.h>
 #include <sys/time.h>
 #include <float.h>
@@ -82,11 +83,11 @@ int main(int argc, char * argv[]) {
   int deviceCount;
   CU_ERROR_CHECK(cuDeviceGetCount(&deviceCount));
 
-  CUcontext contexts[deviceCount];
+  CUhandle handles[deviceCount];
   for (int i = 0; i < deviceCount; i++) {
     CUdevice device;
     CU_ERROR_CHECK(cuDeviceGet(&device, i));
-    CU_ERROR_CHECK(cuCtxCreate(&contexts[i], CU_CTX_BLOCKING_SYNC, device));
+    CU_ERROR_CHECK(cuHandleCreate(&handles[i], CU_CTX_BLOCKING_SYNC, device));
   }
 
   alpha = gaussian();
@@ -168,7 +169,7 @@ int main(int argc, char * argv[]) {
   }
 
   dtrmm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb);
-  dtrmm(side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb);
+  CU_ERROR_CHECK(cuMultiGPUDtrmm(handles, deviceCount, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb));
 
   bool passed = true;
   double diff = 0.0;
@@ -197,7 +198,7 @@ int main(int argc, char * argv[]) {
     return -6;
   }
   for (size_t i = 0; i < 20; i++)
-    dtrmm(side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb);
+    CU_ERROR_CHECK(cuMultiGPUDtrmm(handles, deviceCount, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb));
   if (gettimeofday(&stop, NULL) != 0) {
     fputs("gettimeofday failed\n", stderr);
     return -7;
@@ -220,7 +221,7 @@ int main(int argc, char * argv[]) {
   free(refB);
 
   for (int i = 0; i < deviceCount; i++)
-    CU_ERROR_CHECK(cuCtxDestroy(contexts[i]));
+    CU_ERROR_CHECK(cuHandleDestroy(handles[i]));
 
   return (int)!passed;
 }

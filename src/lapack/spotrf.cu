@@ -63,7 +63,7 @@ __global__ void spotf2(int n, float * A, int lda, int * info) {
         for (int k = 0; k < j; k++)
           temp -= a[upper(k, j)] * a[upper(k, threadIdx.x)];
 
-        // Thread zero calculates the diagonal element
+        // Thread j calculates the diagonal element
         if (threadIdx.x == j) {
           if (temp <= 0.0f || isnan(temp)) {
             *info = sinfo = j + 1;      // update info in shared and global memory
@@ -115,7 +115,7 @@ __global__ void spotf2(int n, float * A, int lda, int * info) {
         for (int k = 0; k < j; k++)
           temp -= a[lower<bx>(j, k)] * a[lower<bx>(threadIdx.x, k)];
 
-        // Thread zero calculates the diagonal element
+        // Thread j calculates the diagonal element
         if (threadIdx.x == j) {
           if (temp <= 0.0f || isnan(temp)) {
             *info = sinfo = j + 1;      // update info in shared and global memory

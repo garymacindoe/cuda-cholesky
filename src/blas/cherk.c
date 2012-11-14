@@ -1,6 +1,7 @@
 #include "blas.h"
 #include "error.h"
 #include <stdio.h>
+#include "../handle.h"
 
 static inline size_t min(size_t a, size_t b) { return (a < b) ? a : b; }
 static inline size_t max(size_t a, size_t b) { return (a > b) ? a : b; }
@@ -27,8 +28,12 @@ static inline CUresult cuMemcpyDtoH2DAsync(void * A, size_t lda, size_t ai, size
 
 static const float zero = 0.0f;
 static const float one = 1.0f;
+static const float complex czero = 0.0f + 0.0f * I;
 
-void cherk(CBlasUplo uplo, CBlasTranspose trans, size_t n, size_t k, float alpha, const float complex * restrict A, size_t lda, float beta, float complex * restrict C, size_t ldc) {
+void cherk(CBlasUplo uplo, CBlasTranspose trans,
+           size_t n, size_t k,
+           float alpha, const float complex * restrict A, size_t lda,
+           float beta, float complex * restrict C, size_t ldc) {
   size_t nRowA = (trans == CBlasNoTrans) ? n : k;
 
   int info = 0;
@@ -43,7 +48,8 @@ void cherk(CBlasUplo uplo, CBlasTranspose trans, size_t n, size_t k, float alpha
     return;
   }
 
-  if (n == 0 || ((alpha == zero || k == 0) && beta == one)) return;
+  if (n == 0 || ((alpha == zero || k == 0) && beta == one))
+    return;
 
   if (alpha == zero) {
     if (uplo == CBlasUpper) {
@@ -138,7 +144,7 @@ void cherk(CBlasUplo uplo, CBlasTranspose trans, size_t n, size_t k, float alpha
 #pragma omp parallel for
       for (size_t j = 0; j < n; j++) {
         for (size_t i = 0; i < j; i++) {
-          register float complex temp = zero + zero * I;
+          register float complex temp = czero;
           for (size_t l = 0; l < k; l++)
             temp += conjf(A[i * lda + l]) * A[j * lda + l];
           if (beta == zero)
@@ -166,7 +172,7 @@ void cherk(CBlasUplo uplo, CBlasTranspose trans, size_t n, size_t k, float alpha
         else
           C[j * ldc + j] = alpha * rtemp + beta * crealf(C[j * ldc + j]);
         for (size_t i = j + 1; i < n; i++) {
-          register float complex temp = zero + zero * I;
+          register float complex temp = czero;
           for (size_t l = 0; l < k; l++)
             temp += conjf(A[i * lda + l]) * A[j * lda + l];
           if (beta == zero)
@@ -179,7 +185,10 @@ void cherk(CBlasUplo uplo, CBlasTranspose trans, size_t n, size_t k, float alpha
   }
 }
 
-CUresult cuCherk(CUmodule module, CBlasUplo uplo, CBlasTranspose trans, size_t n, size_t k, float alpha, CUdeviceptr A, size_t lda, float beta, CUdeviceptr C, size_t ldc, CUstream stream) {
+CUresult cuCherk(CUhandle handle, CBlasUplo uplo, CBlasTranspose trans,
+                 size_t n, size_t k,
+                 float alpha, CUdeviceptr A, size_t lda,
+                 float beta, CUdeviceptr C, size_t ldc, CUstream stream) {
   size_t nRowA = (trans == CBlasNoTrans) ? n : k;
 
   int info = 0;
@@ -194,7 +203,8 @@ CUresult cuCherk(CUmodule module, CBlasUplo uplo, CBlasTranspose trans, size_t n
     return CUDA_ERROR_INVALID_VALUE;
   }
 
-  if (n == 0 || ((alpha == zero || k == 0) && beta == one)) return CUDA_SUCCESS;
+  if (n == 0 || ((alpha == zero || k == 0) && beta == one))
+    return CUDA_SUCCESS;
 
   const unsigned int mb = (trans == CBlasNoTrans) ? 64 : 32;
   const unsigned int nb = (trans == CBlasNoTrans) ?  8 : 16;
@@ -203,19 +213,29 @@ CUresult cuCherk(CUmodule module, CBlasUplo uplo, CBlasTranspose trans, size_t n
   const unsigned int by = 8;
 
   char name[88];
-  snprintf(name, 88, "_Z5cherkIL9CBlasUplo%dEL14CBlasTranspose%dELj%uELj%uELj%uELj%uELj%uEEviifPK6float2ifPS2_i", uplo, trans, mb, nb, kb, bx, by);
+  snprintf(name, 88,
+           "_Z5cherkIL9CBlasUplo%dEL14CBlasTranspose%dELj%uELj%uELj%uELj%uELj%uEEviifPK6float2ifPS2_i",
+           uplo, trans, mb, nb, kb, bx, by);
+
+  CUmodule module;
+  CU_ERROR_CHECK(cuHandleGetModule(handle, &module, CU_HANDLE_COMPLEX, CU_HANDLE_HERK));
 
   CUfunction function;
   CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
 
   void * params[] = { &n, &k, &alpha, &A, &lda, &beta, &C, &ldc };
 
-  CU_ERROR_CHECK(cuLaunchKernel(function, (unsigned int)max(1, (n + mb - 1) / mb), (unsigned int)max(1, (n + nb - 1) / nb), 1, bx, by, 1, 0, stream, params, NULL));
+  CU_ERROR_CHECK(cuLaunchKernel(function, (unsigned int)(n + mb - 1) / mb, (unsigned int)(n + nb - 1) / nb, 1,
+                                bx, by, 1, 0, stream, params, NULL));
 
   return CUDA_SUCCESS;
 }
 
-CUresult cuMultiGPUCherk(CUcontext * contexts, int deviceCount, CBlasUplo uplo, CBlasTranspose trans, size_t n, size_t k, float alpha, const float complex * restrict A, size_t lda, float beta, float complex * restrict C, size_t ldc) {
+CUresult cuMultiGPUCherk(CUhandle * handles, int deviceCount,
+                         CBlasUplo uplo, CBlasTranspose trans,
+                         size_t n, size_t k,
+                         float alpha, const float complex * restrict A, size_t lda,
+                         float beta, float complex * restrict C, size_t ldc) {
   size_t nRowA = (trans == CBlasNoTrans) ? n : k;
 
   int info = 0;
@@ -230,49 +250,46 @@ CUresult cuMultiGPUCherk(CUcontext * contexts, int deviceCount, CBlasUplo uplo, 
     return CUDA_ERROR_INVALID_VALUE;
   }
 
-  if (n == 0 || ((alpha == zero || k == 0) && beta == one)) return CUDA_SUCCESS;
+  if (n == 0 || ((alpha == zero || k == 0) && beta == one))
+    return CUDA_SUCCESS;
 
   if (trans == CBlasNoTrans) {
-    if (uplo == CBlasLower) {
-      const size_t nb = 64;
+    const size_t nb = 64;
 
+    if (uplo == CBlasLower) {
       for (size_t j = 0; j < n; j += nb) {
         const size_t jb = min(nb, n - j);
         cherk(uplo, trans, jb, k, alpha, &A[j], lda, beta, &C[j * ldc + j], ldc);
         if (j + jb < n)
-          CU_ERROR_CHECK(cuMultiGPUCgemm(contexts, deviceCount, trans, CBlasTrans, n - j - jb, jb, k, alpha, &A[j + jb], lda, &A[j], lda, beta, &C[j * ldc + j + jb], ldc));
+          CU_ERROR_CHECK(cuMultiGPUCgemm(handles, deviceCount, trans, CBlasTrans, n - j - jb, jb, k, alpha, &A[j + jb], lda, &A[j], lda, beta, &C[j * ldc + j + jb], ldc));
       }
     }
     else {
-      const size_t nb = 64;
-
       for (size_t j = 0; j < n; j += nb) {
         const size_t jb = min(nb, n - j);
         cherk(uplo, trans, jb, k, alpha, &A[j], lda, beta, &C[j * ldc + j], ldc);
         if (j + jb < n)
-          CU_ERROR_CHECK(cuMultiGPUCgemm(contexts, deviceCount, trans, CBlasTrans, jb, n - j - jb, k, alpha, &A[j], lda, &A[j + jb], lda, beta, &C[(j + jb) * ldc + j], ldc));
+          CU_ERROR_CHECK(cuMultiGPUCgemm(handles, deviceCount, trans, CBlasTrans, jb, n - j - jb, k, alpha, &A[j], lda, &A[j + jb], lda, beta, &C[(j + jb) * ldc + j], ldc));
       }
     }
   }
   else {
-    if (uplo == CBlasLower) {
-      const size_t nb = 64;
+    const size_t nb = 64;
 
+    if (uplo == CBlasLower) {
       for (size_t j = 0; j < n; j += nb) {
         const size_t jb = min(nb, n - j);
         cherk(uplo, trans, jb, k, alpha, &A[j * lda], lda, beta, &C[j * ldc + j], ldc);
         if (j + jb < n)
-          CU_ERROR_CHECK(cuMultiGPUCgemm(contexts, deviceCount, trans, CBlasNoTrans, n - j - jb, jb, k, alpha, &A[(j + jb) * lda], lda, &A[j * lda], lda, beta, &C[j * ldc + j + jb], ldc));
+          CU_ERROR_CHECK(cuMultiGPUCgemm(handles, deviceCount, trans, CBlasNoTrans, n - j - jb, jb, k, alpha, &A[(j + jb) * lda], lda, &A[j * lda], lda, beta, &C[j * ldc + j + jb], ldc));
       }
     }
     else {
-      const size_t nb = 64;
-
       for (size_t j = 0; j < n; j += nb) {
         const size_t jb = min(nb, n - j);
         cherk(uplo, trans, jb, k, alpha, &A[j * lda], lda, beta, &C[j * ldc + j], ldc);
         if (j + jb < n)
-          CU_ERROR_CHECK(cuMultiGPUCgemm(contexts, deviceCount, CBlasTrans, CBlasNoTrans, jb, n - j - jb, k, alpha, &A[j * lda], lda, &A[(j + jb) * lda], lda, beta, &C[(j + jb) * ldc + j], ldc));
+          CU_ERROR_CHECK(cuMultiGPUCgemm(handles, deviceCount, CBlasTrans, CBlasNoTrans, jb, n - j - jb, k, alpha, &A[j * lda], lda, &A[(j + jb) * lda], lda, beta, &C[(j + jb) * ldc + j], ldc));
       }
     }
   }
