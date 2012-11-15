@@ -44,13 +44,16 @@ __global__ void strmm2(int m, int n,
   // For Upper/NoTrans and Lower/Trans process diagonal first
   if (uplo == CBlasUpper && trans == CBlasNoTrans ||
       uplo == CBlasLower && trans != CBlasNoTrans) {
-    int k = min(m, mb);
+    int k = min(m - bi, mb);
     int l = 0;
     while (k > 0) {
       if (trans != CBlasNoTrans) {
 #pragma unroll
-        for (int i = 0; i < mb; i += by)
-          a[i + threadIdx.y][threadIdx.x] = A[i * lda];
+        for (int l = 0; l < kb; l += bx) {
+#pragma unroll
+          for (int i = 0; i < mb; i += by)
+            a[i + threadIdx.y][l + threadIdx.x] = A[i * lda + l];
+        }
         A += kb;
       }
 
@@ -119,8 +122,11 @@ __global__ void strmm2(int m, int n,
   while (k > 0) {
     if (trans != CBlasNoTrans) {
 #pragma unroll
-      for (int i = 0; i < mb; i += by)
-        a[i + threadIdx.y][threadIdx.x] = A[i * lda];
+      for (int l = 0; l < kb; l += bx) {
+#pragma unroll
+        for (int i = 0; i < mb; i += by)
+          a[i + threadIdx.y][l + threadIdx.x] = A[i * lda + l];
+      }
       A += kb;
     }
 
@@ -165,7 +171,10 @@ __global__ void strmm2(int m, int n,
   // For Upper/Trans and Lower/NoTrans process diagonal last
   if (uplo == CBlasUpper && trans != CBlasNoTrans ||
       uplo == CBlasLower && trans == CBlasNoTrans) {
-    int k = min(m, mb);
+
+    __syncthreads();
+
+    int k = min(m - bi, mb);
     int l = 0;
     while (k > 0) {
       if (trans != CBlasNoTrans) {
