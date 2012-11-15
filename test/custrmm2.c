@@ -95,7 +95,8 @@ int main(int argc, char * argv[]) {
   CUhandle handle;
   CU_ERROR_CHECK(cuHandleCreate(&handle, CU_CTX_BLOCKING_SYNC, device));
 
-  alpha = (float)rand() / (float)RAND_MAX;
+  alpha = 1.0f;//(float)rand() / (float)RAND_MAX;
+  fprintf(stderr, "alpha = %15.6f\n", alpha);
 
   if (side == CBlasLeft) {
     lda = (m + 3u) & ~3u;
@@ -127,13 +128,20 @@ int main(int argc, char * argv[]) {
 
     for (size_t j = 0; j < n; j++) {
       for (size_t i = 0; i < n; i++)
-        A[j * lda + i] = (float)rand() / (float)RAND_MAX;
+        A[j * lda + i] = (float)(i == j);//rand() / (float)RAND_MAX;
     }
 
     CUDA_MEMCPY2D copy = { 0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(float),
     0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(float),
     n * sizeof(float), n };
     CU_ERROR_CHECK(cuMemcpy2D(&copy));
+
+    fprintf(stderr, "A =\n");
+    for (size_t i = 0; i < n; i++) {
+      for (size_t j = 0; j < n; j++)
+        fprintf(stderr, "%15.6f", A[j * lda + i]);
+      fprintf(stderr, "\n");
+    }
   }
 
   ldb = (m + 3u) & ~3u;
@@ -153,6 +161,13 @@ int main(int argc, char * argv[]) {
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < m; i++)
       refB[j * ldb + i] = B[j * ldb + i] = (float)rand() / (float)RAND_MAX;
+  }
+
+  fprintf(stderr, "B =\n");
+  for (size_t i = 0; i < m; i++) {
+    for (size_t j = 0; j < n; j++)
+      fprintf(stderr, "%15.6f", B[j * ldb + i]);
+    fprintf(stderr, "\n");
   }
 
   CUDA_MEMCPY2D copy = { 0, 0, CU_MEMORYTYPE_HOST, B, 0, NULL, ldb * sizeof(float),
@@ -187,6 +202,20 @@ int main(int argc, char * argv[]) {
       if (d > (float)flops * 2.0f * FLT_EPSILON)
         passed = false;
     }
+  }
+
+  fprintf(stderr, "refB =\n");
+  for (size_t i = 0; i < m; i++) {
+    for (size_t j = 0; j < n; j++)
+      fprintf(stderr, "%15.6f", refB[j * ldb + i]);
+    fprintf(stderr, "\n");
+  }
+
+  fprintf(stderr, "B =\n");
+  for (size_t i = 0; i < m; i++) {
+    for (size_t j = 0; j < n; j++)
+      fprintf(stderr, "%15.6f", B[j * ldb + i]);
+    fprintf(stderr, "\n");
   }
 
   CUevent start, stop;
