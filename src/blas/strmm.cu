@@ -144,7 +144,7 @@ __global__ void strmm2(int m, int n,
 
   // For Upper/Trans and Lower/NoTrans process diagonal last
   if (uplo == CBlasUpper && trans != CBlasNoTrans ||
-      uplo == CBlasLower && trans == CBlasTrans) {
+      uplo == CBlasLower && trans == CBlasNoTrans) {
     int k = min(m, mb);
     int l = 0;
     while (k > 0) {
