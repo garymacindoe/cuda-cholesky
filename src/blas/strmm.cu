@@ -67,7 +67,8 @@ __global__ void strmm2(int m, int n,
         for (int ll = 0; ll < kb; ll++) {
           if (ti <= l++)
             saxpy((trans == CBlasNoTrans) ? A[0] : a[ti][ll], (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
-          A += lda;
+          if (trans == CBlasNoTrans)
+            A += lda;
         }
       }
       else {
@@ -77,7 +78,8 @@ __global__ void strmm2(int m, int n,
             saxpy(1.0f, (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
           else if (ti < l)
             saxpy((trans == CBlasNoTrans) ? A[0] : a[ti][ll], (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
-          A += lda;
+          if (trans == CBlasNoTrans)
+            A += lda;
           l++;
         }
       }
@@ -92,7 +94,8 @@ __global__ void strmm2(int m, int n,
       for (int ll = 0; ll < k; ll++) {
         if (ti <= l++)
           saxpy((trans == CBlasNoTrans) ? A[0] : a[ti][ll], (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
-        A += lda;
+        if (trans == CBlasNoTrans)
+          A += lda;
       }
     }
     else {
@@ -101,14 +104,18 @@ __global__ void strmm2(int m, int n,
           saxpy(1.0f, (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
         else if (ti < l)
           saxpy((trans == CBlasNoTrans) ? A[0] : a[ti][ll], (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
-        A += lda;
+        if (trans == CBlasNoTrans)
+          A += lda;
         l++;
       }
     }
+
+    __syncthreads();
   }
 
   // Process non-diagonal blocks as for SGEMM
-  int k = (uplo == CBlasUpper) ? m - bi - mb : bi;
+  int k = (trans == CBlasNoTrans) ? ((uplo == CBlasUpper) ? m - bi - mb : bi)
+                                  : ((uplo == CBlasUpper) ? bi : m - bi - mb);
   while (k > 0) {
     if (trans != CBlasNoTrans) {
 #pragma unroll
@@ -125,10 +132,17 @@ __global__ void strmm2(int m, int n,
 
     if (k < kb) break;
 
+    if (trans == CBlasNoTrans) {
 #pragma unroll
-    for (int l = 0; l < kb; l++) {
-      saxpy((trans == CBlasNoTrans) ? A[0] : a[ti][l], (trans == CBlasNoTrans) ? b[l] : &b[l][tj], x);
-      A += lda;
+      for (int l = 0; l < kb; l++) {
+        saxpy(A[0], b[l], x);
+        A += lda;
+      }
+    }
+    else {
+#pragma unroll
+      for (int l = 0; l < kb; l++)
+        saxpy(a[ti][l], &b[l][tj], x);
     }
 
     __syncthreads();
@@ -137,9 +151,15 @@ __global__ void strmm2(int m, int n,
     k -= kb;
   }
 
-  for (int l = 0; l < k; l++) {
-    saxpy((trans == CBlasNoTrans) ? A[0] : a[ti][l], (trans == CBlasNoTrans) ? b[l] : &b[l][tj], x);
-    A += lda;
+  if (trans == CBlasNoTrans) {
+    for (int l = 0; l < k; l++) {
+      saxpy(A[0], b[l], x);
+      A += lda;
+    }
+  }
+  else {
+    for (int l = 0; l < k; l++)
+      saxpy(a[ti][l], &b[l][tj], x);
   }
 
   // For Upper/Trans and Lower/NoTrans process diagonal last
