@@ -219,11 +219,11 @@ CUresult cuStrmm2(CUhandle handle,
   if (m == 0 || n == 0)
     return CUDA_SUCCESS;
 
-  const unsigned int mb = 64;
-  const unsigned int nb = 16;
-  const unsigned int kb = 16;
-  const unsigned int bx = 16;
-  const unsigned int by =  4;
+  const unsigned int mb = (side == CBlasLeft && trans != CBlasNoTrans) ? 32 : 64;
+  const unsigned int nb = (side == CBlasLeft && trans != CBlasNoTrans) ? 32 : 16;
+  const unsigned int kb = (side == CBlasLeft && trans != CBlasNoTrans) ?  8 : 16;
+  const unsigned int bx = (side == CBlasLeft && trans != CBlasNoTrans) ?  8 : 16;
+  const unsigned int by = (side == CBlasLeft && trans != CBlasNoTrans) ?  8 :  4;
 
   char name[114];
   snprintf(name, 114,

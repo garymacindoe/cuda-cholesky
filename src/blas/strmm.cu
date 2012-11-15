@@ -19,21 +19,41 @@ __global__ void strmm2(int m, int n,
   const int bi = blockIdx.x * mb;       // Starting row of block of X
   const int bj = blockIdx.y * nb;       // Starting column of block of X
   int ti = threadIdx.y * bx + threadIdx.x;
+  int tj = 0;
+  if (trans != CBlasNoTrans) {
+    tj = 16 * (ti / mb);
+    ti = ti % mb;
+  }
 
-  A += (uplo == CBlasUpper) ? bi * lda + bi + ti : bi + ti;
-  B += (uplo == CBlasUpper) ? (bj + threadIdx.y) * ldb + bi + threadIdx.x : (bj + threadIdx.y) * ldb + threadIdx.x;
-  X += bj * ldx + bi + ti;
+  if (trans == CBlasNoTrans) {
+    A += (uplo == CBlasUpper) ? bi * lda + bi + ti : bi + ti;
+    B += (uplo == CBlasUpper) ? (bj + threadIdx.y) * ldb + bi + threadIdx.x : (bj + threadIdx.y) * ldb + threadIdx.x;
+  }
+  else {
+    A += (uplo == CBlasUpper) ? (bi + threadIdx.y) * lda + threadIdx.x : (bi + threadIdx.y) * lda + bi + threadIdx.x;
+    B += (uplo == CBlasUpper) ? (bj + threadIdx.y) * ldb + threadIdx.x : (bj + threadIdx.y) * ldb + ldb + bi + threadIdx.x;
+  }
+  X += (bj + tj) * ldx + bi + ti;
 
+  __shared__ float a[mb][kb + 1];
   __shared__ float b[kb][nb];
 
   float x[] = { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
                 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
 
-  // For CBlasUpper process diagonal first
-  if (uplo == CBlasUpper) {
+  // For Upper/NoTrans and Lower/Trans process diagonal first
+  if (uplo == CBlasUpper && trans == CBlasNoTrans ||
+      uplo == CBlasLower && trans != CBlasNoTrans) {
     int k = min(m, mb);
     int l = 0;
     while (k > 0) {
+      if (trans != CBlasNoTrans) {
+#pragma unroll
+        for (int i = 0; i < mb; i += by)
+          a[i + threadIdx.y][threadIdx.x] = A[i * lda];
+        A += kb;
+      }
+
 #pragma unroll
       for (int j = 0; j < nb; j += by)
         b[threadIdx.x][j + threadIdx.y] = B[j * ldb];
@@ -46,7 +66,7 @@ __global__ void strmm2(int m, int n,
 #pragma unroll
         for (int ll = 0; ll < kb; ll++) {
           if (ti <= l++)
-            saxpy(A[0], b[ll], x);
+            saxpy((trans == CBlasNoTrans) ? A[0] : a[ti][ll], (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
           A += lda;
         }
       }
@@ -54,9 +74,9 @@ __global__ void strmm2(int m, int n,
 #pragma unroll
         for (int ll = 0; ll < kb; ll++) {
           if (ti == l)
-            saxpy(1.0f, b[ll], x);
+            saxpy(1.0f, (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
           else if (ti < l)
-            saxpy(A[0], b[ll], x);
+            saxpy((trans == CBlasNoTrans) ? A[0] : a[ti][ll], (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
           A += lda;
           l++;
         }
@@ -71,16 +91,16 @@ __global__ void strmm2(int m, int n,
     if (diag == CBlasNonUnit) {
       for (int ll = 0; ll < k; ll++) {
         if (ti <= l++)
-          saxpy(A[0], b[ll], x);
+          saxpy((trans == CBlasNoTrans) ? A[0] : a[ti][ll], (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
         A += lda;
       }
     }
     else {
       for (int ll = 0; ll < k; ll++) {
         if (ti == l)
-          saxpy(1.0f, b[ll], x);
+          saxpy(1.0f, (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
         else if (ti < l)
-          saxpy(A[0], b[ll], x);
+          saxpy((trans == CBlasNoTrans) ? A[0] : a[ti][ll], (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
         A += lda;
         l++;
       }
@@ -90,6 +110,13 @@ __global__ void strmm2(int m, int n,
   // Process non-diagonal blocks as for SGEMM
   int k = (uplo == CBlasUpper) ? m - bi - mb : bi;
   while (k > 0) {
+    if (trans != CBlasNoTrans) {
+#pragma unroll
+      for (int i = 0; i < mb; i += by)
+        a[i + threadIdx.y][threadIdx.x] = A[i * lda];
+      A += kb;
+    }
+
 #pragma unroll
     for (int j = 0; j < nb; j += by)
       b[threadIdx.x][j + threadIdx.y] = B[j * ldb];
@@ -100,7 +127,7 @@ __global__ void strmm2(int m, int n,
 
 #pragma unroll
     for (int l = 0; l < kb; l++) {
-      saxpy(A[0], b[l], x);
+      saxpy((trans == CBlasNoTrans) ? A[0] : a[ti][l], (trans == CBlasNoTrans) ? b[l] : &b[l][tj], x);
       A += lda;
     }
 
@@ -111,15 +138,22 @@ __global__ void strmm2(int m, int n,
   }
 
   for (int l = 0; l < k; l++) {
-    saxpy(A[0], b[l], x);
+    saxpy((trans == CBlasNoTrans) ? A[0] : a[ti][l], (trans == CBlasNoTrans) ? b[l] : &b[l][tj], x);
     A += lda;
   }
 
-  // For CBlasLower process diagonal last
+  // For Upper/Trans and Lower/NoTrans process diagonal last
   if (uplo == CBlasLower) {
     int k = min(m, mb);
     int l = 0;
     while (k > 0) {
+      if (trans != CBlasNoTrans) {
+#pragma unroll
+        for (int i = 0; i < mb; i += by)
+          a[i + threadIdx.y][threadIdx.x] = A[i * lda];
+        A += kb;
+      }
+
 #pragma unroll
       for (int j = 0; j < nb; j += by)
         b[threadIdx.x][j + threadIdx.y] = B[j * ldb];
@@ -132,7 +166,7 @@ __global__ void strmm2(int m, int n,
 #pragma unroll
         for (int ll = 0; ll < kb; ll++) {
           if (ti >= l++)
-            saxpy(A[0], b[ll], x);
+            saxpy((trans == CBlasNoTrans) ? A[0] : a[ti][ll], (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
           A += lda;
         }
       }
@@ -140,9 +174,9 @@ __global__ void strmm2(int m, int n,
 #pragma unroll
         for (int ll = 0; ll < kb; ll++) {
           if (ti == l)
-            saxpy(1.0f, b[ll], x);
+            saxpy(1.0f, (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
           else if (ti > l)
-            saxpy(A[0], b[ll], x);
+            saxpy((trans == CBlasNoTrans) ? A[0] : a[ti][ll], (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
           A += lda;
           l++;
         }
@@ -157,16 +191,16 @@ __global__ void strmm2(int m, int n,
     if (diag == CBlasNonUnit) {
       for (int ll = 0; ll < k; ll++) {
         if (ti >= l++)
-          saxpy(A[0], b[ll], x);
+          saxpy((trans == CBlasNoTrans) ? A[0] : a[ti][ll], (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
         A += lda;
       }
     }
     else {
       for (int ll = 0; ll < k; ll++) {
         if (ti == l)
-          saxpy(1.0f, b[ll], x);
+          saxpy(1.0f, (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
         else if (ti > l)
-          saxpy(A[0], b[ll], x);
+          saxpy((trans == CBlasNoTrans) ? A[0] : a[ti][ll], (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
         A += lda;
         l++;
       }
@@ -196,12 +230,12 @@ __global__ void strmm2(int m, int n,
 
 template void strmm2<CBlasLeft,  CBlasUpper, CBlasNoTrans, CBlasUnit,    64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
 template void strmm2<CBlasLeft,  CBlasUpper, CBlasNoTrans, CBlasNonUnit, 64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
-// template void strmm2<CBlasLeft,  CBlasUpper, CBlasTrans,   CBlasUnit,    32, 32,  8,  8,  8>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
-// template void strmm2<CBlasLeft,  CBlasUpper, CBlasTrans,   CBlasNonUnit, 32, 32,  8,  8,  8>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
+template void strmm2<CBlasLeft,  CBlasUpper, CBlasTrans,   CBlasUnit,    32, 32,  8,  8,  8>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
+template void strmm2<CBlasLeft,  CBlasUpper, CBlasTrans,   CBlasNonUnit, 32, 32,  8,  8,  8>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
 template void strmm2<CBlasLeft,  CBlasLower, CBlasNoTrans, CBlasUnit,    64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
 template void strmm2<CBlasLeft,  CBlasLower, CBlasNoTrans, CBlasNonUnit, 64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
-// template void strmm2<CBlasLeft,  CBlasLower, CBlasTrans,   CBlasUnit,    32, 32,  8,  8,  8>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
-// template void strmm2<CBlasLeft,  CBlasLower, CBlasTrans,   CBlasNonUnit, 32, 32,  8,  8,  8>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
+template void strmm2<CBlasLeft,  CBlasLower, CBlasTrans,   CBlasUnit,    32, 32,  8,  8,  8>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
+template void strmm2<CBlasLeft,  CBlasLower, CBlasTrans,   CBlasNonUnit, 32, 32,  8,  8,  8>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
 // template void strmm2<CBlasRight, CBlasUpper, CBlasNoTrans, CBlasUnit,    64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
 // template void strmm2<CBlasRight, CBlasUpper, CBlasNoTrans, CBlasNonUnit, 64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
 // template void strmm2<CBlasRight, CBlasUpper, CBlasTrans,   CBlasUnit,    64, 64, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
