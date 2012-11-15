@@ -188,7 +188,8 @@ __global__ void strmm2(int m, int n,
         for (int ll = 0; ll < kb; ll++) {
           if (ti >= l++)
             saxpy((trans == CBlasNoTrans) ? A[0] : a[ti][ll], (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
-          A += lda;
+          if (trans == CBlasNoTrans)
+            A += lda;
         }
       }
       else {
@@ -198,7 +199,8 @@ __global__ void strmm2(int m, int n,
             saxpy(1.0f, (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
           else if (ti > l)
             saxpy((trans == CBlasNoTrans) ? A[0] : a[ti][ll], (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
-          A += lda;
+          if (trans == CBlasNoTrans)
+            A += lda;
           l++;
         }
       }
@@ -213,7 +215,8 @@ __global__ void strmm2(int m, int n,
       for (int ll = 0; ll < k; ll++) {
         if (ti >= l++)
           saxpy((trans == CBlasNoTrans) ? A[0] : a[ti][ll], (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
-        A += lda;
+        if (trans == CBlasNoTrans)
+          A += lda;
       }
     }
     else {
@@ -222,7 +225,8 @@ __global__ void strmm2(int m, int n,
           saxpy(1.0f, (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
         else if (ti > l)
           saxpy((trans == CBlasNoTrans) ? A[0] : a[ti][ll], (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
-        A += lda;
+        if (trans == CBlasNoTrans)
+          A += lda;
         l++;
       }
     }
