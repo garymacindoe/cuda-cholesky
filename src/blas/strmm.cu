@@ -31,7 +31,7 @@ __global__ void strmm2(int m, int n,
   }
   else {
     A += (uplo == CBlasUpper) ? (bi + threadIdx.y) * lda + threadIdx.x : (bi + threadIdx.y) * lda + bi + threadIdx.x;
-    B += (uplo == CBlasUpper) ? (bj + threadIdx.y) * ldb + threadIdx.x : (bj + threadIdx.y) * ldb + ldb + bi + threadIdx.x;
+    B += (uplo == CBlasUpper) ? (bj + threadIdx.y) * ldb + threadIdx.x : (bj + threadIdx.y) * ldb + bi + threadIdx.x;
   }
   X += (bj + tj) * ldx + bi + ti;
 
@@ -143,7 +143,8 @@ __global__ void strmm2(int m, int n,
   }
 
   // For Upper/Trans and Lower/NoTrans process diagonal last
-  if (uplo == CBlasLower) {
+  if (uplo == CBlasUpper && trans != CBlasNoTrans ||
+      uplo == CBlasLower && trans == CBlasTrans) {
     int k = min(m, mb);
     int l = 0;
     while (k > 0) {
@@ -207,7 +208,7 @@ __global__ void strmm2(int m, int n,
     }
   }
 
-  n -= bj;
+  n -= bj + tj;
   m -= bi + ti;
   if (n <= 0 || m <= 0) return;
   X[0] = alpha * x[ 0]; if ( 1 >= n) return; X += ldx;
