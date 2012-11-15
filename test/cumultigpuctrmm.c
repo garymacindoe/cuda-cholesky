@@ -81,8 +81,8 @@ int main(int argc, char * argv[]) {
 
   srand(0);
 
-  float complex alpha, * A, * B, * refB, * C;
-  size_t lda, ldb, ldc;
+  float complex alpha, * A, * B, * refB;
+  size_t lda, ldb;
 
   CU_ERROR_CHECK(cuInit(0));
 
@@ -96,7 +96,7 @@ int main(int argc, char * argv[]) {
     CU_ERROR_CHECK(cuHandleCreate(&handles[i], CU_CTX_BLOCKING_SYNC, device));
   }
 
-  alpha = gaussian();
+  alpha = (float)rand() / (float)RAND_MAX + ((float)rand() / (float)RAND_MAX) * I;
 
   if (side == CBlasLeft) {
     lda = (m + 1u) & ~1u;
@@ -105,28 +105,10 @@ int main(int argc, char * argv[]) {
       return -1;
     }
 
-    size_t k = m * 5;
-    ldc = (k + 1u) & ~1u;
-    if ((C = malloc(ldc * m * sizeof(float complex))) == NULL) {
-      fputs("Unable to allocate C\n", stderr);
-      return -1;
-    }
     for (size_t j = 0; j < m; j++) {
-      for (size_t i = 0; i < k; i++)
-        C[j * ldc + i] = gaussian();
+      for (size_t i = 0; i < m; i++)
+        A[j * lda + i] = (float)rand() / (float)RAND_MAX + ((float)rand() / (float)RAND_MAX) * I;
     }
-    for (size_t j = 0; j < m; j++) {
-      for (size_t i = 0; i < m; i++) {
-        float complex temp = 0.0f;
-        for (size_t l = 0; l < k; l++)
-          temp += conjf(C[i * ldc + l]) * C[j * ldc + l];
-        A[j * lda + i] = 0.01f * temp;
-      }
-    }
-    free(C);
-
-    for (size_t k = 0; k < m; k++)
-      A[k * lda + k] += 1.0f;
   }
   else {
     lda = (n + 1u) & ~1u;
@@ -135,28 +117,10 @@ int main(int argc, char * argv[]) {
       return -1;
     }
 
-    size_t k = n * 5;
-    ldc = (k + 1u) & ~1u;
-    if ((C = malloc(ldc * n * sizeof(float complex))) == NULL) {
-      fputs("Unable to allocate C\n", stderr);
-      return -1;
-    }
     for (size_t j = 0; j < n; j++) {
-      for (size_t i = 0; i < k; i++)
-        C[j * ldc + i] = gaussian();
+      for (size_t i = 0; i < n; i++)
+        A[j * lda + i] = (float)rand() / (float)RAND_MAX + ((float)rand() / (float)RAND_MAX) * I;
     }
-    for (size_t j = 0; j < n; j++) {
-      for (size_t i = 0; i < n; i++) {
-        float complex temp = 0.0f;
-        for (size_t l = 0; l < k; l++)
-          temp += conjf(C[i * ldc + l]) * C[j * ldc + l];
-        A[j * lda + i] = 0.01f * temp;
-      }
-    }
-    free(C);
-
-    for (size_t k = 0; k < n; k++)
-      A[k * lda + k] += 1.0f;
   }
 
   ldb = (m + 1u) & ~1u;
@@ -171,7 +135,7 @@ int main(int argc, char * argv[]) {
 
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < m; i++)
-      refB[j * ldb + i] = B[j * ldb + i] = gaussian();
+      refB[j * ldb + i] = B[j * ldb + i] = (float)rand() / (float)RAND_MAX + ((float)rand() / (float)RAND_MAX) * I;
   }
 
   ctrmm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb);

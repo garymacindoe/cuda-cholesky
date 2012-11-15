@@ -9,12 +9,12 @@ __device__ void saxpy(float alpha, const float * x, float * y) {
 
 __device__ int min(int a, int b) { return (a < b) ? a : b; }
 
-template <CBlasSide side, CBlasUplo uplo, CBlasTranspose trans, CBlasDiag diag,
+template <CBlasUplo uplo, CBlasTranspose trans, CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void strmm2(int m, int n,
-                       float alpha, const float * __restrict__ A, int lda, const float * __restrict__ B, int ldb,
-                       float * __restrict__ X, int ldx) {
+__global__ void strmm2L(int m, int n,
+                        float alpha, const float * __restrict__ A, int lda, const float * __restrict__ B, int ldb,
+                        float * __restrict__ X, int ldx) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of X
   const int bj = blockIdx.y * nb;       // Starting column of block of X
@@ -262,14 +262,14 @@ __global__ void strmm2(int m, int n,
   X[0] = alpha * x[15];
 }
 
-template void strmm2<CBlasLeft,  CBlasUpper, CBlasNoTrans, CBlasUnit,    64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
-template void strmm2<CBlasLeft,  CBlasUpper, CBlasNoTrans, CBlasNonUnit, 64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
-template void strmm2<CBlasLeft,  CBlasUpper, CBlasTrans,   CBlasUnit,    32, 32,  8,  8,  8>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
-template void strmm2<CBlasLeft,  CBlasUpper, CBlasTrans,   CBlasNonUnit, 32, 32,  8,  8,  8>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
-template void strmm2<CBlasLeft,  CBlasLower, CBlasNoTrans, CBlasUnit,    64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
-template void strmm2<CBlasLeft,  CBlasLower, CBlasNoTrans, CBlasNonUnit, 64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
-template void strmm2<CBlasLeft,  CBlasLower, CBlasTrans,   CBlasUnit,    32, 32,  8,  8,  8>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
-template void strmm2<CBlasLeft,  CBlasLower, CBlasTrans,   CBlasNonUnit, 32, 32,  8,  8,  8>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
+template void strmm2L<CBlasUpper, CBlasNoTrans, CBlasUnit,    64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
+template void strmm2L<CBlasUpper, CBlasNoTrans, CBlasNonUnit, 64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
+template void strmm2L<CBlasUpper, CBlasTrans,   CBlasUnit,    32, 32,  8,  8,  8>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
+template void strmm2L<CBlasUpper, CBlasTrans,   CBlasNonUnit, 32, 32,  8,  8,  8>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
+template void strmm2L<CBlasLower, CBlasNoTrans, CBlasUnit,    64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
+template void strmm2L<CBlasLower, CBlasNoTrans, CBlasNonUnit, 64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
+template void strmm2L<CBlasLower, CBlasTrans,   CBlasUnit,    32, 32,  8,  8,  8>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
+template void strmm2L<CBlasLower, CBlasTrans,   CBlasNonUnit, 32, 32,  8,  8,  8>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
 // template void strmm2<CBlasRight, CBlasUpper, CBlasNoTrans, CBlasUnit,    64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
 // template void strmm2<CBlasRight, CBlasUpper, CBlasNoTrans, CBlasNonUnit, 64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
 // template void strmm2<CBlasRight, CBlasUpper, CBlasTrans,   CBlasUnit,    64, 64, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);

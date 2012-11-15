@@ -146,13 +146,3 @@ static void ztrmm_ref(CBlasSide side, CBlasUplo uplo, CBlasTranspose trans,
     }
   }
 }
-
-static double complex gaussian() {
-  double u0 = ((double)rand() + 1) / (double)RAND_MAX;
-  double u1 = ((double)rand() + 1) / (double)RAND_MAX;
-  double r = sqrt(-2 * log(u0));
-  double phi = 2. * 3.1415926535897932384626433832795 * u1;
-  double real = r * sin(phi);
-  double imag = r * cos(phi);
-  return real + imag * I;
-}

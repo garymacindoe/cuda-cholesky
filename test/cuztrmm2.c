@@ -84,9 +84,9 @@ int main(int argc, char * argv[]) {
 
   srand(0);
 
-  double complex alpha, * A, * B, * refB, * C;
+  double complex alpha, * A, * B, * refB;
   CUdeviceptr dA, dB, dX;
-  size_t lda, ldb, ldc, dlda, dldb, dldx;
+  size_t lda, ldb, dlda, dldb, dldx;
 
   CU_ERROR_CHECK(cuInit(0));
 
@@ -96,7 +96,7 @@ int main(int argc, char * argv[]) {
   CUhandle handle;
   CU_ERROR_CHECK(cuHandleCreate(&handle, CU_CTX_BLOCKING_SYNC, device));
 
-  alpha = gaussian();
+  alpha = (double)rand() / (double)RAND_MAX + ((double)rand() / (double)RAND_MAX) * I;
 
   if (side == CBlasLeft) {
     lda = (m + 1u) & ~1u;
@@ -107,28 +107,10 @@ int main(int argc, char * argv[]) {
     CU_ERROR_CHECK(cuMemAllocPitch(&dA, &dlda, m * sizeof(double complex), m, sizeof(double complex)));
     dlda /= sizeof(double complex);
 
-    size_t k = m * 5;
-    ldc = (k + 1u) & ~1u;
-    if ((C = malloc(ldc * m * sizeof(double complex))) == NULL) {
-      fputs("Unable to allocate C\n", stderr);
-      return -1;
-    }
     for (size_t j = 0; j < m; j++) {
-      for (size_t i = 0; i < k; i++)
-        C[j * ldc + i] = gaussian();
+      for (size_t i = 0; i < m; i++)
+        A[j * lda + i] = (double)rand() / (double)RAND_MAX + ((double)rand() / (double)RAND_MAX) * I;
     }
-    for (size_t j = 0; j < m; j++) {
-      for (size_t i = 0; i < m; i++) {
-        double complex temp = 0.0;
-        for (size_t l = 0; l < k; l++)
-          temp += conj(C[i * ldc + l]) * C[j * ldc + l];
-        A[j * lda + i] = 0.01 * temp;
-      }
-    }
-    free(C);
-
-    for (size_t k = 0; k < m; k++)
-      A[k * lda + k] += 1.0;
 
     CUDA_MEMCPY2D copy = { 0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(double complex),
                            0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(double complex),
@@ -144,28 +126,10 @@ int main(int argc, char * argv[]) {
     CU_ERROR_CHECK(cuMemAllocPitch(&dA, &dlda, n * sizeof(double complex), n, sizeof(double complex)));
     dlda /= sizeof(double complex);
 
-    size_t k = n * 5;
-    ldc = (k + 1u) & ~1u;
-    if ((C = malloc(ldc * n * sizeof(double complex))) == NULL) {
-      fputs("Unable to allocate C\n", stderr);
-      return -1;
-    }
     for (size_t j = 0; j < n; j++) {
-      for (size_t i = 0; i < k; i++)
-        C[j * ldc + i] = gaussian();
+      for (size_t i = 0; i < n; i++)
+        A[j * lda + i] = (double)rand() / (double)RAND_MAX + ((double)rand() / (double)RAND_MAX) * I;
     }
-    for (size_t j = 0; j < n; j++) {
-      for (size_t i = 0; i < n; i++) {
-        double complex temp = 0.0;
-        for (size_t l = 0; l < k; l++)
-          temp += conj(C[i * ldc + l]) * C[j * ldc + l];
-        A[j * lda + i] = 0.01 * temp;
-      }
-    }
-    free(C);
-
-    for (size_t k = 0; k < n; k++)
-      A[k * lda + k] += 1.0;
 
     CUDA_MEMCPY2D copy = { 0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(double complex),
                            0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(double complex),
@@ -189,7 +153,7 @@ int main(int argc, char * argv[]) {
 
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < m; i++)
-      refB[j * ldb + i] = B[j * ldb + i] = gaussian();
+      refB[j * ldb + i] = B[j * ldb + i] = (double)rand() / (double)RAND_MAX + ((double)rand() / (double)RAND_MAX) * I;
   }
 
   CUDA_MEMCPY2D copy = { 0, 0, CU_MEMORYTYPE_HOST, B, 0, NULL, ldb * sizeof(double complex),

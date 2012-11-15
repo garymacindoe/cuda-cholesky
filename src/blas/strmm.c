@@ -225,9 +225,9 @@ CUresult cuStrmm2(CUhandle handle,
   const unsigned int bx = (side == CBlasLeft && trans != CBlasNoTrans) ?  8 : 16;
   const unsigned int by = (side == CBlasLeft && trans != CBlasNoTrans) ?  8 :  4;
 
-  char name[114];
-  snprintf(name, 114,
-           "_Z6strmm2IL9CBlasSide%dEL9CBlasUplo%dEL14CBlasTranspose%dEL9CBlasDiag%dELj%uELj%uELj%uELj%uELj%uEEviifPKfiS5_iPfi",
+  char name[101];
+  snprintf(name, 101,
+           "_Z7strmm2%cIL9CBlasUplo%dEL14CBlasTranspose%dEL9CBlasDiag%dELj%uELj%uELj%uELj%uELj%uEEviifPKfiS4_iPfi",
            side, uplo, trans, diag, mb, nb, kb, bx, by);
 
   CUmodule module;
