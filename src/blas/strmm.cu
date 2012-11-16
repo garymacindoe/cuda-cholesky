@@ -368,8 +368,8 @@ __global__ void strmm2R(int m, int n,
 //   }
 
   // Process non-diagonal blocks as for SGEMM
-  int k = (trans == CBlasNoTrans) ? ((uplo == CBlasUpper) ? n - bj - nb : bj)
-                                  : ((uplo == CBlasUpper) ? bj : n - bj - nb);
+  int k = bj;//(trans == CBlasNoTrans) ? ((uplo == CBlasUpper) ? n - bj - nb : bj)
+//                                   : ((uplo == CBlasUpper) ? bj : n - bj - nb);
   while (k > 0) {
     if (trans == CBlasNoTrans) {
 #pragma unroll
