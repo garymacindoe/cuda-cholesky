@@ -366,51 +366,50 @@ __global__ void strmm2R(int m, int n,
 //
 //     __syncthreads();
 //   }
-//
-//   // Process non-diagonal blocks as for SGEMM
-//   int k = (trans == CBlasNoTrans) ? ((uplo == CBlasUpper) ? n - bj - nb : bj)
-//                                   : ((uplo == CBlasUpper) ? bj : n - bj - nb);
-//   while (k > 0) {
-//     if (trans == CBlasNoTrans) {
-// #pragma unroll
-//       for (int j = 0; j < nb; j += by)
-//         a[threadIdx.x][j + threadIdx.y] = A[j * lda];
-//     }
-//     else {
-// #pragma unroll
-//       for (int l = 0; l < kb; l += by)
-//         a[l + threadIdx.y][threadIdx.x] = A[l * lda];
-//     }
-//
-//     __syncthreads();
-//
-//     if (k < kb) break;
-//
-// #pragma unroll
-//     for (int l = 0; l < kb; l++) {
-//       saxpy(B[0], a[l], x);
-//       B += ldb;
-//     }
-//
-//     __syncthreads();
-//
-//     A += (trans == CBlasNoTrans) ? kb : kb * lda;
-//     k -= kb;
-//   }
-//
-//   for (int l = 0; l < k; l++) {
-//     saxpy(B[0], a[l], x);
-//     B += ldb;
-//   }
-//
-//   // For Upper/NoTrans and Lower/Trans process diagonal last
-//   if (uplo == CBlasUpper && trans == CBlasNoTrans ||
-//       uplo == CBlasLower && trans != CBlasNoTrans) {
-//
-//     __syncthreads();
+
+  // Process non-diagonal blocks as for SGEMM
+  int k = (trans == CBlasNoTrans) ? ((uplo == CBlasUpper) ? n - bj - nb : bj)
+                                  : ((uplo == CBlasUpper) ? bj : n - bj - nb);
+  while (k > 0) {
+    if (trans == CBlasNoTrans) {
+#pragma unroll
+      for (int j = 0; j < nb; j += by)
+        a[threadIdx.x][j + threadIdx.y] = A[j * lda];
+    }
+    else {
+#pragma unroll
+      for (int l = 0; l < kb; l += by)
+        a[l + threadIdx.y][threadIdx.x] = A[l * lda];
+    }
+
+    __syncthreads();
+
+    if (k < kb) break;
+
+#pragma unroll
+    for (int l = 0; l < kb; l++) {
+      saxpy(B[0], a[l], x);
+      B += ldb;
+    }
+
+    __syncthreads();
+
+    A += (trans == CBlasNoTrans) ? kb : kb * lda;
+    k -= kb;
+  }
+
+  for (int l = 0; l < k; l++) {
+    saxpy(B[0], a[l], x);
+    B += ldb;
+  }
+
+  // For Upper/NoTrans and Lower/Trans process diagonal last
+  if (uplo == CBlasUpper && trans == CBlasNoTrans ||
+      uplo == CBlasLower && trans != CBlasNoTrans) {
+
+    __syncthreads();
 
     int k = min(n - bj, nb);
-    int l = 0;
     while (k > 0) {
       if (trans == CBlasNoTrans) {
 #pragma unroll
@@ -431,7 +430,6 @@ __global__ void strmm2R(int m, int n,
       for (int ll = 0; ll < kb; ll++) {
         saxpy(nb - ll, B[0], &a[ll][ll], &x[ll]);
         B += ldb;
-//         l++;
       }
 
       __syncthreads();
@@ -443,9 +441,8 @@ __global__ void strmm2R(int m, int n,
     for (int ll = 0; ll < k; ll++) {
       saxpy(nb - ll, B[0], &a[ll][ll], &x[ll]);
       B += ldb;
-//       l++;
     }
-//   }
+  }
 
   n -= bj;
   m -= bi + ti;
