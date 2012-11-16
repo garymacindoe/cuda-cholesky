@@ -315,23 +315,39 @@ __global__ void strmm2R(int m, int n,
       if (trans == CBlasNoTrans) {
 #pragma unroll
         for (int j = 0; j < nb; j += by)
-          a[threadIdx.x][j + threadIdx.y] = A[j * lda];
+          a[threadIdx.x][j + threadIdx.y] = (diag != CBlasNonUnit && threadIdx.x == j + threadIdx.y) ? 1.0f : A[j * lda];
       }
       else {
 #pragma unroll
         for (int l = 0; l < kb; l += by)
-          a[l + threadIdx.y][threadIdx.x] = A[l * lda];
+          a[l + threadIdx.y][threadIdx.x] = (diag != CBlasNonUnit && threadIdx.x == l + threadIdx.y) ? 1.0f : A[l * lda];
       }
 
       __syncthreads();
 
       if (k < kb) break;
 
-#pragma unroll
-      for (int ll = 0; ll < kb; ll++) {
-        saxpy(ll + 1, B[0], a[ll], x);
-        B += ldb;
-      }
+// #pragma unroll
+//       for (int ll = 0; ll < kb; ll++) {
+//         saxpy(ll + 1, B[0], a[ll], x);
+        saxpy( 1, B[0], a[ 0], x); B += ldb;
+        saxpy( 2, B[0], a[ 1], x); B += ldb;
+        saxpy( 3, B[0], a[ 2], x); B += ldb;
+        saxpy( 4, B[0], a[ 3], x); B += ldb;
+        saxpy( 5, B[0], a[ 4], x); B += ldb;
+        saxpy( 6, B[0], a[ 5], x); B += ldb;
+        saxpy( 7, B[0], a[ 6], x); B += ldb;
+        saxpy( 8, B[0], a[ 7], x); B += ldb;
+        saxpy( 9, B[0], a[ 8], x); B += ldb;
+        saxpy(10, B[0], a[ 9], x); B += ldb;
+        saxpy(11, B[0], a[10], x); B += ldb;
+        saxpy(12, B[0], a[11], x); B += ldb;
+        saxpy(13, B[0], a[12], x); B += ldb;
+        saxpy(14, B[0], a[13], x); B += ldb;
+        saxpy(15, B[0], a[14], x); B += ldb;
+        saxpy(16, B[0], a[15], x); B += ldb;
+//         B += ldb;
+//       }
 
       __syncthreads();
 
@@ -394,23 +410,39 @@ __global__ void strmm2R(int m, int n,
       if (trans == CBlasNoTrans) {
 #pragma unroll
         for (int j = 0; j < nb; j += by)
-          a[threadIdx.x][j + threadIdx.y] = A[j * lda];
+          a[threadIdx.x][j + threadIdx.y] = (diag != CBlasNonUnit && threadIdx.x == j + threadIdx.y) ? 1.0f : A[j * lda];
       }
       else {
 #pragma unroll
         for (int l = 0; l < kb; l += by)
-          a[l + threadIdx.y][threadIdx.x] = A[l * lda];
+          a[l + threadIdx.y][threadIdx.x] = (diag != CBlasNonUnit && threadIdx.x == l + threadIdx.y) ? 1.0f : A[l * lda];
       }
 
       __syncthreads();
 
       if (k < kb) break;
 
-#pragma unroll
-      for (int ll = 0; ll < kb; ll++) {
-        saxpy(nb - ll, B[0], &a[ll][ll], &x[ll]);
-        B += ldb;
-      }
+// #pragma unroll
+//       for (int ll = 0; ll < kb; ll++) {
+//         saxpy(nb - ll, B[0], &a[ll][ll], &x[ll]);
+        saxpy(16, B[0], &a[ 0][ 0], &x[ 0]); B += ldb;
+        saxpy(15, B[0], &a[ 1][ 1], &x[ 1]); B += ldb;
+        saxpy(14, B[0], &a[ 2][ 2], &x[ 2]); B += ldb;
+        saxpy(13, B[0], &a[ 3][ 3], &x[ 3]); B += ldb;
+        saxpy(12, B[0], &a[ 4][ 4], &x[ 4]); B += ldb;
+        saxpy(11, B[0], &a[ 5][ 5], &x[ 5]); B += ldb;
+        saxpy(10, B[0], &a[ 6][ 6], &x[ 6]); B += ldb;
+        saxpy( 9, B[0], &a[ 7][ 7], &x[ 7]); B += ldb;
+        saxpy( 8, B[0], &a[ 8][ 8], &x[ 8]); B += ldb;
+        saxpy( 7, B[0], &a[ 9][ 9], &x[ 9]); B += ldb;
+        saxpy( 6, B[0], &a[10][10], &x[10]); B += ldb;
+        saxpy( 5, B[0], &a[11][11], &x[11]); B += ldb;
+        saxpy( 4, B[0], &a[12][12], &x[12]); B += ldb;
+        saxpy( 3, B[0], &a[13][13], &x[13]); B += ldb;
+        saxpy( 2, B[0], &a[14][14], &x[14]); B += ldb;
+        saxpy( 1, B[0], &a[15][15], &x[15]); B += ldb;
+//         B += ldb;
+//       }
 
       __syncthreads();
 
@@ -418,9 +450,26 @@ __global__ void strmm2R(int m, int n,
       k -= kb;
     }
 
-    for (int ll = 0; ll < k; ll++) {
-      saxpy(nb - ll, B[0], &a[ll][ll], &x[ll]);
-      B += ldb;
+//     for (int ll = 0; ll < k; ll++) {
+//       saxpy(nb - ll, B[0], &a[ll][ll], &x[ll]);
+//       B += ldb;
+//     }
+    switch (k) {
+      case 15: saxpy(15, B[0], &a[ 0][ 0], &x[ 0]); B += ldb;
+      case 14: saxpy(14, B[0], &a[ 1][ 1], &x[ 1]); B += ldb;
+      case 13: saxpy(13, B[0], &a[ 2][ 2], &x[ 2]); B += ldb;
+      case 12: saxpy(12, B[0], &a[ 3][ 3], &x[ 3]); B += ldb;
+      case 11: saxpy(11, B[0], &a[ 4][ 4], &x[ 4]); B += ldb;
+      case 10: saxpy(10, B[0], &a[ 5][ 5], &x[ 5]); B += ldb;
+      case  9: saxpy( 9, B[0], &a[ 6][ 6], &x[ 6]); B += ldb;
+      case  8: saxpy( 8, B[0], &a[ 7][ 7], &x[ 7]); B += ldb;
+      case  7: saxpy( 7, B[0], &a[ 8][ 8], &x[ 8]); B += ldb;
+      case  6: saxpy( 6, B[0], &a[ 9][ 9], &x[ 9]); B += ldb;
+      case  5: saxpy( 5, B[0], &a[10][10], &x[10]); B += ldb;
+      case  4: saxpy( 4, B[0], &a[11][11], &x[11]); B += ldb;
+      case  3: saxpy( 3, B[0], &a[12][12], &x[12]); B += ldb;
+      case  2: saxpy( 2, B[0], &a[13][13], &x[13]); B += ldb;
+      case  1: saxpy( 1, B[0], &a[14][14], &x[14]);
     }
   }
 
@@ -453,11 +502,11 @@ template void strmm2L<CBlasLower, CBlasNoTrans, CBlasUnit,    64, 16, 16, 16,  4
 template void strmm2L<CBlasLower, CBlasNoTrans, CBlasNonUnit, 64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
 template void strmm2L<CBlasLower, CBlasTrans,   CBlasUnit,    32, 32,  8,  8,  8>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
 template void strmm2L<CBlasLower, CBlasTrans,   CBlasNonUnit, 32, 32,  8,  8,  8>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
-// template void strmm2R<CBlasUpper, CBlasNoTrans, CBlasUnit,    64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
+template void strmm2R<CBlasUpper, CBlasNoTrans, CBlasUnit,    64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
 template void strmm2R<CBlasUpper, CBlasNoTrans, CBlasNonUnit, 64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
-// template void strmm2R<CBlasUpper, CBlasTrans,   CBlasUnit,    64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
+template void strmm2R<CBlasUpper, CBlasTrans,   CBlasUnit,    64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
 template void strmm2R<CBlasUpper, CBlasTrans,   CBlasNonUnit, 64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
-// template void strmm2R<CBlasLower, CBlasNoTrans, CBlasUnit,    64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
+template void strmm2R<CBlasLower, CBlasNoTrans, CBlasUnit,    64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
 template void strmm2R<CBlasLower, CBlasNoTrans, CBlasNonUnit, 64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
-// template void strmm2R<CBlasLower, CBlasTrans,   CBlasUnit,    64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
+template void strmm2R<CBlasLower, CBlasTrans,   CBlasUnit,    64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
 template void strmm2R<CBlasLower, CBlasTrans,   CBlasNonUnit, 64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
