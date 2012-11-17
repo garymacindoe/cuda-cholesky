@@ -8,14 +8,6 @@ __device__ void saxpy(float alpha, const float * x, float * y) {
   y[12] += alpha * x[12]; y[13] += alpha * x[13]; y[14] += alpha * x[14]; y[15] += alpha * x[15];
 }
 
-// y(1:16) += x(1:16)
-__device__ void sadd(const float * x, float * y) {
-  y[ 0] += x[ 0]; y[ 1] += x[ 1]; y[ 2] += x[ 2]; y[ 3] += x[ 3];
-  y[ 4] += x[ 4]; y[ 5] += x[ 5]; y[ 6] += x[ 6]; y[ 7] += x[ 7];
-  y[ 8] += x[ 8]; y[ 9] += x[ 9]; y[10] += x[10]; y[11] += x[11];
-  y[12] += x[12]; y[13] += x[13]; y[14] += x[14]; y[15] += x[15];
-}
-
 // y(1:n) += alpha * x(1:n)
 __device__ void saxpy(int n, float alpha, const float * x, float * y) {
   y[ 0] += alpha * x[ 0]; if ( 1 >= n) return; y[ 1] += alpha * x[ 1]; if ( 2 >= n) return;
@@ -97,7 +89,7 @@ __global__ void strmm2L(int m, int n,
 #pragma unroll
         for (int ll = 0; ll < kb; ll++) {
           if (ti == l)
-            sadd((trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
+            saxpy(1.0f, (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
           else if (ti < l)
             saxpy((trans == CBlasNoTrans) ? A[0] : a[ti][ll], (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
           if (trans == CBlasNoTrans)
@@ -123,7 +115,7 @@ __global__ void strmm2L(int m, int n,
     else {
       for (int ll = 0; ll < k; ll++) {
         if (ti == l)
-          sadd((trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
+          saxpy(1.0f, (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
         else if (ti < l)
           saxpy((trans == CBlasNoTrans) ? A[0] : a[ti][ll], (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
         if (trans == CBlasNoTrans)
@@ -224,7 +216,7 @@ __global__ void strmm2L(int m, int n,
 #pragma unroll
         for (int ll = 0; ll < kb; ll++) {
           if (ti == l)
-            sadd((trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
+            saxpy(1.0f, (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
           else if (ti > l)
             saxpy((trans == CBlasNoTrans) ? A[0] : a[ti][ll], (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
           if (trans == CBlasNoTrans)
@@ -250,7 +242,7 @@ __global__ void strmm2L(int m, int n,
     else {
       for (int ll = 0; ll < k; ll++) {
         if (ti == l)
-          sadd((trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
+          saxpy(1.0f, (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
         else if (ti > l)
           saxpy((trans == CBlasNoTrans) ? A[0] : a[ti][ll], (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
         if (trans == CBlasNoTrans)

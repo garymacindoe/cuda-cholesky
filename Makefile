@@ -141,10 +141,10 @@ cudtrsm: $(OBJDIR)/src/error.o $(OBJDIR)/src/handle.o $(OBJDIR)/src/blas/xerbla.
 cuctrsm: $(OBJDIR)/src/error.o $(OBJDIR)/src/handle.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/src/blas/ctrsm.o $(OBJDIR)/test/cuctrsm.o | ctrsm.fatbin
 cuztrsm: $(OBJDIR)/src/error.o $(OBJDIR)/src/handle.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/blas/ztrsm.o $(OBJDIR)/test/cuztrsm.o | ztrsm.fatbin
 
-cuspotrf: $(OBJDIR)/src/error.o $(OBJDIR)/src/handle.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/src/blas/ssyrk.o $(OBJDIR)/src/blas/strsm.o $(OBJDIR)/src/blas/strmm.o $(OBJDIR)/src/lapack/spotrf.o $(OBJDIR)/src/lapack/strtri.o $(OBJDIR)/test/cuspotrf.o | sgemm.fatbin ssyrk.fatbin strsm.fatbin spotrf.fatbin
-cudpotrf: $(OBJDIR)/src/error.o $(OBJDIR)/src/handle.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/src/blas/dsyrk.o $(OBJDIR)/src/blas/dtrsm.o $(OBJDIR)/src/blas/dtrmm.o $(OBJDIR)/src/lapack/dpotrf.o $(OBJDIR)/src/lapack/dtrtri.o $(OBJDIR)/test/cudpotrf.o | dgemm.fatbin dsyrk.fatbin dtrsm.fatbin dpotrf.fatbin
-cucpotrf: $(OBJDIR)/src/error.o $(OBJDIR)/src/handle.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/src/blas/cherk.o $(OBJDIR)/src/blas/ctrsm.o $(OBJDIR)/src/blas/ctrmm.o $(OBJDIR)/src/lapack/cpotrf.o $(OBJDIR)/src/lapack/ctrtri.o $(OBJDIR)/test/cucpotrf.o | cgemm.fatbin cherk.fatbin ctrsm.fatbin cpotrf.fatbin
-cuzpotrf: $(OBJDIR)/src/error.o $(OBJDIR)/src/handle.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/blas/zherk.o $(OBJDIR)/src/blas/ztrsm.o $(OBJDIR)/src/blas/ztrmm.o $(OBJDIR)/src/lapack/zpotrf.o $(OBJDIR)/src/lapack/ztrtri.o $(OBJDIR)/test/cuzpotrf.o | zgemm.fatbin zherk.fatbin ztrsm.fatbin zpotrf.fatbin
+cuspotrf: $(OBJDIR)/src/error.o $(OBJDIR)/src/handle.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/src/blas/ssyrk.o $(OBJDIR)/src/blas/strsm.o $(OBJDIR)/src/blas/strmm.o $(OBJDIR)/src/lapack/spotrf.o $(OBJDIR)/src/lapack/strtri.o $(OBJDIR)/test/cuspotrf.o | sgemm.fatbin ssyrk.fatbin strsm.fatbin strmm.fatbin spotrf.fatbin
+cudpotrf: $(OBJDIR)/src/error.o $(OBJDIR)/src/handle.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/src/blas/dsyrk.o $(OBJDIR)/src/blas/dtrsm.o $(OBJDIR)/src/blas/dtrmm.o $(OBJDIR)/src/lapack/dpotrf.o $(OBJDIR)/src/lapack/dtrtri.o $(OBJDIR)/test/cudpotrf.o | dgemm.fatbin dsyrk.fatbin dtrsm.fatbin dtrmm.fatbin dpotrf.fatbin
+cucpotrf: $(OBJDIR)/src/error.o $(OBJDIR)/src/handle.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/src/blas/cherk.o $(OBJDIR)/src/blas/ctrsm.o $(OBJDIR)/src/blas/ctrmm.o $(OBJDIR)/src/lapack/cpotrf.o $(OBJDIR)/src/lapack/ctrtri.o $(OBJDIR)/test/cucpotrf.o | cgemm.fatbin cherk.fatbin ctrsm.fatbin ctrmm.fatbin cpotrf.fatbin
+cuzpotrf: $(OBJDIR)/src/error.o $(OBJDIR)/src/handle.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/blas/zherk.o $(OBJDIR)/src/blas/ztrsm.o $(OBJDIR)/src/blas/ztrmm.o $(OBJDIR)/src/lapack/zpotrf.o $(OBJDIR)/src/lapack/ztrtri.o $(OBJDIR)/test/cuzpotrf.o | zgemm.fatbin zherk.fatbin ztrsm.fatbin ztrmm.fatbin zpotrf.fatbin
 
 cumultigpusgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/handle.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/test/cumultigpusgemm.o | sgemm.fatbin
 cumultigpudgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/handle.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/test/cumultigpudgemm.o | dgemm.fatbin
@@ -233,6 +233,10 @@ $(OBJDIR)/test/strmm.o: test/strmm_ref.c blas.h error.h | $(OBJDIR)/test
 $(OBJDIR)/test/dtrmm.o: test/dtrmm_ref.c blas.h error.h | $(OBJDIR)/test
 $(OBJDIR)/test/ctrmm.o: test/ctrmm_ref.c blas.h error.h | $(OBJDIR)/test
 $(OBJDIR)/test/ztrmm.o: test/ztrmm_ref.c blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/strmm2.o: test/strmm_ref.c blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/dtrmm2.o: test/dtrmm_ref.c blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/ctrmm2.o: test/ctrmm_ref.c blas.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/ztrmm2.o: test/ztrmm_ref.c blas.h error.h | $(OBJDIR)/test
 $(OBJDIR)/test/cusgemm.o: test/sgemm_ref.c blas.h cuhandle.h error.h | $(OBJDIR)/test
 $(OBJDIR)/test/cudgemm.o: test/dgemm_ref.c blas.h cuhandle.h error.h | $(OBJDIR)/test
 $(OBJDIR)/test/cucgemm.o: test/cgemm_ref.c blas.h cuhandle.h error.h | $(OBJDIR)/test

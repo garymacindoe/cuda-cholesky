@@ -67,7 +67,7 @@ void strmm2(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag dia
         for (size_t j = 0; j < n; j++) {
           for (size_t k = 0; k < m; k++) {
             register float temp = B[j * ldb + k];
-            if (B[j * ldb + k] != zero) {
+            if (temp != zero) {
               temp *= alpha;
               for (size_t i = 0; i < k; i++)
                 X[j * ldx + i] += temp * A[k * lda + i];

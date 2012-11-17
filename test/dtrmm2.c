@@ -80,7 +80,7 @@ int main(int argc, char * argv[]) {
   alpha = (double)rand() / (double)RAND_MAX;
 
   if (side == CBlasLeft) {
-    lda = (m + 3u) & ~3u;
+    lda = (m + 1u) & ~1u;
     if ((A = malloc(lda * m * sizeof(double))) == NULL) {
       fputs("Unable to allocate A\n", stderr);
       return -1;
@@ -92,7 +92,7 @@ int main(int argc, char * argv[]) {
     }
   }
   else {
-    lda = (n + 3u) & ~3u;
+    lda = (n + 1u) & ~1u;
     if ((A = malloc(lda * n * sizeof(double))) == NULL) {
       fputs("Unable to allocate A\n", stderr);
       return -1;
@@ -104,7 +104,7 @@ int main(int argc, char * argv[]) {
     }
   }
 
-  ldb = (m + 3u) & ~3u;
+  ldb = (m + 1u) & ~1u;
   if ((B = malloc(ldb * n * sizeof(double))) == NULL) {
     fputs("Unable to allocate B\n", stderr);
     return -3;
@@ -113,7 +113,7 @@ int main(int argc, char * argv[]) {
     fputs("Unable to allocate refB\n", stderr);
     return -4;
   }
-  ldc = (m + 3u) & ~3u;
+  ldc = (m + 1u) & ~1u;
   if ((C = malloc(ldc * n * sizeof(double))) == NULL) {
     fputs("Unable to allocate C\n", stderr);
     return -5;
@@ -128,10 +128,10 @@ int main(int argc, char * argv[]) {
   dtrmm2(side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb, C, ldc);
 
   bool passed = true;
-  double diff = 0.0f;
+  double diff = 0.0;
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < m; i++) {
-      double d = fabs(B[j * ldb + i] - refB[j * ldb + i]);
+      double d = fabs(C[j * ldc + i] - refB[j * ldb + i]);
       if (d > diff)
         diff = d;
 
