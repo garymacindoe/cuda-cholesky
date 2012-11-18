@@ -14,7 +14,12 @@ int main(int argc, char * argv[]) {
   int d = 0;
 
   if (argc < 5 || argc > 6) {
-    fprintf(stderr, "Usage: %s <uplo> <trans> <n> <k> [device]\nwhere:\n  uplo               is 'u' or 'U' for CBlasUpper or 'l' or 'L' for CBlasLower\n  transA and transB  are 'n' or 'N' for CBlasNoTrans or 'c' or 'C' for CBlasConjTrans\n  n and k            are the sizes of the matrices\n", argv[0]);
+    fprintf(stderr, "Usage: %s <uplo> <trans> <n> <k> [device]\n"
+                    "where:\n"
+                    "  uplo               is 'u' or 'U' for CBlasUpper or 'l' or 'L' for CBlasLower\n"
+                    "  trans              are 'n' or 'N' for CBlasNoTrans or 'c' or 'C' for CBlasConjTrans\n"
+                    "  n and k            are the sizes of the matrices\n"
+                    "  device             is the GPU to use (default 0)", argv[0]);
     return 1;
   }
 
