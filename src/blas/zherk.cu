@@ -222,8 +222,8 @@ __global__ void zherk(int n, int k, double alpha,
   }
 
   if (i < n) {
-    if (n <= 0) return;
     n -= j;
+    if (n <= 0) return;
     if (beta == 0.0f) {
       if (uplo == CBlasUpper) {
         if (i <= j) C[0] = (i == j) ? make_cuDoubleComplex(alpha * cuCreal(c[0]), 0.0) : cuCmul(alpha, c[0]); if (1 >= n) return; j++; C += ldc;
@@ -430,8 +430,8 @@ __global__ void zherk(int n, int k, double alpha,
   }
 
   if (i < n) {
-    if (n <= 0) return;
     n -= j;
+    if (n <= 0) return;
     if (beta == 0.0f) {
       if (uplo == CBlasUpper) {
         if (i <= j) C[0] = (i == j) ? make_cuDoubleComplex(alpha * cuCreal(c[0]), 0.0) : cuCmul(alpha, c[0]); if (1 >= n) return; j++; C += ldc;
