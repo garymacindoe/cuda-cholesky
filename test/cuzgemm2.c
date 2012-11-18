@@ -188,7 +188,7 @@ int main(int argc, char * argv[]) {
   zgemm_ref(transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, refC, ldc);
   CU_ERROR_CHECK(cuZgemm2(handle, transA, transB, m, n, k, alpha, dA, dlda, dB, dldb, beta, dC, dldc, dD, dldd, NULL));
 
-  copy = (CUDA_MEMCPY2D){ 0, 0, CU_MEMORYTYPE_DEVICE, NULL, dC, NULL, dldc * sizeof(double complex),
+  copy = (CUDA_MEMCPY2D){ 0, 0, CU_MEMORYTYPE_DEVICE, NULL, dD, NULL, dldd * sizeof(double complex),
            0, 0, CU_MEMORYTYPE_HOST, C, 0, NULL, ldc * sizeof(double complex),
            m * sizeof(double complex), n };
   CU_ERROR_CHECK(cuMemcpy2D(&copy));
