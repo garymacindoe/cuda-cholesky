@@ -115,7 +115,7 @@ __global__ void zherk(int n, int k, double alpha,
   }
   else {
     i = bi + ti % mb;
-    j = bj + 8 * (ti / mb);
+    j = bj + 4 * (ti / mb);
     A += (bi + threadIdx.y) * lda + threadIdx.x;
     B += (bj + threadIdx.y) * lda + threadIdx.x;
   }
@@ -347,7 +347,7 @@ __global__ void zherk(int n, int k, double alpha,
   }
   else {
     i = bi + ti % mb;
-    j = bj + 8 * (ti / mb);
+    j = bj + 4 * (ti / mb);
     A += (bi + threadIdx.y) * lda + threadIdx.x;
     B += (bj + threadIdx.y) * lda + threadIdx.x;
   }
