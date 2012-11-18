@@ -70,8 +70,6 @@ __global__ void sgemm(int m, int n, int k,
   while (k > 0) {
     // If A is to be transposed cache it in shared memory
     if (transA != CBlasNoTrans) {
-//       typedef char x[(kb % bx == 0) ? 1 : -1];  // bx must be a multiple of kb
-//       typedef char y[(mb % by == 0) ? 1 : -1];  // by must be a multiple of mb
 #pragma unroll
       for (int l = 0; l < kb; l += bx) {
 #pragma unroll
@@ -85,8 +83,6 @@ __global__ void sgemm(int m, int n, int k,
     // memory (i.e. it is read along the K or N dimensions when M is the
     // dimension being expanded).
     if (transB == CBlasNoTrans) {
-//       typedef char x[(kb % bx == 0) ? 1 : -1];  // bx must be a multiple of kb
-//       typedef char y[(nb % by == 0) ? 1 : -1];  // by must be a multiple of nb
 #pragma unroll
       for (int l = 0; l < kb; l += bx) {
 #pragma unroll
@@ -95,8 +91,6 @@ __global__ void sgemm(int m, int n, int k,
       }
     }
     else {
-//       typedef char x[(nb % bx == 0) ? 1 : -1];  // bx must be a multiple of nb
-//       typedef char y[(kb % by == 0) ? 1 : -1];  // by must be a multiple of kb
 #pragma unroll
       for (int l = 0; l < kb; l += by) {
 #pragma unroll
@@ -111,8 +105,6 @@ __global__ void sgemm(int m, int n, int k,
 
     if (transA == CBlasNoTrans) {
       // Read A straight from global memory.
-//       typedef char x[(bx * by == mb) ? 1 : -1]; // There must be mb unrolled threads
-//       typedef char y[(nb == 16) ? 1 : -1]; // nb must equal the size of row per thread
 #pragma unroll
       for (int l = 0; l < kb; l++) {
         saxpy(A[0], b[l], d);
@@ -123,8 +115,6 @@ __global__ void sgemm(int m, int n, int k,
       // Read A from shared memory.
       // Need to check for thread wrapping so that the correct column of A is
       // matched with the correct row/column of B.
-//       typedef char x[(bx * by % mb == 0) ? 1 : -1];     // bx * by must be a multiple of mb
-//       typedef char y[((bx * by * 16) / mb == nb) ? 1 : -1];     // when the threads are wrapped around mb they must spread along to nb
 #pragma unroll
       for (int l = 0; l < kb; l++)
         saxpy(a[ti][l], &b[l][tj], d);

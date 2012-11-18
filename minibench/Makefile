@@ -22,7 +22,7 @@ VPATH = . ../include
 
 OBJDIR = obj
 
-TARGETS = bandwidth-test block-test context-test event flop-test flop-word gpu-bandwidth kernel-test kernel-test-rt module-test multigpu pitch timer
+TARGETS = bandwidth-test block-test context-test cumemalloc-test event flop-test flop-word gpu-bandwidth kernel-test kernel-test-rt module-test multigpu pitch timer
 
 .PHONY: all debug $(foreach target,$(TARGETS),debug-$(target)) clean distclean
 .NOTPARALLEL: $(OBJDIR)
@@ -54,6 +54,9 @@ block-test: block-test.cu
 	$(NVCC) $(NVCPPFLAGS) $(NVCFLAGS) -o $(@) $(<)
 
 context-test: $(OBJDIR)/context-test.o $(OBJDIR)/error.o
+	$(CC) $(LDFLAGS) -o $(@) $(^) $(LOADLIBES) $(LDLIBS)
+
+cumemalloc-test: $(OBJDIR)/cumemalloc-test.o $(OBJDIR)/error.o
 	$(CC) $(LDFLAGS) -o $(@) $(^) $(LOADLIBES) $(LDLIBS)
 
 event: $(OBJDIR)/event.o $(OBJDIR)/error.o
@@ -89,6 +92,7 @@ timer: $(OBJDIR)/timer.o $(OBJDIR)/error.o
 $(OBJDIR)/error.o: ../src/error.c error.h | $(OBJDIR)
 $(OBJDIR)/bandwidth-test.o: error.h | $(OBJDIR)
 $(OBJDIR)/context-test.o: error.h | $(OBJDIR)
+$(OBJDIR)/cumemalloc-test.o: error.h | $(OBJDIR)
 $(OBJDIR)/event.o: error.h | $(OBJDIR)
 $(OBJDIR)/flop-test.o: error.h | $(OBJDIR)
 $(OBJDIR)/flop-word.o: error.h | $(OBJDIR)

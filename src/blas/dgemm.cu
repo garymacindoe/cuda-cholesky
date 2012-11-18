@@ -40,7 +40,12 @@ __global__ void dgemm(int m, int n, int k,
 
   const int bi = blockIdx.x * mb;       // Starting row of block of C/D
   const int bj = blockIdx.y * nb;       // Starting column of block of C/D
-  const int ti = threadIdx.y * bx + threadIdx.x;        // Unwrapped thread index [0, bx * by]
+  int ti = threadIdx.y * bx + threadIdx.x;
+  int tj = 0;
+  if (transA != CBlasNoTrans) {
+    tj = 8 * (ti / mb);
+    ti = ti % mb;
+  }
 
   /*
    * Compute our starting points in A, B, C and D.
@@ -54,8 +59,10 @@ __global__ void dgemm(int m, int n, int k,
    */
   A += (transA == CBlasNoTrans) ? bi + ti : (bi + threadIdx.y) * lda + threadIdx.x;
   B += (transB == CBlasNoTrans) ? (bj + threadIdx.y) * ldb + threadIdx.x : threadIdx.y * ldb + bj + threadIdx.x;
-  C += (bx * by == mb) ? bj * ldc + bi + ti : (bj + 8 * (ti / mb)) * ldc + bi + ti % mb;
-  D += (bx * by == mb) ? bj * ldd + bi + ti : (bj + 8 * (ti / mb)) * ldd + bi + ti % mb;
+  C += (bj + tj) * ldc + bi + ti;
+  D += (bj + tj) * ldd + bi + ti;
+  n -= bj + tj;
+  m -= bi + ti;
 
   /*
    * Blocks of A and B in shared memory and D in registers.
@@ -70,11 +77,6 @@ __global__ void dgemm(int m, int n, int k,
   while (k > 0) {
     // If A is to be transposed cache it in shared memory
     if (transA != CBlasNoTrans) {
-//       typedef char x[(kb % bx == 0) ? 1 : -1];  // bx must be a multiple of kb
-//       typedef char y[(mb % by == 0) ? 1 : -1];  // by must be a multiple of mb
-      // If bx or by is equal to kb or mb then nvcc will optimise one of these
-      // loops away.  This is the source of the "warning: expression has no
-      // effect" compiler messages.
 #pragma unroll
       for (int l = 0; l < kb; l += bx) {
 #pragma unroll
@@ -90,8 +92,6 @@ __global__ void dgemm(int m, int n, int k,
     // memory (i.e. it is read along the K or N dimensions when M is the
     // dimension being expanded).
     if (transB == CBlasNoTrans) {
-//       typedef char x[(kb % bx == 0) ? 1 : -1];  // bx must be a multiple of kb
-//       typedef char y[(nb % by == 0) ? 1 : -1];  // by must be a multiple of nb
 #pragma unroll
       for (int l = 0; l < kb; l += bx) {
 #pragma unroll
@@ -102,8 +102,6 @@ __global__ void dgemm(int m, int n, int k,
       }
     }
     else {
-//       typedef char x[(nb % bx == 0) ? 1 : -1];  // bx must be a multiple of nb
-//       typedef char y[(kb % by == 0) ? 1 : -1];  // by must be a multiple of kb
 #pragma unroll
       for (int l = 0; l < kb; l += by) {
 #pragma unroll
@@ -120,8 +118,6 @@ __global__ void dgemm(int m, int n, int k,
 
     if (transA == CBlasNoTrans) {
       // Read A straight from global memory.
-//       typedef char x[(bx * by == mb) ? 1 : -1]; // There must be mb unrolled threads
-//       typedef char y[(nb == 8) ? 1 : -1]; // nb must equal the size of row per thread
 #pragma unroll
       for (int l = 0; l < kb; l++) {
         daxpy(A[0], b_hi[l], b_lo[l], d);
@@ -130,16 +126,10 @@ __global__ void dgemm(int m, int n, int k,
     }
     else {
       // Read A from shared memory.
-      // Need to check for thread wrapping so that the correct column of A is
-      // matched with the correct row/column of B.
-//       typedef char x[(bx * by % mb == 0) ? 1 : -1];     // bx * by must be a multiple of mb
-//       typedef char y[((bx * by * 8) / mb == nb) ? 1 : -1];     // when the threads are wrapped around mb they must spread along to nb
 #pragma unroll
       for (int l = 0; l < kb; l++)
-        daxpy(__hiloint2double(a_hi[(bx * by == mb) ? ti : ti % mb][l],
-                               a_lo[(bx * by == mb) ? ti : ti % mb][l]),
-              &b_hi[l][(bx * by == mb) ? 0 : 8 * (ti / mb)],
-              &b_lo[l][(bx * by == mb) ? 0 : 8 * (ti / mb)], d);
+        daxpy(__hiloint2double(a_hi[ti][l], a_lo[ti][l]),
+              &b_hi[l][tj], &b_lo[l][tj], d);
     }
 
     __syncthreads();
@@ -156,39 +146,30 @@ __global__ void dgemm(int m, int n, int k,
   }
   else {
     for (int l = 0; l < k; l++)
-      daxpy(__hiloint2double(a_hi[(bx * by == mb) ? ti : ti % mb][l],
-                             a_lo[(bx * by == mb) ? ti : ti % mb][l]),
-            &b_hi[l][(bx * by == mb) ? 0 : 8 * (ti / mb)],
-            &b_lo[l][(bx * by == mb) ? 0 : 8 * (ti / mb)], d);
+      daxpy(__hiloint2double(a_hi[ti][l], a_lo[ti][l]),
+            &b_hi[l][tj], &b_lo[l][tj], d);
   }
 
-  if (bx * by == mb)
-    n -= bj;
-  else {
-    n -= bj + 8 * (ti / mb);
-    if (n == 0) return;
+  if (n <= 0 || m <= 0) return;
+  if (beta == 0.0) {
+    D[0] = alpha * d[0]; if (1 >= n) return; D += ldd;
+    D[0] = alpha * d[1]; if (2 >= n) return; D += ldd;
+    D[0] = alpha * d[2]; if (3 >= n) return; D += ldd;
+    D[0] = alpha * d[3]; if (4 >= n) return; D += ldd;
+    D[0] = alpha * d[4]; if (5 >= n) return; D += ldd;
+    D[0] = alpha * d[5]; if (6 >= n) return; D += ldd;
+    D[0] = alpha * d[6]; if (7 >= n) return; D += ldd;
+    D[0] = alpha * d[7];
   }
-  if ((bx * by == mb && bi + ti < m) || (bx * by > mb && bi + ti % mb < m)) {
-    if (beta == 0.0) {
-      D[0] = alpha * d[0]; if (1 >= n) return; D += ldd;
-      D[0] = alpha * d[1]; if (2 >= n) return; D += ldd;
-      D[0] = alpha * d[2]; if (3 >= n) return; D += ldd;
-      D[0] = alpha * d[3]; if (4 >= n) return; D += ldd;
-      D[0] = alpha * d[4]; if (5 >= n) return; D += ldd;
-      D[0] = alpha * d[5]; if (6 >= n) return; D += ldd;
-      D[0] = alpha * d[6]; if (7 >= n) return; D += ldd;
-      D[0] = alpha * d[7];
-    }
-    else {
-      D[0] = alpha * d[0] + beta * C[0]; if (1 >= n) return; C += ldc; D += ldd;
-      D[0] = alpha * d[1] + beta * C[0]; if (2 >= n) return; C += ldc; D += ldd;
-      D[0] = alpha * d[2] + beta * C[0]; if (3 >= n) return; C += ldc; D += ldd;
-      D[0] = alpha * d[3] + beta * C[0]; if (4 >= n) return; C += ldc; D += ldd;
-      D[0] = alpha * d[4] + beta * C[0]; if (5 >= n) return; C += ldc; D += ldd;
-      D[0] = alpha * d[5] + beta * C[0]; if (6 >= n) return; C += ldc; D += ldd;
-      D[0] = alpha * d[6] + beta * C[0]; if (7 >= n) return; C += ldc; D += ldd;
-      D[0] = alpha * d[7] + beta * C[0];
-    }
+  else {
+    D[0] = alpha * d[0] + beta * C[0]; if (1 >= n) return; C += ldc; D += ldd;
+    D[0] = alpha * d[1] + beta * C[0]; if (2 >= n) return; C += ldc; D += ldd;
+    D[0] = alpha * d[2] + beta * C[0]; if (3 >= n) return; C += ldc; D += ldd;
+    D[0] = alpha * d[3] + beta * C[0]; if (4 >= n) return; C += ldc; D += ldd;
+    D[0] = alpha * d[4] + beta * C[0]; if (5 >= n) return; C += ldc; D += ldd;
+    D[0] = alpha * d[5] + beta * C[0]; if (6 >= n) return; C += ldc; D += ldd;
+    D[0] = alpha * d[6] + beta * C[0]; if (7 >= n) return; C += ldc; D += ldd;
+    D[0] = alpha * d[7] + beta * C[0];
   }
 }
 
@@ -226,7 +207,12 @@ __global__ void dgemm(int m, int n, int k,
 
   const int bi = blockIdx.x * mb;       // Starting row of block of C/D
   const int bj = blockIdx.y * nb;       // Starting column of block of C/D
-  const int ti = threadIdx.y * bx + threadIdx.x;        // Unwrapped thread index [0, bx * by]
+  int ti = threadIdx.y * bx + threadIdx.x;
+  int tj = 0;
+  if (transA != CBlasNoTrans) {
+    tj = 8 * (ti / mb);
+    ti = ti % mb;
+  }
 
   /*
    * Compute our starting points in A, B, C and D.
@@ -240,8 +226,10 @@ __global__ void dgemm(int m, int n, int k,
    */
   A += (transA == CBlasNoTrans) ? bi + ti : (bi + threadIdx.y) * lda + threadIdx.x;
   B += (transB == CBlasNoTrans) ? (bj + threadIdx.y) * ldb + threadIdx.x : threadIdx.y * ldb + bj + threadIdx.x;
-  C += (bx * by == mb) ? bj * ldc + bi + ti : (bj + 8 * (ti / mb)) * ldc + bi + ti % mb;
-  D += (bx * by == mb) ? bj * ldd + bi + ti : (bj + 8 * (ti / mb)) * ldd + bi + ti % mb;
+  C += (bj + tj) * ldc + bi + ti;
+  D += (bj + tj) * ldd + bi + ti;
+  n -= bj + tj;
+  m -= bi + ti;
 
   /*
    * Blocks of A and B in shared memory and D in registers.
@@ -254,11 +242,6 @@ __global__ void dgemm(int m, int n, int k,
   while (k > 0) {
     // If A is to be transposed cache it in shared memory
     if (transA != CBlasNoTrans) {
-//       typedef char x[(kb % bx == 0) ? 1 : -1];  // bx must be a multiple of kb
-//       typedef char y[(mb % by == 0) ? 1 : -1];  // by must be a multiple of mb
-      // If bx or by is equal to kb or mb then nvcc will optimise one of these
-      // loops away.  This is the source of the "warning: expression has no
-      // effect" compiler messages.
 #pragma unroll
       for (int l = 0; l < kb; l += bx) {
 #pragma unroll
@@ -272,8 +255,6 @@ __global__ void dgemm(int m, int n, int k,
     // memory (i.e. it is read along the K or N dimensions when M is the
     // dimension being expanded).
     if (transB == CBlasNoTrans) {
-//       typedef char x[(kb % bx == 0) ? 1 : -1];  // bx must be a multiple of kb
-//       typedef char y[(nb % by == 0) ? 1 : -1];  // by must be a multiple of nb
 #pragma unroll
       for (int l = 0; l < kb; l += bx) {
 #pragma unroll
@@ -282,8 +263,6 @@ __global__ void dgemm(int m, int n, int k,
       }
     }
     else {
-//       typedef char x[(nb % bx == 0) ? 1 : -1];  // bx must be a multiple of nb
-//       typedef char y[(kb % by == 0) ? 1 : -1];  // by must be a multiple of kb
 #pragma unroll
       for (int l = 0; l < kb; l += by) {
 #pragma unroll
@@ -298,8 +277,6 @@ __global__ void dgemm(int m, int n, int k,
 
     if (transA == CBlasNoTrans) {
       // Read A straight from global memory.
-//       typedef char x[(bx * by == mb) ? 1 : -1]; // There must be mb unrolled threads
-//       typedef char y[(nb == 8) ? 1 : -1]; // nb must equal the size of row per thread
 #pragma unroll
       for (int l = 0; l < kb; l++) {
         daxpy(A[0], b[l], d);
@@ -308,14 +285,9 @@ __global__ void dgemm(int m, int n, int k,
     }
     else {
       // Read A from shared memory.
-      // Need to check for thread wrapping so that the correct column of A is
-      // matched with the correct row/column of B.
-//       typedef char x[(bx * by % mb == 0) ? 1 : -1];     // bx * by must be a multiple of mb
-//       typedef char y[((bx * by * 8) / mb == nb) ? 1 : -1];     // when the threads are wrapped around mb they must spread along to nb
 #pragma unroll
       for (int l = 0; l < kb; l++)
-        daxpy(a[(bx * by == mb) ? ti : ti % mb][l],
-              &b[l][(bx * by == mb) ? 0 : 8 * (ti / mb)], d);
+        daxpy(a[ti][l], &b[l][tj], d);
     }
 
     __syncthreads();
@@ -332,37 +304,29 @@ __global__ void dgemm(int m, int n, int k,
   }
   else {
     for (int l = 0; l < k; l++)
-      daxpy(a[(bx * by == mb) ? ti : ti % mb][l],
-            &b[l][(bx * by == mb) ? 0 : 8 * (ti / mb)], d);
+      daxpy(a[ti][l], &b[l][tj], d);
   }
 
-  if (bx * by == mb)
-    n -= bj;
-  else {
-    n -= bj + 8 * (ti / mb);
-    if (n == 0) return;
+  if (n <= 0 || m <= 0) return;
+  if (beta == 0.0) {
+    D[0] = alpha * d[0]; if (1 >= n) return; D += ldd;
+    D[0] = alpha * d[1]; if (2 >= n) return; D += ldd;
+    D[0] = alpha * d[2]; if (3 >= n) return; D += ldd;
+    D[0] = alpha * d[3]; if (4 >= n) return; D += ldd;
+    D[0] = alpha * d[4]; if (5 >= n) return; D += ldd;
+    D[0] = alpha * d[5]; if (6 >= n) return; D += ldd;
+    D[0] = alpha * d[6]; if (7 >= n) return; D += ldd;
+    D[0] = alpha * d[7];
   }
-  if ((bx * by == mb && bi + ti < m) || (bx * by > mb && bi + ti % mb < m)) {
-    if (beta == 0.0) {
-      D[0] = alpha * d[0]; if (1 >= n) return; D += ldd;
-      D[0] = alpha * d[1]; if (2 >= n) return; D += ldd;
-      D[0] = alpha * d[2]; if (3 >= n) return; D += ldd;
-      D[0] = alpha * d[3]; if (4 >= n) return; D += ldd;
-      D[0] = alpha * d[4]; if (5 >= n) return; D += ldd;
-      D[0] = alpha * d[5]; if (6 >= n) return; D += ldd;
-      D[0] = alpha * d[6]; if (7 >= n) return; D += ldd;
-      D[0] = alpha * d[7];
-    }
-    else {
-      D[0] = alpha * d[0] + beta * C[0]; if (1 >= n) return; C += ldc; D += ldd;
-      D[0] = alpha * d[1] + beta * C[0]; if (2 >= n) return; C += ldc; D += ldd;
-      D[0] = alpha * d[2] + beta * C[0]; if (3 >= n) return; C += ldc; D += ldd;
-      D[0] = alpha * d[3] + beta * C[0]; if (4 >= n) return; C += ldc; D += ldd;
-      D[0] = alpha * d[4] + beta * C[0]; if (5 >= n) return; C += ldc; D += ldd;
-      D[0] = alpha * d[5] + beta * C[0]; if (6 >= n) return; C += ldc; D += ldd;
-      D[0] = alpha * d[6] + beta * C[0]; if (7 >= n) return; C += ldc; D += ldd;
-      D[0] = alpha * d[7] + beta * C[0];
-    }
+  else {
+    D[0] = alpha * d[0] + beta * C[0]; if (1 >= n) return; C += ldc; D += ldd;
+    D[0] = alpha * d[1] + beta * C[0]; if (2 >= n) return; C += ldc; D += ldd;
+    D[0] = alpha * d[2] + beta * C[0]; if (3 >= n) return; C += ldc; D += ldd;
+    D[0] = alpha * d[3] + beta * C[0]; if (4 >= n) return; C += ldc; D += ldd;
+    D[0] = alpha * d[4] + beta * C[0]; if (5 >= n) return; C += ldc; D += ldd;
+    D[0] = alpha * d[5] + beta * C[0]; if (6 >= n) return; C += ldc; D += ldd;
+    D[0] = alpha * d[6] + beta * C[0]; if (7 >= n) return; C += ldc; D += ldd;
+    D[0] = alpha * d[7] + beta * C[0];
   }
 }
 
