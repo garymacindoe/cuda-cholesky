@@ -12,7 +12,11 @@ int main(int argc, char * argv[]) {
   int d = 0;
 
   if (argc < 6 || argc > 7) {
-    fprintf(stderr, "Usage: %s <transA> <transB> <m> <n> <k> [device]\nwhere:\n  transA and transB  are 'n' or 'N' for CBlasNoTrans, 't' or 'T' for CBlasTrans or 'c' or 'C' for CBlasConjTrans\n  m, n and k         are the sizes of the matrices\n", argv[0]);
+    fprintf(stderr, "Usage: %s <transA> <transB> <m> <n> <k> [device]\n"
+                    "where:\n"
+                    "  transA and transB  are 'n' or 'N' for CBlasNoTrans, 't' or 'T' for CBlasTrans or 'c' or 'C' for CBlasConjTrans\n"
+                    "  m, n and k         are the sizes of the matrices\n"
+                    "  device             is the GPU to use (default 0)\n", argv[0]);
     return 1;
   }
 

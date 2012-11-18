@@ -15,7 +15,14 @@ int main(int argc, char * argv[]) {
   int d = 0;
 
   if (argc < 7 || argc > 8) {
-    fprintf(stderr, "Usage: %s <side> <uplo> <trans> <diag> <m> <n> [device]\nwhere:\n  side               is 'l' or 'L' for CBlasLeft and 'r' or 'R' for CBlasRight\n  uplo               is 'u' or 'U' for CBlasUpper and 'l' or 'L' for CBlasLower\n  trans              is 'n' or 'N' for CBlasNoTrans, 't' or 'T' for CBlasTrans or 'c' or 'C' for CBlasConjTrans\n  diag               is 'n' or 'N' for CBlasNonUnit and 'u' or 'U' for CBlasUnit\n  m and n           are the sizes of the matrices\n", argv[0]);
+    fprintf(stderr, "Usage: %s <side> <uplo> <trans> <diag> <m> <n> [device]\n"
+                    "where:\n"
+                    "  side               is 'l' or 'L' for CBlasLeft and 'r' or 'R' for CBlasRight\n"
+                    "  uplo               is 'u' or 'U' for CBlasUpper and 'l' or 'L' for CBlasLower\n"
+                    "  trans              is 'n' or 'N' for CBlasNoTrans, 't' or 'T' for CBlasTrans or 'c' or 'C' for CBlasConjTrans\n"
+                    "  diag               is 'n' or 'N' for CBlasNonUnit and 'u' or 'U' for CBlasUnit\n"
+                    "  m and n           are the sizes of the matrices\n"
+                    "  device             is the GPU to use (default 0)\n", argv[0]);
     return 1;
   }
 
