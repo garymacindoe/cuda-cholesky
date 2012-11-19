@@ -7,8 +7,8 @@ PTXAS = ptxas
 FATBINARY = fatbinary
 NVCFLAGS = -O2 -use_fast_math -maxrregcount=32
 PTXASFLAGS = -O2 -maxrregcount=32
-CUBIN_ARCHES = sm_13
-PTX_ARCH = compute_13
+CUBIN_ARCHES = sm_11,sm_13
+PTX_ARCH = compute_11
 
 CPPFLAGS = -Iinclude -I$(CUDA_HOME)/include
 NVCPPFLAGS = -Iinclude

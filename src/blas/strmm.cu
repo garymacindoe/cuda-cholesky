@@ -446,23 +446,22 @@ __global__ void strmm2R(int m, int n,
 //       saxpy(nb - ll, B[0], &a[ll][ll], &x[ll]);
 //       B += ldb;
 //     }
-    switch (k) {
-      case 15: saxpy(15, B[0], &a[ 0][ 0], &x[ 0]); B += ldb;
-      case 14: saxpy(14, B[0], &a[ 1][ 1], &x[ 1]); B += ldb;
-      case 13: saxpy(13, B[0], &a[ 2][ 2], &x[ 2]); B += ldb;
-      case 12: saxpy(12, B[0], &a[ 3][ 3], &x[ 3]); B += ldb;
-      case 11: saxpy(11, B[0], &a[ 4][ 4], &x[ 4]); B += ldb;
-      case 10: saxpy(10, B[0], &a[ 5][ 5], &x[ 5]); B += ldb;
-      case  9: saxpy( 9, B[0], &a[ 6][ 6], &x[ 6]); B += ldb;
-      case  8: saxpy( 8, B[0], &a[ 7][ 7], &x[ 7]); B += ldb;
-      case  7: saxpy( 7, B[0], &a[ 8][ 8], &x[ 8]); B += ldb;
-      case  6: saxpy( 6, B[0], &a[ 9][ 9], &x[ 9]); B += ldb;
-      case  5: saxpy( 5, B[0], &a[10][10], &x[10]); B += ldb;
-      case  4: saxpy( 4, B[0], &a[11][11], &x[11]); B += ldb;
-      case  3: saxpy( 3, B[0], &a[12][12], &x[12]); B += ldb;
-      case  2: saxpy( 2, B[0], &a[13][13], &x[13]); B += ldb;
-      case  1: saxpy( 1, B[0], &a[14][14], &x[14]);
-    }
+    if (k > 0) { saxpy(16, B[0], &a[ 0][ 0], &x[ 0]); B += ldb;
+    if (k > 1) { saxpy(15, B[0], &a[ 1][ 1], &x[ 1]); B += ldb;
+    if (k > 2) { saxpy(14, B[0], &a[ 2][ 2], &x[ 2]); B += ldb;
+    if (k > 3) { saxpy(13, B[0], &a[ 3][ 3], &x[ 3]); B += ldb;
+    if (k > 4) { saxpy(12, B[0], &a[ 4][ 4], &x[ 4]); B += ldb;
+    if (k > 5) { saxpy(11, B[0], &a[ 5][ 5], &x[ 5]); B += ldb;
+    if (k > 6) { saxpy(10, B[0], &a[ 6][ 6], &x[ 6]); B += ldb;
+    if (k > 7) { saxpy( 9, B[0], &a[ 7][ 7], &x[ 7]); B += ldb;
+    if (k > 8) { saxpy( 8, B[0], &a[ 8][ 8], &x[ 8]); B += ldb;
+    if (k > 9) { saxpy( 7, B[0], &a[ 9][ 9], &x[ 9]); B += ldb;
+    if (k >10) { saxpy( 6, B[0], &a[10][10], &x[10]); B += ldb;
+    if (k >11) { saxpy( 5, B[0], &a[11][11], &x[11]); B += ldb;
+    if (k >12) { saxpy( 4, B[0], &a[12][12], &x[12]); B += ldb;
+    if (k >13) { saxpy( 3, B[0], &a[13][13], &x[13]); B += ldb;
+    if (k >14) { saxpy( 2, B[0], &a[14][14], &x[14]); B += ldb;
+    if (k >15) { saxpy( 1, B[0], &a[15][15], &x[15]); }}}}}}}}}}}}}}}}
   }
 
   n -= bj;

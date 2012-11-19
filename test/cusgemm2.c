@@ -172,7 +172,7 @@ int main(int argc, char * argv[]) {
   CU_ERROR_CHECK(cuMemAllocPitch(&dC, &dldc, m * sizeof(float), n, sizeof(float)));
   dldc /= sizeof(float);
   CU_ERROR_CHECK(cuMemAllocPitch(&dD, &dldd, m * sizeof(float), n, sizeof(float)));
-  dldc /= sizeof(float);
+  dldd /= sizeof(float);
 
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < m; i++)
