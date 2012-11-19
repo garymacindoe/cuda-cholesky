@@ -1,7 +1,6 @@
 #include "blas.h"
 #include "error.h"
 #include <stdio.h>
-#include "../handle.h"
 
 static inline size_t min(size_t a, size_t b) { return (a < b) ? a : b; }
 static inline size_t max(size_t a, size_t b) { return (a > b) ? a : b; }
@@ -185,7 +184,7 @@ void zherk(CBlasUplo uplo, CBlasTranspose trans,
   }
 }
 
-CUresult cuZherk(CUhandle handle,
+CUresult cuZherk(CUmodule module,
                  CBlasUplo uplo, CBlasTranspose trans,
                  size_t n, size_t k,
                  double alpha, CUdeviceptr A, size_t lda,
@@ -218,9 +217,6 @@ CUresult cuZherk(CUhandle handle,
            "_Z5zherkIL9CBlasUplo%dEL14CBlasTranspose%dELj%uELj%uELj%uELj%uELj%uEEviidPK7double2idPS2_i",
            uplo, trans, mb, nb, kb, bx, by);
 
-  CUmodule module;
-  CU_ERROR_CHECK(cuHandleGetModule(handle, &module, CU_HANDLE_DOUBLE_COMPLEX, CU_HANDLE_HERK));
-
   CUfunction function;
   CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
 
@@ -231,9 +227,8 @@ CUresult cuZherk(CUhandle handle,
 
   return CUDA_SUCCESS;
 }
-
-CUresult cuMultiGPUZherk(CUhandle * handles, int deviceCount,
-                         CBlasUplo uplo, CBlasTranspose trans,
+#if 0
+CUresult cuMultiGPUZherk(CBlasUplo uplo, CBlasTranspose trans,
                          size_t n, size_t k,
                          double alpha, const double complex * restrict A, size_t lda,
                          double beta, double complex * restrict C, size_t ldc) {
@@ -296,3 +291,4 @@ CUresult cuMultiGPUZherk(CUhandle * handles, int deviceCount,
 
   return CUDA_SUCCESS;
 }
+#endif

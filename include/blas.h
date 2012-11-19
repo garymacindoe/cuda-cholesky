@@ -5,7 +5,6 @@
 #include <stdbool.h>
 #include <complex.h>
 #include <cuda.h>
-#include "cuhandle.h"
 
 // nvcc uses __restrict__ instead of C99's restrict keyword
 // CUDA Programming Guide v4.1 Appendix B.2.4
@@ -142,201 +141,185 @@ void ztrsm(CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
 
 /** My GPU implementations */
 // Single precision rank-K update
-CUresult cuSsyrk(CUhandle, CBlasUplo, CBlasTranspose,
+CUresult cuSsyrk(CUmodule, CBlasUplo, CBlasTranspose,
                  size_t, size_t,
                  float, CUdeviceptr, size_t,
                  float, CUdeviceptr, size_t, CUstream);
 // Double precision rank-K update
-CUresult cuDsyrk(CUhandle, CBlasUplo, CBlasTranspose,
+CUresult cuDsyrk(CUmodule, CBlasUplo, CBlasTranspose,
                  size_t, size_t,
                  double, CUdeviceptr, size_t,
                  double, CUdeviceptr, size_t, CUstream);
 
 // Single precision complex hermitian rank-K update
-CUresult cuCherk(CUhandle, CBlasUplo, CBlasTranspose,
+CUresult cuCherk(CUmodule, CBlasUplo, CBlasTranspose,
                  size_t, size_t,
                  float, CUdeviceptr, size_t,
                  float, CUdeviceptr, size_t, CUstream);
 // Double precision complex hermitian rank-K update
-CUresult cuZherk(CUhandle, CBlasUplo, CBlasTranspose,
+CUresult cuZherk(CUmodule, CBlasUplo, CBlasTranspose,
                  size_t, size_t,
                  double, CUdeviceptr, size_t,
                  double, CUdeviceptr, size_t, CUstream);
 
 // In-place single precision matrix multiply
-#define cuSgemm(handle, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, stream) \
-        cuSgemm2(handle, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, C, ldc, stream)
+#define cuSgemm(module, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, stream) \
+        cuSgemm2(module, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, C, ldc, stream)
 // In-place double precision matrix multiply
-#define cuDgemm(handle, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, stream) \
-        cuDgemm2(handle, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, C, ldc, stream)
+#define cuDgemm(module, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, stream) \
+        cuDgemm2(module, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, C, ldc, stream)
 // In-place single precision complex matrix multiply
-#define cuCgemm(handle, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, stream) \
-        cuCgemm2(handle, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, C, ldc, stream)
+#define cuCgemm(module, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, stream) \
+        cuCgemm2(module, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, C, ldc, stream)
 // In-place double precision complex matrix multiply
-#define cuZgemm(handle, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, stream) \
-        cuZgemm2(handle, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, C, ldc, stream)
+#define cuZgemm(module, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, stream) \
+        cuZgemm2(module, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, C, ldc, stream)
 
 // Out of place single precision matrix multiply
-CUresult cuSgemm2(CUhandle, CBlasTranspose, CBlasTranspose,
+CUresult cuSgemm2(CUmodule, CBlasTranspose, CBlasTranspose,
                   size_t, size_t, size_t,
                   float, CUdeviceptr, size_t, CUdeviceptr, size_t,
                   float, CUdeviceptr, size_t, CUdeviceptr, size_t, CUstream);
 // Out of place double precision matrix multiply
-CUresult cuDgemm2(CUhandle, CBlasTranspose, CBlasTranspose,
+CUresult cuDgemm2(CUmodule, CBlasTranspose, CBlasTranspose,
                   size_t, size_t, size_t,
                   double, CUdeviceptr, size_t, CUdeviceptr, size_t,
                   double, CUdeviceptr, size_t, CUdeviceptr, size_t, CUstream);
 // Out of place single precision complex matrix multiply
-CUresult cuCgemm2(CUhandle, CBlasTranspose, CBlasTranspose,
+CUresult cuCgemm2(CUmodule, CBlasTranspose, CBlasTranspose,
                   size_t, size_t, size_t,
                   float complex, CUdeviceptr, size_t, CUdeviceptr, size_t,
                   float complex, CUdeviceptr, size_t, CUdeviceptr, size_t, CUstream);
 // Out of place double precision complex matrix multiply
-CUresult cuZgemm2(CUhandle, CBlasTranspose, CBlasTranspose,
+CUresult cuZgemm2(CUmodule, CBlasTranspose, CBlasTranspose,
                   size_t, size_t, size_t,
                   double complex, CUdeviceptr, size_t, CUdeviceptr, size_t,
                   double complex, CUdeviceptr, size_t, CUdeviceptr, size_t, CUstream);
 
 // Out of place single precision triangular matrix multiply
-CUresult cuStrmm2(CUhandle, CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
+CUresult cuStrmm2(CUmodule, CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
                   size_t, size_t,
                   float, CUdeviceptr, size_t, CUdeviceptr, size_t,
                   CUdeviceptr, size_t, CUstream);
 // Out of place double precision triangular matrix multiply
-CUresult cuDtrmm2(CUhandle, CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
+CUresult cuDtrmm2(CUmodule, CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
                   size_t, size_t,
                   double, CUdeviceptr, size_t, CUdeviceptr, size_t,
                   CUdeviceptr, size_t, CUstream);
 // Out of place single precision complex triangular matrix multiply
-CUresult cuCtrmm2(CUhandle, CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
+CUresult cuCtrmm2(CUmodule, CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
                   size_t, size_t,
                   float complex, CUdeviceptr, size_t, CUdeviceptr, size_t,
                   CUdeviceptr, size_t, CUstream);
 // Out of place double precision complex triangular matrix multiply
-CUresult cuZtrmm2(CUhandle, CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
+CUresult cuZtrmm2(CUmodule, CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
                   size_t, size_t,
                   double complex, CUdeviceptr, size_t, CUdeviceptr, size_t,
                   CUdeviceptr, size_t, CUstream);
 
 // Single precision triangular matrix solve
-CUresult cuStrsm(CUhandle, CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
+CUresult cuStrsm(CUmodule, CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
                  size_t, size_t,
                  float, CUdeviceptr, size_t,
                  CUdeviceptr, size_t, CUstream);
 // Double precision triangular matrix solve
-CUresult cuDtrsm(CUhandle, CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
+CUresult cuDtrsm(CUmodule, CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
                  size_t, size_t,
                  double, CUdeviceptr, size_t,
                  CUdeviceptr, size_t, CUstream);
 // Single precision complex triangular matrix solve
-CUresult cuCtrsm(CUhandle, CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
+CUresult cuCtrsm(CUmodule, CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
                  size_t, size_t,
                  float complex, CUdeviceptr, size_t,
                  CUdeviceptr, size_t, CUstream);
 // Double precision complex triangular matrix solve
-CUresult cuZtrsm(CUhandle, CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
+CUresult cuZtrsm(CUmodule, CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
                  size_t, size_t,
                  double complex, CUdeviceptr, size_t,
                  CUdeviceptr, size_t, CUstream);
 
 /** My MultiGPU/Hybrid implementations */
 // Single precision rank-K update
-CUresult cuMultiGPUSsyrk(CUhandle *, int,
-                         CBlasUplo, CBlasTranspose,
+CUresult cuMultiGPUSsyrk(CBlasUplo, CBlasTranspose,
                          size_t, size_t,
                          float, const float * restrict, size_t,
                          float, float * restrict, size_t);
 // Double precision rank-K update
-CUresult cuMultiGPUDsyrk(CUhandle *, int,
-                         CBlasUplo, CBlasTranspose,
+CUresult cuMultiGPUDsyrk(CBlasUplo, CBlasTranspose,
                          size_t, size_t,
                          double, const double * restrict, size_t,
                          double, double * restrict, size_t);
 
 // Single precision complex hermitian rank-K update
-CUresult cuMultiGPUCherk(CUhandle *, int,
-                         CBlasUplo, CBlasTranspose,
+CUresult cuMultiGPUCherk(CBlasUplo, CBlasTranspose,
                          size_t, size_t,
                          float, const float complex * restrict, size_t,
                          float, float complex * restrict, size_t);
 // Double precision complex hermitian rank-K update
-CUresult cuMultiGPUZherk(CUhandle *, int,
-                         CBlasUplo, CBlasTranspose,
+CUresult cuMultiGPUZherk(CBlasUplo, CBlasTranspose,
                          size_t, size_t,
                          double, const double complex * restrict, size_t,
                          double, double complex * restrict, size_t);
 
 // Single precision matrix multiply
-CUresult cuMultiGPUSgemm(CUhandle *, int,
-                         CBlasTranspose, CBlasTranspose,
+CUresult cuMultiGPUSgemm(CBlasTranspose, CBlasTranspose,
                          size_t, size_t, size_t,
                          float, const float * restrict, size_t, const float * restrict, size_t,
                          float, float * restrict, size_t);
 // Double precision matrix multiply
-CUresult cuMultiGPUDgemm(CUhandle *, int,
-                         CBlasTranspose, CBlasTranspose,
+CUresult cuMultiGPUDgemm(CBlasTranspose, CBlasTranspose,
                          size_t, size_t, size_t,
                          double, const double * restrict, size_t, const double * restrict, size_t,
                          double, double * restrict, size_t);
 // Single precision complex matrix multiply
-CUresult cuMultiGPUCgemm(CUhandle *, int,
-                         CBlasTranspose, CBlasTranspose,
+CUresult cuMultiGPUCgemm(CBlasTranspose, CBlasTranspose,
                          size_t, size_t, size_t,
                          float complex, const float complex * restrict, size_t, const float complex * restrict, size_t,
                          float complex,  float complex * restrict, size_t);
 // Double precision complex matrix multiply
-CUresult cuMultiGPUZgemm(CUhandle *, int,
-                         CBlasTranspose, CBlasTranspose,
+CUresult cuMultiGPUZgemm(CBlasTranspose, CBlasTranspose,
                          size_t, size_t, size_t,
                          double complex, const double complex * restrict, size_t, const double complex * restrict, size_t,
                          double complex, double complex * restrict, size_t);
 
 // Single precision triangular matrix multiply
-CUresult cuMultiGPUStrmm(CUhandle *, int,
-                         CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
+CUresult cuMultiGPUStrmm(CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
                          size_t, size_t,
                          float, const float * restrict, size_t,
                          float * restrict, size_t);
 // Double precision triangular matrix multiply
-CUresult cuMultiGPUDtrmm(CUhandle *, int,
-                         CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
+CUresult cuMultiGPUDtrmm(CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
                          size_t, size_t,
                          double, const double * restrict, size_t,
                          double * restrict, size_t);
 // Single precision complex triangular matrix multiply
-CUresult cuMultiGPUCtrmm(CUhandle *, int,
-                         CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
+CUresult cuMultiGPUCtrmm(CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
                          size_t, size_t,
                          float complex, const float complex * restrict, size_t,
                          float complex * restrict, size_t);
 // Double precision complex triangular matrix multiply
-CUresult cuMultiGPUZtrmm(CUhandle *, int,
-                         CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
+CUresult cuMultiGPUZtrmm(CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
                          size_t, size_t,
                          double complex, const double complex * restrict, size_t,
                          double complex * restrict, size_t);
 
 // Single precision triangular solve
-CUresult cuMultiGPUStrsm(CUhandle *, int,
-                         CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
+CUresult cuMultiGPUStrsm(CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
                          size_t, size_t,
                          float, const float * restrict, size_t,
                          float * restrict, size_t);
 // Double precision triangular solve
-CUresult cuMultiGPUDtrsm(CUhandle *, int,
-                         CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
+CUresult cuMultiGPUDtrsm(CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
                          size_t, size_t,
                          double, const double * restrict, size_t,
                          double * restrict, size_t);
 // Single precision complex triangular solve
-CUresult cuMultiGPUCtrsm(CUhandle *, int,
-                         CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
+CUresult cuMultiGPUCtrsm(CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
                          size_t, size_t,
                          float complex, const float complex * restrict, size_t,
                          float complex * restrict, size_t);
 // Double precision complex triangular solve
-CUresult cuMultiGPUZtrsm(CUhandle *, int,
-                         CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
+CUresult cuMultiGPUZtrsm(CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
                          size_t, size_t,
                          double complex, const double complex * restrict, size_t,
                          double complex * restrict, size_t);

@@ -1,7 +1,6 @@
 #include "blas.h"
 #include "error.h"
 #include <stdio.h>
-#include "../handle.h"
 
 static inline size_t min(size_t a, size_t b) { return (a < b) ? a : b; }
 static inline size_t max(size_t a, size_t b) { return (a > b) ? a : b; }
@@ -185,7 +184,7 @@ void cherk(CBlasUplo uplo, CBlasTranspose trans,
   }
 }
 
-CUresult cuCherk(CUhandle handle, CBlasUplo uplo, CBlasTranspose trans,
+CUresult cuCherk(CUmodule module, CBlasUplo uplo, CBlasTranspose trans,
                  size_t n, size_t k,
                  float alpha, CUdeviceptr A, size_t lda,
                  float beta, CUdeviceptr C, size_t ldc, CUstream stream) {
@@ -217,9 +216,6 @@ CUresult cuCherk(CUhandle handle, CBlasUplo uplo, CBlasTranspose trans,
            "_Z5cherkIL9CBlasUplo%dEL14CBlasTranspose%dELj%uELj%uELj%uELj%uELj%uEEviifPK6float2ifPS2_i",
            uplo, trans, mb, nb, kb, bx, by);
 
-  CUmodule module;
-  CU_ERROR_CHECK(cuHandleGetModule(handle, &module, CU_HANDLE_COMPLEX, CU_HANDLE_HERK));
-
   CUfunction function;
   CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
 
@@ -230,9 +226,8 @@ CUresult cuCherk(CUhandle handle, CBlasUplo uplo, CBlasTranspose trans,
 
   return CUDA_SUCCESS;
 }
-
-CUresult cuMultiGPUCherk(CUhandle * handles, int deviceCount,
-                         CBlasUplo uplo, CBlasTranspose trans,
+#if 0
+CUresult cuMultiGPUCherk(CBlasUplo uplo, CBlasTranspose trans,
                          size_t n, size_t k,
                          float alpha, const float complex * restrict A, size_t lda,
                          float beta, float complex * restrict C, size_t ldc) {
@@ -296,3 +291,4 @@ CUresult cuMultiGPUCherk(CUhandle * handles, int deviceCount,
 
   return CUDA_SUCCESS;
 }
+#endif

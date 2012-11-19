@@ -1,7 +1,6 @@
 #include "blas.h"
 #include "error.h"
 #include <stdio.h>
-#include "../handle.h"
 
 static inline size_t min(size_t a, size_t b) { return (a < b) ? a : b; }
 static inline size_t max(size_t a, size_t b) { return (a > b) ? a : b; }
@@ -221,7 +220,7 @@ void zgemm(CBlasTranspose transA, CBlasTranspose transB,
   }
 }
 
-CUresult cuZgemm2(CUhandle handle,
+CUresult cuZgemm2(CUmodule module,
                   CBlasTranspose transA, CBlasTranspose transB,
                   size_t m, size_t n, size_t k,
                   double complex alpha, CUdeviceptr A, size_t lda, CUdeviceptr B, size_t ldb,
@@ -258,9 +257,6 @@ CUresult cuZgemm2(CUhandle handle,
            "_Z5zgemmIL14CBlasTranspose%dELS0_%dELj%uELj%uELj%uELj%uELj%uEEviii7double2PKS1_iS3_iS1_S3_iPS1_i",
            transA, transB, mb, nb, kb, bx, by);
 
-  CUmodule module;
-  CU_ERROR_CHECK(cuHandleGetModule(handle, &module, CU_HANDLE_DOUBLE_COMPLEX, CU_HANDLE_GEMM));
-
   CUfunction function;
   CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
 
@@ -271,9 +267,8 @@ CUresult cuZgemm2(CUhandle handle,
 
   return CUDA_SUCCESS;
 }
-
-CUresult cuMultiGPUZgemm(CUhandle * handles, int deviceCount,
-                         CBlasTranspose transA, CBlasTranspose transB,
+#if 0
+CUresult cuMultiGPUZgemm(CBlasTranspose transA, CBlasTranspose transB,
                          size_t m, size_t n, size_t k,
                          double complex alpha, const double complex * restrict A, size_t lda, const double complex * restrict B, size_t ldb,
                          double complex beta, double complex * restrict C, size_t ldc) {
@@ -597,3 +592,4 @@ CUresult cuMultiGPUZgemm(CUhandle * handles, int deviceCount,
 
   return CUDA_SUCCESS;
 }
+#endif

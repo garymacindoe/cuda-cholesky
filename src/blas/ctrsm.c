@@ -1,7 +1,6 @@
 #include "blas.h"
 #include "error.h"
 #include <stdio.h>
-#include "../handle.h"
 
 static inline size_t min(size_t a, size_t b) { return (a < b) ? a : b; }
 static inline size_t max(size_t a, size_t b) { return (a > b) ? a : b; }
@@ -243,7 +242,7 @@ void ctrsm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag
   }
 }
 
-CUresult cuCtrsm(CUhandle handle,
+CUresult cuCtrsm(CUmodule module,
                  CBlasSide side, CBlasUplo uplo, CBlasTranspose trans, CBlasDiag diag,
                  size_t m, size_t n,
                  float complex alpha, CUdeviceptr A, size_t lda,
@@ -273,9 +272,6 @@ CUresult cuCtrsm(CUhandle handle,
            "_Z5ctrsmIL9CBlasSide%dEL9CBlasUplo%dEL14CBlasTranspose%dEL9CBlasDiag%dELj%uELj%uELj%uELj%uEEvii6float2PKS4_iPS4_i",
            side, uplo, trans, diag, mb, nb, bx, by);
 
-  CUmodule module;
-  CU_ERROR_CHECK(cuHandleGetModule(handle, &module, CU_HANDLE_COMPLEX, CU_HANDLE_TRSM));
-
   CUfunction function;
   CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
 
@@ -286,9 +282,8 @@ CUresult cuCtrsm(CUhandle handle,
 
   return CUDA_SUCCESS;
 }
-
-CUresult cuMultiGPUCtrsm(CUhandle * handles, int deviceCount,
-                         CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag,
+#if 0
+CUresult cuMultiGPUCtrsm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag,
                          size_t m, size_t n,
                          float complex alpha, const float complex * restrict A, size_t lda,
                          float complex * restrict B, size_t ldb) {
@@ -447,3 +442,4 @@ CUresult cuMultiGPUCtrsm(CUhandle * handles, int deviceCount,
 
   return CUDA_SUCCESS;
 }
+#endif

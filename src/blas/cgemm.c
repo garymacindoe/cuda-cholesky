@@ -1,7 +1,6 @@
 #include "blas.h"
 #include "error.h"
 #include <stdio.h>
-#include "../handle.h"
 
 static inline size_t min(size_t a, size_t b) { return (a < b) ? a : b; }
 static inline size_t max(size_t a, size_t b) { return (a > b) ? a : b; }
@@ -221,7 +220,7 @@ void cgemm(CBlasTranspose transA, CBlasTranspose transB,
   }
 }
 
-CUresult cuCgemm2(CUhandle handle, CBlasTranspose transA, CBlasTranspose transB,
+CUresult cuCgemm2(CUmodule module, CBlasTranspose transA, CBlasTranspose transB,
                   size_t m, size_t n, size_t k,
                   float complex alpha, CUdeviceptr A, size_t lda, CUdeviceptr B, size_t ldb,
                   float complex beta, CUdeviceptr C, size_t ldc, CUdeviceptr D, size_t ldd,
@@ -257,9 +256,6 @@ CUresult cuCgemm2(CUhandle handle, CBlasTranspose transA, CBlasTranspose transB,
            "_Z5cgemmIL14CBlasTranspose%dELS0_%dELj%uELj%uELj%uELj%uELj%uEEviii6float2PKS1_iS3_iS1_S3_iPS1_i",
            transA, transB, mb, nb, kb, bx, by);
 
-  CUmodule module;
-  CU_ERROR_CHECK(cuHandleGetModule(handle, &module, CU_HANDLE_COMPLEX, CU_HANDLE_GEMM));
-
   CUfunction function;
   CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
 
@@ -270,9 +266,8 @@ CUresult cuCgemm2(CUhandle handle, CBlasTranspose transA, CBlasTranspose transB,
 
   return CUDA_SUCCESS;
 }
-
-CUresult cuMultiGPUCgemm(CUhandle * handles, int deviceCount,
-                         CBlasTranspose transA, CBlasTranspose transB,
+#if 0
+CUresult cuMultiGPUCgemm(CBlasTranspose transA, CBlasTranspose transB,
                          size_t m, size_t n, size_t k,
                          float complex alpha, const float complex * restrict A, size_t lda, const float complex * restrict B, size_t ldb,
                          float complex beta, float complex * restrict C, size_t ldc) {
@@ -596,3 +591,4 @@ CUresult cuMultiGPUCgemm(CUhandle * handles, int deviceCount,
 
   return CUDA_SUCCESS;
 }
+#endif

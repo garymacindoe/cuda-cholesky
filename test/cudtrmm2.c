@@ -1,6 +1,5 @@
 #include "blas.h"
 #include "error.h"
-#include "cuhandle.h"
 #include <stdio.h>
 #include <sys/time.h>
 #include <float.h>
@@ -99,8 +98,11 @@ int main(int argc, char * argv[]) {
   CUdevice device;
   CU_ERROR_CHECK(cuDeviceGet(&device, d));
 
-  CUhandle handle;
-  CU_ERROR_CHECK(cuHandleCreate(&handle, CU_CTX_BLOCKING_SYNC, device));
+  CUcontext context;
+  CU_ERROR_CHECK(cuCtxCreate(&context, CU_CTX_BLOCKING_SYNC, device));
+
+  CUmodule module;
+  CU_ERROR_CHECK(cuModuleLoad(&module, "dtrmm.fatbin"));
 
   alpha = (double)rand() / (double)RAND_MAX;
 
@@ -168,7 +170,7 @@ int main(int argc, char * argv[]) {
   CU_ERROR_CHECK(cuMemcpy2D(&copy));
 
   dtrmm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb);
-  CU_ERROR_CHECK(cuDtrmm2(handle, side, uplo, trans, diag, m, n, alpha, dA, dlda, dB, dldb, dX, dldx, NULL));
+  CU_ERROR_CHECK(cuDtrmm2(module, side, uplo, trans, diag, m, n, alpha, dA, dlda, dB, dldb, dX, dldx, NULL));
 
   copy = (CUDA_MEMCPY2D){ 0, 0, CU_MEMORYTYPE_DEVICE, NULL, dX, NULL, dldx * sizeof(double),
   0, 0, CU_MEMORYTYPE_HOST, B, 0, NULL, ldb * sizeof(double),
@@ -202,7 +204,7 @@ int main(int argc, char * argv[]) {
 
   CU_ERROR_CHECK(cuEventRecord(start, NULL));
   for (size_t i = 0; i < 20; i++)
-    CU_ERROR_CHECK(cuDtrmm2(handle, side, uplo, trans, diag, m, n, alpha, dA, dlda, dB, dldb, dX, dldx, NULL));
+    CU_ERROR_CHECK(cuDtrmm2(module, side, uplo, trans, diag, m, n, alpha, dA, dlda, dB, dldb, dX, dldx, NULL));
   CU_ERROR_CHECK(cuEventRecord(stop, NULL));
   CU_ERROR_CHECK(cuEventSynchronize(stop));
 
@@ -229,7 +231,9 @@ int main(int argc, char * argv[]) {
   CU_ERROR_CHECK(cuMemFree(dB));
   CU_ERROR_CHECK(cuMemFree(dX));
 
-  CU_ERROR_CHECK(cuHandleDestroy(handle));
+  CU_ERROR_CHECK(cuModuleUnload(module));
+
+  CU_ERROR_CHECK(cuCtxDestroy(context));
 
   return (int)!passed;
 }

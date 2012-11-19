@@ -1,7 +1,6 @@
 #include "blas.h"
 #include "error.h"
 #include <stdio.h>
-#include "../handle.h"
 
 static inline size_t min(size_t a, size_t b) { return (a < b) ? a : b; }
 static inline size_t max(size_t a, size_t b) { return (a > b) ? a : b; }
@@ -158,7 +157,7 @@ void dsyrk(CBlasUplo uplo, CBlasTranspose trans,
   }
 }
 
-CUresult cuDsyrk(CUhandle handle, CBlasUplo uplo, CBlasTranspose trans,
+CUresult cuDsyrk(CUmodule module, CBlasUplo uplo, CBlasTranspose trans,
                  size_t n, size_t k,
                  double alpha, CUdeviceptr A, size_t lda,
                  double beta, CUdeviceptr C, size_t ldc, CUstream stream) {
@@ -188,9 +187,6 @@ CUresult cuDsyrk(CUhandle handle, CBlasUplo uplo, CBlasTranspose trans,
            "_Z5dsyrkIL9CBlasUplo%dEL14CBlasTranspose%dELj%uELj%uELj%uELj%uELj%uEEviidPKdidPdi",
            uplo, trans, mb, nb, kb, bx, by);
 
-  CUmodule module;
-  CU_ERROR_CHECK(cuHandleGetModule(handle, &module, CU_HANDLE_DOUBLE, CU_HANDLE_SYRK));
-
   CUfunction function;
   CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
 
@@ -201,9 +197,8 @@ CUresult cuDsyrk(CUhandle handle, CBlasUplo uplo, CBlasTranspose trans,
 
   return CUDA_SUCCESS;
 }
-
-CUresult cuMultiGPUDsyrk(CUhandle * handles, int deviceCount,
-                         CBlasUplo uplo, CBlasTranspose trans,
+#if 0
+CUresult cuMultiGPUDsyrk(CBlasUplo uplo, CBlasTranspose trans,
                          size_t n, size_t k,
                          double alpha, const double * restrict A, size_t lda,
                          double beta, double * restrict C, size_t ldc) {
@@ -265,3 +260,4 @@ CUresult cuMultiGPUDsyrk(CUhandle * handles, int deviceCount,
 
   return CUDA_SUCCESS;
 }
+#endif
