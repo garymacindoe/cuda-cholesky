@@ -71,11 +71,8 @@ __global__ void sgemm(int m, int n, int k,
     // If A is to be transposed cache it in shared memory
     if (transA != CBlasNoTrans) {
 #pragma unroll
-      for (int l = 0; l < kb; l += bx) {
-#pragma unroll
-        for (int i = 0; i < mb; i += by)
-          a[i + threadIdx.y][l + threadIdx.x] = A[i * lda + l];
-      }
+      for (int i = 0; i < mb; i += by)
+        a[i + threadIdx.y][threadIdx.x] = A[i * lda];
       A += kb;
     }
 
@@ -84,11 +81,8 @@ __global__ void sgemm(int m, int n, int k,
     // dimension being expanded).
     if (transB == CBlasNoTrans) {
 #pragma unroll
-      for (int l = 0; l < kb; l += bx) {
-#pragma unroll
-        for (int j = 0; j < nb; j += by)
-          b[l + threadIdx.x][j + threadIdx.y] = B[j * ldb + l];
-      }
+      for (int j = 0; j < nb; j += by)
+        b[threadIdx.x][j + threadIdx.y] = B[j * ldb];
     }
     else {
 #pragma unroll
