@@ -429,8 +429,8 @@ __global__ void cgemm(int m, int n, int k,
  * per multiprocessor is limited by the register usage.
  */
 template void cgemm<CBlasNoTrans,   CBlasNoTrans,   64,  8, 16, 16,  4>(int, int, int, cuComplex, const cuComplex *, int, const cuComplex *, int, cuComplex, const cuComplex *, int, cuComplex *, int);
-template void cgemm<CBlasNoTrans,   CBlasTrans,     64,  8, 16,  8,  8>(int, int, int, cuComplex, const cuComplex *, int, const cuComplex *, int, cuComplex, const cuComplex *, int, cuComplex *, int);
-template void cgemm<CBlasNoTrans,   CBlasConjTrans, 64,  8, 16,  8,  8>(int, int, int, cuComplex, const cuComplex *, int, const cuComplex *, int, cuComplex, const cuComplex *, int, cuComplex *, int);
+template void cgemm<CBlasNoTrans,   CBlasTrans,     64,  8, 16, 16,  4>(int, int, int, cuComplex, const cuComplex *, int, const cuComplex *, int, cuComplex, const cuComplex *, int, cuComplex *, int);
+template void cgemm<CBlasNoTrans,   CBlasConjTrans, 64,  8, 16, 16,  4>(int, int, int, cuComplex, const cuComplex *, int, const cuComplex *, int, cuComplex, const cuComplex *, int, cuComplex *, int);
 template void cgemm<CBlasTrans,     CBlasNoTrans,   32, 16,  8,  8,  8>(int, int, int, cuComplex, const cuComplex *, int, const cuComplex *, int, cuComplex, const cuComplex *, int, cuComplex *, int);
 template void cgemm<CBlasTrans,     CBlasTrans,     32, 16,  8,  8,  8>(int, int, int, cuComplex, const cuComplex *, int, const cuComplex *, int, cuComplex, const cuComplex *, int, cuComplex *, int);
 template void cgemm<CBlasTrans,     CBlasConjTrans, 32, 16,  8,  8,  8>(int, int, int, cuComplex, const cuComplex *, int, const cuComplex *, int, cuComplex, const cuComplex *, int, cuComplex *, int);

@@ -120,33 +120,24 @@ __global__ void dsyrk(int n, int k, double alpha,
       // untransposed in global memory
 #pragma unroll
       for (int l = 0; l < kb; l += by) {
-#pragma unroll
-        for (int j = 0; j < nb; j += bx) {
-          b_hi[l + threadIdx.y][j + threadIdx.x] = __double2hiint(B[l * lda + j]);
-          b_lo[l + threadIdx.y][j + threadIdx.x] = __double2loint(B[l * lda + j]);
-        }
+        b_hi[l + threadIdx.y][threadIdx.x] = __double2hiint(B[l * lda]);
+        b_lo[l + threadIdx.y][threadIdx.x] = __double2loint(B[l * lda]);
       }
     }
     else {
       // C = aA'A + bC so read A into shared memory and transpose before reading
       // B into shared memory untransposed
 #pragma unroll
-      for (int l = 0; l < kb; l += bx) {
-#pragma unroll
-        for (int i = 0; i < mb; i += by) {
-          a_hi[i + threadIdx.y][l + threadIdx.x] = __double2hiint(A[i * lda + l]);
-          a_lo[i + threadIdx.y][l + threadIdx.x] = __double2loint(A[i * lda + l]);
-        }
+      for (int i = 0; i < mb; i += by) {
+        a_hi[i + threadIdx.y][threadIdx.x] = __double2hiint(A[i * lda]);
+        a_lo[i + threadIdx.y][threadIdx.x] = __double2loint(A[i * lda]);
       }
       A += kb;
 
 #pragma unroll
-      for (int l = 0; l < kb; l += bx) {
-#pragma unroll
-        for (int j = 0; j < nb; j += by) {
-          b_hi[l + threadIdx.x][j + threadIdx.y] = __double2hiint(B[j * lda + l]);
-          b_lo[l + threadIdx.x][j + threadIdx.y] = __double2loint(B[j * lda + l]);
-        }
+      for (int j = 0; j < nb; j += by) {
+        b_hi[threadIdx.x][j + threadIdx.y] = __double2hiint(B[j * lda]);
+        b_lo[threadIdx.x][j + threadIdx.y] = __double2loint(B[j * lda]);
       }
     }
 
@@ -351,29 +342,20 @@ __global__ void dsyrk(int n, int k, double alpha,
       // C = aAA' + bC so read B into shared memory and transpose leaving A
       // untransposed in global memory
 #pragma unroll
-      for (int l = 0; l < kb; l += by) {
-#pragma unroll
-        for (int j = 0; j < nb; j += bx)
-          b[l + threadIdx.y][j + threadIdx.x] = B[l * lda + j];
-      }
+      for (int l = 0; l < kb; l += by)
+        b[l + threadIdx.y][threadIdx.x] = B[l * lda];
     }
     else {b
       // C = aA'A + bC so read A into shared memory and transpose before reading
       // B into shared memory untransposed
 #pragma unroll
-      for (int l = 0; l < kb; l += bx) {
-#pragma unroll
-        for (int i = 0; i < mb; i += by)
-          a[i + threadIdx.y][l + threadIdx.x] = A[i * lda + l];
-      }
+      for (int i = 0; i < mb; i += by)
+        a[i + threadIdx.y][threadIdx.x] = A[i * lda];
       A += kb;
 
 #pragma unroll
-      for (int l = 0; l < kb; l += bx) {
-#pragma unroll
-        for (int j = 0; j < nb; j += by)
-          b[l + threadIdx.x][j + threadIdx.y] = B[j * lda + l];
-      }
+      for (int j = 0; j < nb; j += by)
+        b[threadIdx.x][j + threadIdx.y] = B[j * lda];
     }
 
     __syncthreads();

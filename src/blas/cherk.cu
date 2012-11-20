@@ -130,33 +130,24 @@ __global__ void cherk(int n, int k, float alpha,
       // untransposed in global memory
 #pragma unroll
       for (int l = 0; l < kb; l += by) {
-#pragma unroll
-        for (int j = 0; j < nb; j += bx) {
-          b_real[l + threadIdx.y][j + threadIdx.x] =  cuCrealf(B[l * lda + j]);
-          b_imag[l + threadIdx.y][j + threadIdx.x] = -cuCimagf(B[l * lda + j]);
-        }
+        b_real[l + threadIdx.y][threadIdx.x] =  cuCrealf(B[l * lda]);
+        b_imag[l + threadIdx.y][threadIdx.x] = -cuCimagf(B[l * lda]);
       }
     }
     else {
       // C = aA'A + bC so read A into shared memory and transpose before reading
       // B into shared memory untransposed
 #pragma unroll
-      for (int l = 0; l < kb; l += bx) {
-#pragma unroll
-        for (int i = 0; i < mb; i += by) {
-          a_real[i + threadIdx.y][l + threadIdx.x] =  cuCrealf(A[i * lda + l]);
-          a_imag[i + threadIdx.y][l + threadIdx.x] = -cuCimagf(A[i * lda + l]);
-        }
+      for (int i = 0; i < mb; i += by) {
+        a_real[i + threadIdx.y][threadIdx.x] =  cuCrealf(A[i * lda]);
+        a_imag[i + threadIdx.y][threadIdx.x] = -cuCimagf(A[i * lda]);
       }
       A += kb;
 
 #pragma unroll
-      for (int l = 0; l < kb; l += bx) {
-#pragma unroll
-        for (int j = 0; j < nb; j += by) {
-          b_real[l + threadIdx.x][j + threadIdx.y] = cuCrealf(B[j * lda + l]);
-          b_imag[l + threadIdx.x][j + threadIdx.y] = cuCimagf(B[j * lda + l]);
-        }
+      for (int j = 0; j < nb; j += by) {
+        b_real[threadIdx.x][j + threadIdx.y] = cuCrealf(B[j * lda]);
+        b_imag[threadIdx.x][j + threadIdx.y] = cuCimagf(B[j * lda]);
       }
     }
 
@@ -364,29 +355,20 @@ __global__ void cherk(int n, int k, float alpha,
       // C = aAA' + bC so read B into shared memory and transpose leaving A
       // untransposed in global memory
 #pragma unroll
-      for (int l = 0; l < kb; l += by) {
-#pragma unroll
-        for (int j = 0; j < nb; j += bx)
-          b[l + threadIdx.y][j + threadIdx.x] = cuConjf(B[l * lda + j]);
-      }
+      for (int l = 0; l < kb; l += by)
+        b[l + threadIdx.y][threadIdx.x] = cuConjf(B[l * lda]);
     }
     else {
      // C = aA'A + bC so read A into shared memory and transpose before reading
      // B into shared memory untransposed
 #pragma unroll
-      for (int l = 0; l < kb; l += bx) {
-#pragma unroll
-        for (int i = 0; i < mb; i += by)
-          a[i + threadIdx.y][l + threadIdx.x] = cuConjf(A[i * lda + l]);
-      }
+      for (int i = 0; i < mb; i += by)
+        a[i + threadIdx.y][threadIdx.x] = cuConjf(A[i * lda]);
       A += kb;
 
 #pragma unroll
-      for (int l = 0; l < kb; l += bx) {
-#pragma unroll
-        for (int j = 0; j < nb; j += by)
-          b[l + threadIdx.x][j + threadIdx.y] = B[j * lda + l];
-      }
+      for (int j = 0; j < nb; j += by)
+        b[threadIdx.x][j + threadIdx.y] = B[j * lda];
     }
 
     __syncthreads();
@@ -520,7 +502,7 @@ __global__ void cherk(int n, int k, float alpha,
  * kb is chosen to be the largest multiple of 16 such that the number of blocks
  * per multiprocessor is limited by the register usage.
  */
-template void cherk<CBlasUpper, CBlasNoTrans,   64,  8, 16,  8,  8>(int, int, float, const cuComplex *, int, float, cuComplex *, int);
-template void cherk<CBlasLower, CBlasNoTrans,   64,  8, 16,  8,  8>(int, int, float, const cuComplex *, int, float, cuComplex *, int);
+template void cherk<CBlasUpper, CBlasNoTrans,   64,  8, 16, 16,  4>(int, int, float, const cuComplex *, int, float, cuComplex *, int);
+template void cherk<CBlasLower, CBlasNoTrans,   64,  8, 16, 16,  4>(int, int, float, const cuComplex *, int, float, cuComplex *, int);
 template void cherk<CBlasUpper, CBlasConjTrans, 32, 16,  8,  8,  8>(int, int, float, const cuComplex *, int, float, cuComplex *, int);
 template void cherk<CBlasLower, CBlasConjTrans, 32, 16,  8,  8,  8>(int, int, float, const cuComplex *, int, float, cuComplex *, int);

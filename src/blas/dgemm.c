@@ -170,8 +170,8 @@ CUresult cuDgemm2(CUmodule module, CBlasTranspose transA, CBlasTranspose transB,
   const unsigned int mb = (transA == CBlasNoTrans) ? 64 : 32;
   const unsigned int nb = (transA == CBlasNoTrans) ?  8 : 16;
   const unsigned int kb = (transA == CBlasNoTrans) ? 16 :  8;
-  const unsigned int bx = (transA == CBlasNoTrans) ? ((transB == CBlasNoTrans) ? 16 : 8) :  8;
-  const unsigned int by = (transA == CBlasNoTrans) ? ((transB == CBlasNoTrans) ?  4 : 8) :  8;
+  const unsigned int bx = (transA == CBlasNoTrans) ? 16 :  8;
+  const unsigned int by = (transA == CBlasNoTrans) ?  4 :  8;
 
   char name[83];
   snprintf(name, 83,

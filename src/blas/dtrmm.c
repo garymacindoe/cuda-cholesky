@@ -28,7 +28,7 @@ static inline CUresult cuMemcpyDtoH2DAsync(void * A, size_t lda, size_t ai, size
 static const double zero = 0.0;
 static const double one = 1.0;
 
-void dtrmm2(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag,
+void dtrmm2(CBlasSide side, CBlasUplo uplo, CBlasTranspose trans, CBlasDiag diag,
             size_t m, size_t n,
             double alpha, const double * restrict A, size_t lda,
             const double * restrict B, size_t ldb,
@@ -60,7 +60,7 @@ void dtrmm2(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag dia
   }
 
   if (side == CBlasLeft) {
-    if (transA == CBlasNoTrans) {
+    if (trans == CBlasNoTrans) {
       if (uplo == CBlasUpper) {
 #pragma omp parallel for
         for (size_t j = 0; j < n; j++) {
@@ -123,7 +123,7 @@ void dtrmm2(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag dia
     }
   }
   else {
-    if (transA == CBlasNoTrans) {
+    if (trans == CBlasNoTrans) {
       if (uplo == CBlasUpper) {
         size_t j = n - 1;
         do {
@@ -197,7 +197,7 @@ void dtrmm2(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag dia
 }
 
 CUresult cuDtrmm2(CUmodule module,
-                  CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag,
+                  CBlasSide side, CBlasUplo uplo, CBlasTranspose trans, CBlasDiag diag,
                   size_t m, size_t n,
                   double alpha, CUdeviceptr A, size_t lda, CUdeviceptr B, size_t ldb,
                   CUdeviceptr X, size_t ldx, CUstream stream) {
@@ -218,15 +218,16 @@ CUresult cuDtrmm2(CUmodule module,
   if (m == 0 || n == 0)
     return CUDA_SUCCESS;
 
-  const unsigned int bx =  8;
-  const unsigned int by =  8;
-  const unsigned int mb = (side == CBlasLeft) ?  8 : 64;
-  const unsigned int nb = (side == CBlasLeft) ? 64 :  8;
+  const unsigned int mb = (side == CBlasLeft && trans != CBlasNoTrans) ? 32 : 64;
+  const unsigned int nb = (side == CBlasLeft && trans != CBlasNoTrans) ? 16 :  8;
+  const unsigned int kb = (side == CBlasLeft && trans != CBlasNoTrans) ?  8 : 16;
+  const unsigned int bx = (side == CBlasLeft && trans != CBlasNoTrans) ?  8 : 16;
+  const unsigned int by = (side == CBlasLeft && trans != CBlasNoTrans) ?  8 :  4;
 
-  char name[102];
-  snprintf(name, 102,
-           "_Z5dtrmmIL9CBlasSide%dEL9CBlasUplo%dEL14CBlasTranspose%dEL9CBlasDiag%dELj%uELj%uELj%uELj%uEEviidPKdiPdi",
-           side, uplo, transA, diag, mb, nb, bx, by);
+  char name[100];
+  snprintf(name, 100,
+           "_Z7dtrmm2%cIL9CBlasUplo%dEL14CBlasTranspose%dEL9CBlasDiag%dELj%uELj%uELj%uELj%uELj%uEEviidPKdiS4_iPdi",
+           side, uplo, trans, diag, mb, nb, kb, bx, by);
 
   CUfunction function;
   CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
@@ -240,7 +241,7 @@ CUresult cuDtrmm2(CUmodule module,
   return CUDA_SUCCESS;
 }
 #if 0
-CUresult cuMultiGPUDtrmm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag,
+CUresult cuMultiGPUDtrmm(CBlasSide side, CBlasUplo uplo, CBlasTranspose trans, CBlasDiag diag,
                          size_t m, size_t n,
                          double alpha, const double * restrict A, size_t lda,
                          double * restrict B, size_t ldb) {
@@ -268,12 +269,12 @@ CUresult cuMultiGPUDtrmm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, 
   const size_t nb = (side == CBlasLeft) ? 16 :  8;
 
   if (m <= mb || n <= nb) {
-    dtrmm(side, uplo, transA, diag, m, n, alpha, A, lda, B, ldb);
+    dtrmm(side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb);
     return CUDA_SUCCESS;
   }
 
   if (side == CBlasLeft) {
-    if (transA == CBlasNoTrans) {
+    if (trans == CBlasNoTrans) {
       if (uplo == CBlasUpper) {
         size_t i = (m + mb - 1) & ~(mb - 1);
         do {
@@ -335,7 +336,7 @@ CUresult cuMultiGPUDtrmm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, 
     }
   }
   else {
-    if (transA == CBlasNoTrans) {
+    if (trans == CBlasNoTrans) {
       if (uplo == CBlasUpper) {
         for (size_t j = 0; j < n; j += nb) {
           const size_t jb = min(nb, n - j);

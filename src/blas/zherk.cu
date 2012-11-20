@@ -141,39 +141,30 @@ __global__ void zherk(int n, int k, double alpha,
       // untransposed in global memory
 #pragma unroll
       for (int l = 0; l < kb; l += by) {
-#pragma unroll
-        for (int j = 0; j < nb; j += bx) {
-          b_real_hi[l + threadIdx.y][j + threadIdx.x] = __double2hiint( cuCreal(B[l * lda + j]));
-          b_real_lo[l + threadIdx.y][j + threadIdx.x] = __double2loint( cuCreal(B[l * lda + j]));
-          b_imag_hi[l + threadIdx.y][j + threadIdx.x] = __double2hiint(-cuCimag(B[l * lda + j]));
-          b_imag_lo[l + threadIdx.y][j + threadIdx.x] = __double2loint(-cuCimag(B[l * lda + j]));
-        }
+        b_real_hi[l + threadIdx.y][threadIdx.x] = __double2hiint( cuCreal(B[l * lda]));
+        b_real_lo[l + threadIdx.y][threadIdx.x] = __double2loint( cuCreal(B[l * lda]));
+        b_imag_hi[l + threadIdx.y][threadIdx.x] = __double2hiint(-cuCimag(B[l * lda]));
+        b_imag_lo[l + threadIdx.y][threadIdx.x] = __double2loint(-cuCimag(B[l * lda]));
       }
     }
     else {
       // C = aA'A + bC so read A into shared memory and transpose before reading
       // B into shared memory untransposed
 #pragma unroll
-      for (int l = 0; l < kb; l += bx) {
-#pragma unroll
-        for (int i = 0; i < mb; i += by) {
-          a_real_hi[i + threadIdx.y][l + threadIdx.x] = __double2hiint( cuCreal(A[i * lda + l]));
-          a_real_lo[i + threadIdx.y][l + threadIdx.x] = __double2loint( cuCreal(A[i * lda + l]));
-          a_imag_hi[i + threadIdx.y][l + threadIdx.x] = __double2hiint(-cuCimag(A[i * lda + l]));
-          a_imag_lo[i + threadIdx.y][l + threadIdx.x] = __double2loint(-cuCimag(A[i * lda + l]));
-        }
+      for (int i = 0; i < mb; i += by) {
+        a_real_hi[i + threadIdx.y][threadIdx.x] = __double2hiint( cuCreal(A[i * lda]));
+        a_real_lo[i + threadIdx.y][threadIdx.x] = __double2loint( cuCreal(A[i * lda]));
+        a_imag_hi[i + threadIdx.y][threadIdx.x] = __double2hiint(-cuCimag(A[i * lda]));
+        a_imag_lo[i + threadIdx.y][threadIdx.x] = __double2loint(-cuCimag(A[i * lda]));
       }
       A += kb;
 
 #pragma unroll
-      for (int l = 0; l < kb; l += bx) {
-#pragma unroll
-        for (int j = 0; j < nb; j += by) {
-          b_real_hi[l + threadIdx.x][j + threadIdx.y] = __double2hiint(cuCreal(B[j * lda + l]));
-          b_real_lo[l + threadIdx.x][j + threadIdx.y] = __double2loint(cuCreal(B[j * lda + l]));
-          b_imag_hi[l + threadIdx.x][j + threadIdx.y] = __double2hiint(cuCimag(B[j * lda + l]));
-          b_imag_lo[l + threadIdx.x][j + threadIdx.y] = __double2loint(cuCimag(B[j * lda + l]));
-        }
+      for (int j = 0; j < nb; j += by) {
+        b_real_hi[threadIdx.x][j + threadIdx.y] = __double2hiint(cuCreal(B[j * lda]));
+        b_real_lo[threadIdx.x][j + threadIdx.y] = __double2loint(cuCreal(B[j * lda]));
+        b_imag_hi[threadIdx.x][j + threadIdx.y] = __double2hiint(cuCimag(B[j * lda]));
+        b_imag_lo[threadIdx.x][j + threadIdx.y] = __double2loint(cuCimag(B[j * lda]));
       }
     }
 
@@ -224,7 +215,7 @@ __global__ void zherk(int n, int k, double alpha,
   if (i < n) {
     n -= j;
     if (n <= 0) return;
-    if (beta == 0.0f) {
+    if (beta == 0.0) {
       if (uplo == CBlasUpper) {
         if (i <= j) C[0] = (i == j) ? make_cuDoubleComplex(alpha * cuCreal(c[0]), 0.0) : cuCmul(alpha, c[0]); if (1 >= n) return; j++; C += ldc;
         if (i <= j) C[0] = (i == j) ? make_cuDoubleComplex(alpha * cuCreal(c[1]), 0.0) : cuCmul(alpha, c[1]); if (2 >= n) return; j++; C += ldc;
@@ -366,29 +357,20 @@ __global__ void zherk(int n, int k, double alpha,
       // C = aAA' + bC so read B into shared memory and transpose leaving A
       // untransposed in global memory
 #pragma unroll
-      for (int l = 0; l < kb; l += by) {
-#pragma unroll
-        for (int j = 0; j < nb; j += bx)
-          b[l + threadIdx.y][j + threadIdx.x] = cuConj(B[l * lda + j]);
-      }
+      for (int l = 0; l < kb; l += by)
+        b[l + threadIdx.y][threadIdx.x] = cuConj(B[l * lda]);
     }
     else {
       // C = aA'A + bC so read A into shared memory and transpose before reading
       // B into shared memory untransposed
 #pragma unroll
-      for (int l = 0; l < kb; l += bx) {
-#pragma unroll
-        for (int i = 0; i < mb; i += by)
-          a[i + threadIdx.y][l + threadIdx.x] = cuConj(A[i * lda + l]);
-      }
+      for (int i = 0; i < mb; i += by)
+        a[i + threadIdx.y][threadIdx.x] = cuConj(A[i * lda]);
       A += kb;
 
 #pragma unroll
-      for (int l = 0; l < kb; l += bx) {
-#pragma unroll
-        for (int j = 0; j < nb; j += by)
-          b[l + threadIdx.x][j + threadIdx.y] = B[j * lda + l];
-      }
+      for (int j = 0; j < nb; j += by)
+        b[threadIdx.x][j + threadIdx.y] = B[j * lda];
     }
 
     __syncthreads();
@@ -432,7 +414,7 @@ __global__ void zherk(int n, int k, double alpha,
   if (i < n) {
     n -= j;
     if (n <= 0) return;
-    if (beta == 0.0f) {
+    if (beta == 0.0) {
       if (uplo == CBlasUpper) {
         if (i <= j) C[0] = (i == j) ? make_cuDoubleComplex(alpha * cuCreal(c[0]), 0.0) : cuCmul(alpha, c[0]); if (1 >= n) return; j++; C += ldc;
         if (i <= j) C[0] = (i == j) ? make_cuDoubleComplex(alpha * cuCreal(c[1]), 0.0) : cuCmul(alpha, c[1]); if (2 >= n) return; j++; C += ldc;

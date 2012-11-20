@@ -38,11 +38,14 @@ __global__ void strmm2L(int m, int n,
 
   if (trans == CBlasNoTrans) {
     A += (uplo == CBlasUpper) ? bi * lda + bi + ti : bi + ti;
-    B += (uplo == CBlasUpper) ? (bj + threadIdx.y) * ldb + bi + threadIdx.x : (bj + threadIdx.y) * ldb + threadIdx.x;
+    B += (uplo == CBlasUpper) ? (bj + threadIdx.y) * ldb + bi + threadIdx.x
+                              : (bj + threadIdx.y) * ldb + threadIdx.x;
   }
   else {
-    A += (uplo == CBlasUpper) ? (bi + threadIdx.y) * lda + threadIdx.x : (bi + threadIdx.y) * lda + bi + threadIdx.x;
-    B += (uplo == CBlasUpper) ? (bj + threadIdx.y) * ldb + threadIdx.x : (bj + threadIdx.y) * ldb + bi + threadIdx.x;
+    A += (uplo == CBlasUpper) ? (bi + threadIdx.y) * lda + threadIdx.x
+                              : (bi + threadIdx.y) * lda + bi + threadIdx.x;
+    B += (uplo == CBlasUpper) ? (bj + threadIdx.y) * ldb + threadIdx.x
+                              : (bj + threadIdx.y) * ldb + bi + threadIdx.x;
   }
   X += (bj + tj) * ldx + bi + ti;
 
@@ -60,11 +63,8 @@ __global__ void strmm2L(int m, int n,
     while (k > 0) {
       if (trans != CBlasNoTrans) {
 #pragma unroll
-        for (int l = 0; l < kb; l += bx) {
-#pragma unroll
-          for (int i = 0; i < mb; i += by)
-            a[i + threadIdx.y][l + threadIdx.x] = A[i * lda + l];
-        }
+        for (int i = 0; i < mb; i += by)
+          a[i + threadIdx.y][threadIdx.x] = A[i * lda];
         A += kb;
       }
 
@@ -80,7 +80,8 @@ __global__ void strmm2L(int m, int n,
 #pragma unroll
         for (int ll = 0; ll < kb; ll++) {
           if (ti <= l++)
-            saxpy((trans == CBlasNoTrans) ? A[0] : a[ti][ll], (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
+            saxpy((trans == CBlasNoTrans) ? A[0]  :  a[ti][ll],
+                  (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
           if (trans == CBlasNoTrans)
             A += lda;
         }
@@ -91,7 +92,8 @@ __global__ void strmm2L(int m, int n,
           if (ti == l)
             saxpy(1.0f, (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
           else if (ti < l)
-            saxpy((trans == CBlasNoTrans) ? A[0] : a[ti][ll], (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
+            saxpy((trans == CBlasNoTrans) ? A[0]  :  a[ti][ll],
+                  (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
           if (trans == CBlasNoTrans)
             A += lda;
           l++;
@@ -107,7 +109,8 @@ __global__ void strmm2L(int m, int n,
     if (diag == CBlasNonUnit) {
       for (int ll = 0; ll < k; ll++) {
         if (ti <= l++)
-          saxpy((trans == CBlasNoTrans) ? A[0] : a[ti][ll], (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
+          saxpy((trans == CBlasNoTrans) ? A[0]  :  a[ti][ll],
+                (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
         if (trans == CBlasNoTrans)
           A += lda;
       }
@@ -117,7 +120,8 @@ __global__ void strmm2L(int m, int n,
         if (ti == l)
           saxpy(1.0f, (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
         else if (ti < l)
-          saxpy((trans == CBlasNoTrans) ? A[0] : a[ti][ll], (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
+          saxpy((trans == CBlasNoTrans) ? A[0]  :  a[ti][ll],
+                (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
         if (trans == CBlasNoTrans)
           A += lda;
         l++;
@@ -133,11 +137,8 @@ __global__ void strmm2L(int m, int n,
   while (k > 0) {
     if (trans != CBlasNoTrans) {
 #pragma unroll
-      for (int l = 0; l < kb; l += bx) {
-#pragma unroll
-        for (int i = 0; i < mb; i += by)
-          a[i + threadIdx.y][l + threadIdx.x] = A[i * lda + l];
-      }
+      for (int i = 0; i < mb; i += by)
+        a[i + threadIdx.y][threadIdx.x] = A[i * lda];
       A += kb;
     }
 
@@ -207,7 +208,8 @@ __global__ void strmm2L(int m, int n,
 #pragma unroll
         for (int ll = 0; ll < kb; ll++) {
           if (ti >= l++)
-            saxpy((trans == CBlasNoTrans) ? A[0] : a[ti][ll], (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
+            saxpy((trans == CBlasNoTrans) ? A[0]  :  a[ti][ll],
+                  (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
           if (trans == CBlasNoTrans)
             A += lda;
         }
@@ -218,7 +220,8 @@ __global__ void strmm2L(int m, int n,
           if (ti == l)
             saxpy(1.0f, (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
           else if (ti > l)
-            saxpy((trans == CBlasNoTrans) ? A[0] : a[ti][ll], (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
+            saxpy((trans == CBlasNoTrans) ? A[0]  :  a[ti][ll],
+                  (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
           if (trans == CBlasNoTrans)
             A += lda;
           l++;
@@ -234,7 +237,8 @@ __global__ void strmm2L(int m, int n,
     if (diag == CBlasNonUnit) {
       for (int ll = 0; ll < k; ll++) {
         if (ti >= l++)
-          saxpy((trans == CBlasNoTrans) ? A[0] : a[ti][ll], (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
+          saxpy((trans == CBlasNoTrans) ? A[0]  :  a[ti][ll],
+                (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
         if (trans == CBlasNoTrans)
           A += lda;
       }
@@ -244,7 +248,8 @@ __global__ void strmm2L(int m, int n,
         if (ti == l)
           saxpy(1.0f, (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
         else if (ti > l)
-          saxpy((trans == CBlasNoTrans) ? A[0] : a[ti][ll], (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
+          saxpy((trans == CBlasNoTrans) ? A[0]  :  a[ti][ll],
+                (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
         if (trans == CBlasNoTrans)
           A += lda;
         l++;
@@ -285,11 +290,13 @@ __global__ void strmm2R(int m, int n,
   int ti = threadIdx.y * bx + threadIdx.x;
 
   if (trans == CBlasNoTrans) {
-    A += (uplo == CBlasUpper) ? (bj + threadIdx.y) * lda + threadIdx.x : (bj + threadIdx.y) * lda + bj + threadIdx.x;
+    A += (uplo == CBlasUpper) ? (bj + threadIdx.y) * lda + threadIdx.x
+                              : (bj + threadIdx.y) * lda + bj + threadIdx.x;
     B += (uplo == CBlasUpper) ? bi + ti : bj * ldb + bi + ti;
   }
   else {
-    A += (uplo == CBlasUpper) ? (bj + threadIdx.y) * lda + bj + threadIdx.x : threadIdx.y * lda + bj + threadIdx.x;
+    A += (uplo == CBlasUpper) ? (bj + threadIdx.y) * lda + bj + threadIdx.x
+                              : threadIdx.y * lda + bj + threadIdx.x;
     B += (uplo == CBlasUpper) ? bj * ldb + bi + ti : bi + ti;
   }
   X += bj * ldx + bi + ti;
@@ -307,12 +314,14 @@ __global__ void strmm2R(int m, int n,
       if (trans == CBlasNoTrans) {
 #pragma unroll
         for (int j = 0; j < nb; j += by)
-          a[threadIdx.x][j + threadIdx.y] = (diag != CBlasNonUnit && threadIdx.x == j + threadIdx.y) ? 1.0f : A[j * lda];
+          a[threadIdx.x][j + threadIdx.y] =
+            (diag != CBlasNonUnit && threadIdx.x == j + threadIdx.y) ? 1.0f : A[j * lda];
       }
       else {
 #pragma unroll
         for (int l = 0; l < kb; l += by)
-          a[l + threadIdx.y][threadIdx.x] = (diag != CBlasNonUnit && threadIdx.x == l + threadIdx.y) ? 1.0f : A[l * lda];
+          a[l + threadIdx.y][threadIdx.x] =
+            (diag != CBlasNonUnit && threadIdx.x == l + threadIdx.y) ? 1.0f : A[l * lda];
       }
 
       __syncthreads();
@@ -402,12 +411,14 @@ __global__ void strmm2R(int m, int n,
       if (trans == CBlasNoTrans) {
 #pragma unroll
         for (int j = 0; j < nb; j += by)
-          a[threadIdx.x][j + threadIdx.y] = (diag != CBlasNonUnit && threadIdx.x == j + threadIdx.y) ? 1.0f : A[j * lda];
+          a[threadIdx.x][j + threadIdx.y] =
+            (diag != CBlasNonUnit && threadIdx.x == j + threadIdx.y) ? 1.0f : A[j * lda];
       }
       else {
 #pragma unroll
         for (int l = 0; l < kb; l += by)
-          a[l + threadIdx.y][threadIdx.x] = (diag != CBlasNonUnit && threadIdx.x == l + threadIdx.y) ? 1.0f : A[l * lda];
+          a[l + threadIdx.y][threadIdx.x] =
+            (diag != CBlasNonUnit && threadIdx.x == l + threadIdx.y) ? 1.0f : A[l * lda];
       }
 
       __syncthreads();

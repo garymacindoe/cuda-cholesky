@@ -208,8 +208,8 @@ CUresult cuCherk(CUmodule module, CBlasUplo uplo, CBlasTranspose trans,
   const unsigned int mb = (trans == CBlasNoTrans) ? 64 : 32;
   const unsigned int nb = (trans == CBlasNoTrans) ?  8 : 16;
   const unsigned int kb = (trans == CBlasNoTrans) ? 16 :  8;
-  const unsigned int bx = 8;
-  const unsigned int by = 8;
+  const unsigned int bx = (trans == CBlasNoTrans) ? 16 :  8;
+  const unsigned int by = (trans == CBlasNoTrans) ?  4 :  8;
 
   char name[88];
   snprintf(name, 88,

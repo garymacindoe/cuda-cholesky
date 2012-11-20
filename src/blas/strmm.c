@@ -28,7 +28,7 @@ static inline CUresult cuMemcpyDtoH2DAsync(void * A, size_t lda, size_t ai, size
 static const float zero = 0.0f;
 static const float one = 1.0f;
 
-void strmm2(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag,
+void strmm2(CBlasSide side, CBlasUplo uplo, CBlasTranspose trans, CBlasDiag diag,
             size_t m, size_t n,
             float alpha, const float * restrict A, size_t lda,
             const float * restrict B, size_t ldb,
@@ -60,7 +60,7 @@ void strmm2(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag dia
   }
 
   if (side == CBlasLeft) {
-    if (transA == CBlasNoTrans) {
+    if (trans == CBlasNoTrans) {
       if (uplo == CBlasUpper) {
 #pragma omp parallel for
         for (size_t j = 0; j < n; j++) {
@@ -123,7 +123,7 @@ void strmm2(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag dia
     }
   }
   else {
-    if (transA == CBlasNoTrans) {
+    if (trans == CBlasNoTrans) {
       if (uplo == CBlasUpper) {
         size_t j = n - 1;
         do {
@@ -242,7 +242,7 @@ CUresult cuStrmm2(CUmodule module,
   return CUDA_SUCCESS;
 }
 #if 0
-CUresult cuMultiGPUStrmm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag,
+CUresult cuMultiGPUStrmm(CBlasSide side, CBlasUplo uplo, CBlasTranspose trans, CBlasDiag diag,
                          size_t m, size_t n,
                          float alpha, const float * restrict A, size_t lda,
                          float * restrict B, size_t ldb) {
@@ -270,12 +270,12 @@ CUresult cuMultiGPUStrmm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, 
   const size_t nb = (side == CBlasLeft) ? 16 :  8;
 
   if (m <= mb || n <= nb) {
-    strmm(side, uplo, transA, diag, m, n, alpha, A, lda, B, ldb);
+    strmm(side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb);
     return CUDA_SUCCESS;
   }
 
   if (side == CBlasLeft) {
-    if (transA == CBlasNoTrans) {
+    if (trans == CBlasNoTrans) {
       if (uplo == CBlasUpper) {
         size_t i = (m + mb - 1) & ~(mb - 1);
         do {
@@ -337,7 +337,7 @@ CUresult cuMultiGPUStrmm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, 
     }
   }
   else {
-    if (transA == CBlasNoTrans) {
+    if (trans == CBlasNoTrans) {
       if (uplo == CBlasUpper) {
         for (size_t j = 0; j < n; j += nb) {
           const size_t jb = min(nb, n - j);
