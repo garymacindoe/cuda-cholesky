@@ -220,9 +220,9 @@ CUresult cuDtrmm2(CUmodule module,
 
   const unsigned int mb = (side == CBlasLeft && trans != CBlasNoTrans) ? 32 : 64;
   const unsigned int nb = (side == CBlasLeft && trans != CBlasNoTrans) ? 16 :  8;
-  const unsigned int kb = (side == CBlasLeft && trans != CBlasNoTrans) ?  8 : 16;
-  const unsigned int bx = (side == CBlasLeft && trans != CBlasNoTrans) ?  8 : 16;
-  const unsigned int by = (side == CBlasLeft && trans != CBlasNoTrans) ?  8 :  4;
+  const unsigned int kb = 8;
+  const unsigned int bx = 8;
+  const unsigned int by = 8;
 
   char name[101];
   snprintf(name, 101,
