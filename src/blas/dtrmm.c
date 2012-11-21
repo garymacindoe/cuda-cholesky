@@ -218,11 +218,11 @@ CUresult cuDtrmm2(CUmodule module,
   if (m == 0 || n == 0)
     return CUDA_SUCCESS;
 
-  const unsigned int mb = (side == CBlasLeft && trans != CBlasNoTrans) ? 32 : 64;
-  const unsigned int nb = (side == CBlasLeft && trans != CBlasNoTrans) ? 16 :  8;
-  const unsigned int kb = 8;
-  const unsigned int bx = 8;
-  const unsigned int by = 8;
+  const unsigned int mb = (side == CBlasRight) ? 64 : (trans == CBlasNoTrans) ? 64 : 32;
+  const unsigned int nb = (side == CBlasRight) ?  8 : (trans == CBlasNoTrans) ?  8 : 16;
+  const unsigned int kb = (side == CBlasRight) ?  8 : (trans == CBlasNoTrans) ? 16 :  8;
+  const unsigned int bx = (side == CBlasRight) ?  8 : (trans == CBlasNoTrans) ? 16 :  8;
+  const unsigned int by = (side == CBlasRight) ?  8 : (trans == CBlasNoTrans) ?  4 :  8;
 
   char name[101];
   snprintf(name, 101,
