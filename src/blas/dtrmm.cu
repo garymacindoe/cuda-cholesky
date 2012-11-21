@@ -979,9 +979,9 @@ template void dtrmm2L<CBlasLower, CBlasTrans,   CBlasUnit,    32, 16,  8,  8,  8
 template void dtrmm2L<CBlasLower, CBlasTrans,   CBlasNonUnit, 32, 16,  8,  8,  8>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
 template void dtrmm2R<CBlasUpper, CBlasNoTrans, CBlasUnit,    64,  8, 16, 16,  4>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
 template void dtrmm2R<CBlasUpper, CBlasNoTrans, CBlasNonUnit, 64,  8, 16, 16,  4>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
-template void dtrmm2R<CBlasUpper, CBlasTrans,   CBlasUnit,    64,  8, 16, 16,  4>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
-template void dtrmm2R<CBlasUpper, CBlasTrans,   CBlasNonUnit, 64,  8, 16, 16,  4>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
+template void dtrmm2R<CBlasUpper, CBlasTrans,   CBlasUnit,    64,  8, 16,  8,  8>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
+template void dtrmm2R<CBlasUpper, CBlasTrans,   CBlasNonUnit, 64,  8, 16,  8,  8>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
 template void dtrmm2R<CBlasLower, CBlasNoTrans, CBlasUnit,    64,  8, 16, 16,  4>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
 template void dtrmm2R<CBlasLower, CBlasNoTrans, CBlasNonUnit, 64,  8, 16, 16,  4>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
-template void dtrmm2R<CBlasLower, CBlasTrans,   CBlasUnit,    64,  8, 16, 16,  4>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
-template void dtrmm2R<CBlasLower, CBlasTrans,   CBlasNonUnit, 64,  8, 16, 16,  4>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
+template void dtrmm2R<CBlasLower, CBlasTrans,   CBlasUnit,    64,  8, 16,  8,  8>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
+template void dtrmm2R<CBlasLower, CBlasTrans,   CBlasNonUnit, 64,  8, 16,  8,  8>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
