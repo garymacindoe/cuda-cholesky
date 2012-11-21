@@ -77,14 +77,11 @@ __global__ void dgemm(int m, int n, int k,
   while (k > 0) {
     // If A is to be transposed cache it in shared memory
     if (transA != CBlasNoTrans) {
-// #pragma unroll
-//       for (int l = 0; l < kb; l += bx) {
 #pragma unroll
         for (int i = 0; i < mb; i += by) {
-          a_hi[i + threadIdx.y][/*l + */threadIdx.x] = __double2hiint(A[i * lda/* + l*/]);
-          a_lo[i + threadIdx.y][/*l + */threadIdx.x] = __double2loint(A[i * lda/* + l*/]);
+          a_hi[i + threadIdx.y][threadIdx.x] = __double2hiint(A[i * lda]);
+          a_lo[i + threadIdx.y][threadIdx.x] = __double2loint(A[i * lda]);
         }
-//       }
       A += kb;
     }
 
@@ -92,14 +89,11 @@ __global__ void dgemm(int m, int n, int k,
     // memory (i.e. it is read along the K or N dimensions when M is the
     // dimension being expanded).
     if (transB == CBlasNoTrans) {
-// #pragma unroll
-//       for (int l = 0; l < kb; l += bx) {
 #pragma unroll
         for (int j = 0; j < nb; j += by) {
-          b_hi[/*l + */threadIdx.x][j + threadIdx.y] = __double2hiint(B[j * ldb/* + l*/]);
-          b_lo[/*l + */threadIdx.x][j + threadIdx.y] = __double2loint(B[j * ldb/* + l*/]);
+          b_hi[threadIdx.x][j + threadIdx.y] = __double2hiint(B[j * ldb]);
+          b_lo[threadIdx.x][j + threadIdx.y] = __double2loint(B[j * ldb]);
         }
-//       }
     }
     else {
 #pragma unroll
@@ -243,11 +237,8 @@ __global__ void dgemm(int m, int n, int k,
     // If A is to be transposed cache it in shared memory
     if (transA != CBlasNoTrans) {
 #pragma unroll
-      for (int l = 0; l < kb; l += bx) {
-#pragma unroll
-        for (int i = 0; i < mb; i += by)
-          a[i + threadIdx.y][l + threadIdx.x] = A[i * lda + l];
-      }
+      for (int i = 0; i < mb; i += by)
+        a[i + threadIdx.y][threadIdx.x] = A[i * lda];
       A += kb;
     }
 
@@ -256,11 +247,8 @@ __global__ void dgemm(int m, int n, int k,
     // dimension being expanded).
     if (transB == CBlasNoTrans) {
 #pragma unroll
-      for (int l = 0; l < kb; l += bx) {
-#pragma unroll
-        for (int j = 0; j < nb; j += by)
-          b[l + threadIdx.x][j + threadIdx.y] = B[j * ldb + l];
-      }
+      for (int j = 0; j < nb; j += by)
+        b[threadIdx.x][j + threadIdx.y] = B[j * ldb];
     }
     else {
 #pragma unroll

@@ -51,15 +51,8 @@ __global__ void ssyrk(int n, int k,
 //   bi *= mb;
 //   bj *= nb;
 
-  // Using an SGEMM kernel, SSYRK is:
-  // C = alpha * A * B + beta * C
-  // with A = A and B = A' when trans == CBlasNoTrans, and
-  // with A = A' and B = A when trans == CBlasTrans
-  const float * __restrict__ B = A;
-
   const int bi = blockIdx.x * mb;       // Starting row of block of C
   const int bj = blockIdx.y * nb;       // Starting column of block of C
-  const int ti = threadIdx.y * bx + threadIdx.x;        // Unwrapped thread index [0, bx * by]
 
   // Terminate blocks that are entirely above or below the diagonal
   if (uplo == CBlasUpper) {
@@ -69,6 +62,19 @@ __global__ void ssyrk(int n, int k,
   else if (uplo == CBlasLower) {
     if (bi + mb - 1 < bj)
       return;
+  }
+
+  // Using an SGEMM kernel, SSYRK is:
+  // C = alpha * A * B + beta * C
+  // with A = A and B = A' when trans == CBlasNoTrans, and
+  // with A = A' and B = A when trans == CBlasTrans
+  const float * __restrict__ B = A;
+
+  int ti = threadIdx.y * bx + threadIdx.x;        // Unwrapped thread index [0, bx * by]
+  int tj = 0;
+  if (trans != CBlasNoTrans) {
+    tj = 16 * (ti / mb);
+    ti = ti % mb;
   }
 
   /*
@@ -81,20 +87,17 @@ __global__ void ssyrk(int n, int k,
    * doesn't need to be a separate check for trans == CBlasNoTrans in
    * calculating the start of C here.
    */
-  int i, j;
   if (trans == CBlasNoTrans) {
-    i = bi + ti;
-    j = bj;
-    A += i;
-    B += threadIdx.y * lda + j + threadIdx.x;
+    A += bi + ti;
+    B += threadIdx.y * lda + bj + threadIdx.x;
   }
   else {
-    i = bi + ti % mb;
-    j = bj + 16 * (ti / mb);
     A += (bi + threadIdx.y) * lda + threadIdx.x;
     B += (bj + threadIdx.y) * lda + threadIdx.x;
   }
-  C += j * ldc + i;
+  C += (bj + tj) * ldc + bi + ti;
+  int m = n - bi - ti;
+  n -= bj + tj;
 
   /*
    * Blocks of A and B in shared memory and C in registers.
@@ -142,7 +145,7 @@ __global__ void ssyrk(int n, int k,
       // Read A from shared memory
 #pragma unroll
       for (int l = 0; l < kb; l++)
-        saxpy(a[ti % mb][l], &b[l][16 * (ti / mb)], c);
+        saxpy(a[ti][l], &b[l][tj], c);
     }
 
     __syncthreads();
@@ -161,87 +164,86 @@ __global__ void ssyrk(int n, int k,
   else {
     // Read A' from shared memory
     for (int l = 0; l < k; l++)
-      saxpy(a[ti % mb][l], &b[l][16 * (ti / mb)], c);
+      saxpy(a[ti][l], &b[l][tj], c);
   }
 
-  if (i < n) {
-    n -= j;
-    if (n <= 0) return;
-    if (beta == 0.0f) {
-      if (uplo == CBlasUpper) {
-        if (i <= j++) C[0] = alpha * c[ 0]; if ( 1 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[ 1]; if ( 2 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[ 2]; if ( 3 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[ 3]; if ( 4 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[ 4]; if ( 5 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[ 5]; if ( 6 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[ 6]; if ( 7 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[ 7]; if ( 8 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[ 8]; if ( 9 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[ 9]; if (10 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[10]; if (11 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[11]; if (12 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[12]; if (13 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[13]; if (14 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[14]; if (15 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[15];
-      }
-      else {
-        if (i >= j++) C[0] = alpha * c[ 0]; if ( 1 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[ 1]; if ( 2 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[ 2]; if ( 3 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[ 3]; if ( 4 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[ 4]; if ( 5 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[ 5]; if ( 6 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[ 6]; if ( 7 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[ 7]; if ( 8 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[ 8]; if ( 9 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[ 9]; if (10 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[10]; if (11 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[11]; if (12 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[12]; if (13 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[13]; if (14 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[14]; if (15 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[15];
-      }
+  if (m <= 0 || n <= 0) return;
+  int i = bi + ti;
+  int j = bj + tj;
+  if (beta == 0.0f) {
+    if (uplo == CBlasUpper) {
+      if (i <= j++) C[0] = alpha * c[ 0]; if ( 1 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[ 1]; if ( 2 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[ 2]; if ( 3 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[ 3]; if ( 4 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[ 4]; if ( 5 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[ 5]; if ( 6 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[ 6]; if ( 7 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[ 7]; if ( 8 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[ 8]; if ( 9 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[ 9]; if (10 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[10]; if (11 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[11]; if (12 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[12]; if (13 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[13]; if (14 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[14]; if (15 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[15];
     }
     else {
-      if (uplo == CBlasUpper) {
-        if (i <= j++) C[0] = alpha * c[ 0] + beta * C[0]; if ( 1 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[ 1] + beta * C[0]; if ( 2 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[ 2] + beta * C[0]; if ( 3 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[ 3] + beta * C[0]; if ( 4 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[ 4] + beta * C[0]; if ( 5 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[ 5] + beta * C[0]; if ( 6 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[ 6] + beta * C[0]; if ( 7 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[ 7] + beta * C[0]; if ( 8 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[ 8] + beta * C[0]; if ( 9 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[ 9] + beta * C[0]; if (10 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[10] + beta * C[0]; if (11 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[11] + beta * C[0]; if (12 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[12] + beta * C[0]; if (13 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[13] + beta * C[0]; if (14 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[14] + beta * C[0]; if (15 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[15] + beta * C[0];
-      }
-      else {
-        if (i >= j++) C[0] = alpha * c[ 0] + beta * C[0]; if ( 1 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[ 1] + beta * C[0]; if ( 2 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[ 2] + beta * C[0]; if ( 3 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[ 3] + beta * C[0]; if ( 4 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[ 4] + beta * C[0]; if ( 5 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[ 5] + beta * C[0]; if ( 6 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[ 6] + beta * C[0]; if ( 7 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[ 7] + beta * C[0]; if ( 8 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[ 8] + beta * C[0]; if ( 9 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[ 9] + beta * C[0]; if (10 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[10] + beta * C[0]; if (11 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[11] + beta * C[0]; if (12 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[12] + beta * C[0]; if (13 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[13] + beta * C[0]; if (14 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[14] + beta * C[0]; if (15 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[15] + beta * C[0];
-      }
+      if (i >= j++) C[0] = alpha * c[ 0]; if ( 1 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[ 1]; if ( 2 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[ 2]; if ( 3 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[ 3]; if ( 4 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[ 4]; if ( 5 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[ 5]; if ( 6 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[ 6]; if ( 7 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[ 7]; if ( 8 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[ 8]; if ( 9 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[ 9]; if (10 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[10]; if (11 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[11]; if (12 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[12]; if (13 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[13]; if (14 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[14]; if (15 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[15];
+    }
+  }
+  else {
+    if (uplo == CBlasUpper) {
+      if (i <= j++) C[0] = alpha * c[ 0] + beta * C[0]; if ( 1 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[ 1] + beta * C[0]; if ( 2 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[ 2] + beta * C[0]; if ( 3 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[ 3] + beta * C[0]; if ( 4 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[ 4] + beta * C[0]; if ( 5 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[ 5] + beta * C[0]; if ( 6 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[ 6] + beta * C[0]; if ( 7 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[ 7] + beta * C[0]; if ( 8 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[ 8] + beta * C[0]; if ( 9 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[ 9] + beta * C[0]; if (10 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[10] + beta * C[0]; if (11 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[11] + beta * C[0]; if (12 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[12] + beta * C[0]; if (13 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[13] + beta * C[0]; if (14 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[14] + beta * C[0]; if (15 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[15] + beta * C[0];
+    }
+    else {
+      if (i >= j++) C[0] = alpha * c[ 0] + beta * C[0]; if ( 1 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[ 1] + beta * C[0]; if ( 2 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[ 2] + beta * C[0]; if ( 3 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[ 3] + beta * C[0]; if ( 4 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[ 4] + beta * C[0]; if ( 5 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[ 5] + beta * C[0]; if ( 6 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[ 6] + beta * C[0]; if ( 7 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[ 7] + beta * C[0]; if ( 8 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[ 8] + beta * C[0]; if ( 9 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[ 9] + beta * C[0]; if (10 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[10] + beta * C[0]; if (11 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[11] + beta * C[0]; if (12 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[12] + beta * C[0]; if (13 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[13] + beta * C[0]; if (14 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[14] + beta * C[0]; if (15 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[15] + beta * C[0];
     }
   }
 }
