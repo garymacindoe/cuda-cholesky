@@ -234,9 +234,10 @@ CUresult cuDtrmm2(CUmodule module,
 
   void * params[] = { &m, &n, &alpha, &A, &lda, &B, &ldb, &X, &ldx };
 
-  const unsigned int gx = (side == CBlasLeft) ? 1 : (unsigned int)(m + mb - 1) / mb;
-  const unsigned int gy = (side == CBlasLeft) ? (unsigned int)(n + nb - 1) / nb : 1;
-  CU_ERROR_CHECK(cuLaunchKernel(function, gx, gy, 1, bx, by, 1, 0, stream, params, NULL));
+  CU_ERROR_CHECK(cuLaunchKernel(function,
+                                (unsigned int)(m + mb - 1) / mb, (unsigned int)(n + nb - 1) / nb, 1,
+                                bx, by, 1,
+                                0, stream, params, NULL));
 
   return CUDA_SUCCESS;
 }
