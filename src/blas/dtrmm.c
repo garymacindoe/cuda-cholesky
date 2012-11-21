@@ -219,7 +219,7 @@ CUresult cuDtrmm2(CUmodule module,
     return CUDA_SUCCESS;
 
   const unsigned int mb = (side == CBlasLeft && trans != CBlasNoTrans) ? 32 : 64;
-  const unsigned int nb = (side == CBlasLeft && trans != CBlasNoTrans) ? 32 : 16;
+  const unsigned int nb = (side == CBlasLeft && trans != CBlasNoTrans) ? 16 :  8;
   const unsigned int kb = (side == CBlasLeft && trans != CBlasNoTrans) ?  8 : 16;
   const unsigned int bx = (side == CBlasLeft && trans != CBlasNoTrans) ?  8 : 16;
   const unsigned int by = (side == CBlasLeft && trans != CBlasNoTrans) ?  8 :  4;
