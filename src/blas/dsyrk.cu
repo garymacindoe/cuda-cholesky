@@ -57,15 +57,8 @@ __global__ void dsyrk(int n, int k, double alpha,
 //   bi *= mb;
 //   bj *= nb;
 
-  // Using a DGEMM kernel, DSYRK is:
-  // C = alpha * A * B + beta * C
-  // with A = A and B = A' when trans == CBlasNoTrans, and
-  // with A = A' and B = A when trans == CBlasTrans
-  const double * __restrict__ B = A;
-
   const int bi = blockIdx.x * mb;       // Starting row of block of C
   const int bj = blockIdx.y * nb;       // Starting column of block of C
-  const int ti = threadIdx.y * bx + threadIdx.x;        // Unwrapped thread index [0, bx * by]
 
   /*
    * Cause blocks that are entirely above or below the diagonal to exit now.
@@ -79,6 +72,19 @@ __global__ void dsyrk(int n, int k, double alpha,
       return;
   }
 
+  // Using a DGEMM kernel, DSYRK is:
+  // C = alpha * A * B + beta * C
+  // with A = A and B = A' when trans == CBlasNoTrans, and
+  // with A = A' and B = A when trans == CBlasTrans
+  const double * __restrict__ B = A;
+
+  int ti = threadIdx.y * bx + threadIdx.x;        // Unwrapped thread index [0, bx * by]
+  int tj = 0;
+  if (trans != CBlasNoTrans) {
+    tj = 8 * (ti / mb);
+    ti = ti % mb;
+  }
+
   /*
    * Compute our starting points in A, "B" and C.
    *
@@ -89,20 +95,17 @@ __global__ void dsyrk(int n, int k, double alpha,
    * doesn't need to be a separate check for trans == CBlasNoTrans in
    * calculating the start of C here.
    */
-  int i, j;
   if (trans == CBlasNoTrans) {
-    i = bi + ti;
-    j = bj;
-    A += i;
-    B += threadIdx.y * lda + j + threadIdx.x;
+    A += bi + ti;
+    B += threadIdx.y * lda + bj + threadIdx.x;
   }
   else {
-    i = bi + ti % mb;
-    j = bj + 8 * (ti / mb);
     A += (bi + threadIdx.y) * lda + threadIdx.x;
     B += (bj + threadIdx.y) * lda + threadIdx.x;
   }
-  C += j * ldc + i;
+  C += (bj + tj) * ldc + bi + ti;
+  int m = n - bi - ti;
+  n -= bj + tj;
 
   /*
    * Blocks of A and "B" in shared memory and C in registers.
@@ -157,8 +160,8 @@ __global__ void dsyrk(int n, int k, double alpha,
       // Read A from shared memory
 #pragma unroll
       for (int l = 0; l < kb; l++)
-        daxpy(__hiloint2double(a_hi[ti % mb][l], a_lo[ti % mb][l]),
-              &b_hi[l][8 * (ti / mb)], &b_lo[l][8 * (ti / mb)], c);
+        daxpy(__hiloint2double(a_hi[ti][l], a_lo[ti][l]),
+              &b_hi[l][tj], &b_lo[l][tj], c);
     }
 
     __syncthreads();
@@ -177,56 +180,55 @@ __global__ void dsyrk(int n, int k, double alpha,
   else {
     // Read A' from shared memory
     for (int l = 0; l < k; l++)
-      daxpy(__hiloint2double(a_hi[ti % mb][l], a_lo[ti % mb][l]),
-            &b_hi[l][8 * (ti / mb)], &b_lo[l][8 * (ti / mb)], c);
+      daxpy(__hiloint2double(a_hi[ti][l], a_lo[ti][l]),
+            &b_hi[l][tj], &b_lo[l][tj], c);
   }
 
-  if (i < n) {
-    n -= j;
-    if (n <= 0) return;
-    if (beta == 0.0) {
-      if (uplo == CBlasUpper) {
-        if (i <= j++) C[0] = alpha * c[0]; if (1 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[1]; if (2 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[2]; if (3 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[3]; if (4 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[4]; if (5 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[5]; if (6 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[6]; if (7 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[7];
-      }
-      else {
-        if (i >= j++) C[0] = alpha * c[0]; if (1 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[1]; if (2 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[2]; if (3 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[3]; if (4 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[4]; if (5 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[5]; if (6 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[6]; if (7 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[7];
-      }
+  if (m <= 0 || n <= 0) return;
+  int i = bi + ti;
+  int j = bj + tj;
+  if (beta == 0.0) {
+    if (uplo == CBlasUpper) {
+      if (i <= j++) C[0] = alpha * c[0]; if (1 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[1]; if (2 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[2]; if (3 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[3]; if (4 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[4]; if (5 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[5]; if (6 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[6]; if (7 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[7];
     }
     else {
-      if (uplo == CBlasUpper) {
-        if (i <= j++) C[0] = alpha * c[0] + beta * C[0]; if (1 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[1] + beta * C[0]; if (2 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[2] + beta * C[0]; if (3 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[3] + beta * C[0]; if (4 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[4] + beta * C[0]; if (5 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[5] + beta * C[0]; if (6 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[6] + beta * C[0]; if (7 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[7] + beta * C[0];
-      }
-      else {
-        if (i >= j++) C[0] = alpha * c[0] + beta * C[0]; if (1 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[1] + beta * C[0]; if (2 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[2] + beta * C[0]; if (3 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[3] + beta * C[0]; if (4 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[4] + beta * C[0]; if (5 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[5] + beta * C[0]; if (6 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[6] + beta * C[0]; if (7 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[7] + beta * C[0];
-      }
+      if (i >= j++) C[0] = alpha * c[0]; if (1 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[1]; if (2 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[2]; if (3 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[3]; if (4 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[4]; if (5 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[5]; if (6 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[6]; if (7 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[7];
+    }
+  }
+  else {
+    if (uplo == CBlasUpper) {
+      if (i <= j++) C[0] = alpha * c[0] + beta * C[0]; if (1 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[1] + beta * C[0]; if (2 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[2] + beta * C[0]; if (3 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[3] + beta * C[0]; if (4 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[4] + beta * C[0]; if (5 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[5] + beta * C[0]; if (6 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[6] + beta * C[0]; if (7 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[7] + beta * C[0];
+    }
+    else {
+      if (i >= j++) C[0] = alpha * c[0] + beta * C[0]; if (1 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[1] + beta * C[0]; if (2 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[2] + beta * C[0]; if (3 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[3] + beta * C[0]; if (4 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[4] + beta * C[0]; if (5 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[5] + beta * C[0]; if (6 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[6] + beta * C[0]; if (7 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[7] + beta * C[0];
     }
   }
 }
@@ -282,15 +284,8 @@ __global__ void dsyrk(int n, int k, double alpha,
 //   bi *= mb;
 //   bj *= nb;
 
-  // Using a DGEMM kernel, DSYRK is:
-  // C = alpha * A * B + beta * C
-  // with A = A and B = A' when trans == CBlasNoTrans, and
-  // with A = A' and B = A when trans == CBlasTrans
-  const double * __restrict__ B = A;
-
   const int bi = blockIdx.x * mb;       // Starting row of block of C
   const int bj = blockIdx.y * nb;       // Starting column of block of C
-  const int ti = threadIdx.y * bx + threadIdx.x;        // Unwrapped thread index [0, bx * by]
 
   /*
    * Cause blocks that are entirely above or below the diagonal to exit now.
@@ -304,6 +299,19 @@ __global__ void dsyrk(int n, int k, double alpha,
       return;
   }
 
+  // Using a DGEMM kernel, DSYRK is:
+  // C = alpha * A * B + beta * C
+  // with A = A and B = A' when trans == CBlasNoTrans, and
+  // with A = A' and B = A when trans == CBlasTrans
+  const double * __restrict__ B = A;
+
+  int ti = threadIdx.y * bx + threadIdx.x;        // Unwrapped thread index [0, bx * by]
+  int tj = 0;
+  if (trans != CBlasNoTrans) {
+    tj = 8 * (ti / mb);
+    ti = ti % mb;
+  }
+
   /*
    * Compute our starting points in A, "B" and C.
    *
@@ -314,20 +322,17 @@ __global__ void dsyrk(int n, int k, double alpha,
    * doesn't need to be a separate check for trans == CBlasNoTrans in
    * calculating the start of C here.
    */
-  int i, j;
   if (trans == CBlasNoTrans) {
-    i = bi + ti;
-    j = bj;
-    A += i;
-    B += threadIdx.y * lda + j + threadIdx.x;
+    A += bi + ti;
+    B += threadIdx.y * lda + bj + threadIdx.x;
   }
   else {
-    i = bi + ti % mb;
-    j = bj + 8 * (ti / mb);
     A += (bi + threadIdx.y) * lda + threadIdx.x;
     B += (bj + threadIdx.y) * lda + threadIdx.x;
   }
-  C += j * ldc + i;
+  C += (bj + tj) * ldc + bi + ti;
+  int m = n - bi - ti;
+  n -= bj + tj;
 
   /*
    * Blocks of A and "B" in shared memory and C in registers.
@@ -374,7 +379,7 @@ __global__ void dsyrk(int n, int k, double alpha,
       // Read A' from shared memory
 #pragma unroll
       for (int l = 0; l < kb; l++)
-        daxpy(a[ti % mb][l], &b[l][8 * (ti / mb)], c);
+        daxpy(a[ti][l], &b[l][tj], c);
     }
 
     __syncthreads();
@@ -393,55 +398,54 @@ __global__ void dsyrk(int n, int k, double alpha,
   else {
     // Read A' from shared memory
     for (int l = 0; l < k; l++)
-      daxpy(a[ti % mb][l], &b[l][8 * (ti / mb)], c);
+      daxpy(a[ti][l], &b[l][tj], c);
   }
 
-  if (i < n) {
-    n -= j;
-    if (n <= 0) return;
-    if (beta == 0.0) {
-      if (uplo == CBlasUpper) {
-        if (i <= j++) C[0] = alpha * c[0]; if (1 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[1]; if (2 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[2]; if (3 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[3]; if (4 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[4]; if (5 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[5]; if (6 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[6]; if (7 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[7];
-      }
-      else {
-        if (i >= j++) C[0] = alpha * c[0]; if (1 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[1]; if (2 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[2]; if (3 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[3]; if (4 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[4]; if (5 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[5]; if (6 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[6]; if (7 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[7];
-      }
+  if (m <= 0 || n <= 0) return;
+  int i = bi + ti;
+  int j = bj + tj;
+  if (beta == 0.0) {
+    if (uplo == CBlasUpper) {
+      if (i <= j++) C[0] = alpha * c[0]; if (1 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[1]; if (2 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[2]; if (3 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[3]; if (4 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[4]; if (5 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[5]; if (6 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[6]; if (7 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[7];
     }
     else {
-      if (uplo == CBlasUpper) {
-        if (i <= j++) C[0] = alpha * c[0] + beta * C[0]; if (1 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[1] + beta * C[0]; if (2 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[2] + beta * C[0]; if (3 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[3] + beta * C[0]; if (4 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[4] + beta * C[0]; if (5 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[5] + beta * C[0]; if (6 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[6] + beta * C[0]; if (7 >= n) return; C += ldc;
-        if (i <= j++) C[0] = alpha * c[7] + beta * C[0];
-      }
-      else {
-        if (i >= j++) C[0] = alpha * c[0] + beta * C[0]; if (1 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[1] + beta * C[0]; if (2 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[2] + beta * C[0]; if (3 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[3] + beta * C[0]; if (4 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[4] + beta * C[0]; if (5 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[5] + beta * C[0]; if (6 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[6] + beta * C[0]; if (7 >= n) return; C += ldc;
-        if (i >= j++) C[0] = alpha * c[7] + beta * C[0];
-      }
+      if (i >= j++) C[0] = alpha * c[0]; if (1 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[1]; if (2 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[2]; if (3 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[3]; if (4 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[4]; if (5 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[5]; if (6 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[6]; if (7 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[7];
+    }
+  }
+  else {
+    if (uplo == CBlasUpper) {
+      if (i <= j++) C[0] = alpha * c[0] + beta * C[0]; if (1 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[1] + beta * C[0]; if (2 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[2] + beta * C[0]; if (3 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[3] + beta * C[0]; if (4 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[4] + beta * C[0]; if (5 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[5] + beta * C[0]; if (6 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[6] + beta * C[0]; if (7 >= n) return; C += ldc;
+      if (i <= j++) C[0] = alpha * c[7] + beta * C[0];
+    }
+    else {
+      if (i >= j++) C[0] = alpha * c[0] + beta * C[0]; if (1 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[1] + beta * C[0]; if (2 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[2] + beta * C[0]; if (3 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[3] + beta * C[0]; if (4 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[4] + beta * C[0]; if (5 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[5] + beta * C[0]; if (6 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[6] + beta * C[0]; if (7 >= n) return; C += ldc;
+      if (i >= j++) C[0] = alpha * c[7] + beta * C[0];
     }
   }
 }

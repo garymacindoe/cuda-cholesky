@@ -362,6 +362,6 @@ __global__ void dgemm(int m, int n, int k,
  * per multiprocessor is limited by the register usage.
  */
 template void dgemm<CBlasNoTrans, CBlasNoTrans, 64,  8, 16, 16,  4>(int, int, int, double, const double *, int, const double *, int, double, const double *, int, double *, int);
-template void dgemm<CBlasNoTrans, CBlasTrans,   64,  8, 16, 16,  4>(int, int, int, double, const double *, int, const double *, int, double, const double *, int, double *, int);
+template void dgemm<CBlasNoTrans, CBlasTrans,   64,  8, 16,  8,  8>(int, int, int, double, const double *, int, const double *, int, double, const double *, int, double *, int);
 template void dgemm<CBlasTrans,   CBlasNoTrans, 32, 16,  8,  8,  8>(int, int, int, double, const double *, int, const double *, int, double, const double *, int, double *, int);
 template void dgemm<CBlasTrans,   CBlasTrans,   32, 16,  8,  8,  8>(int, int, int, double, const double *, int, const double *, int, double, const double *, int, double *, int);
