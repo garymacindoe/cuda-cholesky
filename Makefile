@@ -15,7 +15,7 @@ PTX_ARCH_DOUBLE = compute_13
 CPPFLAGS = -Iinclude -I$(CUDA_HOME)/include
 NVCPPFLAGS = -Iinclude
 LDFLAGS = -rdynamic -L$(CUDA_HOME)/lib64
-LDLIBS = -lcuda -lrt -ldl -lblas -llapack
+LDLIBS = -lcuda -lrt -ldl
 
 # TODO:  separate no-opt CFLAGS for testing code.
 # TODO:  implement hacks in C codes to vectorise all possible loops.
