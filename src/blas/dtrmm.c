@@ -218,27 +218,14 @@ CUresult cuDtrmm2(CUmodule module,
   if (m == 0 || n == 0)
     return CUDA_SUCCESS;
 
-  unsigned int mb, nb, kb, bx, by;
-  if (side == CBlasRight) {
-    mb = 64; nb = 8; kb = 16;
-    if (trans == CBlasNoTrans) {
-      bx = 16; by = 4;
-    }
-    else {
-      bx = 8; by = 8;
-    }
-  }
-  else {
-    if (trans == CBlasNoTrans) {
-      mb = 64; nb = 8; kb = 16; bx = 16; by = 4;
-    }
-    else {
-      mb = 32; nb = 16; kb = 8; bx = 8; by = 8;
-    }
-  }
+  const unsigned int mb = (side == CBlasLeft && trans != CBlasNoTrans) ? 32 : 64;
+  const unsigned int nb = (side == CBlasLeft && trans != CBlasNoTrans) ? 32 : 16;
+  const unsigned int kb = (side == CBlasLeft && trans != CBlasNoTrans) ?  8 : 16;
+  const unsigned int bx = (side == CBlasLeft && trans != CBlasNoTrans) ?  8 : 16;
+  const unsigned int by = (side == CBlasLeft && trans != CBlasNoTrans) ?  8 :  4;
 
-  char name[100];
-  snprintf(name, 100,
+  char name[101];
+  snprintf(name, 101,
            "_Z7dtrmm2%cIL9CBlasUplo%dEL14CBlasTranspose%dEL9CBlasDiag%dELj%uELj%uELj%uELj%uELj%uEEviidPKdiS4_iPdi",
            side, uplo, trans, diag, mb, nb, kb, bx, by);
 

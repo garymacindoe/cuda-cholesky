@@ -1,9 +1,11 @@
 #include "blas.h"
 
-// y(1:8) += alpha * x(1:8)
+// y(1:16) += alpha * x(1:16)
 __device__ void daxpy(double alpha, const double * x, double * y) {
   y[ 0] += alpha * x[ 0]; y[ 1] += alpha * x[ 1]; y[ 2] += alpha * x[ 2]; y[ 3] += alpha * x[ 3];
   y[ 4] += alpha * x[ 4]; y[ 5] += alpha * x[ 5]; y[ 6] += alpha * x[ 6]; y[ 7] += alpha * x[ 7];
+  y[ 8] += alpha * x[ 8]; y[ 9] += alpha * x[ 9]; y[10] += alpha * x[10]; y[11] += alpha * x[11];
+  y[12] += alpha * x[12]; y[13] += alpha * x[13]; y[14] += alpha * x[14]; y[15] += alpha * x[15];
 }
 
 // y(1:n) += alpha * x(1:n)
@@ -11,7 +13,11 @@ __device__ void daxpy(int n, double alpha, const double * x, double * y) {
   y[ 0] += alpha * x[ 0]; if ( 1 >= n) return; y[ 1] += alpha * x[ 1]; if ( 2 >= n) return;
   y[ 2] += alpha * x[ 2]; if ( 3 >= n) return; y[ 3] += alpha * x[ 3]; if ( 4 >= n) return;
   y[ 4] += alpha * x[ 4]; if ( 5 >= n) return; y[ 5] += alpha * x[ 5]; if ( 6 >= n) return;
-  y[ 6] += alpha * x[ 6]; if ( 7 >= n) return; y[ 7] += alpha * x[ 7];
+  y[ 6] += alpha * x[ 6]; if ( 7 >= n) return; y[ 7] += alpha * x[ 7]; if ( 8 >= n) return;
+  y[ 8] += alpha * x[ 8]; if ( 9 >= n) return; y[ 9] += alpha * x[ 9]; if (10 >= n) return;
+  y[10] += alpha * x[10]; if (11 >= n) return; y[11] += alpha * x[11]; if (12 >= n) return;
+  y[12] += alpha * x[12]; if (13 >= n) return; y[13] += alpha * x[13]; if (14 >= n) return;
+  y[14] += alpha * x[14]; if (15 >= n) return; y[15] += alpha * x[15];
 }
 
 template <CBlasUplo uplo, CBlasTranspose trans, CBlasDiag diag,
@@ -26,7 +32,7 @@ __global__ void dtrmm2L(int m, int n,
   int ti = threadIdx.y * bx + threadIdx.x;
   int tj = 0;
   if (trans != CBlasNoTrans) {
-    tj = 8 * (ti / mb);
+    tj = 16 * (ti / mb);
     ti = ti % mb;
   }
 
@@ -46,7 +52,8 @@ __global__ void dtrmm2L(int m, int n,
   __shared__ double a[mb][kb + 1];
   __shared__ double b[kb][nb];
 
-  double x[] = { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+  double x[] = { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
 
   // For Upper/NoTrans and Lower/Trans process diagonal first
   if (uplo == CBlasUpper && trans == CBlasNoTrans ||
@@ -124,7 +131,7 @@ __global__ void dtrmm2L(int m, int n,
     __syncthreads();
   }
 
-  // Process non-diagonal blocks as for SGEMM
+  // Process non-diagonal blocks as for DGEMM
   int k = (trans == CBlasNoTrans) ? ((uplo == CBlasUpper) ? m - bi - mb : bi)
                                   : ((uplo == CBlasUpper) ? bi : m - bi - mb);
   while (k > 0) {
@@ -253,14 +260,22 @@ __global__ void dtrmm2L(int m, int n,
   n -= bj + tj;
   m -= bi + ti;
   if (n <= 0 || m <= 0) return;
-  X[0] = alpha * x[0]; if ( 1 >= n) return; X += ldx;
-  X[0] = alpha * x[1]; if ( 2 >= n) return; X += ldx;
-  X[0] = alpha * x[2]; if ( 3 >= n) return; X += ldx;
-  X[0] = alpha * x[3]; if ( 4 >= n) return; X += ldx;
-  X[0] = alpha * x[4]; if ( 5 >= n) return; X += ldx;
-  X[0] = alpha * x[5]; if ( 6 >= n) return; X += ldx;
-  X[0] = alpha * x[6]; if ( 7 >= n) return; X += ldx;
-  X[0] = alpha * x[7];
+  X[0] = alpha * x[ 0]; if ( 1 >= n) return; X += ldx;
+  X[0] = alpha * x[ 1]; if ( 2 >= n) return; X += ldx;
+  X[0] = alpha * x[ 2]; if ( 3 >= n) return; X += ldx;
+  X[0] = alpha * x[ 3]; if ( 4 >= n) return; X += ldx;
+  X[0] = alpha * x[ 4]; if ( 5 >= n) return; X += ldx;
+  X[0] = alpha * x[ 5]; if ( 6 >= n) return; X += ldx;
+  X[0] = alpha * x[ 6]; if ( 7 >= n) return; X += ldx;
+  X[0] = alpha * x[ 7]; if ( 8 >= n) return; X += ldx;
+  X[0] = alpha * x[ 8]; if ( 9 >= n) return; X += ldx;
+  X[0] = alpha * x[ 9]; if (10 >= n) return; X += ldx;
+  X[0] = alpha * x[10]; if (11 >= n) return; X += ldx;
+  X[0] = alpha * x[11]; if (12 >= n) return; X += ldx;
+  X[0] = alpha * x[12]; if (13 >= n) return; X += ldx;
+  X[0] = alpha * x[13]; if (14 >= n) return; X += ldx;
+  X[0] = alpha * x[14]; if (15 >= n) return; X += ldx;
+  X[0] = alpha * x[15];
 }
 
 template <CBlasUplo uplo, CBlasTranspose trans, CBlasDiag diag,
@@ -288,7 +303,8 @@ __global__ void dtrmm2R(int m, int n,
 
   __shared__ double a[kb][nb];
 
-  double x[] = { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+  double x[] = { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
 
   // For Upper/Trans and Lower/NoTrans process diagonal first
   if (uplo == CBlasUpper && trans != CBlasNoTrans ||
@@ -315,14 +331,22 @@ __global__ void dtrmm2R(int m, int n,
 // #pragma unroll
 //       for (int ll = 0; ll < kb; ll++) {
 //         daxpy(ll + 1, B[0], a[ll], x);
-        daxpy( 1, B[0], a[0], x); B += ldb;
-        daxpy( 2, B[0], a[1], x); B += ldb;
-        daxpy( 3, B[0], a[2], x); B += ldb;
-        daxpy( 4, B[0], a[3], x); B += ldb;
-        daxpy( 5, B[0], a[4], x); B += ldb;
-        daxpy( 6, B[0], a[5], x); B += ldb;
-        daxpy( 7, B[0], a[6], x); B += ldb;
-        daxpy( 8, B[0], a[7], x); B += ldb;
+        daxpy( 1, B[0], a[ 0], x); B += ldb;
+        daxpy( 2, B[0], a[ 1], x); B += ldb;
+        daxpy( 3, B[0], a[ 2], x); B += ldb;
+        daxpy( 4, B[0], a[ 3], x); B += ldb;
+        daxpy( 5, B[0], a[ 4], x); B += ldb;
+        daxpy( 6, B[0], a[ 5], x); B += ldb;
+        daxpy( 7, B[0], a[ 6], x); B += ldb;
+        daxpy( 8, B[0], a[ 7], x); B += ldb;
+        daxpy( 9, B[0], a[ 8], x); B += ldb;
+        daxpy(10, B[0], a[ 9], x); B += ldb;
+        daxpy(11, B[0], a[10], x); B += ldb;
+        daxpy(12, B[0], a[11], x); B += ldb;
+        daxpy(13, B[0], a[12], x); B += ldb;
+        daxpy(14, B[0], a[13], x); B += ldb;
+        daxpy(15, B[0], a[14], x); B += ldb;
+        daxpy(16, B[0], a[15], x); B += ldb;
 //         B += ldb;
 //       }
 
@@ -340,7 +364,7 @@ __global__ void dtrmm2R(int m, int n,
     __syncthreads();
   }
 
-  // Process non-diagonal blocks as for SGEMM
+  // Process non-diagonal blocks as for DGEMM
   int k = (trans == CBlasNoTrans) ? ((uplo == CBlasUpper) ? bj : n - bj - nb)
                                   : ((uplo == CBlasUpper) ? n - bj - nb : bj);
   while (k > 0) {
@@ -404,14 +428,22 @@ __global__ void dtrmm2R(int m, int n,
 // #pragma unroll
 //       for (int ll = 0; ll < kb; ll++) {
 //         daxpy(nb - ll, B[0], &a[ll][ll], &x[ll]);
-        daxpy(8, B[0], &a[0][0], &x[0]); B += ldb;
-        daxpy(7, B[0], &a[1][1], &x[1]); B += ldb;
-        daxpy(6, B[0], &a[2][2], &x[2]); B += ldb;
-        daxpy(5, B[0], &a[3][3], &x[3]); B += ldb;
-        daxpy(4, B[0], &a[4][4], &x[4]); B += ldb;
-        daxpy(3, B[0], &a[5][5], &x[5]); B += ldb;
-        daxpy(2, B[0], &a[6][6], &x[6]); B += ldb;
-        daxpy(1, B[0], &a[7][7], &x[7]); B += ldb;
+        daxpy(16, B[0], &a[ 0][ 0], &x[ 0]); B += ldb;
+        daxpy(15, B[0], &a[ 1][ 1], &x[ 1]); B += ldb;
+        daxpy(14, B[0], &a[ 2][ 2], &x[ 2]); B += ldb;
+        daxpy(13, B[0], &a[ 3][ 3], &x[ 3]); B += ldb;
+        daxpy(12, B[0], &a[ 4][ 4], &x[ 4]); B += ldb;
+        daxpy(11, B[0], &a[ 5][ 5], &x[ 5]); B += ldb;
+        daxpy(10, B[0], &a[ 6][ 6], &x[ 6]); B += ldb;
+        daxpy( 9, B[0], &a[ 7][ 7], &x[ 7]); B += ldb;
+        daxpy( 8, B[0], &a[ 8][ 8], &x[ 8]); B += ldb;
+        daxpy( 7, B[0], &a[ 9][ 9], &x[ 9]); B += ldb;
+        daxpy( 6, B[0], &a[10][10], &x[10]); B += ldb;
+        daxpy( 5, B[0], &a[11][11], &x[11]); B += ldb;
+        daxpy( 4, B[0], &a[12][12], &x[12]); B += ldb;
+        daxpy( 3, B[0], &a[13][13], &x[13]); B += ldb;
+        daxpy( 2, B[0], &a[14][14], &x[14]); B += ldb;
+        daxpy( 1, B[0], &a[15][15], &x[15]); B += ldb;
 //         B += ldb;
 //       }
 
@@ -425,42 +457,58 @@ __global__ void dtrmm2R(int m, int n,
 //       daxpy(nb - ll, B[0], &a[ll][ll], &x[ll]);
 //       B += ldb;
 //     }
-    if (k > 0) { daxpy(8, B[0], &a[0][0], &x[0]); B += ldb;
-    if (k > 1) { daxpy(7, B[0], &a[1][1], &x[1]); B += ldb;
-    if (k > 2) { daxpy(6, B[0], &a[2][2], &x[2]); B += ldb;
-    if (k > 3) { daxpy(5, B[0], &a[3][3], &x[3]); B += ldb;
-    if (k > 4) { daxpy(4, B[0], &a[4][4], &x[4]); B += ldb;
-    if (k > 5) { daxpy(3, B[0], &a[5][5], &x[5]); B += ldb;
-    if (k > 6) { daxpy(2, B[0], &a[6][6], &x[6]); B += ldb;
-    if (k > 7) { daxpy(1, B[0], &a[7][7], &x[7]); B += ldb; }}}}}}}}
+    if (k > 0) { daxpy(16, B[0], &a[ 0][ 0], &x[ 0]); B += ldb;
+    if (k > 1) { daxpy(15, B[0], &a[ 1][ 1], &x[ 1]); B += ldb;
+    if (k > 2) { daxpy(14, B[0], &a[ 2][ 2], &x[ 2]); B += ldb;
+    if (k > 3) { daxpy(13, B[0], &a[ 3][ 3], &x[ 3]); B += ldb;
+    if (k > 4) { daxpy(12, B[0], &a[ 4][ 4], &x[ 4]); B += ldb;
+    if (k > 5) { daxpy(11, B[0], &a[ 5][ 5], &x[ 5]); B += ldb;
+    if (k > 6) { daxpy(10, B[0], &a[ 6][ 6], &x[ 6]); B += ldb;
+    if (k > 7) { daxpy( 9, B[0], &a[ 7][ 7], &x[ 7]); B += ldb;
+    if (k > 8) { daxpy( 8, B[0], &a[ 8][ 8], &x[ 8]); B += ldb;
+    if (k > 9) { daxpy( 7, B[0], &a[ 9][ 9], &x[ 9]); B += ldb;
+    if (k >10) { daxpy( 6, B[0], &a[10][10], &x[10]); B += ldb;
+    if (k >11) { daxpy( 5, B[0], &a[11][11], &x[11]); B += ldb;
+    if (k >12) { daxpy( 4, B[0], &a[12][12], &x[12]); B += ldb;
+    if (k >13) { daxpy( 3, B[0], &a[13][13], &x[13]); B += ldb;
+    if (k >14) { daxpy( 2, B[0], &a[14][14], &x[14]); B += ldb;
+    if (k >15) { daxpy( 1, B[0], &a[15][15], &x[15]); }}}}}}}}}}}}}}}}
   }
 
   n -= bj;
   m -= bi + ti;
   if (n <= 0 || m <= 0) return;
-  X[0] = alpha * x[0]; if (1 >= n) return; X += ldx;
-  X[0] = alpha * x[1]; if (2 >= n) return; X += ldx;
-  X[0] = alpha * x[2]; if (3 >= n) return; X += ldx;
-  X[0] = alpha * x[3]; if (4 >= n) return; X += ldx;
-  X[0] = alpha * x[4]; if (5 >= n) return; X += ldx;
-  X[0] = alpha * x[5]; if (6 >= n) return; X += ldx;
-  X[0] = alpha * x[6]; if (7 >= n) return; X += ldx;
-  X[0] = alpha * x[7];
+  X[0] = alpha * x[ 0]; if ( 1 >= n) return; X += ldx;
+  X[0] = alpha * x[ 1]; if ( 2 >= n) return; X += ldx;
+  X[0] = alpha * x[ 2]; if ( 3 >= n) return; X += ldx;
+  X[0] = alpha * x[ 3]; if ( 4 >= n) return; X += ldx;
+  X[0] = alpha * x[ 4]; if ( 5 >= n) return; X += ldx;
+  X[0] = alpha * x[ 5]; if ( 6 >= n) return; X += ldx;
+  X[0] = alpha * x[ 6]; if ( 7 >= n) return; X += ldx;
+  X[0] = alpha * x[ 7]; if ( 8 >= n) return; X += ldx;
+  X[0] = alpha * x[ 8]; if ( 9 >= n) return; X += ldx;
+  X[0] = alpha * x[ 9]; if (10 >= n) return; X += ldx;
+  X[0] = alpha * x[10]; if (11 >= n) return; X += ldx;
+  X[0] = alpha * x[11]; if (12 >= n) return; X += ldx;
+  X[0] = alpha * x[12]; if (13 >= n) return; X += ldx;
+  X[0] = alpha * x[13]; if (14 >= n) return; X += ldx;
+  X[0] = alpha * x[14]; if (15 >= n) return; X += ldx;
+  X[0] = alpha * x[15];
 }
 
-template void dtrmm2L<CBlasUpper, CBlasNoTrans, CBlasUnit,    64,  8, 16, 16,  4>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
-template void dtrmm2L<CBlasUpper, CBlasNoTrans, CBlasNonUnit, 64,  8, 16, 16,  4>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
-template void dtrmm2L<CBlasUpper, CBlasTrans,   CBlasUnit,    32, 16,  8,  8,  8>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
-template void dtrmm2L<CBlasUpper, CBlasTrans,   CBlasNonUnit, 32, 16,  8,  8,  8>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
-template void dtrmm2L<CBlasLower, CBlasNoTrans, CBlasUnit,    64,  8, 16, 16,  4>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
-template void dtrmm2L<CBlasLower, CBlasNoTrans, CBlasNonUnit, 64,  8, 16, 16,  4>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
-template void dtrmm2L<CBlasLower, CBlasTrans,   CBlasUnit,    32, 16,  8,  8,  8>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
-template void dtrmm2L<CBlasLower, CBlasTrans,   CBlasNonUnit, 32, 16,  8,  8,  8>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
-template void dtrmm2R<CBlasUpper, CBlasNoTrans, CBlasUnit,    64,  8, 16, 16,  4>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
-template void dtrmm2R<CBlasUpper, CBlasNoTrans, CBlasNonUnit, 64,  8, 16, 16,  4>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
-template void dtrmm2R<CBlasUpper, CBlasTrans,   CBlasUnit,    64,  8, 16,  8,  8>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
-template void dtrmm2R<CBlasUpper, CBlasTrans,   CBlasNonUnit, 64,  8, 16,  8,  8>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
-template void dtrmm2R<CBlasLower, CBlasNoTrans, CBlasUnit,    64,  8, 16, 16,  4>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
-template void dtrmm2R<CBlasLower, CBlasNoTrans, CBlasNonUnit, 64,  8, 16, 16,  4>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
-template void dtrmm2R<CBlasLower, CBlasTrans,   CBlasUnit,    64,  8, 16,  8,  8>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
-template void dtrmm2R<CBlasLower, CBlasTrans,   CBlasNonUnit, 64,  8, 16,  8,  8>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
+template void dtrmm2L<CBlasUpper, CBlasNoTrans, CBlasUnit,    64, 16, 16, 16,  4>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
+template void dtrmm2L<CBlasUpper, CBlasNoTrans, CBlasNonUnit, 64, 16, 16, 16,  4>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
+template void dtrmm2L<CBlasUpper, CBlasTrans,   CBlasUnit,    32, 32,  8,  8,  8>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
+template void dtrmm2L<CBlasUpper, CBlasTrans,   CBlasNonUnit, 32, 32,  8,  8,  8>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
+template void dtrmm2L<CBlasLower, CBlasNoTrans, CBlasUnit,    64, 16, 16, 16,  4>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
+template void dtrmm2L<CBlasLower, CBlasNoTrans, CBlasNonUnit, 64, 16, 16, 16,  4>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
+template void dtrmm2L<CBlasLower, CBlasTrans,   CBlasUnit,    32, 32,  8,  8,  8>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
+template void dtrmm2L<CBlasLower, CBlasTrans,   CBlasNonUnit, 32, 32,  8,  8,  8>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
+template void dtrmm2R<CBlasUpper, CBlasNoTrans, CBlasUnit,    64, 16, 16, 16,  4>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
+template void dtrmm2R<CBlasUpper, CBlasNoTrans, CBlasNonUnit, 64, 16, 16, 16,  4>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
+template void dtrmm2R<CBlasUpper, CBlasTrans,   CBlasUnit,    64, 16, 16, 16,  4>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
+template void dtrmm2R<CBlasUpper, CBlasTrans,   CBlasNonUnit, 64, 16, 16, 16,  4>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
+template void dtrmm2R<CBlasLower, CBlasNoTrans, CBlasUnit,    64, 16, 16, 16,  4>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
+template void dtrmm2R<CBlasLower, CBlasNoTrans, CBlasNonUnit, 64, 16, 16, 16,  4>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
+template void dtrmm2R<CBlasLower, CBlasTrans,   CBlasUnit,    64, 16, 16, 16,  4>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
+template void dtrmm2R<CBlasLower, CBlasTrans,   CBlasNonUnit, 64, 16, 16, 16,  4>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
