@@ -37,6 +37,10 @@ ifdef verbose
   endif
 endif
 
+ifdef bank_conflicts
+  CPPFLAGS += -D__BANK_CONFLICTS__
+endif
+
 RM = rm -f
 RMDIR = rm -rf
 MKDIR = mkdir
