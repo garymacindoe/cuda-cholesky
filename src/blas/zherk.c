@@ -206,11 +206,11 @@ CUresult cuZherk(CUmodule module,
   if (n == 0 || ((alpha == zero || k == 0) && beta == one))
     return CUDA_SUCCESS;
 
-  const unsigned int mb = 16;
+  const unsigned int mb = (trans == CBlasNoTrans) ? 64 : 32;
   const unsigned int nb = (trans == CBlasNoTrans) ?  4 :  8;
   const unsigned int kb = (trans == CBlasNoTrans) ? 16 :  8;
   const unsigned int bx = (trans == CBlasNoTrans) ?  4 :  8;
-  const unsigned int by = 4;
+  const unsigned int by = (trans == CBlasNoTrans) ? 16 :  8;
 
   char name[90];
   snprintf(name, 90,
