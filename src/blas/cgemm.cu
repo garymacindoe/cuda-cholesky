@@ -4,7 +4,7 @@
 #if __CUDA_ARCH__ < 200 && !defined(__BANK_CONFLICT__)
 
 // y(1:8) += alpha * x(1:8)
-__device__ void caxpy(cuComplex alpha, float * x_real, float * x_imag, cuComplex * y) {
+__device__ void caxpy(cuComplex alpha, const float * x_real, const float * x_imag, cuComplex * y) {
   y[0] = cuCfmaf(alpha, make_cuComplex(x_real[0], x_imag[0]), y[0]);
   y[1] = cuCfmaf(alpha, make_cuComplex(x_real[1], x_imag[1]), y[1]);
   y[2] = cuCfmaf(alpha, make_cuComplex(x_real[2], x_imag[2]), y[2]);
@@ -205,7 +205,7 @@ __global__ void cgemm(int m, int n, int k,
 #else
 
 // y(1:8) += alpha * x(1:8)
-__device__ void caxpy(cuComplex alpha, cuComplex * x, cuComplex * y) {
+__device__ void caxpy(cuComplex alpha, const cuComplex * x, cuComplex * y) {
   y[0] = cuCfmaf(alpha, x[0], y[0]); y[1] = cuCfmaf(alpha, x[1], y[1]);
   y[2] = cuCfmaf(alpha, x[2], y[2]); y[3] = cuCfmaf(alpha, x[3], y[3]);
   y[4] = cuCfmaf(alpha, x[4], y[4]); y[5] = cuCfmaf(alpha, x[5], y[5]);

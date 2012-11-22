@@ -350,7 +350,7 @@ __global__ void dsyrk(int n, int k, double alpha,
       for (int l = 0; l < kb; l += by)
         b[l + threadIdx.y][threadIdx.x] = B[l * lda];
     }
-    else {b
+    else {
       // C = aA'A + bC so read A into shared memory and transpose before reading
       // B into shared memory untransposed
 #pragma unroll

@@ -12,8 +12,8 @@ __host__ __device__ static __inline__ cuDoubleComplex cuCfma(double a, cuDoubleC
 #if __CUDA_ARCH__ < 200 && !defined(__BANK_CONFLICT__)
 
 // y(1:4) += alpha * x(1:4)
-__device__ void zaxpy(cuDoubleComplex alpha, int * x_real_hi, int * x_real_lo,
-                      int * x_imag_hi, int * x_imag_lo, cuDoubleComplex * y) {
+__device__ void zaxpy(cuDoubleComplex alpha, const int * x_real_hi, const int * x_real_lo,
+                      const int * x_imag_hi, const int * x_imag_lo, cuDoubleComplex * y) {
   y[0] = cuCfma(alpha, make_cuDoubleComplex(
                      __hiloint2double(x_real_hi[0], x_real_lo[0]),
                      __hiloint2double(x_imag_hi[0], x_imag_lo[0])), y[0]);
@@ -74,15 +74,8 @@ __global__ void zherk(int n, int k, double alpha,
 //   bi *= mb;
 //   bj *= nb;
 
-  // Using a ZGEMM kernel, ZHERK is:
-  // C = alpha * A * B + beta * C
-  // with A = A and B = A' when trans == CBlasNoTrans, and
-  // with A = A' and B = A when trans == CBlasTrans
-  const cuDoubleComplex * __restrict__ B = A;
-
   const int bi = blockIdx.x * mb;       // Starting row of block of C
   const int bj = blockIdx.y * nb;       // Starting column of block of C
-  const int ti = threadIdx.y * bx + threadIdx.x;        // Unwrapped thread index [0, bx * by]
 
   /*
    * Cause blocks that are entirely above or below the diagonal to exit now.
@@ -96,6 +89,19 @@ __global__ void zherk(int n, int k, double alpha,
       return;
   }
 
+  // Using a ZGEMM kernel, ZHERK is:
+  // C = alpha * A * B + beta * C
+  // with A = A and B = A' when trans == CBlasNoTrans, and
+  // with A = A' and B = A when trans == CBlasTrans
+  const cuDoubleComplex * __restrict__ B = A;
+
+  const int ti = threadIdx.y * bx + threadIdx.x;        // Unwrapped thread index [0, bx * by]
+  int tj = 0;
+  if (trans != CBlasNoTrans) {
+    tj = 4 * (ti / mb);
+    ti = ti % mb;
+  }
+
   /*
    * Compute our starting points in A, "B" and C.
    *
@@ -106,20 +112,17 @@ __global__ void zherk(int n, int k, double alpha,
    * doesn't need to be a separate check for trans == CBlasNoTrans in
    * calculating the start of C here.
    */
-  int i, j;
   if (trans == CBlasNoTrans) {
-    i = bi + ti;
-    j = bj;
     A += i;
     B += threadIdx.y * lda + j + threadIdx.x;
   }
   else {
-    i = bi + ti % mb;
-    j = bj + 4 * (ti / mb);
     A += (bi + threadIdx.y) * lda + threadIdx.x;
     B += (bj + threadIdx.y) * lda + threadIdx.x;
   }
   C += j * ldc + i;
+  int m = n - bi - ti;
+  n -= bj + tj;
 
   /*
    * Blocks of A and "B" in shared memory and C in registers.
@@ -184,10 +187,10 @@ __global__ void zherk(int n, int k, double alpha,
       // Read A' from shared memory
 #pragma unroll
       for (int l = 0; l < kb; l++)
-        zaxpy(make_cuDoubleComplex(__hiloint2double(a_real_hi[ti % mb][l], a_real_lo[ti % mb][l]),
-                                   __hiloint2double(a_imag_hi[ti % mb][l], a_imag_lo[ti % mb][l])),
-              &b_real_hi[l][4 * (ti / mb)], &b_real_lo[l][4 * (ti / mb)],
-              &b_imag_hi[l][4 * (ti / mb)], &b_imag_lo[l][4 * (ti / mb)], c);
+        zaxpy(make_cuDoubleComplex(__hiloint2double(a_real_hi[ti][l], a_real_lo[ti][l]),
+                                   __hiloint2double(a_imag_hi[ti][l], a_imag_lo[ti][l])),
+              &b_real_hi[l][tj], &b_real_lo[l][tj],
+              &b_imag_hi[l][tj], &b_imag_lo[l][tj], c);
     }
 
     __syncthreads();
@@ -206,42 +209,41 @@ __global__ void zherk(int n, int k, double alpha,
   else {
     // Read A' from shared memory
     for (int l = 0; l < k; l++)
-      zaxpy(make_cuDoubleComplex(__hiloint2double(a_real_hi[ti % mb][l], a_real_lo[ti % mb][l]),
-                                 __hiloint2double(a_imag_hi[ti % mb][l], a_imag_lo[ti % mb][l])),
-            &b_real_hi[l][4 * (ti / mb)], &b_real_lo[l][4 * (ti / mb)],
-            &b_imag_hi[l][4 * (ti / mb)], &b_imag_lo[l][4 * (ti / mb)], c);
+      zaxpy(make_cuDoubleComplex(__hiloint2double(a_real_hi[ti][l], a_real_lo[ti][l]),
+                                 __hiloint2double(a_imag_hi[ti][l], a_imag_lo[ti][l])),
+            &b_real_hi[l][tj], &b_real_lo[l][tj],
+            &b_imag_hi[l][tj], &b_imag_lo[l][tj], c);
   }
 
-  if (i < n) {
-    n -= j;
-    if (n <= 0) return;
-    if (beta == 0.0) {
-      if (uplo == CBlasUpper) {
-        if (i <= j) C[0] = (i == j) ? make_cuDoubleComplex(alpha * cuCreal(c[0]), 0.0) : cuCmul(alpha, c[0]); if (1 >= n) return; j++; C += ldc;
-        if (i <= j) C[0] = (i == j) ? make_cuDoubleComplex(alpha * cuCreal(c[1]), 0.0) : cuCmul(alpha, c[1]); if (2 >= n) return; j++; C += ldc;
-        if (i <= j) C[0] = (i == j) ? make_cuDoubleComplex(alpha * cuCreal(c[2]), 0.0) : cuCmul(alpha, c[2]); if (3 >= n) return; j++; C += ldc;
-        if (i <= j) C[0] = (i == j) ? make_cuDoubleComplex(alpha * cuCreal(c[3]), 0.0) : cuCmul(alpha, c[3]);
-      }
-      else {
-        if (i >= j) C[0] = (i == j) ? make_cuDoubleComplex(alpha * cuCreal(c[0]), 0.0) : cuCmul(alpha, c[0]); if (1 >= n) return; j++; C += ldc;
-        if (i >= j) C[0] = (i == j) ? make_cuDoubleComplex(alpha * cuCreal(c[1]), 0.0) : cuCmul(alpha, c[1]); if (2 >= n) return; j++; C += ldc;
-        if (i >= j) C[0] = (i == j) ? make_cuDoubleComplex(alpha * cuCreal(c[2]), 0.0) : cuCmul(alpha, c[2]); if (3 >= n) return; j++; C += ldc;
-        if (i >= j) C[0] = (i == j) ? make_cuDoubleComplex(alpha * cuCreal(c[3]), 0.0) : cuCmul(alpha, c[3]);
-      }
+  if (m <= 0 || n <= 0) return;
+  int i = bi + ti;
+  int j = bj + tj;
+  if (beta == 0.0) {
+    if (uplo == CBlasUpper) {
+      if (i <= j) C[0] = (i == j) ? make_cuDoubleComplex(alpha * cuCreal(c[0]), 0.0) : cuCmul(alpha, c[0]); if (1 >= n) return; j++; C += ldc;
+      if (i <= j) C[0] = (i == j) ? make_cuDoubleComplex(alpha * cuCreal(c[1]), 0.0) : cuCmul(alpha, c[1]); if (2 >= n) return; j++; C += ldc;
+      if (i <= j) C[0] = (i == j) ? make_cuDoubleComplex(alpha * cuCreal(c[2]), 0.0) : cuCmul(alpha, c[2]); if (3 >= n) return; j++; C += ldc;
+      if (i <= j) C[0] = (i == j) ? make_cuDoubleComplex(alpha * cuCreal(c[3]), 0.0) : cuCmul(alpha, c[3]);
     }
     else {
-      if (uplo == CBlasUpper) {
-        if (i <= j) C[0] = cuCfma(alpha, c[0], cuCmul(beta, ((i == j) ? make_cuDoubleComplex(cuCreal(C[0]), 0.0) : C[0]))); if (1 >= n) return; j++; C += ldc;
-        if (i <= j) C[0] = cuCfma(alpha, c[1], cuCmul(beta, ((i == j) ? make_cuDoubleComplex(cuCreal(C[0]), 0.0) : C[0]))); if (2 >= n) return; j++; C += ldc;
-        if (i <= j) C[0] = cuCfma(alpha, c[2], cuCmul(beta, ((i == j) ? make_cuDoubleComplex(cuCreal(C[0]), 0.0) : C[0]))); if (3 >= n) return; j++; C += ldc;
-        if (i <= j) C[0] = cuCfma(alpha, c[3], cuCmul(beta, ((i == j) ? make_cuDoubleComplex(cuCreal(C[0]), 0.0) : C[0])));
-      }
-      else {
-        if (i >= j) C[0] = cuCfma(alpha, c[0], cuCmul(beta, ((i == j) ? make_cuDoubleComplex(cuCreal(C[0]), 0.0) : C[0]))); if (1 >= n) return; j++; C += ldc;
-        if (i >= j) C[0] = cuCfma(alpha, c[1], cuCmul(beta, ((i == j) ? make_cuDoubleComplex(cuCreal(C[0]), 0.0) : C[0]))); if (2 >= n) return; j++; C += ldc;
-        if (i >= j) C[0] = cuCfma(alpha, c[2], cuCmul(beta, ((i == j) ? make_cuDoubleComplex(cuCreal(C[0]), 0.0) : C[0]))); if (3 >= n) return; j++; C += ldc;
-        if (i >= j) C[0] = cuCfma(alpha, c[3], cuCmul(beta, ((i == j) ? make_cuDoubleComplex(cuCreal(C[0]), 0.0) : C[0])));
-      }
+      if (i >= j) C[0] = (i == j) ? make_cuDoubleComplex(alpha * cuCreal(c[0]), 0.0) : cuCmul(alpha, c[0]); if (1 >= n) return; j++; C += ldc;
+      if (i >= j) C[0] = (i == j) ? make_cuDoubleComplex(alpha * cuCreal(c[1]), 0.0) : cuCmul(alpha, c[1]); if (2 >= n) return; j++; C += ldc;
+      if (i >= j) C[0] = (i == j) ? make_cuDoubleComplex(alpha * cuCreal(c[2]), 0.0) : cuCmul(alpha, c[2]); if (3 >= n) return; j++; C += ldc;
+      if (i >= j) C[0] = (i == j) ? make_cuDoubleComplex(alpha * cuCreal(c[3]), 0.0) : cuCmul(alpha, c[3]);
+    }
+  }
+  else {
+    if (uplo == CBlasUpper) {
+      if (i <= j) C[0] = cuCfma(alpha, c[0], cuCmul(beta, ((i == j) ? make_cuDoubleComplex(cuCreal(C[0]), 0.0) : C[0]))); if (1 >= n) return; j++; C += ldc;
+      if (i <= j) C[0] = cuCfma(alpha, c[1], cuCmul(beta, ((i == j) ? make_cuDoubleComplex(cuCreal(C[0]), 0.0) : C[0]))); if (2 >= n) return; j++; C += ldc;
+      if (i <= j) C[0] = cuCfma(alpha, c[2], cuCmul(beta, ((i == j) ? make_cuDoubleComplex(cuCreal(C[0]), 0.0) : C[0]))); if (3 >= n) return; j++; C += ldc;
+      if (i <= j) C[0] = cuCfma(alpha, c[3], cuCmul(beta, ((i == j) ? make_cuDoubleComplex(cuCreal(C[0]), 0.0) : C[0])));
+    }
+    else {
+      if (i >= j) C[0] = cuCfma(alpha, c[0], cuCmul(beta, ((i == j) ? make_cuDoubleComplex(cuCreal(C[0]), 0.0) : C[0]))); if (1 >= n) return; j++; C += ldc;
+      if (i >= j) C[0] = cuCfma(alpha, c[1], cuCmul(beta, ((i == j) ? make_cuDoubleComplex(cuCreal(C[0]), 0.0) : C[0]))); if (2 >= n) return; j++; C += ldc;
+      if (i >= j) C[0] = cuCfma(alpha, c[2], cuCmul(beta, ((i == j) ? make_cuDoubleComplex(cuCreal(C[0]), 0.0) : C[0]))); if (3 >= n) return; j++; C += ldc;
+      if (i >= j) C[0] = cuCfma(alpha, c[3], cuCmul(beta, ((i == j) ? make_cuDoubleComplex(cuCreal(C[0]), 0.0) : C[0])));
     }
   }
 }
@@ -249,7 +251,7 @@ __global__ void zherk(int n, int k, double alpha,
 #else
 
 // y(1:4) += alpha * x(1:4)
-__device__ void zaxpy(cuDoubleComplex alpha, cuDoubleComplex * x, cuDoubleComplex * y) {
+__device__ void zaxpy(cuDoubleComplex alpha, const cuDoubleComplex * x, cuDoubleComplex * y) {
   y[0] = cuCfma(alpha, x[0], y[0]); y[1] = cuCfma(alpha, x[1], y[1]);
   y[2] = cuCfma(alpha, x[2], y[2]); y[3] = cuCfma(alpha, x[3], y[3]);
 }
@@ -297,15 +299,8 @@ __global__ void zherk(int n, int k, double alpha,
 //   bi *= mb;
 //   bj *= nb;
 
-  // Using a ZGEMM kernel, ZHERK is:
-  // C = alpha * A * B + beta * C
-  // with A = A and B = A' when trans == CBlasNoTrans, and
-  // with A = A' and B = A when trans == CBlasTrans
-  const cuDoubleComplex * __restrict__ B = A;
-
   const int bi = blockIdx.x * mb;       // Starting row of block of C
   const int bj = blockIdx.y * nb;       // Starting column of block of C
-  const int ti = threadIdx.y * bx + threadIdx.x;        // Unwrapped thread index [0, bx * by]
 
   /*
    * Cause blocks that are entirely above or below the diagonal to exit now.
@@ -319,6 +314,19 @@ __global__ void zherk(int n, int k, double alpha,
       return;
   }
 
+  // Using a ZGEMM kernel, ZHERK is:
+  // C = alpha * A * B + beta * C
+  // with A = A and B = A' when trans == CBlasNoTrans, and
+  // with A = A' and B = A when trans == CBlasTrans
+  const cuDoubleComplex * __restrict__ B = A;
+
+  int ti = threadIdx.y * bx + threadIdx.x;        // Unwrapped thread index [0, bx * by]
+  int tj = 0;
+  if (trans != CBlasNoTrans) {
+    tj = 4 * (ti / mb);
+    ti = ti % mb;
+  }
+
   /*
    * Compute our starting points in A, "B" and C.
    *
@@ -329,20 +337,17 @@ __global__ void zherk(int n, int k, double alpha,
    * doesn't need to be a separate check for trans == CBlasNoTrans in
    * calculating the start of C here.
    */
-  int i, j;
   if (trans == CBlasNoTrans) {
-    i = bi + ti;
-    j = bj;
     A += i;
     B += threadIdx.y * lda + j + threadIdx.x;
   }
   else {
-    i = bi + ti % mb;
-    j = bj + 4 * (ti / mb);
     A += (bi + threadIdx.y) * lda + threadIdx.x;
     B += (bj + threadIdx.y) * lda + threadIdx.x;
   }
   C += j * ldc + i;
+  int m = n - bi - ti;
+  n -= bj + tj;
 
   /*
    * Blocks of A and "B" in shared memory and C in registers.
@@ -389,7 +394,7 @@ __global__ void zherk(int n, int k, double alpha,
       // Read A' from shared memory
 #pragma unroll
       for (int l = 0; l < kb; l++)
-        zaxpy(a[ti % mb][l], &b[l][4 * (ti / mb)], c);
+        zaxpy(a[ti][l], &b[l][tj], c);
     }
 
     __syncthreads();
@@ -408,39 +413,38 @@ __global__ void zherk(int n, int k, double alpha,
   else {
     // Read A' from shared memory
     for (int l = 0; l < k; l++)
-      zaxpy(a[ti % mb][l], &b[l][4 * (ti / mb)], c);
+      zaxpy(a[ti][l], &b[l][tj], c);
   }
 
-  if (i < n) {
-    n -= j;
-    if (n <= 0) return;
-    if (beta == 0.0) {
-      if (uplo == CBlasUpper) {
-        if (i <= j) C[0] = (i == j) ? make_cuDoubleComplex(alpha * cuCreal(c[0]), 0.0) : cuCmul(alpha, c[0]); if (1 >= n) return; j++; C += ldc;
-        if (i <= j) C[0] = (i == j) ? make_cuDoubleComplex(alpha * cuCreal(c[1]), 0.0) : cuCmul(alpha, c[1]); if (2 >= n) return; j++; C += ldc;
-        if (i <= j) C[0] = (i == j) ? make_cuDoubleComplex(alpha * cuCreal(c[2]), 0.0) : cuCmul(alpha, c[2]); if (3 >= n) return; j++; C += ldc;
-        if (i <= j) C[0] = (i == j) ? make_cuDoubleComplex(alpha * cuCreal(c[3]), 0.0) : cuCmul(alpha, c[3]);
-      }
-      else {
-        if (i >= j) C[0] = (i == j) ? make_cuDoubleComplex(alpha * cuCreal(c[0]), 0.0) : cuCmul(alpha, c[0]); if (1 >= n) return; j++; C += ldc;
-        if (i >= j) C[0] = (i == j) ? make_cuDoubleComplex(alpha * cuCreal(c[1]), 0.0) : cuCmul(alpha, c[1]); if (2 >= n) return; j++; C += ldc;
-        if (i >= j) C[0] = (i == j) ? make_cuDoubleComplex(alpha * cuCreal(c[2]), 0.0) : cuCmul(alpha, c[2]); if (3 >= n) return; j++; C += ldc;
-        if (i >= j) C[0] = (i == j) ? make_cuDoubleComplex(alpha * cuCreal(c[3]), 0.0) : cuCmul(alpha, c[3]);
-      }
+  if (m <= 0 || n <= 0) return;
+  int i = bi + ti;
+  int j = bj + tj;
+  if (beta == 0.0) {
+    if (uplo == CBlasUpper) {
+      if (i <= j) C[0] = (i == j) ? make_cuDoubleComplex(alpha * cuCreal(c[0]), 0.0) : cuCmul(alpha, c[0]); if (1 >= n) return; j++; C += ldc;
+      if (i <= j) C[0] = (i == j) ? make_cuDoubleComplex(alpha * cuCreal(c[1]), 0.0) : cuCmul(alpha, c[1]); if (2 >= n) return; j++; C += ldc;
+      if (i <= j) C[0] = (i == j) ? make_cuDoubleComplex(alpha * cuCreal(c[2]), 0.0) : cuCmul(alpha, c[2]); if (3 >= n) return; j++; C += ldc;
+      if (i <= j) C[0] = (i == j) ? make_cuDoubleComplex(alpha * cuCreal(c[3]), 0.0) : cuCmul(alpha, c[3]);
     }
     else {
-      if (uplo == CBlasUpper) {
-        if (i <= j) C[0] = cuCfma(alpha, c[0], cuCmul(beta, ((i == j) ? make_cuDoubleComplex(cuCreal(C[0]), 0.0) : C[0]))); if (1 >= n) return; j++; C += ldc;
-        if (i <= j) C[0] = cuCfma(alpha, c[1], cuCmul(beta, ((i == j) ? make_cuDoubleComplex(cuCreal(C[0]), 0.0) : C[0]))); if (2 >= n) return; j++; C += ldc;
-        if (i <= j) C[0] = cuCfma(alpha, c[2], cuCmul(beta, ((i == j) ? make_cuDoubleComplex(cuCreal(C[0]), 0.0) : C[0]))); if (3 >= n) return; j++; C += ldc;
-        if (i <= j) C[0] = cuCfma(alpha, c[3], cuCmul(beta, ((i == j) ? make_cuDoubleComplex(cuCreal(C[0]), 0.0) : C[0])));
-      }
-      else {
-        if (i >= j) C[0] = cuCfma(alpha, c[0], cuCmul(beta, ((i == j) ? make_cuDoubleComplex(cuCreal(C[0]), 0.0) : C[0]))); if (1 >= n) return; j++; C += ldc;
-        if (i >= j) C[0] = cuCfma(alpha, c[1], cuCmul(beta, ((i == j) ? make_cuDoubleComplex(cuCreal(C[0]), 0.0) : C[0]))); if (2 >= n) return; j++; C += ldc;
-        if (i >= j) C[0] = cuCfma(alpha, c[2], cuCmul(beta, ((i == j) ? make_cuDoubleComplex(cuCreal(C[0]), 0.0) : C[0]))); if (3 >= n) return; j++; C += ldc;
-        if (i >= j) C[0] = cuCfma(alpha, c[3], cuCmul(beta, ((i == j) ? make_cuDoubleComplex(cuCreal(C[0]), 0.0) : C[0])));
-      }
+      if (i >= j) C[0] = (i == j) ? make_cuDoubleComplex(alpha * cuCreal(c[0]), 0.0) : cuCmul(alpha, c[0]); if (1 >= n) return; j++; C += ldc;
+      if (i >= j) C[0] = (i == j) ? make_cuDoubleComplex(alpha * cuCreal(c[1]), 0.0) : cuCmul(alpha, c[1]); if (2 >= n) return; j++; C += ldc;
+      if (i >= j) C[0] = (i == j) ? make_cuDoubleComplex(alpha * cuCreal(c[2]), 0.0) : cuCmul(alpha, c[2]); if (3 >= n) return; j++; C += ldc;
+      if (i >= j) C[0] = (i == j) ? make_cuDoubleComplex(alpha * cuCreal(c[3]), 0.0) : cuCmul(alpha, c[3]);
+    }
+  }
+  else {
+    if (uplo == CBlasUpper) {
+      if (i <= j) C[0] = cuCfma(alpha, c[0], cuCmul(beta, ((i == j) ? make_cuDoubleComplex(cuCreal(C[0]), 0.0) : C[0]))); if (1 >= n) return; j++; C += ldc;
+      if (i <= j) C[0] = cuCfma(alpha, c[1], cuCmul(beta, ((i == j) ? make_cuDoubleComplex(cuCreal(C[0]), 0.0) : C[0]))); if (2 >= n) return; j++; C += ldc;
+      if (i <= j) C[0] = cuCfma(alpha, c[2], cuCmul(beta, ((i == j) ? make_cuDoubleComplex(cuCreal(C[0]), 0.0) : C[0]))); if (3 >= n) return; j++; C += ldc;
+      if (i <= j) C[0] = cuCfma(alpha, c[3], cuCmul(beta, ((i == j) ? make_cuDoubleComplex(cuCreal(C[0]), 0.0) : C[0])));
+    }
+    else {
+      if (i >= j) C[0] = cuCfma(alpha, c[0], cuCmul(beta, ((i == j) ? make_cuDoubleComplex(cuCreal(C[0]), 0.0) : C[0]))); if (1 >= n) return; j++; C += ldc;
+      if (i >= j) C[0] = cuCfma(alpha, c[1], cuCmul(beta, ((i == j) ? make_cuDoubleComplex(cuCreal(C[0]), 0.0) : C[0]))); if (2 >= n) return; j++; C += ldc;
+      if (i >= j) C[0] = cuCfma(alpha, c[2], cuCmul(beta, ((i == j) ? make_cuDoubleComplex(cuCreal(C[0]), 0.0) : C[0]))); if (3 >= n) return; j++; C += ldc;
+      if (i >= j) C[0] = cuCfma(alpha, c[3], cuCmul(beta, ((i == j) ? make_cuDoubleComplex(cuCreal(C[0]), 0.0) : C[0])));
     }
   }
 }

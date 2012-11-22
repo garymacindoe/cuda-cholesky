@@ -4,8 +4,8 @@
 #if __CUDA_ARCH__ < 200 && !defined(__BANK_CONFLICT__)
 
 // y(1:4) += alpha * x(1:4)
-__device__ void zaxpy(cuDoubleComplex alpha, int * x_real_hi, int * x_real_lo,
-                      int * x_imag_hi, int * x_imag_lo, cuDoubleComplex * y) {
+__device__ void zaxpy(cuDoubleComplex alpha, const int * x_real_hi, const int * x_real_lo,
+                      const int * x_imag_hi, const int * x_imag_lo, cuDoubleComplex * y) {
   y[0] = cuCfma(alpha, make_cuDoubleComplex(
                      __hiloint2double(x_real_hi[0], x_real_lo[0]),
                      __hiloint2double(x_imag_hi[0], x_imag_lo[0])), y[0]);
@@ -224,7 +224,7 @@ __global__ void zgemm(int m, int n, int k,
 #else
 
 // y(1:4) += alpha * x(1:4)
-__device__ void zaxpy(cuDoubleComplex alpha, cuDoubleComplex * x, cuDoubleComplex * y) {
+__device__ void zaxpy(cuDoubleComplex alpha, const cuDoubleComplex * x, cuDoubleComplex * y) {
   y[0] = cuCfma(alpha, x[0], y[0]); y[1] = cuCfma(alpha, x[1], y[1]);
   y[2] = cuCfma(alpha, x[2], y[2]); y[3] = cuCfma(alpha, x[3], y[3]);
 }

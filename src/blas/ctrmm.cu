@@ -673,7 +673,7 @@ __global__ void ctrmm2L(int m, int n,
 #pragma unroll
         for (int ll = 0; ll < kb; ll++) {
           if (ti == l)
-            caxpy(make_cuComplex(1.0, 0.0), (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
+            caxpy(make_cuComplex(1.0f, 0.0f), (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
           else if (ti < l)
             caxpy((trans == CBlasNoTrans) ? A[0]  :  a[ti][ll],
                   (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
