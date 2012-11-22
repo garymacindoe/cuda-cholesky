@@ -231,7 +231,7 @@ void ztrmm2(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag dia
 }
 
 CUresult cuZtrmm2(CUmodule module,
-                  CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag,
+                  CBlasSide side, CBlasUplo uplo, CBlasTranspose trans, CBlasDiag diag,
                   size_t m, size_t n,
                   double complex alpha, CUdeviceptr A, size_t lda, CUdeviceptr B, size_t ldb,
                   CUdeviceptr X, size_t ldx, CUstream stream) {
