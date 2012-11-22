@@ -343,7 +343,7 @@ __global__ void dsyrk(int n, int k, double alpha,
   double c[] = { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
 
   while (k > 0) {
-    if (trans == CBlasNoTrans) {b
+    if (trans == CBlasNoTrans) {
       // C = aAA' + bC so read B into shared memory and transpose leaving A
       // untransposed in global memory
 #pragma unroll

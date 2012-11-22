@@ -185,7 +185,7 @@ __global__ void dtrmm2L(int m, int n,
     else {
 #pragma unroll
       for (int l = 0; l < kb; l++)
-        daxpy(a[ti][l], &b_hi[l][tj], &b_lo[l][tj], x);
+        daxpy(__hiloint2double(a_hi[ti][l], a_lo[ti][l]), &b_hi[l][tj], &b_lo[l][tj], x);
     }
 
     __syncthreads();
@@ -202,7 +202,7 @@ __global__ void dtrmm2L(int m, int n,
   }
   else {
     for (int l = 0; l < k; l++)
-      daxpy(a[ti][l], &b_hi[l][tj], &b_lo[l][tj], x);
+      daxpy(__hiloint2double(a_hi[ti][l], a_lo[ti][l]), &b_hi[l][tj], &b_lo[l][tj], x);
   }
 
   // For Upper/Trans and Lower/NoTrans process diagonal last

@@ -95,7 +95,7 @@ __global__ void zherk(int n, int k, double alpha,
   // with A = A' and B = A when trans == CBlasTrans
   const cuDoubleComplex * __restrict__ B = A;
 
-  const int ti = threadIdx.y * bx + threadIdx.x;        // Unwrapped thread index [0, bx * by]
+  int ti = threadIdx.y * bx + threadIdx.x;        // Unwrapped thread index [0, bx * by]
   int tj = 0;
   if (trans != CBlasNoTrans) {
     tj = 4 * (ti / mb);
@@ -113,14 +113,14 @@ __global__ void zherk(int n, int k, double alpha,
    * calculating the start of C here.
    */
   if (trans == CBlasNoTrans) {
-    A += i;
-    B += threadIdx.y * lda + j + threadIdx.x;
+    A += bi + ti;
+    B += threadIdx.y * lda + bj + threadIdx.x;
   }
   else {
     A += (bi + threadIdx.y) * lda + threadIdx.x;
     B += (bj + threadIdx.y) * lda + threadIdx.x;
   }
-  C += j * ldc + i;
+  C += (bj + tj) * ldc + bi + ti;
   int m = n - bi - ti;
   n -= bj + tj;
 
@@ -338,14 +338,14 @@ __global__ void zherk(int n, int k, double alpha,
    * calculating the start of C here.
    */
   if (trans == CBlasNoTrans) {
-    A += i;
-    B += threadIdx.y * lda + j + threadIdx.x;
+    A += bi + ti;
+    B += threadIdx.y * lda + bj + threadIdx.x;
   }
   else {
     A += (bi + threadIdx.y) * lda + threadIdx.x;
     B += (bj + threadIdx.y) * lda + threadIdx.x;
   }
-  C += j * ldc + i;
+  C += (bj + tj) * ldc + bi + ti;
   int m = n - bi - ti;
   n -= bj + tj;
 

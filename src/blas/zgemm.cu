@@ -358,7 +358,7 @@ __global__ void zgemm(int m, int n, int k,
       // Read A from shared memory.
 #pragma unroll
       for (int l = 0; l < kb; l++)
-        zaxpy(a[ti][l], b[l][tj], d);
+        zaxpy(a[ti][l], &b[l][tj], d);
     }
 
     __syncthreads();
