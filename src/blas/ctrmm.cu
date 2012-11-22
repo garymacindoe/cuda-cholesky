@@ -441,6 +441,13 @@ __global__ void ctrmm2R(int m, int n,
         a_imag[threadIdx.x][j + threadIdx.y] = cuCimagf(A[j * lda]);
       }
     }
+    else if (trans == CBlasConjTrans) {
+#pragma unroll
+      for (int l = 0; l < kb; l += by) {
+        a_real[l + threadIdx.y][threadIdx.x] =  cuCrealf(A[l * lda]);
+        a_imag[l + threadIdx.y][threadIdx.x] = -cuCimagf(A[l * lda]);
+      }
+    }
     else {
 #pragma unroll
       for (int l = 0; l < kb; l += by) {
@@ -666,7 +673,7 @@ __global__ void ctrmm2L(int m, int n,
 #pragma unroll
         for (int ll = 0; ll < kb; ll++) {
           if (ti == l)
-            caxpy(1.0, (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
+            caxpy(make_cuComplex(1.0, 0.0), (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
           else if (ti < l)
             caxpy((trans == CBlasNoTrans) ? A[0]  :  a[ti][ll],
                   (trans == CBlasNoTrans) ? b[ll] : &b[ll][tj], x);
@@ -850,14 +857,14 @@ __global__ void ctrmm2L(int m, int n,
   n -= bj + tj;
   m -= bi + ti;
   if (n <= 0 || m <= 0) return;
-  X[0] = alpha * x[ 0]; if ( 1 >= n) return; X += ldx;
-  X[0] = alpha * x[ 1]; if ( 2 >= n) return; X += ldx;
-  X[0] = alpha * x[ 2]; if ( 3 >= n) return; X += ldx;
-  X[0] = alpha * x[ 3]; if ( 4 >= n) return; X += ldx;
-  X[0] = alpha * x[ 4]; if ( 5 >= n) return; X += ldx;
-  X[0] = alpha * x[ 5]; if ( 6 >= n) return; X += ldx;
-  X[0] = alpha * x[ 6]; if ( 7 >= n) return; X += ldx;
-  X[0] = alpha * x[ 7];
+  X[0] = cuCmulf(alpha, x[ 0]); if ( 1 >= n) return; X += ldx;
+  X[0] = cuCmulf(alpha, x[ 1]); if ( 2 >= n) return; X += ldx;
+  X[0] = cuCmulf(alpha, x[ 2]); if ( 3 >= n) return; X += ldx;
+  X[0] = cuCmulf(alpha, x[ 3]); if ( 4 >= n) return; X += ldx;
+  X[0] = cuCmulf(alpha, x[ 4]); if ( 5 >= n) return; X += ldx;
+  X[0] = cuCmulf(alpha, x[ 5]); if ( 6 >= n) return; X += ldx;
+  X[0] = cuCmulf(alpha, x[ 6]); if ( 7 >= n) return; X += ldx;
+  X[0] = cuCmulf(alpha, x[ 7]);
 }
 
 template <CBlasUplo uplo, CBlasTranspose trans, CBlasDiag diag,
@@ -1053,14 +1060,14 @@ __global__ void ctrmm2R(int m, int n,
   n -= bj;
   m -= bi + ti;
   if (n <= 0 || m <= 0) return;
-  X[0] = alpha * x[ 0]; if ( 1 >= n) return; X += ldx;
-  X[0] = alpha * x[ 1]; if ( 2 >= n) return; X += ldx;
-  X[0] = alpha * x[ 2]; if ( 3 >= n) return; X += ldx;
-  X[0] = alpha * x[ 3]; if ( 4 >= n) return; X += ldx;
-  X[0] = alpha * x[ 4]; if ( 5 >= n) return; X += ldx;
-  X[0] = alpha * x[ 5]; if ( 6 >= n) return; X += ldx;
-  X[0] = alpha * x[ 6]; if ( 7 >= n) return; X += ldx;
-  X[0] = alpha * x[ 7];
+  X[0] = cuCmulf(alpha, x[ 0]); if ( 1 >= n) return; X += ldx;
+  X[0] = cuCmulf(alpha, x[ 1]); if ( 2 >= n) return; X += ldx;
+  X[0] = cuCmulf(alpha, x[ 2]); if ( 3 >= n) return; X += ldx;
+  X[0] = cuCmulf(alpha, x[ 3]); if ( 4 >= n) return; X += ldx;
+  X[0] = cuCmulf(alpha, x[ 4]); if ( 5 >= n) return; X += ldx;
+  X[0] = cuCmulf(alpha, x[ 5]); if ( 6 >= n) return; X += ldx;
+  X[0] = cuCmulf(alpha, x[ 6]); if ( 7 >= n) return; X += ldx;
+  X[0] = cuCmulf(alpha, x[ 7]);
 }
 
 #endif
@@ -1077,15 +1084,16 @@ template void ctrmm2L<CBlasLower, CBlasTrans,       CBlasUnit,    32, 16,  8,  8
 template void ctrmm2L<CBlasLower, CBlasTrans,       CBlasNonUnit, 32, 16,  8,  8,  8>(int, int, cuComplex, const cuComplex * __restrict__, int, const cuComplex * __restrict__, int, cuComplex * __restrict__, int);
 template void ctrmm2L<CBlasLower, CBlasConjTrans,   CBlasUnit,    32, 16,  8,  8,  8>(int, int, cuComplex, const cuComplex * __restrict__, int, const cuComplex * __restrict__, int, cuComplex * __restrict__, int);
 template void ctrmm2L<CBlasLower, CBlasConjTrans,   CBlasNonUnit, 32, 16,  8,  8,  8>(int, int, cuComplex, const cuComplex * __restrict__, int, const cuComplex * __restrict__, int, cuComplex * __restrict__, int);
-template void ctrmm2R<CBlasUpper, CBlasNoTrans,     CBlasUnit,    64,  8, 16, 16,  4>(int, int, cuComplex, const cuComplex * __restrict__, int, const cuComplex * __restrict__, int, cuComplex * __restrict__, int);
-template void ctrmm2R<CBlasUpper, CBlasNoTrans,     CBlasNonUnit, 64,  8, 16, 16,  4>(int, int, cuComplex, const cuComplex * __restrict__, int, const cuComplex * __restrict__, int, cuComplex * __restrict__, int);
-template void ctrmm2R<CBlasUpper, CBlasTrans,       CBlasUnit,    64,  8, 16, 16,  4>(int, int, cuComplex, const cuComplex * __restrict__, int, const cuComplex * __restrict__, int, cuComplex * __restrict__, int);
-template void ctrmm2R<CBlasUpper, CBlasTrans,       CBlasNonUnit, 64,  8, 16, 16,  4>(int, int, cuComplex, const cuComplex * __restrict__, int, const cuComplex * __restrict__, int, cuComplex * __restrict__, int);
-template void ctrmm2R<CBlasUpper, CBlasConjTrans,   CBlasUnit,    64,  8, 16, 16,  4>(int, int, cuComplex, const cuComplex * __restrict__, int, const cuComplex * __restrict__, int, cuComplex * __restrict__, int);
-template void ctrmm2R<CBlasUpper, CBlasConjTrans,   CBlasNonUnit, 64,  8, 16, 16,  4>(int, int, cuComplex, const cuComplex * __restrict__, int, const cuComplex * __restrict__, int, cuComplex * __restrict__, int);
-template void ctrmm2R<CBlasLower, CBlasNoTrans,     CBlasUnit,    64,  8, 16, 16,  4>(int, int, cuComplex, const cuComplex * __restrict__, int, const cuComplex * __restrict__, int, cuComplex * __restrict__, int);
-template void ctrmm2R<CBlasLower, CBlasNoTrans,     CBlasNonUnit, 64,  8, 16, 16,  4>(int, int, cuComplex, const cuComplex * __restrict__, int, const cuComplex * __restrict__, int, cuComplex * __restrict__, int);
-template void ctrmm2R<CBlasLower, CBlasTrans,       CBlasUnit,    64,  8, 16, 16,  4>(int, int, cuComplex, const cuComplex * __restrict__, int, const cuComplex * __restrict__, int, cuComplex * __restrict__, int);
-template void ctrmm2R<CBlasLower, CBlasTrans,       CBlasNonUnit, 64,  8, 16, 16,  4>(int, int, cuComplex, const cuComplex * __restrict__, int, const cuComplex * __restrict__, int, cuComplex * __restrict__, int);
-template void ctrmm2R<CBlasLower, CBlasConjTrans,   CBlasUnit,    64,  8, 16, 16,  4>(int, int, cuComplex, const cuComplex * __restrict__, int, const cuComplex * __restrict__, int, cuComplex * __restrict__, int);
-template void ctrmm2R<CBlasLower, CBlasConjTrans,   CBlasNonUnit, 64,  8, 16, 16,  4>(int, int, cuComplex, const cuComplex * __restrict__, int, const cuComplex * __restrict__, int, cuComplex * __restrict__, int);
+
+template void ctrmm2R<CBlasUpper, CBlasNoTrans,     CBlasUnit,    64,  8,  8,  8,  8>(int, int, cuComplex, const cuComplex * __restrict__, int, const cuComplex * __restrict__, int, cuComplex * __restrict__, int);
+template void ctrmm2R<CBlasUpper, CBlasNoTrans,     CBlasNonUnit, 64,  8,  8,  8,  8>(int, int, cuComplex, const cuComplex * __restrict__, int, const cuComplex * __restrict__, int, cuComplex * __restrict__, int);
+template void ctrmm2R<CBlasUpper, CBlasTrans,       CBlasUnit,    64,  8,  8,  8,  8>(int, int, cuComplex, const cuComplex * __restrict__, int, const cuComplex * __restrict__, int, cuComplex * __restrict__, int);
+template void ctrmm2R<CBlasUpper, CBlasTrans,       CBlasNonUnit, 64,  8,  8,  8,  8>(int, int, cuComplex, const cuComplex * __restrict__, int, const cuComplex * __restrict__, int, cuComplex * __restrict__, int);
+template void ctrmm2R<CBlasUpper, CBlasConjTrans,   CBlasUnit,    64,  8,  8,  8,  8>(int, int, cuComplex, const cuComplex * __restrict__, int, const cuComplex * __restrict__, int, cuComplex * __restrict__, int);
+template void ctrmm2R<CBlasUpper, CBlasConjTrans,   CBlasNonUnit, 64,  8,  8,  8,  8>(int, int, cuComplex, const cuComplex * __restrict__, int, const cuComplex * __restrict__, int, cuComplex * __restrict__, int);
+template void ctrmm2R<CBlasLower, CBlasNoTrans,     CBlasUnit,    64,  8,  8,  8,  8>(int, int, cuComplex, const cuComplex * __restrict__, int, const cuComplex * __restrict__, int, cuComplex * __restrict__, int);
+template void ctrmm2R<CBlasLower, CBlasNoTrans,     CBlasNonUnit, 64,  8,  8,  8,  8>(int, int, cuComplex, const cuComplex * __restrict__, int, const cuComplex * __restrict__, int, cuComplex * __restrict__, int);
+template void ctrmm2R<CBlasLower, CBlasTrans,       CBlasUnit,    64,  8,  8,  8,  8>(int, int, cuComplex, const cuComplex * __restrict__, int, const cuComplex * __restrict__, int, cuComplex * __restrict__, int);
+template void ctrmm2R<CBlasLower, CBlasTrans,       CBlasNonUnit, 64,  8,  8,  8,  8>(int, int, cuComplex, const cuComplex * __restrict__, int, const cuComplex * __restrict__, int, cuComplex * __restrict__, int);
+template void ctrmm2R<CBlasLower, CBlasConjTrans,   CBlasUnit,    64,  8,  8,  8,  8>(int, int, cuComplex, const cuComplex * __restrict__, int, const cuComplex * __restrict__, int, cuComplex * __restrict__, int);
+template void ctrmm2R<CBlasLower, CBlasConjTrans,   CBlasNonUnit, 64,  8,  8,  8,  8>(int, int, cuComplex, const cuComplex * __restrict__, int, const cuComplex * __restrict__, int, cuComplex * __restrict__, int);

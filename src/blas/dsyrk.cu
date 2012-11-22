@@ -3,7 +3,7 @@
 #if __CUDA_ARCH__ < 200 && !defined(__BANK_CONFLICT__)
 
 // y(1:8) += alpha * x(1:8)
-__device__ void daxpy(double alpha, int * x_hi, int * x_lo, double * y) {
+__device__ void daxpy(double alpha, const int * x_hi, const int * x_lo, double * y) {
   y[0] += alpha * __hiloint2double(x_hi[0], x_lo[0]);
   y[1] += alpha * __hiloint2double(x_hi[1], x_lo[1]);
   y[2] += alpha * __hiloint2double(x_hi[2], x_lo[2]);
@@ -236,7 +236,7 @@ __global__ void dsyrk(int n, int k, double alpha,
 #else
 
 // y(1:8) += alpha * x(1:8)
-__device__ void daxpy(double alpha, double * x, double * y) {
+__device__ void daxpy(double alpha, const double * x, double * y) {
   y[0] += alpha * x[0]; y[1] += alpha * x[1]; y[2] += alpha * x[2]; y[3] += alpha * x[3];
   y[4] += alpha * x[4]; y[5] += alpha * x[5]; y[6] += alpha * x[6]; y[7] += alpha * x[7];
 }
