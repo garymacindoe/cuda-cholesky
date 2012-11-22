@@ -246,11 +246,11 @@ CUresult cuZgemm2(CUmodule module,
   if (m == 0 || n == 0 || ((alpha == zero || k == 0) && beta == one))
     return CUDA_SUCCESS;
 
-  const unsigned int mb = (transA == CBlasNoTrans) ? ((transB == CBlasNoTrans) ? 64 : 16) : 16;
+  const unsigned int mb = (transA == CBlasNoTrans) ? 64 : 32;
   const unsigned int nb = (transA == CBlasNoTrans) ?  4 :  8;
   const unsigned int kb = (transA == CBlasNoTrans) ? 16 :  8;
   const unsigned int bx = (transA == CBlasNoTrans) ? ((transB == CBlasNoTrans) ? 16 :  4) :  8;
-  const unsigned int by =  4;
+  const unsigned int by = (transA == CBlasNoTrans) ? ((transB == CBlasNoTrans) ?  4 : 16) :  8;
 
   char name[96];
   snprintf(name, 96,
