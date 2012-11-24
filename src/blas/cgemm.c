@@ -248,18 +248,18 @@ CUresult cuCgemm2(CUmodule module, CBlasTranspose transA, CBlasTranspose transB,
   const unsigned int mb = (transA == CBlasNoTrans) ? 64 : 32;
   const unsigned int nb = (transA == CBlasNoTrans) ?  8 : 16;
   const unsigned int kb = (transA == CBlasNoTrans) ? 16 :  8;
-  const unsigned int bx = (transA == CBlasNoTrans) ? 16 :  8;
-  const unsigned int by = (transA == CBlasNoTrans) ?  4 :  8;
+  const unsigned int bx = (transA == CBlasNoTrans) ? ((transB == CBlasNoTrans) ? 16 : 8) :  8;
+  const unsigned int by = (transA == CBlasNoTrans) ? ((transB == CBlasNoTrans) ?  4 : 8) :  8;
 
   char name[95];
   snprintf(name, 95,
-           "_Z5cgemmIL14CBlasTranspose%dELS0_%dELj%uELj%uELj%uELj%uELj%uEEviii6float2PKS1_iS3_iS1_S3_iPS1_i",
+           "_Z5cgemmIL14CBlasTranspose%dELS0_%dELj%uELj%uELj%uELj%uELj%uEEvPK6float2S3_S3_PS1_S1_S1_iiiiiii",
            transA, transB, mb, nb, kb, bx, by);
 
   CUfunction function;
   CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
 
-  void * params[] = { &m, &n, &k, &alpha, &A, &lda, &B, &ldb, &beta, &C, &ldc, &D, &ldd };
+  void * params[] = { &A, &B, &C, &D, &alpha, &beta, &lda, &ldb, &ldc, &ldd, &m, &n, &k };
 
   CU_ERROR_CHECK(cuLaunchKernel(function, (unsigned int)(m + mb - 1) / mb, (unsigned int)(n + nb - 1) / nb, 1,
                                 bx, by, 1, 0, stream, params, NULL));

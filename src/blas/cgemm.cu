@@ -40,9 +40,11 @@ __device__ void caxpy(cuComplex alpha, const float * x_real, const float * x_ima
 template <CBlasTranspose transA, CBlasTranspose transB,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void cgemm(int m, int n, int k,
-                      cuComplex alpha, const cuComplex * A, int lda, const cuComplex * B, int ldb,
-                      cuComplex beta, const cuComplex * C, int ldc, cuComplex * D, int ldd) {
+__global__ void cgemm(const cuComplex * __restrict__ A, const cuComplex * __restrict__ B,
+                      const cuComplex * __restrict__ C, cuComplex * __restrict__ D,
+                      cuComplex alpha, cuComplex beta,
+                      int lda, int ldb, int ldc, int ldd,
+                      int m, int n, int k) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of C/D
   const int bj = blockIdx.y * nb;       // Starting column of block of C/D
@@ -86,22 +88,16 @@ __global__ void cgemm(int m, int n, int k,
     if (transA != CBlasNoTrans) {
       if (transA == CBlasConjTrans) {
 #pragma unroll
-        for (int l = 0; l < kb; l += bx) {
-#pragma unroll
-          for (int i = 0; i < mb; i += by) {
-            a_real[i + threadIdx.y][l + threadIdx.x] =  cuCrealf(A[i * lda + l]);
-            a_imag[i + threadIdx.y][l + threadIdx.x] = -cuCimagf(A[i * lda + l]);
-          }
+        for (int i = 0; i < mb; i += by) {
+          a_real[i + threadIdx.y][threadIdx.x] =  cuCrealf(A[i * lda]);
+          a_imag[i + threadIdx.y][threadIdx.x] = -cuCimagf(A[i * lda]);
         }
       }
       else {
 #pragma unroll
-        for (int l = 0; l < kb; l += bx) {
-#pragma unroll
-          for (int i = 0; i < mb; i += by) {
-            a_real[i + threadIdx.y][l + threadIdx.x] = cuCrealf(A[i * lda + l]);
-            a_imag[i + threadIdx.y][l + threadIdx.x] = cuCimagf(A[i * lda + l]);
-          }
+        for (int i = 0; i < mb; i += by) {
+          a_real[i + threadIdx.y][threadIdx.x] = cuCrealf(A[i * lda]);
+          a_imag[i + threadIdx.y][threadIdx.x] = cuCimagf(A[i * lda]);
         }
       }
       A += kb;
@@ -112,12 +108,9 @@ __global__ void cgemm(int m, int n, int k,
     // dimension being expanded).
     if (transB == CBlasNoTrans) {
 #pragma unroll
-      for (int l = 0; l < kb; l += bx) {
-#pragma unroll
-        for (int j = 0; j < nb; j += by) {
-          b_real[l + threadIdx.x][j + threadIdx.y] = cuCrealf(B[j * ldb + l]);
-          b_imag[l + threadIdx.x][j + threadIdx.y] = cuCimagf(B[j * ldb + l]);
-        }
+      for (int j = 0; j < nb; j += by) {
+        b_real[threadIdx.x][j + threadIdx.y] = cuCrealf(B[j * ldb]);
+        b_imag[threadIdx.x][j + threadIdx.y] = cuCimagf(B[j * ldb]);
       }
     }
     else if (transB == CBlasConjTrans) {
@@ -237,9 +230,11 @@ __device__ void caxpy(cuComplex alpha, const cuComplex * x, cuComplex * y) {
 template <CBlasTranspose transA, CBlasTranspose transB,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void cgemm(int m, int n, int k,
-                      cuComplex alpha, const cuComplex * A, int lda, const cuComplex * B, int ldb,
-                      cuComplex beta, const cuComplex * C, int ldc, cuComplex * D, int ldd) {
+__global__ void cgemm(const cuComplex * __restrict__ A, const cuComplex * __restrict__ B,
+                      const cuComplex * __restrict__ C, cuComplex * __restrict__ D,
+                      cuComplex alpha, cuComplex beta,
+                      int lda, int ldb, int ldc, int ldd,
+                      int m, int n, int k) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of C/D
   const int bj = blockIdx.y * nb;       // Starting column of block of C/D
@@ -428,12 +423,12 @@ __global__ void cgemm(int m, int n, int k,
  * kb is chosen to be the largest multiple of 16 such that the number of blocks
  * per multiprocessor is limited by the register usage.
  */
-template void cgemm<CBlasNoTrans,   CBlasNoTrans,   64,  8, 16, 16,  4>(int, int, int, cuComplex, const cuComplex *, int, const cuComplex *, int, cuComplex, const cuComplex *, int, cuComplex *, int);
-template void cgemm<CBlasNoTrans,   CBlasTrans,     64,  8, 16, 16,  4>(int, int, int, cuComplex, const cuComplex *, int, const cuComplex *, int, cuComplex, const cuComplex *, int, cuComplex *, int);
-template void cgemm<CBlasNoTrans,   CBlasConjTrans, 64,  8, 16, 16,  4>(int, int, int, cuComplex, const cuComplex *, int, const cuComplex *, int, cuComplex, const cuComplex *, int, cuComplex *, int);
-template void cgemm<CBlasTrans,     CBlasNoTrans,   32, 16,  8,  8,  8>(int, int, int, cuComplex, const cuComplex *, int, const cuComplex *, int, cuComplex, const cuComplex *, int, cuComplex *, int);
-template void cgemm<CBlasTrans,     CBlasTrans,     32, 16,  8,  8,  8>(int, int, int, cuComplex, const cuComplex *, int, const cuComplex *, int, cuComplex, const cuComplex *, int, cuComplex *, int);
-template void cgemm<CBlasTrans,     CBlasConjTrans, 32, 16,  8,  8,  8>(int, int, int, cuComplex, const cuComplex *, int, const cuComplex *, int, cuComplex, const cuComplex *, int, cuComplex *, int);
-template void cgemm<CBlasConjTrans, CBlasNoTrans,   32, 16,  8,  8,  8>(int, int, int, cuComplex, const cuComplex *, int, const cuComplex *, int, cuComplex, const cuComplex *, int, cuComplex *, int);
-template void cgemm<CBlasConjTrans, CBlasTrans,     32, 16,  8,  8,  8>(int, int, int, cuComplex, const cuComplex *, int, const cuComplex *, int, cuComplex, const cuComplex *, int, cuComplex *, int);
-template void cgemm<CBlasConjTrans, CBlasConjTrans, 32, 16,  8,  8,  8>(int, int, int, cuComplex, const cuComplex *, int, const cuComplex *, int, cuComplex, const cuComplex *, int, cuComplex *, int);
+template void cgemm<CBlasNoTrans,   CBlasNoTrans,   64,  8, 16, 16,  4>(const cuComplex * __restrict__, const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, cuComplex, int, int, int, int, int, int, int);
+template void cgemm<CBlasNoTrans,   CBlasTrans,     64,  8, 16,  8,  8>(const cuComplex * __restrict__, const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, cuComplex, int, int, int, int, int, int, int);
+template void cgemm<CBlasNoTrans,   CBlasConjTrans, 64,  8, 16,  8,  8>(const cuComplex * __restrict__, const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, cuComplex, int, int, int, int, int, int, int);
+template void cgemm<CBlasTrans,     CBlasNoTrans,   32, 16,  8,  8,  8>(const cuComplex * __restrict__, const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, cuComplex, int, int, int, int, int, int, int);
+template void cgemm<CBlasTrans,     CBlasTrans,     32, 16,  8,  8,  8>(const cuComplex * __restrict__, const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, cuComplex, int, int, int, int, int, int, int);
+template void cgemm<CBlasTrans,     CBlasConjTrans, 32, 16,  8,  8,  8>(const cuComplex * __restrict__, const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, cuComplex, int, int, int, int, int, int, int);
+template void cgemm<CBlasConjTrans, CBlasNoTrans,   32, 16,  8,  8,  8>(const cuComplex * __restrict__, const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, cuComplex, int, int, int, int, int, int, int);
+template void cgemm<CBlasConjTrans, CBlasTrans,     32, 16,  8,  8,  8>(const cuComplex * __restrict__, const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, cuComplex, int, int, int, int, int, int, int);
+template void cgemm<CBlasConjTrans, CBlasConjTrans, 32, 16,  8,  8,  8>(const cuComplex * __restrict__, const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, cuComplex, int, int, int, int, int, int, int);

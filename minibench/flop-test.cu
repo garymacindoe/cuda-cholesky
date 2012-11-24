@@ -31,10 +31,10 @@ extern "C" __global__ void fmad(float * data) {
 }
 
 #define FMADMUL16(a, b, c, d) \
- a = b * a + b; c = d * c; b = a * b + a; d = c * d; a = b * a + b; c = d * c; b = a * b + a; a = b * a; \
- a = b * a + b; c = d * c; b = a * b + a; d = c * d; a = b * a + b; c = d * c; b = a * b + a; a = b * a; \
- a = b * a + b; c = d * c; b = a * b + a; d = c * d; a = b * a + b; c = d * c; b = a * b + a; a = b * a; \
- a = b * a + b; c = d * c; b = a * b + a; d = c * d; a = b * a + b; c = d * c; b = a * b + a; a = b * a
+ a = b * a + b; c = d * c; b = a * b + a; d = c * d; a = b * a + b; c = d * c; b = a * b + a; d = c * d; \
+ a = b * a + b; c = d * c; b = a * b + a; d = c * d; a = b * a + b; c = d * c; b = a * b + a; d = c * d; \
+ a = b * a + b; c = d * c; b = a * b + a; d = c * d; a = b * a + b; c = d * c; b = a * b + a; d = c * d; \
+ a = b * a + b; c = d * c; b = a * b + a; d = c * d; a = b * a + b; c = d * c; b = a * b + a; d = c * d
 
 #define FMADMUL256(a, b, c, d) \
  FMADMUL16(a, b, c, d); FMADMUL16(a, b, c, d); FMADMUL16(a, b, c, d); FMADMUL16(a, b, c, d); \

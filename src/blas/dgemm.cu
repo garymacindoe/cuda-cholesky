@@ -34,9 +34,11 @@ __device__ void daxpy(double alpha, const int * x_hi, const int * x_lo, double *
 template <CBlasTranspose transA, CBlasTranspose transB,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void dgemm(int m, int n, int k,
-                      double alpha, const double * A, int lda, const double * B, int ldb,
-                      double beta, const double * C, int ldc, double * D, int ldd) {
+__global__ void dgemm(const double * __restrict__ A, const double * __restrict__ B,
+                      const double * __restrict__ C, double * __restrict__ D,
+                      double alpha, double beta,
+                      int lda, int ldb, int ldc, int ldd,
+                      int m, int n, int k) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of C/D
   const int bj = blockIdx.y * nb;       // Starting column of block of C/D
@@ -195,9 +197,11 @@ __device__ void daxpy(double alpha, const double * x, double * y) {
 template <CBlasTranspose transA, CBlasTranspose transB,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void dgemm(int m, int n, int k,
-                      double alpha, const double * A, int lda, const double * B, int ldb,
-                      double beta, const double * C, int ldc, double * D, int ldd) {
+__global__ void dgemm(const double * __restrict__ A, const double * __restrict__ B,
+                      const double * __restrict__ C, double * __restrict__ D,
+                      double alpha, double beta,
+                      int lda, int ldb, int ldc, int ldd,
+                      int m, int n, int k) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of C/D
   const int bj = blockIdx.y * nb;       // Starting column of block of C/D
@@ -361,7 +365,7 @@ __global__ void dgemm(int m, int n, int k,
  * kb is chosen to be the largest multiple of 16 such that the number of blocks
  * per multiprocessor is limited by the register usage.
  */
-template void dgemm<CBlasNoTrans, CBlasNoTrans, 64,  8, 16, 16,  4>(int, int, int, double, const double *, int, const double *, int, double, const double *, int, double *, int);
-template void dgemm<CBlasNoTrans, CBlasTrans,   64,  8, 16,  8,  8>(int, int, int, double, const double *, int, const double *, int, double, const double *, int, double *, int);
-template void dgemm<CBlasTrans,   CBlasNoTrans, 32, 16,  8,  8,  8>(int, int, int, double, const double *, int, const double *, int, double, const double *, int, double *, int);
-template void dgemm<CBlasTrans,   CBlasTrans,   32, 16,  8,  8,  8>(int, int, int, double, const double *, int, const double *, int, double, const double *, int, double *, int);
+template void dgemm<CBlasNoTrans, CBlasNoTrans, 64,  8, 16, 16,  4>(const double * __restrict__, const double * __restrict__, const double * __restrict__, double * __restrict__, double, double, int, int, int, int, int, int, int);
+template void dgemm<CBlasNoTrans, CBlasTrans,   64,  8, 16,  8,  8>(const double * __restrict__, const double * __restrict__, const double * __restrict__, double * __restrict__, double, double, int, int, int, int, int, int, int);
+template void dgemm<CBlasTrans,   CBlasNoTrans, 32, 16,  8,  8,  8>(const double * __restrict__, const double * __restrict__, const double * __restrict__, double * __restrict__, double, double, int, int, int, int, int, int, int);
+template void dgemm<CBlasTrans,   CBlasTrans,   32, 16,  8,  8,  8>(const double * __restrict__, const double * __restrict__, const double * __restrict__, double * __restrict__, double, double, int, int, int, int, int, int, int);
