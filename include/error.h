@@ -52,7 +52,7 @@ const char * cuGetErrorString(CUresult);
  */
 const char * cublasGetErrorString(cublasStatus_t);
 
-#define ERROR_CHECK(call, strerror) \
+#define ERROR_CHECK(call) \
  do { \
    int __error__; \
    if ((__error__ = (call)) != 0) { \
@@ -62,7 +62,7 @@ const char * cublasGetErrorString(cublasStatus_t);
    } \
  } while (false)
 
-#define ERROR_CHECK_VOID(call, strerror) \
+#define ERROR_CHECK_VOID(call) \
  do { \
    int __error__; \
    if ((__error__ = (call)) != 0) { \
@@ -72,7 +72,7 @@ const char * cublasGetErrorString(cublasStatus_t);
    } \
  } while (false)
 
-#define ERROR_CHECK_VAL(call, strerror, val) \
+#define ERROR_CHECK_VAL(call, val) \
  do { \
    int __error__; \
    if ((__error__ = (call)) != 0) { \
