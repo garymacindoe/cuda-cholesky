@@ -188,7 +188,7 @@ CUresult cuSgemm2(CUmodule module, CBlasTranspose transA, CBlasTranspose transB,
 
   return CUDA_SUCCESS;
 }
-
+#if 0
 CUresult cuMultiGPUSgemm(CBlasTranspose transA, CBlasTranspose transB,
                          size_t m, size_t n, size_t k,
                          float alpha, const float * restrict A, size_t lda, const float * restrict B, size_t ldb,
@@ -512,3 +512,4 @@ CUresult cuMultiGPUSgemm(CBlasTranspose transA, CBlasTranspose transB,
 
   return CUDA_SUCCESS;
 }
+#endif

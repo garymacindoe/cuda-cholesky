@@ -57,10 +57,17 @@ int main() {
       size_t size = j * INCREMENT;
       struct timeval start, stop;
 
-      ERROR_CHECK(gettimeofday(&start, NULL), (strerror_t)strerror);
+      int error;
+      if ((error = gettimeofday(&start, NULL)) != 0) {
+        fprintf(stderr, "Unable to get start time: %s\n", strerror(error));
+        return error;
+      }
       for (size_t k = 0; k < ITERATIONS; k++)
         CU_ERROR_CHECK(cuMemcpyHtoD(dPointer, hPointer, size));
-      ERROR_CHECK(gettimeofday(&stop, NULL), (strerror_t)strerror);
+      if ((error = gettimeofday(&stop, NULL)) != 0) {
+        fprintf(stderr, "Unable to get stop time: %s\n", strerror(error));
+        return error;
+      }
       double time = ((double)(stop.tv_sec - start.tv_sec) + ((double)(stop.tv_usec - start.tv_usec) * 1.E-6)) / (double)ITERATIONS;
 
       sumX += (double)size;
@@ -80,10 +87,17 @@ int main() {
       size_t size = j * INCREMENT;
       struct timeval start, stop;
 
-      ERROR_CHECK(gettimeofday(&start, NULL), (strerror_t)strerror);
+      int error;
+      if ((error = gettimeofday(&start, NULL)) != 0) {
+        fprintf(stderr, "Unable to get start time: %s\n", strerror(error));
+        return error;
+      }
       for (size_t k = 0; k < ITERATIONS; k++)
         CU_ERROR_CHECK(cuMemcpyDtoH(hPointer, dPointer, size));
-      ERROR_CHECK(gettimeofday(&stop, NULL), (strerror_t)strerror);
+      if ((error = gettimeofday(&stop, NULL)) != 0) {
+        fprintf(stderr, "Unable to get stop time: %s\n", strerror(error));
+        return error;
+      }
       double time = ((double)(stop.tv_sec - start.tv_sec) + ((double)(stop.tv_usec - start.tv_usec) * 1.E-6)) / (double)ITERATIONS;
 
       sumY += time;

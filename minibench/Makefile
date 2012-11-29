@@ -101,7 +101,7 @@ $(OBJDIR)/module-test.o: error.h | $(OBJDIR)
 $(OBJDIR)/multigpu.o: error.h | $(OBJDIR)
 $(OBJDIR)/kernel-test.o: error.h | $(OBJDIR)
 $(OBJDIR)/pitch.o: error.h | $(OBJDIR)
-$(OBJDIR)/timer.o: CFLAGS += -std=gnu99
+$(OBJDIR)/timer.o: CPPFLAGS += -D_POSIX_C_SOURCE=199309L
 $(OBJDIR)/timer.o: error.h | $(OBJDIR)
 
 flop-test.fatbin: flop-test.compute_10.ptx flop-test.sm_11.cubin flop-test.sm_13.cubin

@@ -25,10 +25,17 @@ int main() {
   for (int i = 0; i < count; i++) {
     struct timeval start, stop;
 
-    ERROR_CHECK(gettimeofday(&start, 0), (strerror_t)strerror);
+    int error;
+    if ((error = gettimeofday(&start, NULL)) != 0) {
+      fprintf(stderr, "Unable to get start time: %s\n", strerror(error));
+      return error;
+    }
     for (size_t j = 0; j < N; j++)
       CU_ERROR_CHECK(cuCtxCreate(&contexts[i][j], CU_CTX_SCHED_AUTO, devices[i]));
-    ERROR_CHECK(gettimeofday(&stop, 0), (strerror_t)strerror);
+    if ((error = gettimeofday(&stop, NULL)) != 0) {
+      fprintf(stderr, "Unable to get stop time: %s\n", strerror(error));
+      return error;
+    }
 
     double time = (double)(stop.tv_sec - start.tv_sec) + ((double)(stop.tv_usec - start.tv_usec) * 1.E-6);
     fprintf(stderr, "cuCtxCreate (device %d): %.3es\n", i, time / (double)N);
@@ -39,10 +46,17 @@ int main() {
   for (int i = 0; i < count; i++) {
     struct timeval start, stop;
 
-    ERROR_CHECK(gettimeofday(&start, 0), (strerror_t)strerror);
+    int error;
+    if ((error = gettimeofday(&start, NULL)) != 0) {
+      fprintf(stderr, "Unable to get start time: %s\n", strerror(error));
+      return error;
+    }
     for (size_t j = 0; j < N; j++)
       CU_ERROR_CHECK(cuCtxPopCurrent(&contexts[i][j]));
-    ERROR_CHECK(gettimeofday(&stop, 0), (strerror_t)strerror);
+    if ((error = gettimeofday(&stop, NULL)) != 0) {
+      fprintf(stderr, "Unable to get stop time: %s\n", strerror(error));
+      return error;
+    }
 
     double time = (double)(stop.tv_sec - start.tv_sec) + ((double)(stop.tv_usec - start.tv_usec) * 1.E-6);
     fprintf(stderr, "cuCtxPopCurrent (device %d): %.3es\n", i, time / (double)N);
@@ -53,22 +67,35 @@ int main() {
   if (count > 1) {
     struct timeval start, stop;
 
-    ERROR_CHECK(gettimeofday(&start, 0), (strerror_t)strerror);
+    int error;
+    if ((error = gettimeofday(&start, NULL)) != 0) {
+      fprintf(stderr, "Unable to get start time: %s\n", strerror(error));
+      return error;
+    }
     for (size_t j = 0; j < N; j++) {
       for (int i = 0; i < count; i++)
         CU_ERROR_CHECK(cuCtxPushCurrent(contexts[i][j]));
     }
-    ERROR_CHECK(gettimeofday(&stop, 0), (strerror_t)strerror);
+    if ((error = gettimeofday(&stop, NULL)) != 0) {
+      fprintf(stderr, "Unable to get stop time: %s\n", strerror(error));
+      return error;
+    }
 
     double time = (double)(stop.tv_sec - start.tv_sec) + ((double)(stop.tv_usec - start.tv_usec) * 1.E-6);
     fprintf(stderr, "cuCtxPushCurrent (alternating devices): %.3es\n", time / (double)N);
 
-    ERROR_CHECK(gettimeofday(&start, 0), (strerror_t)strerror);
+    if ((error = gettimeofday(&start, NULL)) != 0) {
+      fprintf(stderr, "Unable to get start time: %s\n", strerror(error));
+      return error;
+    }
     for (size_t j = 0; j < N; j++) {
       for (int i = 0; i < count; i++)
         CU_ERROR_CHECK(cuCtxPopCurrent(&contexts[i][j]));
     }
-    ERROR_CHECK(gettimeofday(&stop, 0), (strerror_t)strerror);
+    if ((error = gettimeofday(&stop, NULL)) != 0) {
+      fprintf(stderr, "Unable to get stop time: %s\n", strerror(error));
+      return error;
+    }
 
     time = (double)(stop.tv_sec - start.tv_sec) + ((double)(stop.tv_usec - start.tv_usec) * 1.E-6);
     fprintf(stderr, "cuCtxPopCurrent (alternating devices): %.3es\n\n", time / (double)N);
@@ -77,10 +104,17 @@ int main() {
   for (int i = 0; i < count; i++) {
     struct timeval start, stop;
 
-    ERROR_CHECK(gettimeofday(&start, 0), (strerror_t)strerror);
+    int error;
+    if ((error = gettimeofday(&start, NULL)) != 0) {
+      fprintf(stderr, "Unable to get start time: %s\n", strerror(error));
+      return error;
+    }
     for (size_t j = 0; j < N; j++)
       CU_ERROR_CHECK(cuCtxPushCurrent(contexts[i][j]));
-    ERROR_CHECK(gettimeofday(&stop, 0), (strerror_t)strerror);
+    if ((error = gettimeofday(&stop, NULL)) != 0) {
+      fprintf(stderr, "Unable to get stop time: %s\n", strerror(error));
+      return error;
+    }
 
     double time = (double)(stop.tv_sec - start.tv_sec) + ((double)(stop.tv_usec - start.tv_usec) * 1.E-6);
     fprintf(stderr, "cuCtxPushCurrent (device %d): %.3es\n", i, time / (double)N);
@@ -91,10 +125,17 @@ int main() {
   for (int i = 0; i < count; i++) {
     struct timeval start, stop;
 
-    ERROR_CHECK(gettimeofday(&start, 0), (strerror_t)strerror);
+    int error;
+    if ((error = gettimeofday(&start, NULL)) != 0) {
+      fprintf(stderr, "Unable to get start time: %s\n", strerror(error));
+      return error;
+    }
     for (size_t j = 0; j < N; j++)
       CU_ERROR_CHECK(cuCtxDestroy(contexts[i][j]));
-    ERROR_CHECK(gettimeofday(&stop, 0), (strerror_t)strerror);
+    if ((error = gettimeofday(&stop, NULL)) != 0) {
+      fprintf(stderr, "Unable to get stop time: %s\n", strerror(error));
+      return error;
+    }
 
     double time = (double)(stop.tv_sec - start.tv_sec) + ((double)(stop.tv_usec - start.tv_usec) * 1.E-6);
     fprintf(stderr, "cuCtxDestroy (device %d): %.3es\n", i, time / (double)N);

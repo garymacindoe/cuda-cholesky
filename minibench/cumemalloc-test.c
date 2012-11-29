@@ -34,18 +34,31 @@ int main() {
 
     CUdeviceptr ptrs[N];
     struct timeval start, stop;
-    ERROR_CHECK(gettimeofday(&start, 0), (strerror_t)strerror);
+    int error;
+    if ((error = gettimeofday(&start, NULL)) != 0) {
+      fprintf(stderr, "Unable to get start time: %s\n", strerror(error));
+      return error;
+    }
     for (size_t j = 0; j < N; j++)
       CU_ERROR_CHECK(cuMemAlloc(&ptrs[j], SIZE));
-    ERROR_CHECK(gettimeofday(&stop, 0), (strerror_t)strerror);
+    if ((error = gettimeofday(&stop, NULL)) != 0) {
+      fprintf(stderr, "Unable to get stop time: %s\n", strerror(error));
+      return error;
+    }
 
     double time = (double)(stop.tv_sec - start.tv_sec) + ((double)(stop.tv_usec - start.tv_usec) * 1.E-6);
     fprintf(stderr, "  cuMemAlloc: %.3es\n", time / (double)N);
 
-    ERROR_CHECK(gettimeofday(&start, 0), (strerror_t)strerror);
+    if ((error = gettimeofday(&start, NULL)) != 0) {
+      fprintf(stderr, "Unable to get start time: %s\n", strerror(error));
+      return error;
+    }
     for (size_t j = 0; j < N; j++)
       CU_ERROR_CHECK(cuMemFree(ptrs[j]));
-    ERROR_CHECK(gettimeofday(&stop, 0), (strerror_t)strerror);
+    if ((error = gettimeofday(&stop, NULL)) != 0) {
+      fprintf(stderr, "Unable to get stop time: %s\n", strerror(error));
+      return error;
+    }
 
     time = (double)(stop.tv_sec - start.tv_sec) + ((double)(stop.tv_usec - start.tv_usec) * 1.E-6);
     fprintf(stderr, "  cuMemFree : %.3es\n", time / (double)N);

@@ -73,7 +73,7 @@ int main() {
 
     double actualGFlops = (131072u * multiProcessorCount * maxThreadsPerBlock * 1.E-6) / time;
 
-    fprintf(stdout, "Device %d: %3.2f / %3.2f GFlops/s (%2.2f%%, fmad)\n", d, actualGFlops, theoreticalGFlops, (actualGFlops / theoreticalGFlops) * 100.0);
+    fprintf(stdout, "Device %d: %3.2f / %3.2f GFlops/s (%2.2f%%, fmaf)\n", d, actualGFlops, theoreticalGFlops, (actualGFlops / theoreticalGFlops) * 100.0);
 
     /**
      * Each multiprocessor also has a number of single precision special
@@ -107,7 +107,7 @@ int main() {
 
     actualGFlops = (196608u * multiProcessorCount * maxThreadsPerBlock * 1.E-6) / time;
 
-    fprintf(stdout, "           %3.2f / %3.2f GFlops/s (%2.2f%%, fmad + fmul)\n", actualGFlops, theoreticalGFlops, (actualGFlops / theoreticalGFlops) * 100.0);
+    fprintf(stdout, "           %3.2f / %3.2f GFlops/s (%2.2f%%, fmaf + fmulf)\n", actualGFlops, theoreticalGFlops, (actualGFlops / theoreticalGFlops) * 100.0);
 
     if (major >= 1 && minor >= 2) {
 
@@ -151,7 +151,7 @@ int main() {
 
       actualGFlops = (131072u * multiProcessorCount * maxThreadsPerBlock * 1.E-6) / time;
 
-      fprintf(stdout, "          %3.2f / %3.2f GFlops/s (%2.2f%% dmad)\n", actualGFlops, theoreticalGFlops, (actualGFlops / theoreticalGFlops) * 100.0);
+      fprintf(stdout, "          %3.2f / %3.2f GFlops/s (%2.2f%% fma)\n", actualGFlops, theoreticalGFlops, (actualGFlops / theoreticalGFlops) * 100.0);
     }
 
     CU_ERROR_CHECK(cuModuleUnload(module));
