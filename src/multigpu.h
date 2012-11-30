@@ -21,8 +21,8 @@ CUresult cuTaskSchedule(CUtask *, CUmultiGPU, CUresult (*)(const void *),
                         const void *, size_t);
 
 /**
- * Destroys the handle to the background task.  If the task has not yet completed
- * this will block until it has.
+ * Destroys the the background task.  If the task has not yet completed this
+ * will block until it has.
  *
  * @param task    the background task to destroy.
  * @param result  the result returned by the background task.

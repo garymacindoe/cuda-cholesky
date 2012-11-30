@@ -13,8 +13,8 @@
  *
  * @param call      the function call that threw the error.
  * @param function  the calling function where the error occurred.
- * @param file      the file the error occured in.
- * @param line      the line number within the file.
+ * @param file      the file the error occurred in.
+ * @param line      the line number the error occurred on.
  * @param error     the integer error code.
  */
 typedef void (*CUerrorHandler_t)(const char *, const char *, const char *, int,
@@ -34,13 +34,23 @@ extern CUerrorHandler_t cuErrorHandler;
 const char * cuGetErrorString(CUresult);
 
 #define CU_ERROR_CHECK(call) \
- do { \
-   CUresult __error__; \
-   if ((__error__ = (call)) != CUDA_SUCCESS) { \
-     if (cuErrorHandler != NULL) \
-       cuErrorHandler(STRING(call), __func__, __FILE__, __LINE__, __error__); \
-     return __error__; \
-   } \
- } while (false)
+  do { \
+    CUresult __error__; \
+    if ((__error__ = (call)) != CUDA_SUCCESS) { \
+      if (cuErrorHandler != NULL) \
+        cuErrorHandler(STRING(call), __func__, __FILE__, __LINE__, __error__); \
+      return __error__; \
+    } \
+  } while (false)
+
+#define CU_ERROR_CHECK_VOID(call) \
+  do { \
+    CUresult __error__; \
+    if ((__error__ = (call)) != CUDA_SUCCESS) { \
+      if (cuErrorHandler != NULL) \
+        cuErrorHandler(STRING(call), __func__, __FILE__, __LINE__, __error__); \
+      return; \
+    } \
+  } while (false)
 
 #endif

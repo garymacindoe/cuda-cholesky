@@ -6,8 +6,9 @@
 typedef struct __cumultigpu_st * CUmultiGPU;
 
 /**
- * Creates a multiGPU context with a number of background threads each with a
- * context for a device and with a shared queue of tasks to execute.
+ * Creates a multiGPU context with a single GPU context on each device given.
+ * Each context is owned by a background thread and tasks are sent to them
+ * asynchronously via a shared queue.
  *
  * @param multiGPU  the handle to the created context is returned through this
  *                  pointer.
