@@ -188,8 +188,235 @@ CUresult cuSgemm2(CUmodule module, CBlasTranspose transA, CBlasTranspose transB,
 
   return CUDA_SUCCESS;
 }
-#if 0
-CUresult cuMultiGPUSgemm(CBlasTranspose transA, CBlasTranspose transB,
+
+struct sgemm_args {
+  CBlasTranspose transA, transB;
+  size_t m, n, k;
+  float alpha; const float * A; size_t lda; const float * B; size_t ldb;
+  float beta; float * C; size_t ldc;
+};
+
+static CUresult background_sgemm(const void * a) {
+  struct sgemm_args * args = (struct sgemm_args *)a;
+
+  const CBlasTranspose transA = args->transA;
+  const CBlasTranspose transB = args->transB;
+  const size_t m = args->m;
+  const size_t n = args->n;
+  const size_t k = args->k;
+  const float alpha = args->alpha;
+  const float beta = args->beta;
+
+  if (m == 0 || n == 0 || ((alpha == zero || k == 0) && beta == one))
+    return CUDA_SUCCESS;
+
+  CUdeviceptr A0, A1, B0, B1, C;
+  size_t lda, ldb, ldc;
+
+  const size_t kb = 1024;
+
+  // Load the sgemm module
+  CUmodule module;
+  CU_ERROR_CHECK(cuModuleLoad(&module, "sgemm.fatbin"));
+
+  // Create separate streams for concurrent copy and execute
+  CUstream compute, copy;
+  CU_ERROR_CHECK(cuStreamCreate(&compute, 0));
+  CU_ERROR_CHECK(cuStreamCreate(&copy, 0));
+
+  // Allocate C
+  CU_ERROR_CHECK(cuMemAllocPitch(&C, &ldc, m * sizeof(float), n, sizeof(float)));
+  ldc /= sizeof(float);
+
+  // Copy C onto the device
+  CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(args->C, args->ldc, 0, 0,
+                                     C, ldc, 0, 0,
+                                     m, n, sizeof(float), compute));
+
+  if (transB == CBlasNoTrans) {
+    // B is k * n
+    CU_ERROR_CHECK(cuMemAllocPitch(&B0, &ldb, kb * sizeof(float), n, sizeof(float)));
+    CU_ERROR_CHECK(cuMemAllocPitch(&B1, &ldb, kb * sizeof(float), n, sizeof(float)));
+    ldb /= sizeof(float);
+
+    if (transA == CBlasNoTrans) {
+      // A is m * k
+      CU_ERROR_CHECK(cuMemAllocPitch(&A0, &lda, m * sizeof(float), kb, sizeof(float)));
+      CU_ERROR_CHECK(cuMemAllocPitch(&A1, &lda, m * sizeof(float), kb, sizeof(float)));
+      lda /= sizeof(float);
+
+      // Copy A and B onto the device asynchronously on the same stream as C
+      const size_t lb = min(k - l, kb);
+      CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(args->A, args->lda, 0, 0,
+                                         A0, lda, 0, 0,
+                                         m, lb, sizeof(float), compute));
+      CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(args->B, args->ldb, 0, 0,
+                                         B0, ldb, 0, 0,
+                                         lb, n, sizeof(float), compute));
+
+      for (size_t l = 0; l < k; l += kb) {
+        // Compute C on the same stream as the copies to ensure they have finished first
+        CU_ERROR_CHECK(cuSgemm(module, transA, transB, m, n, min(k - l, kb),
+                               alpha, A0, lda, B0, ldb, beta, C, ldc, compute));
+
+        // If there is more work to do
+        if (l + kb < k) {
+          const size_t lb = min(k - l - kb, kb);
+          // Copy the next blocks of A and B on the opposite stream from the sgemm
+          CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(args->A, args->lda, 0, l + kb,
+                                             A1, lda, 0, 0,
+                                             m, lb, sizeof(float), copy));
+          CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(args->B, args->ldb, l + kb, 0,
+                                             B1, ldb, 0, 0,
+                                             lb, n, sizeof(float), copy));
+
+          // Swap the streams and pointers so that the compute starts after the copy
+          CUstream temp = compute; compute = copy; copy = temp;
+          CUdeviceptr temp = A0; A0 = A1; A1 = temp;
+          temp = B0; B0 = B1; B1 = temp;
+        }
+      }
+    }
+    else {
+      // A is k * m
+      CU_ERROR_CHECK(cuMemAllocPitch(&A0, &lda, kb * sizeof(float), m, sizeof(float)));
+      CU_ERROR_CHECK(cuMemAllocPitch(&A1, &lda, kb * sizeof(float), m, sizeof(float)));
+      lda /= sizeof(float);
+
+      // Copy A and B onto the device asynchronously on the same stream as C
+      const size_t lb = min(k - l, kb);
+      CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(args->A, args->lda, 0, 0,
+                                         A0, lda, 0, 0,
+                                         lb, m, sizeof(float), compute));
+      CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(args->B, args->ldb, 0, 0,
+                                         B0, ldb, 0, 0,
+                                         lb, n, sizeof(float), compute));
+
+      for (size_t l = 0; l < k; l += kb) {
+        // Compute C on the same stream as the copies to ensure they have finished first
+        CU_ERROR_CHECK(cuSgemm(module, transA, transB, m, n, min(k - l, kb),
+                               alpha, A0, lda, B0, ldb, beta, C, ldc, compute));
+
+        // If there is more work to do
+        if (l + kb < k) {
+          const size_t lb = min(k - l - kb, kb);
+          // Copy the next blocks of A and B on the opposite stream from the sgemm
+          CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(args->A, args->lda, l + kb, 0,
+                                             A1, lda, 0, 0,
+                                             lb, m, sizeof(float), copy));
+          CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(args->B, args->ldb, l + kb, 0,
+                                             B1, ldb, 0, 0,
+                                             lb, n, sizeof(float), copy));
+
+          // Swap the streams and pointers so that the compute starts after the copy
+          CUstream temp = compute; compute = copy; copy = temp;
+          CUdeviceptr temp = A0; A0 = A1; A1 = temp;
+          temp = B0; B0 = B1; B1 = temp;
+        }
+      }
+    }
+  }
+  else {
+    // B is n * k
+    CU_ERROR_CHECK(cuMemAllocPitch(&B0, &ldb, n * sizeof(float), kb, sizeof(float)));
+    CU_ERROR_CHECK(cuMemAllocPitch(&B1, &ldb, n * sizeof(float), kb, sizeof(float)));
+    ldb /= sizeof(float);
+
+    if (transA == CBlasNoTrans) {
+      // A is m * k
+      CU_ERROR_CHECK(cuMemAllocPitch(&A0, &lda, m * sizeof(float), kb, sizeof(float)));
+      CU_ERROR_CHECK(cuMemAllocPitch(&A1, &lda, m * sizeof(float), kb, sizeof(float)));
+      lda /= sizeof(float);
+
+      // Copy A and B onto the device asynchronously on the same stream as C
+      const size_t lb = min(k - l, kb);
+      CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(args->A, args->lda, 0, 0,
+                                         A0, lda, 0, 0,
+                                         m, lb, sizeof(float), compute));
+      CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(args->B, args->ldb, 0, 0,
+                                         B0, ldb, 0, 0,
+                                         n, lb, sizeof(float), compute));
+
+      for (size_t l = 0; l < k; l += kb) {
+        // Compute C on the same stream as the copies to ensure they have finished first
+        CU_ERROR_CHECK(cuSgemm(module, transA, transB, m, n, min(k - l, kb),
+                               alpha, A0, lda, B0, ldb, beta, C, ldc, compute));
+
+        // If there is more work to do
+        if (l + kb < k) {
+          const size_t lb = min(k - l - kb, kb);
+          // Copy the next blocks of A and B on the opposite stream from the sgemm
+          CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(args->A, args->lda, 0, l + kb,
+                                             A1, lda, 0, 0,
+                                             m, lb, sizeof(float), copy));
+          CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(args->B, args->ldb, 0, l + kb,
+                                             B1, ldb, 0, 0,
+                                             n, lb, sizeof(float), copy));
+
+          // Swap the streams and pointers so that the compute starts after the copy
+          CUstream temp = compute; compute = copy; copy = temp;
+          CUdeviceptr temp = A0; A0 = A1; A1 = temp;
+          temp = B0; B0 = B1; B1 = temp;
+        }
+      }
+    }
+    else {
+      // A is k * m
+      CU_ERROR_CHECK(cuMemAllocPitch(&A0, &lda, kb * sizeof(float), m, sizeof(float)));
+      CU_ERROR_CHECK(cuMemAllocPitch(&A1, &lda, kb * sizeof(float), m, sizeof(float)));
+      lda /= sizeof(float);
+
+      // Copy A and B onto the device asynchronously on the same stream as C
+      const size_t lb = min(k - l, kb);
+      CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(args->A, args->lda, 0, 0,
+                                         A0, lda, 0, 0,
+                                         lb, m, sizeof(float), compute));
+      CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(args->B, args->ldb, 0, 0,
+                                         B0, ldb, 0, 0,
+                                         n, lb, sizeof(float), compute));
+
+      for (size_t l = 0; l < k; l += kb) {
+        // Compute C on the same stream as the copies to ensure they have finished first
+        CU_ERROR_CHECK(cuSgemm(module, transA, transB, m, n, min(k - l, kb),
+                               alpha, A0, lda, B0, ldb, beta, C, ldc, compute));
+
+        // If there is more work to do
+        if (l + kb < k) {
+          const size_t lb = min(k - l - kb, kb);
+          // Copy the next blocks of A and B on the opposite stream from the sgemm
+          CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(args->A, args->lda, l + kb, 0,
+                                             A1, lda, 0, 0,
+                                             lb, m, sizeof(float), copy));
+          CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(args->B, args->ldb, 0, l + kb,
+                                             B1, ldb, 0, 0,
+                                             n, lb, sizeof(float), copy));
+
+          // Swap the streams and pointers so that the compute starts after the copy
+          CUstream temp = compute; compute = copy; copy = temp;
+          CUdeviceptr temp = A0; A0 = A1; A1 = temp;
+          temp = B0; B0 = B1; B1 = temp;
+        }
+      }
+    }
+  }
+
+  // Copy C back onto the host on the compute stream
+  CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(C, ldc, 0, 0,
+                                     args->C, args->ldc, 0, 0,
+                                     m, n, sizeof(float), compute));
+
+  // Destroy the streams
+  CU_ERROR_CHECK(cuStreamDestroy(compute));
+  CU_ERROR_CHECK(cuStreamDestroy(copy));
+
+  // Unload the module
+  CU_ERROR_CHECK(cuModuleUnload(module));
+
+  return CUDA_SUCCESS;
+}
+
+CUresult cuMultiGPUSgemm(CUmultiGPU multiGPU,
+                         CBlasTranspose transA, CBlasTranspose transB,
                          size_t m, size_t n, size_t k,
                          float alpha, const float * restrict A, size_t lda, const float * restrict B, size_t ldb,
                          float beta, float * restrict C, size_t ldc) {
@@ -229,11 +456,6 @@ CUresult cuMultiGPUSgemm(CBlasTranspose transA, CBlasTranspose transB,
     return CUDA_SUCCESS;
   }
 
-  CUstream stream0[deviceCount], stream1[deviceCount];
-  CUdeviceptr dA0[deviceCount], dA1[deviceCount], dB0[deviceCount], dB1[deviceCount], dC[deviceCount];
-  size_t dlda0[deviceCount], dlda1[deviceCount], dldb0[deviceCount], dldb1[deviceCount], dldc[deviceCount];
-
-  int d = 0;
   if (transA == CBlasNoTrans) {
     /*
      * Each GPU MP processes blocks of 64x16 using 64 threads per block.
@@ -512,4 +734,3 @@ CUresult cuMultiGPUSgemm(CBlasTranspose transA, CBlasTranspose transB,
 
   return CUDA_SUCCESS;
 }
-#endif

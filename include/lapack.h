@@ -71,22 +71,22 @@ CUresult cuZpotri(CUhandle, CBlasUplo, size_t, CUdeviceptr, size_t, long *);
 
 /** My CPU + multiGPU implementations */
 // Single precision Cholesky decomposition
-CUresult cuMultiGPUSpotrf(CUhandle *, int, CBlasUplo, size_t,  float * restrict, size_t, long * restrict);
+CUresult cuMultiGPUSpotrf(CUmultiGPU, CBlasUplo, size_t,  float * restrict, size_t, long * restrict);
 // Double precision Cholesky decomposition
-CUresult cuMultiGPUDpotrf(CUhandle *, int, CBlasUplo, size_t, double * restrict, size_t, long * restrict);
+CUresult cuMultiGPUDpotrf(CUmultiGPU, CBlasUplo, size_t, double * restrict, size_t, long * restrict);
 // Single precision complex Cholesky decomposition
-CUresult cuMultiGPUCpotrf(CUhandle *, int, CBlasUplo, size_t,  float complex * restrict, size_t, long * restrict);
+CUresult cuMultiGPUCpotrf(CUmultiGPU, CBlasUplo, size_t,  float complex * restrict, size_t, long * restrict);
 // Double precision complex Cholesky decomposition
-CUresult cuMultiGPUZpotrf(CUhandle *, int, CBlasUplo, size_t, double complex * restrict, size_t, long * restrict);
+CUresult cuMultiGPUZpotrf(CUmultiGPU, CBlasUplo, size_t, double complex * restrict, size_t, long * restrict);
 
 // Single precision inverse from Cholesky decomposition
-CUresult cuMultiGPUSpotri(CUhandle *, int, CBlasUplo, size_t,  float * restrict, size_t, long * restrict);
+CUresult cuMultiGPUSpotri(CUmultiGPU, CBlasUplo, size_t,  float * restrict, size_t, long * restrict);
 // Double precision inverse from Cholesky decomposition
-CUresult cuMultiGPUDpotri(CUhandle *, int, CBlasUplo, size_t, double * restrict, size_t, long * restrict);
+CUresult cuMultiGPUDpotri(CUmultiGPU, CBlasUplo, size_t, double * restrict, size_t, long * restrict);
 // Single precision complex inverse from Cholesky decomposition
-CUresult cuMultiGPUCpotri(CUhandle *, int, CBlasUplo, size_t,  float complex * restrict, size_t, long * restrict);
+CUresult cuMultiGPUCpotri(CUmultiGPU, CBlasUplo, size_t,  float complex * restrict, size_t, long * restrict);
 // Double precision complex inverse from Cholesky decomposition
-CUresult cuMultiGPUZpotri(CUhandle *, int, CBlasUplo, size_t, double complex * restrict, size_t, long * restrict);
+CUresult cuMultiGPUZpotri(CUmultiGPU, CBlasUplo, size_t, double complex * restrict, size_t, long * restrict);
 
 #ifdef __CUDACC__
 #undef restrict

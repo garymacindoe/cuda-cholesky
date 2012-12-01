@@ -6,6 +6,8 @@
 #include <complex.h>
 #include <cuda.h>
 
+#include "cumultigpu.h"
+
 // nvcc uses __restrict__ instead of C99's restrict keyword
 // CUDA Programming Guide v4.1 Appendix B.2.4
 #ifdef __CUDACC__
@@ -240,86 +242,102 @@ CUresult cuZtrsm(CUmodule, CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
 
 /** My MultiGPU/Hybrid implementations */
 // Single precision rank-K update
-CUresult cuMultiGPUSsyrk(CBlasUplo, CBlasTranspose,
+CUresult cuMultiGPUSsyrk(CUmultiGPU,
+                         CBlasUplo, CBlasTranspose,
                          size_t, size_t,
                          float, const float * restrict, size_t,
                          float, float * restrict, size_t);
 // Double precision rank-K update
-CUresult cuMultiGPUDsyrk(CBlasUplo, CBlasTranspose,
+CUresult cuMultiGPUDsyrk(CUmultiGPU,
+                         CBlasUplo, CBlasTranspose,
                          size_t, size_t,
                          double, const double * restrict, size_t,
                          double, double * restrict, size_t);
 
 // Single precision complex hermitian rank-K update
-CUresult cuMultiGPUCherk(CBlasUplo, CBlasTranspose,
+CUresult cuMultiGPUCherk(CUmultiGPU,
+                         CBlasUplo, CBlasTranspose,
                          size_t, size_t,
                          float, const float complex * restrict, size_t,
                          float, float complex * restrict, size_t);
 // Double precision complex hermitian rank-K update
-CUresult cuMultiGPUZherk(CBlasUplo, CBlasTranspose,
+CUresult cuMultiGPUZherk(CUmultiGPU,
+                         CBlasUplo, CBlasTranspose,
                          size_t, size_t,
                          double, const double complex * restrict, size_t,
                          double, double complex * restrict, size_t);
 
 // Single precision matrix multiply
-CUresult cuMultiGPUSgemm(CBlasTranspose, CBlasTranspose,
+CUresult cuMultiGPUSgemm(CUmultiGPU,
+                         CBlasTranspose, CBlasTranspose,
                          size_t, size_t, size_t,
                          float, const float * restrict, size_t, const float * restrict, size_t,
                          float, float * restrict, size_t);
 // Double precision matrix multiply
-CUresult cuMultiGPUDgemm(CBlasTranspose, CBlasTranspose,
+CUresult cuMultiGPUDgemm(CUmultiGPU,
+                         CBlasTranspose, CBlasTranspose,
                          size_t, size_t, size_t,
                          double, const double * restrict, size_t, const double * restrict, size_t,
                          double, double * restrict, size_t);
 // Single precision complex matrix multiply
-CUresult cuMultiGPUCgemm(CBlasTranspose, CBlasTranspose,
+CUresult cuMultiGPUCgemm(CUmultiGPU,
+                         CBlasTranspose, CBlasTranspose,
                          size_t, size_t, size_t,
                          float complex, const float complex * restrict, size_t, const float complex * restrict, size_t,
                          float complex,  float complex * restrict, size_t);
 // Double precision complex matrix multiply
-CUresult cuMultiGPUZgemm(CBlasTranspose, CBlasTranspose,
+CUresult cuMultiGPUZgemm(CUmultiGPU,
+                         CBlasTranspose, CBlasTranspose,
                          size_t, size_t, size_t,
                          double complex, const double complex * restrict, size_t, const double complex * restrict, size_t,
                          double complex, double complex * restrict, size_t);
 
 // Single precision triangular matrix multiply
-CUresult cuMultiGPUStrmm(CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
+CUresult cuMultiGPUStrmm(CUmultiGPU,
+                         CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
                          size_t, size_t,
                          float, const float * restrict, size_t,
                          float * restrict, size_t);
 // Double precision triangular matrix multiply
-CUresult cuMultiGPUDtrmm(CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
+CUresult cuMultiGPUDtrmm(CUmultiGPU,
+                         CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
                          size_t, size_t,
                          double, const double * restrict, size_t,
                          double * restrict, size_t);
 // Single precision complex triangular matrix multiply
-CUresult cuMultiGPUCtrmm(CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
+CUresult cuMultiGPUCtrmm(CUmultiGPU,
+                         CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
                          size_t, size_t,
                          float complex, const float complex * restrict, size_t,
                          float complex * restrict, size_t);
 // Double precision complex triangular matrix multiply
-CUresult cuMultiGPUZtrmm(CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
+CUresult cuMultiGPUZtrmm(CUmultiGPU,
+                         CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
                          size_t, size_t,
                          double complex, const double complex * restrict, size_t,
                          double complex * restrict, size_t);
 
 // Single precision triangular solve
-CUresult cuMultiGPUStrsm(CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
+CUresult cuMultiGPUStrsm(CUmultiGPU,
+                         CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
                          size_t, size_t,
                          float, const float * restrict, size_t,
                          float * restrict, size_t);
 // Double precision triangular solve
-CUresult cuMultiGPUDtrsm(CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
+CUresult cuMultiGPUDtrsm(CUmultiGPU,
+                         CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
                          size_t, size_t,
                          double, const double * restrict, size_t,
                          double * restrict, size_t);
 // Single precision complex triangular solve
-CUresult cuMultiGPUCtrsm(CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
+CUresult cuMultiGPUCtrsm(CUmultiGPU,
+                         CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
                          size_t, size_t,
                          float complex, const float complex * restrict, size_t,
                          float complex * restrict, size_t);
 // Double precision complex triangular solve
-CUresult cuMultiGPUZtrsm(CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
+CUresult cuMultiGPUZtrsm(CUmultiGPU,
+                         CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
                          size_t, size_t,
                          double complex, const double complex * restrict, size_t,
                          double complex * restrict, size_t);
