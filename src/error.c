@@ -2,12 +2,13 @@
 #include <stdio.h>
 
 static void defaultErrorHandler(const char * call, const char * function,
-                                const char * file, int line, CUresult error) {
+                                const char * file, int line, int error,
+                                const char * (*strerror)(int)) {
   fprintf(stderr, "Error:\n\t%s returned %d (%s) in %s (%s:%u)\n",
-          call, error, cuGetErrorString(error), function, file, line);
+          call, error, strerror(error), function, file, line);
 }
 
-CUerrorHandler_t cuErrorHandler = &defaultErrorHandler;
+errorHandler_t errorHandler = &defaultErrorHandler;
 
 const char * cuGetErrorString(CUresult result) {
   switch (result) {

@@ -5,14 +5,36 @@
 #include <pthread.h>
 #include "error.h"
 
+#define CU_ERROR_CHECK_PTHREAD_EXIT(call) \
+  do { \
+    CUresult __error__; \
+    if ((__error__ = (call)) != CUDA_SUCCESS) { \
+      if (errorHandler != NULL) \
+        errorHandler(STRING(call), __func__, __FILE__, __LINE__, __error__, \
+                     (const char * (*)(int))cuGetErrorString); \
+      pthread_exit((void *)(ptrdiff_t)__error__); \
+    } \
+  } while (false)
+
+#define PTHREAD_ERROR_CHECK_EXIT(call) \
+  do { \
+    int __error__; \
+    if ((__error__ = (call)) != 0) { \
+      if (errorHandler != NULL) \
+        errorHandler(STRING(call), __func__, __FILE__, __LINE__, __error__, \
+                     (const char * (*)(int))strerror); \
+      pthread_exit((void *)(ptrdiff_t)__error__); \
+    } \
+  } while (false)
+
 #define PTHREAD_ERROR_CHECK(call) \
   do { \
     int __error__; \
     if ((__error__ = (call)) != 0) { \
       if (errorHandler != NULL) \
-        errorHandler(#call, __func__, __FILE__, __LINE__, __error__, \
+        errorHandler(STRING(call), __func__, __FILE__, __LINE__, __error__, \
                      (const char * (*)(int))strerror); \
-      pthread_exit((void *)(ptrdiff_t)__error__); \
+      return CUDA_ERROR_OPERATING_SYSTEM; \
     } \
   } while (false)
 
@@ -48,16 +70,24 @@ struct __cutask_st {
 };
 
 /**
- * MultiGPU context structure.
+ * Thread pool structure.
  */
 struct __cumultigpu_st {
-  CUtask * tasks;                      /** Queue of tasks                     */
-  size_t head, tail, capacity;         /** Head, tail and capacity of queue   */
-  pthread_t * threads;                 /** Background threads                 */
-  int n;                               /** Number of background threads       */
-  pthread_mutex_t mutex;               /** Mutex to protect access to queue   */
-  pthread_cond_t cond;                 /** Condition to wait on non-empty
-                                           queue                              */
+  CUtask * tasks;                 /** Queue of tasks                          */
+  size_t head, tail, capacity;    /** Head, tail and capacity of queue        */
+  pthread_t * threads;            /** Background threads                      */
+  int n;                          /** Number of background threads            */
+  pthread_mutex_t mutex;          /** Mutex to protect access to queue        */
+  pthread_cond_t cond;            /** Condition to wait on non-empty queue    */
+};
+
+/**
+ * Thread arguments
+ */
+struct thread_args {
+  CUmultiGPU multiGPU;            /** MultiGPU context                        */
+  unsigned int flags;             /** Context creation flags                  */
+  CUdevice device;                /** Device to create context on             */
 };
 
 /**
@@ -67,17 +97,26 @@ struct __cumultigpu_st {
  * @return thread error status.
  */
 static void * cu_thread_main(void * args) {
-  // Get a pointer to the thread pool
-  CUmultiGPU mGPU = (CUmultiGPU)args;
+  struct thread_args * thread_args = (struct thread_args *)args;
+
+  // Get a pointer to the multiGPU context
+  CUmultiGPU mGPU = thread_args->multiGPU;
+  unsigned int flags = thread_args->flags;
+  CUdevice device = thread_args->device;
+  free(args);
+
+  // Create a GPU context on the specified device
+  CUcontext context;
+  CU_ERROR_CHECK_PTHREAD_EXIT(cuCtxCreate(&context, flags, device));
 
   // Enter main loop
   while (true) {
     // Lock the mutex for the task queue
-    PTHREAD_ERROR_CHECK(pthread_mutex_lock(&mGPU->mutex));
+    PTHREAD_ERROR_CHECK_EXIT(pthread_mutex_lock(&mGPU->mutex));
 
     // Wait until there is a task in the queue
     while (mGPU->head == mGPU->tail)
-      PTHREAD_ERROR_CHECK(pthread_cond_wait(&mGPU->cond, &mGPU->mutex));
+      PTHREAD_ERROR_CHECK_EXIT(pthread_cond_wait(&mGPU->cond, &mGPU->mutex));
 
     // Remove the task from the queue
     CUtask task = mGPU->tasks[mGPU->head++];
@@ -85,7 +124,7 @@ static void * cu_thread_main(void * args) {
       mGPU->head = 0;
 
     // Unlock the mutex for the task queue
-    PTHREAD_ERROR_CHECK(pthread_mutex_unlock(&mGPU->mutex));
+    PTHREAD_ERROR_CHECK_EXIT(pthread_mutex_unlock(&mGPU->mutex));
 
     // If the task function is NULL then that is the signal to break from the
     // main loop
@@ -95,7 +134,7 @@ static void * cu_thread_main(void * args) {
     }
 
     // Lock the mutex for the task
-    PTHREAD_ERROR_CHECK(pthread_mutex_lock(&task->mutex));
+    PTHREAD_ERROR_CHECK_EXIT(pthread_mutex_lock(&task->mutex));
 
     // Run the task function using the arguments and assign the result
     task->result = task->function(task->args);
@@ -104,30 +143,18 @@ static void * cu_thread_main(void * args) {
     task->complete = true;
 
     // Unlock the task mutex
-    PTHREAD_ERROR_CHECK(pthread_mutex_unlock(&task->mutex));
+    PTHREAD_ERROR_CHECK_EXIT(pthread_mutex_unlock(&task->mutex));
 
     // Signal to waiting threads that the task has now completed
-    PTHREAD_ERROR_CHECK(pthread_cond_broadcast(&task->cond));
+    PTHREAD_ERROR_CHECK_EXIT(pthread_cond_broadcast(&task->cond));
   }
+
+  // Destroy the context
+  CU_ERROR_CHECK_PTHREAD_EXIT(cuCtxDestroy(context));
 
   // Exit the thread
   pthread_exit(NULL);
 }
-
-// Redefine PTHREAD_ERROR_CHECK to return CUDA_ERROR_OPERATING_SYSTEM for
-// functions on the main thread
-#undef PTHREAD_ERROR_CHECK
-
-#define PTHREAD_ERROR_CHECK(call) \
-  do { \
-    int __error__; \
-    if ((__error__ = (call)) != 0) { \
-      if (errorHandler != NULL) \
-        errorHandler(#call, __func__, __FILE__, __LINE__, __error__, \
-                     (const char * (*)(int))strerror); \
-      return CUDA_ERROR_OPERATING_SYSTEM; \
-    } \
-  } while (false)
 
 /**
  * Creates a multiGPU context with a single GPU context on each device given.
@@ -136,15 +163,16 @@ static void * cu_thread_main(void * args) {
  *
  * @param multiGPU  the handle to the created context is returned through this
  *                  pointer.
- * @param flags     flags for the context created on each device.
- * @param devices   the devices to create the contexts on.
+ * @param flags     context creation flags.
+ * @param devices   devices to create contexts on.
  * @param n         the number of devices.
  * @return CUDA_SUCCESS, CUDA_ERROR_DEINITIALIZED, CUDA_ERROR_NOT_INITIALIZED,
  *         CUDA_ERROR_INVALID_CONTEXT, CUDA_ERROR_INVALID_DEVICE,
  *         CUDA_ERROR_INVALID_VALUE, CUDA_ERROR_OPERATING_SYSTEM,
  *         CUDA_ERROR_OUT_OF_MEMORY, CUDA_ERROR_UNKNOWN
  */
-CUresult cuMultiGPUCreate(CUmultiGPU * multiGPU, int n) {
+CUresult cuMultiGPUCreate(CUmultiGPU * multiGPU, unsigned int flags,
+                          CUdevice * devices, int n) {
   if (n <= 0)
     return CUDA_ERROR_INVALID_VALUE;
 
@@ -182,9 +210,18 @@ CUresult cuMultiGPUCreate(CUmultiGPU * multiGPU, int n) {
   *multiGPU = mGPU;
 
   // Start the background threads
-  for (mGPU->n = 0; mGPU->n < n; mGPU->n++)
+  for (mGPU->n = 0; mGPU->n < n; mGPU->n++) {
+    struct thread_args * args;
+    if ((args = malloc(sizeof(struct thread_args))) == NULL)
+      return CUDA_ERROR_OUT_OF_MEMORY;
+
+    args->multiGPU = mGPU;
+    args->flags = flags;
+    args->device = devices[mGPU->n];
+
     PTHREAD_ERROR_CHECK(pthread_create(&mGPU->threads[mGPU->n], NULL,
-                                       cu_thread_main, mGPU));
+                                       cu_thread_main, args));
+  }
 
   return CUDA_SUCCESS;
 }
@@ -217,7 +254,7 @@ CUresult cuMultiGPUDestroy(CUmultiGPU multiGPU) {
   for (int i = 0; i < multiGPU->n; i++) {
     CUtask task;
     if ((task = malloc(sizeof(struct __cutask_st))) == NULL) {
-      PTHREAD_ERROR_CHECK(pthread_mutex_unlock(&multiGPU->mutex));
+      pthread_mutex_unlock(&multiGPU->mutex);
       return CUDA_ERROR_OUT_OF_MEMORY;
     }
 
@@ -267,7 +304,7 @@ CUresult cuTaskSchedule(CUtask * task, CUmultiGPU multiGPU,
                         size_t n) {
   // Function cannot be NULL as that is the signal for the background thread to
   // exit
-  // This function will SIGSEGV if args is NULL and size is > 0
+  // This function will SIGSEGV if args is NULL and n is > 0
   if (function == NULL || (args == NULL && n > 0))
     return CUDA_ERROR_INVALID_VALUE;
 
@@ -366,5 +403,5 @@ CUresult cuTaskDestroy(CUtask task, CUresult * result) {
   free(task->args);
   free(task);
 
-  return CUDA_SUCCESS;
+  return 0;
 }

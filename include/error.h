@@ -9,21 +9,22 @@
 #define STRING(x) STRINGx(x)
 
 /**
- * CUDA Driver API error handler function type.
+ * Error handler function type.
  *
- * @param call      the function call that threw the error.
- * @param function  the calling function where the error occurred.
- * @param file      the file the error occurred in.
- * @param line      the line number the error occurred on.
- * @param error     the integer error code.
+ * @param call      function call that threw the error.
+ * @param function  calling function where the error occurred.
+ * @param file      file the error occurred in.
+ * @param line      line number the error occurred on.
+ * @param error     integer error code.
+ * @param strerror  error description function.
  */
-typedef void (*CUerrorHandler)(const char *, const char *, const char *, int,
-                               CUresult, const char * (*)(CUresult));
+typedef void (*errorHandler_t)(const char *, const char *, const char *, int,
+                               int, const char * (*)(int));
 
 /**
  * CUDA Driver API error handler (may be NULL).
  */
-extern CUerrorHandler cuErrorHandler;
+extern errorHandler_t errorHandler;
 
 /**
  * CUDA Driver API error string function.
@@ -37,8 +38,9 @@ const char * cuGetErrorString(CUresult);
   do { \
     CUresult __error__; \
     if ((__error__ = (call)) != CUDA_SUCCESS) { \
-      if (cuErrorHandler != NULL) \
-        cuErrorHandler(STRING(call), __func__, __FILE__, __LINE__, __error__); \
+      if (errorHandler != NULL) \
+        errorHandler(STRING(call), __func__, __FILE__, __LINE__, __error__, \
+                     (const char * (*)(int))cuGetErrorString); \
       return __error__; \
     } \
   } while (false)

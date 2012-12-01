@@ -12,13 +12,15 @@ typedef struct __cumultigpu_st * CUmultiGPU;
  *
  * @param multiGPU  the handle to the created context is returned through this
  *                  pointer.
+ * @param flags     context creation flags.
+ * @param devices   devices to create contexts on.
  * @param n         the number of devices.
  * @return CUDA_SUCCESS, CUDA_ERROR_DEINITIALIZED, CUDA_ERROR_NOT_INITIALIZED,
  *         CUDA_ERROR_INVALID_CONTEXT, CUDA_ERROR_INVALID_DEVICE,
  *         CUDA_ERROR_INVALID_VALUE, CUDA_ERROR_OPERATING_SYSTEM,
  *         CUDA_ERROR_OUT_OF_MEMORY, CUDA_ERROR_UNKNOWN
  */
-CUresult cuMultiGPUCreate(CUmultiGPU *, int);
+CUresult cuMultiGPUCreate(CUmultiGPU *, unsigned int, CUdevice *, int);
 
 /**
  * Destroys the multiGPU context.  This will block until all currently executing
