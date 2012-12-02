@@ -435,7 +435,8 @@ static CUresult background_sgemm(const void * a) {
 CUresult cuMultiGPUSgemm(CUmultiGPU multiGPU,
                          CBlasTranspose transA, CBlasTranspose transB,
                          size_t m, size_t n, size_t k,
-                         float alpha, const float * restrict A, size_t lda, const float * restrict B, size_t ldb,
+                         float alpha, const float * restrict A, size_t lda,
+                         const float * restrict B, size_t ldb,
                          float beta, float * restrict C, size_t ldc) {
   size_t nRowA = (transA == CBlasNoTrans) ? m : k;
   size_t nRowB = (transB == CBlasNoTrans) ? k : n;
@@ -476,7 +477,7 @@ CUresult cuMultiGPUSgemm(CUmultiGPU multiGPU,
   /**
    * When transA == CBlasNoTrans each GPU MP processes blocks of 64x16 using 64
    * threads per block.
-   * There are 30 MPs on the GTX 280 so each requires a minimum of 3 blocks
+   * There are 30 MPs on the GTX 280 and each requires a minimum of 3 blocks
    * to mask memory latency (64 * 3 = 192 threads/6 warps).
    * A maximum of 8 blocks will fit on each MP concurrently due to shared memory
    * and register requirements.  Best performance should therefore occur when we
@@ -488,18 +489,18 @@ CUresult cuMultiGPUSgemm(CUmultiGPU multiGPU,
    * kb defines the amount of work done by each thread and the memory (and
    * bandwidth) needed for A and B so needs to be tuned to give maximum
    * performance.  kb >= 512 gives 400GFlops/s.  This requires (576 * 320 + 2 *
-   * (576 * 512 + 320 * 512)) * 4 = 4304kB of graphics memory
+   * (576 * 512 + 320 * 512)) * 4 = 4304kB of graphics memory.
    *
    * These block sizes give a bandwidth reduction of 2 / (1/576 + 1/320) = 411.43
    *
    * Bandwidth between host and device is 6 GB/s each way
    *
    * FLOP:word ratio for transA == CBlasNoTrans is
-   * (4 * 10^9) / (6 * 1,073,741,824 / sizeof(float)) = 2.48
+   * (400 * 10^9) / (6 * 1,073,741,824 / sizeof(float)) = 248.35
    *
    * When transA != CBlasNoTrans each GPU MP processes blocks of 32x32 using 64
    * threads per block.
-   * There are 30 MPs on the GTX 280 so each requires a minimum of 3 blocks
+   * There are 30 MPs on the GTX 280 and each requires a minimum of 3 blocks
    * to mask memory latency (64 * 3 = 192 threads/6 warps).
    * A maximum of 6 blocks will fit on each MP concurrently due to shared memory
    * and register requirements.  Best performance should therefore occur when we
@@ -511,14 +512,14 @@ CUresult cuMultiGPUSgemm(CUmultiGPU multiGPU,
    * kb defines the amount of work done by each thread and the memory (and
    * bandwidth) needed for A and B so needs to be tuned to give maximum
    * performance.  kb >= 320 gives 330GFlops/s.  This requires (384 * 480 + 2 *
-   * (384 * 320 + 320 * 480)) * 4 = 2880kB of graphics memory
+   * (384 * 320 + 320 * 480)) * 4 = 2880kB of graphics memory.
    *
    * These block sizes give a bandwidth reduction of 2 / (1/384 + 1/480) = 426.67
    *
    * Bandwidth between host and device is 6 GB/s each way
    *
    * FLOP:word ratio for transA != CBlasNoTrans is
-   * (3.3 * 10^9) / (6 * 1,073,741,824 / sizeof(float)) = 2.05
+   * (330 * 10^9) / (6 * 1,073,741,824 / sizeof(float)) = 204.89
    *
    */
   const size_t mb = (transA == CBlasNoTrans) ? 576 : 384;
