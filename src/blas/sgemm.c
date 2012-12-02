@@ -503,9 +503,9 @@ CUresult cuMultiGPUSgemm(CUmultiGPU multiGPU,
    * to mask memory latency (64 * 3 = 192 threads/6 warps).
    * A maximum of 6 blocks will fit on each MP concurrently due to shared memory
    * and register requirements.  Best performance should therefore occur when we
-   * have over 30 * 6 = 180 blocks sent to the GPU.  This requires a 9x10,
-   * 6x15, 3x30, etc. block size here.
-   * 6x15 is chosen to retain the m << n behaviour needed for SPOTRF('U',..).
+   * have over 30 * 6 = 180 blocks sent to the GPU.  This requires a 9x20,
+   * 12x15, 6x30, etc. block size here.
+   * 12x15 is chosen to retain the m << n behaviour needed for SPOTRF('U',..).
    * mb = 12 * 32 = 384
    * nb = 15 * 32 = 480
    * kb defines the amount of work done by each thread and the memory (and
