@@ -553,7 +553,7 @@ CUresult cuMultiGPUCgemm(CUmultiGPU multiGPU,
   }
 
   /**
-   * When transA == CBlasNoTrans each GPU MP processes blocks of 64x16 using 64
+   * When transA == CBlasNoTrans each GPU MP processes blocks of 64x8 using 64
    * threads per block.
    * There are 30 MPs on the GTX 280 and each requires a minimum of 3 blocks
    * to mask memory latency (64 * 3 = 192 threads/6 warps).
@@ -561,47 +561,47 @@ CUresult cuMultiGPUCgemm(CUmultiGPU multiGPU,
    * and register requirements.  Best performance should therefore occur when we
    * have over 30 * 6 = 180 blocks sent to the GPU.  This requires a 9x20,
    * 12x15, 6x30, etc. block size here.
-   * 9x20 is chosen to retain the m >> n behaviour needed for SPOTRF('L',..).
+   * 9x20 is chosen to retain the m >> n behaviour needed for CPOTRF('L',..).
    * mb =  9 * 64 = 576
-   * nb = 20 * 16 = 320
+   * nb = 20 *  8 = 160
    * kb defines the amount of work done by each thread and the memory (and
    * bandwidth) needed for A and B so needs to be tuned to give maximum
-   * performance.  kb >= 256 gives 80GFlops/s.  This requires (576 * 320 + 2 *
-   * (576 * 256 + 320 * 256)) * 8 = 5024kB of graphics memory.
+   * performance.  kb >= 256 gives 80GFlops/s.  This requires (576 * 160 + 2 *
+   * (576 * 256 + 160 * 256)) * 8 = 3664kB of graphics memory.
    *
-   * These block sizes give a bandwidth reduction of 2 / (1/576 + 1/320) = 411.43
+   * These block sizes give a bandwidth reduction of 2 / (1/576 + 1/160) = 250.43
    *
    * Bandwidth between host and device is 6 GB/s each way
    *
    * FLOP:word ratio for transA == CBlasNoTrans is
-   * (80 * 10^9) / (6 * 1,073,741,824 / sizeof(double)) = 99.34
+   * (80 * 10^9) / (6 * 1,073,741,824 / sizeof(float complex)) = 99.34
    *
-   * When transA != CBlasNoTrans each GPU MP processes blocks of 32x32 using 64
+   * When transA != CBlasNoTrans each GPU MP processes blocks of 32x16 using 64
    * threads per block.
    * There are 30 MPs on the GTX 280 and each requires a minimum of 3 blocks
    * to mask memory latency (64 * 3 = 192 threads/6 warps).
-   * A maximum of 2 blocks will fit on each MP concurrently due to shared memory
+   * A maximum of 4 blocks will fit on each MP concurrently due to shared memory
    * and register requirements.  Best performance should therefore occur when we
-   * have over 30 * 2 = 60 blocks sent to the GPU.  This requires a 3x20,
-   * 4x15, 2x30, etc. block size here.
-   * 4x15 is chosen to retain the m << n behaviour needed for SPOTRF('U',..).
+   * have over 30 * 4 = 120 blocks sent to the GPU.  This requires a 6x20,
+   * 8x15, 4x30, etc. block size here.
+   * 8x15 is chosen to retain the m << n behaviour needed for CPOTRF('U',..).
    * mb =  4 * 32 = 128
-   * nb = 15 * 32 = 480
+   * nb = 30 * 16 = 480
    * kb defines the amount of work done by each thread and the memory (and
    * bandwidth) needed for A and B so needs to be tuned to give maximum
    * performance.  kb >= 320 gives 75GFlops/s.  This requires (128 * 480 + 2 *
-   * (128 * 320 + 320 * 480)) * 8 = 3100kB of graphics memory.
+   * (128 * 320 + 320 * 480)) * 8 = 3520kB of graphics memory.
    *
    * These block sizes give a bandwidth reduction of 2 / (1/128 + 1/480) = 202.11
    *
    * Bandwidth between host and device is 6 GB/s each way
    *
    * FLOP:word ratio for transA != CBlasNoTrans is
-   * (75 * 10^9) / (6 * 1,073,741,824 / sizeof(double)) = 93.13
+   * (75 * 10^9) / (6 * 1,073,741,824 / sizeof(float complex)) = 93.13
    *
    */
   const size_t mb = (transA == CBlasNoTrans) ? 576 : 128;
-  const size_t nb = (transA == CBlasNoTrans) ? 320 : 480;
+  const size_t nb = (transA == CBlasNoTrans) ? 160 : 480;
 
   if (m < mb && n < nb) {
     cgemm(transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc);
