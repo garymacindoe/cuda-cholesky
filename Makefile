@@ -134,26 +134,26 @@ dtrtri2: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dt
 ctrtri2: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/ctrmm.o $(OBJDIR)/src/blas/ctrsm.o $(OBJDIR)/src/blas/cherk.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/src/lapack/cpotrf.o $(OBJDIR)/src/lapack/ctrtri.o $(OBJDIR)/test/ctrtri2.o
 ztrtri2: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/ztrmm.o $(OBJDIR)/src/blas/ztrsm.o $(OBJDIR)/src/blas/zherk.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/lapack/zpotrf.o $(OBJDIR)/src/lapack/ztrtri.o $(OBJDIR)/test/ztrtri2.o
 
-cusgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/test/cusgemm.o | sgemm.fatbin
-cudgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/test/cudgemm.o | dgemm.fatbin
-cucgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/test/cucgemm.o | cgemm.fatbin
-cuzgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/test/cuzgemm.o | zgemm.fatbin
-cusgemm2: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/test/cusgemm2.o | sgemm.fatbin
-cudgemm2: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/test/cudgemm2.o | dgemm.fatbin
-cucgemm2: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/test/cucgemm2.o | cgemm.fatbin
-cuzgemm2: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/test/cuzgemm2.o | zgemm.fatbin
-cussyrk: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/src/blas/ssyrk.o $(OBJDIR)/test/cussyrk.o | ssyrk.fatbin
-cudsyrk: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/src/blas/dsyrk.o $(OBJDIR)/test/cudsyrk.o | dsyrk.fatbin
-cucherk: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/src/blas/cherk.o $(OBJDIR)/test/cucherk.o | cherk.fatbin
-cuzherk: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/blas/zherk.o $(OBJDIR)/test/cuzherk.o | zherk.fatbin
-custrmm2: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/src/blas/strmm.o $(OBJDIR)/test/custrmm2.o | strmm.fatbin
-cudtrmm2: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/src/blas/dtrmm.o $(OBJDIR)/test/cudtrmm2.o | dtrmm.fatbin
-cuctrmm2: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/src/blas/ctrmm.o $(OBJDIR)/test/cuctrmm2.o | ctrmm.fatbin
-cuztrmm2: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/blas/ztrmm.o $(OBJDIR)/test/cuztrmm2.o | ztrmm.fatbin
-custrsm: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/src/blas/strsm.o $(OBJDIR)/test/custrsm.o | strsm.fatbin
-cudtrsm: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/src/blas/dtrsm.o $(OBJDIR)/test/cudtrsm.o | dtrsm.fatbin
-cuctrsm: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/src/blas/ctrsm.o $(OBJDIR)/test/cuctrsm.o | ctrsm.fatbin
-cuztrsm: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/blas/ztrsm.o $(OBJDIR)/test/cuztrsm.o | ztrsm.fatbin
+cusgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/test/cusgemm.o | sgemm.fatbin
+cudgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/test/cudgemm.o | dgemm.fatbin
+cucgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/test/cucgemm.o | cgemm.fatbin
+cuzgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/test/cuzgemm.o | zgemm.fatbin
+cusgemm2: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/test/cusgemm2.o | sgemm.fatbin
+cudgemm2: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/test/cudgemm2.o | dgemm.fatbin
+cucgemm2: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/test/cucgemm2.o | cgemm.fatbin
+cuzgemm2: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/test/cuzgemm2.o | zgemm.fatbin
+cussyrk: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/src/blas/ssyrk.o $(OBJDIR)/test/cussyrk.o | ssyrk.fatbin
+cudsyrk: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/src/blas/dsyrk.o $(OBJDIR)/test/cudsyrk.o | dsyrk.fatbin
+cucherk: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/src/blas/cherk.o $(OBJDIR)/test/cucherk.o | cherk.fatbin
+cuzherk: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/blas/zherk.o $(OBJDIR)/test/cuzherk.o | zherk.fatbin
+custrmm2: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/src/blas/strmm.o $(OBJDIR)/test/custrmm2.o | strmm.fatbin
+cudtrmm2: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/src/blas/dtrmm.o $(OBJDIR)/test/cudtrmm2.o | dtrmm.fatbin
+cuctrmm2: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/src/blas/ctrmm.o $(OBJDIR)/test/cuctrmm2.o | ctrmm.fatbin
+cuztrmm2: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/blas/ztrmm.o $(OBJDIR)/test/cuztrmm2.o | ztrmm.fatbin
+custrsm: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/src/blas/strsm.o $(OBJDIR)/test/custrsm.o | strsm.fatbin
+cudtrsm: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/src/blas/dtrsm.o $(OBJDIR)/test/cudtrsm.o | dtrsm.fatbin
+cuctrsm: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/src/blas/ctrsm.o $(OBJDIR)/test/cuctrsm.o | ctrsm.fatbin
+cuztrsm: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/blas/ztrsm.o $(OBJDIR)/test/cuztrsm.o | ztrsm.fatbin
 
 cuspotrf: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/src/blas/ssyrk.o $(OBJDIR)/src/blas/strsm.o $(OBJDIR)/src/blas/strmm.o $(OBJDIR)/src/lapack/spotrf.o $(OBJDIR)/src/lapack/strtri.o $(OBJDIR)/test/cuspotrf.o | sgemm.fatbin ssyrk.fatbin strsm.fatbin strmm.fatbin spotrf.fatbin
 cudpotrf: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/src/blas/dsyrk.o $(OBJDIR)/src/blas/dtrsm.o $(OBJDIR)/src/blas/dtrmm.o $(OBJDIR)/src/lapack/dpotrf.o $(OBJDIR)/src/lapack/dtrtri.o $(OBJDIR)/test/cudpotrf.o | dgemm.fatbin dsyrk.fatbin dtrsm.fatbin dtrmm.fatbin dpotrf.fatbin
