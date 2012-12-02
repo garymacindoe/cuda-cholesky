@@ -1,5 +1,6 @@
 #include "blas.h"
 #include "error.h"
+#include "../multigpu.h"
 #include <stdio.h>
 
 static inline size_t min(size_t a, size_t b) { return (a < b) ? a : b; }
@@ -266,10 +267,254 @@ CUresult cuCgemm2(CUmodule module, CBlasTranspose transA, CBlasTranspose transB,
 
   return CUDA_SUCCESS;
 }
-#if 0
-CUresult cuMultiGPUCgemm(CBlasTranspose transA, CBlasTranspose transB,
+
+struct cgemm_args {
+  CBlasTranspose transA, transB;
+  size_t m, n, k;
+  float complex alpha; const float complex * A; size_t lda; const float complex * B; size_t ldb;
+  float complex beta; float complex * C; size_t ldc;
+};
+
+static CUresult background_cgemm(const void * a) {
+  struct cgemm_args * args = (struct cgemm_args *)a;
+
+  const CBlasTranspose transA = args->transA;
+  const CBlasTranspose transB = args->transB;
+  const size_t m = args->m;
+  const size_t n = args->n;
+  const size_t k = args->k;
+  const float complex alpha = args->alpha;
+  const float complex beta = args->beta;
+
+  if (m == 0 || n == 0 || ((alpha == zero || k == 0) && beta == one))
+    return CUDA_SUCCESS;
+
+  CUdeviceptr A0, A1, B0, B1, C;
+  size_t lda, ldb, ldc;
+
+  const size_t kb = (transA == CBlasNoTrans) ? 256 : 320;
+
+  // Load the cgemm module
+  CUmodule module;
+  CU_ERROR_CHECK(cuModuleLoad(&module, "cgemm.fatbin"));
+
+  // Create separate streams for concurrent copy and execute
+  CUstream compute, copy;
+  CU_ERROR_CHECK(cuStreamCreate(&compute, 0));
+  CU_ERROR_CHECK(cuStreamCreate(&copy, 0));
+
+  // Allocate C
+  CU_ERROR_CHECK(cuMemAllocPitch(&C, &ldc, m * sizeof(float complex), n, sizeof(float complex)));
+  ldc /= sizeof(float complex);
+
+  // Copy C onto the device
+  CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(C, ldc, 0, 0,
+                                     args->C, args->ldc, 0, 0,
+                                     m, n, sizeof(float complex), compute));
+
+  // Perform C *= beta
+  CU_ERROR_CHECK(cuCgemm(module, CBlasNoTrans, CBlasNoTrans,
+                         m, n, 0,
+                         zero, 0, ldc, 0, 0, beta, C, ldc, compute));
+
+  // Can exit early if alpha * op(A) * op(B) will evaluate to zero
+  if (alpha != zero && k > 0) {
+    // Perform C += alpha * op(A) * op(B)
+    if (transB == CBlasNoTrans) {
+      // B is k * n
+      CU_ERROR_CHECK(cuMemAllocPitch(&B0, &ldb, kb * sizeof(float complex), n, sizeof(float complex)));
+      CU_ERROR_CHECK(cuMemAllocPitch(&B1, &ldb, kb * sizeof(float complex), n, sizeof(float complex)));
+      ldb /= sizeof(float complex);
+
+      if (transA == CBlasNoTrans) {
+        // A is m * k
+        CU_ERROR_CHECK(cuMemAllocPitch(&A0, &lda, m * sizeof(float complex), kb, sizeof(float complex)));
+        CU_ERROR_CHECK(cuMemAllocPitch(&A1, &lda, m * sizeof(float complex), kb, sizeof(float complex)));
+        lda /= sizeof(float complex);
+
+        // Copy A and B onto the device asynchronously on the same stream as C
+        const size_t lb = min(k, kb);
+        CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A0, lda, 0, 0,
+                                          args->A, args->lda, 0, 0,
+                                          m, lb, sizeof(float complex), compute));
+        CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(B0, ldb, 0, 0,
+                                          args->B, args->ldb, 0, 0,
+                                          lb, n, sizeof(float complex), compute));
+
+        for (size_t l = 0; l < k; l += kb) {
+          // Compute C on the same stream as the copies to ensure they have finished first
+          CU_ERROR_CHECK(cuCgemm(module, transA, transB, m, n, min(k - l, kb),
+                                 alpha, A0, lda, B0, ldb, one, C, ldc, compute));
+
+          // If there is more work to do
+          if (l + kb < k) {
+            const size_t lb = min(k - l - kb, kb);
+            // Copy the next blocks of A and B on the opposite stream from the cgemm
+            CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A1, lda, 0, 0,
+                                               args->A, args->lda, 0, l + kb,
+                                               m, lb, sizeof(float complex), copy));
+            CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(B1, ldb, 0, 0,
+                                               args->B, args->ldb, l + kb, 0,
+                                               lb, n, sizeof(float complex), copy));
+
+            // Swap the streams and pointers so that the compute starts after the copy
+            CUstream stream = compute; compute = copy; copy = stream;
+            CUdeviceptr ptr = A0; A0 = A1; A1 = ptr;
+            ptr = B0; B0 = B1; B1 = ptr;
+          }
+        }
+      }
+      else {
+        // A is k * m
+        CU_ERROR_CHECK(cuMemAllocPitch(&A0, &lda, kb * sizeof(float complex), m, sizeof(float complex)));
+        CU_ERROR_CHECK(cuMemAllocPitch(&A1, &lda, kb * sizeof(float complex), m, sizeof(float complex)));
+        lda /= sizeof(float complex);
+
+        // Copy A and B onto the device asynchronously on the same stream as C
+        const size_t lb = min(k, kb);
+        CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A0, lda, 0, 0,
+                                          args->A, args->lda, 0, 0,
+                                          lb, m, sizeof(float complex), compute));
+        CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(B0, ldb, 0, 0,
+                                          args->B, args->ldb, 0, 0,
+                                          lb, n, sizeof(float complex), compute));
+
+        for (size_t l = 0; l < k; l += kb) {
+          // Compute C on the same stream as the copies to ensure they have finished first
+          CU_ERROR_CHECK(cuCgemm(module, transA, transB, m, n, min(k - l, kb),
+                                 alpha, A0, lda, B0, ldb, one, C, ldc, compute));
+
+          // If there is more work to do
+          if (l + kb < k) {
+            const size_t lb = min(k - l - kb, kb);
+            // Copy the next blocks of A and B on the opposite stream from the cgemm
+            CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A1, lda, 0, 0,
+                                               args->A, args->lda, l + kb, 0,
+                                               lb, m, sizeof(float complex), copy));
+            CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(B1, ldb, 0, 0,
+                                               args->B, args->ldb, l + kb, 0,
+                                               lb, n, sizeof(float complex), copy));
+
+            // Swap the streams and pointers so that the compute starts after the copy
+            CUstream stream = compute; compute = copy; copy = stream;
+            CUdeviceptr ptr = A0; A0 = A1; A1 = ptr;
+            ptr = B0; B0 = B1; B1 = ptr;
+          }
+        }
+      }
+    }
+    else {
+      // B is n * k
+      CU_ERROR_CHECK(cuMemAllocPitch(&B0, &ldb, n * sizeof(float complex), kb, sizeof(float complex)));
+      CU_ERROR_CHECK(cuMemAllocPitch(&B1, &ldb, n * sizeof(float complex), kb, sizeof(float complex)));
+      ldb /= sizeof(float complex);
+
+      if (transA == CBlasNoTrans) {
+        // A is m * k
+        CU_ERROR_CHECK(cuMemAllocPitch(&A0, &lda, m * sizeof(float complex), kb, sizeof(float complex)));
+        CU_ERROR_CHECK(cuMemAllocPitch(&A1, &lda, m * sizeof(float complex), kb, sizeof(float complex)));
+        lda /= sizeof(float complex);
+
+        // Copy A and B onto the device asynchronously on the same stream as C
+        const size_t lb = min(k, kb);
+        CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A0, lda, 0, 0,
+                                           args->A, args->lda, 0, 0,
+                                           m, lb, sizeof(float complex), compute));
+        CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(B0, ldb, 0, 0,
+                                           args->B, args->ldb, 0, 0,
+                                           n, lb, sizeof(float complex), compute));
+
+        for (size_t l = 0; l < k; l += kb) {
+          // Compute C on the same stream as the copies to ensure they have finished first
+          CU_ERROR_CHECK(cuCgemm(module, transA, transB, m, n, min(k - l, kb),
+                                 alpha, A0, lda, B0, ldb, one, C, ldc, compute));
+
+          // If there is more work to do
+          if (l + kb < k) {
+            const size_t lb = min(k - l - kb, kb);
+            // Copy the next blocks of A and B on the opposite stream from the cgemm
+            CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A1, lda, 0, 0,
+                                              args->A, args->lda, 0, l + kb,
+                                              m, lb, sizeof(float complex), copy));
+            CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(B1, ldb, 0, 0,
+                                              args->B, args->ldb, 0, l + kb,
+                                              n, lb, sizeof(float complex), copy));
+
+            // Swap the streams and pointers so that the compute starts after the copy
+            CUstream stream = compute; compute = copy; copy = stream;
+            CUdeviceptr ptr = A0; A0 = A1; A1 = ptr;
+            ptr = B0; B0 = B1; B1 = ptr;
+          }
+        }
+      }
+      else {
+        // A is k * m
+        CU_ERROR_CHECK(cuMemAllocPitch(&A0, &lda, kb * sizeof(float complex), m, sizeof(float complex)));
+        CU_ERROR_CHECK(cuMemAllocPitch(&A1, &lda, kb * sizeof(float complex), m, sizeof(float complex)));
+        lda /= sizeof(float complex);
+
+        // Copy A and B onto the device asynchronously on the same stream as C
+        const size_t lb = min(k, kb);
+        CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A0, lda, 0, 0,
+                                          args->A, args->lda, 0, 0,
+                                          lb, m, sizeof(float complex), compute));
+        CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(B0, ldb, 0, 0,
+                                          args->B, args->ldb, 0, 0,
+                                          n, lb, sizeof(float complex), compute));
+
+        for (size_t l = 0; l < k; l += kb) {
+          // Compute C on the same stream as the copies to ensure they have finished first
+          CU_ERROR_CHECK(cuCgemm(module, transA, transB, m, n, min(k - l, kb),
+                                 alpha, A0, lda, B0, ldb, one, C, ldc, compute));
+
+          // If there is more work to do
+          if (l + kb < k) {
+            const size_t lb = min(k - l - kb, kb);
+            // Copy the next blocks of A and B on the opposite stream from the cgemm
+            CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A1, lda, 0, 0,
+                                               args->A, args->lda, l + kb, 0,
+                                               lb, m, sizeof(float complex), copy));
+            CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(B1, ldb, 0, 0,
+                                               args->B, args->ldb, 0, l + kb,
+                                               n, lb, sizeof(float complex), copy));
+
+            // Swap the streams and pointers so that the compute starts after the copy
+            CUstream stream = compute; compute = copy; copy = stream;
+            CUdeviceptr ptr = A0; A0 = A1; A1 = ptr;
+            ptr = B0; B0 = B1; B1 = ptr;
+          }
+        }
+      }
+    }
+  }
+
+  // Copy C back onto the host on the compute stream
+  CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(args->C, args->ldc, 0, 0,
+                                     C, ldc, 0, 0,
+                                     m, n, sizeof(float complex), compute));
+
+  // Free A, B and C
+  CU_ERROR_CHECK(cuMemFree(A0));
+  CU_ERROR_CHECK(cuMemFree(A1));
+  CU_ERROR_CHECK(cuMemFree(B0));
+  CU_ERROR_CHECK(cuMemFree(B1));
+  CU_ERROR_CHECK(cuMemFree(C));
+
+  // Destroy the streams
+  CU_ERROR_CHECK(cuStreamDestroy(compute));
+  CU_ERROR_CHECK(cuStreamDestroy(copy));
+
+  // Unload the module
+  CU_ERROR_CHECK(cuModuleUnload(module));
+
+  return CUDA_SUCCESS;
+}
+
+CUresult cuMultiGPUCgemm(CUmultiGPU multiGPU,
+                         CBlasTranspose transA, CBlasTranspose transB,
                          size_t m, size_t n, size_t k,
-                         float complex alpha, const float complex * restrict A, size_t lda, const float complex * restrict B, size_t ldb,
+                         float complex alpha, const float complex * restrict A, size_t lda,
+                         const float complex * restrict B, size_t ldb,
                          float complex beta, float complex * restrict C, size_t ldc) {
   size_t nRowA = (transA == CBlasNoTrans) ? m : k;
   size_t nRowB = (transB == CBlasNoTrans) ? k : n;
@@ -298,8 +543,8 @@ CUresult cuMultiGPUCgemm(CBlasTranspose transA, CBlasTranspose transB,
       }
     }
     else {
-#pragma omp parallel for
       for (size_t j = 0; j < n; j++) {
+#pragma omp parallel for
         for (size_t i = 0; i < m; i++)
           C[j * ldc + i] *= beta;
       }
@@ -307,288 +552,135 @@ CUresult cuMultiGPUCgemm(CBlasTranspose transA, CBlasTranspose transB,
     return CUDA_SUCCESS;
   }
 
-  CUstream stream0[deviceCount], stream1[deviceCount];
-  CUdeviceptr dA0[deviceCount], dA1[deviceCount], dB0[deviceCount], dB1[deviceCount], dC[deviceCount];
-  size_t dlda0[deviceCount], dlda1[deviceCount], dldb0[deviceCount], dldb1[deviceCount], dldc[deviceCount];
+  /**
+   * When transA == CBlasNoTrans each GPU MP processes blocks of 64x16 using 64
+   * threads per block.
+   * There are 30 MPs on the GTX 280 and each requires a minimum of 3 blocks
+   * to mask memory latency (64 * 3 = 192 threads/6 warps).
+   * A maximum of 8 blocks will fit on each MP concurrently due to shared memory
+   * and register requirements.  Best performance should therefore occur when we
+   * have over 30 * 6 = 180 blocks sent to the GPU.  This requires a 9x20,
+   * 12x15, 6x30, etc. block size here.
+   * 9x20 is chosen to retain the m >> n behaviour needed for SPOTRF('L',..).
+   * mb =  9 * 64 = 576
+   * nb = 20 * 16 = 320
+   * kb defines the amount of work done by each thread and the memory (and
+   * bandwidth) needed for A and B so needs to be tuned to give maximum
+   * performance.  kb >= 256 gives 80GFlops/s.  This requires (576 * 320 + 2 *
+   * (576 * 256 + 320 * 256)) * 8 = 5024kB of graphics memory.
+   *
+   * These block sizes give a bandwidth reduction of 2 / (1/576 + 1/320) = 411.43
+   *
+   * Bandwidth between host and device is 6 GB/s each way
+   *
+   * FLOP:word ratio for transA == CBlasNoTrans is
+   * (80 * 10^9) / (6 * 1,073,741,824 / sizeof(double)) = 99.34
+   *
+   * When transA != CBlasNoTrans each GPU MP processes blocks of 32x32 using 64
+   * threads per block.
+   * There are 30 MPs on the GTX 280 and each requires a minimum of 3 blocks
+   * to mask memory latency (64 * 3 = 192 threads/6 warps).
+   * A maximum of 2 blocks will fit on each MP concurrently due to shared memory
+   * and register requirements.  Best performance should therefore occur when we
+   * have over 30 * 2 = 60 blocks sent to the GPU.  This requires a 3x20,
+   * 4x15, 2x30, etc. block size here.
+   * 4x15 is chosen to retain the m << n behaviour needed for SPOTRF('U',..).
+   * mb =  4 * 32 = 128
+   * nb = 15 * 32 = 480
+   * kb defines the amount of work done by each thread and the memory (and
+   * bandwidth) needed for A and B so needs to be tuned to give maximum
+   * performance.  kb >= 320 gives 75GFlops/s.  This requires (128 * 480 + 2 *
+   * (128 * 320 + 320 * 480)) * 8 = 3100kB of graphics memory.
+   *
+   * These block sizes give a bandwidth reduction of 2 / (1/128 + 1/480) = 202.11
+   *
+   * Bandwidth between host and device is 6 GB/s each way
+   *
+   * FLOP:word ratio for transA != CBlasNoTrans is
+   * (75 * 10^9) / (6 * 1,073,741,824 / sizeof(double)) = 93.13
+   *
+   */
+  const size_t mb = (transA == CBlasNoTrans) ? 576 : 128;
+  const size_t nb = (transA == CBlasNoTrans) ? 320 : 480;
 
-  int d = 0;
-  if (transA == CBlasNoTrans) {
-    /*
-     * Each GPU MP processes blocks of 64x8 using 64 threads per block.
-     * There are 30 MPs on the GTX 280 and each requires a minimum of 3 blocks
-     * to mask memory latency (64 * 3 = 192 threads/6 warps).  We can fit a
-     * maximum of 8 blocks on each MP due to shared memory and register
-     * requirements.  Best performance should therefore occur when we have over
-     * 180 blocks sent to the GPU.  This requires a 9x20, 12x15,
-     * 6x30, etc. block size here.  9x20 is chosen to retain the m >> n
-     * behaviour needed for SPOTRF('L',..).
-     * mb =  9 * 64 = 576
-     * nb = 20 * 16 = 320
-     * kb defines the amount of work done by each thread and the memory (and
-     * bandwidth) needed for A and B so needs to be tuned to give maximum
-     * performance.  kb = 512 gives 80GFlops/s.
-     * In SPOTRF('L',...) k ~ m so 512 seems sensible.
-     */
-    const size_t mb = 576, nb = 320, kb = 512;
+  if (m < mb && n < nb) {
+    cgemm(transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc);
+    return CUDA_SUCCESS;
+  }
 
-    if (transB == CBlasNoTrans) {
+  const size_t nTasks = ((m + mb - 1) / mb) * ((n + nb - 1) / nb);
+  CUtask * tasks;
+  if ((tasks = malloc(nTasks * sizeof(CUtask))) == NULL)
+    return CUDA_ERROR_OUT_OF_MEMORY;
+  size_t t = 0;
 
-      for (int d = 0; d < deviceCount; d++) {
-        CUcontext ctx = cuHandleGetContext(handles[d]);
-        CU_ERROR_CHECK(cuCtxPushCurrent(ctx));
+  struct cgemm_args args = { transA, transB,
+                             m, n, k,
+                             alpha, A, lda, B, ldb,
+                             beta, C, ldc };
 
-        CU_ERROR_CHECK(cuHandleGetStream(handles[d], &stream0[d], 0));
-        CU_ERROR_CHECK(cuHandleGetStream(handles[d], &stream1[d], 1));
-
-        CUdeviceptr ptr;
-        size_t pitch;
-        CU_ERROR_CHECK(cuHandleMemAllocPitch(handles[d], &ptr, &pitch, max(mb, kb) * sizeof(float complex), max(kb, nb), sizeof(float complex)));
-
-        dA0[d] = ptr; dlda0[d] = pitch / sizeof(float complex);
-        dA1[d] = ptr + pitch * kb; dlda1[d] = pitch / sizeof(float complex);
-        dB0[d] = ptr + pitch * kb * 2; dldb0[d] = pitch / sizeof(float complex);
-        dB1[d] = ptr + pitch * kb * 2 + pitch * nb; dldb1[d] = pitch / sizeof(float complex);
-        dC[d] = ptr + pitch * kb * 2 + pitch * nb * 2; dldc[d] = pitch / sizeof(float complex);
-
-        CU_ERROR_CHECK(cuCtxPopCurrent(&ctx));
-      }
-
+  if (transB == CBlasNoTrans) {
+    if (transA == CBlasNoTrans) {
       for (size_t j = 0; j < n; j += nb) {
-        const size_t jb = min(nb, n - j);
+        args.n = min(n - j, nb);
         for (size_t i = 0; i < m; i += mb) {
-          const size_t ib = min(mb, m - i);
-
-          CUcontext ctx = cuHandleGetContext(handles[d]);
-          CU_ERROR_CHECK(cuCtxPushCurrent(ctx));
-
-          CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(dC[d], dldc[d], 0, 0, C, ldc, i, j, ib, jb, sizeof(float complex), stream1[d]));
-
-          CU_ERROR_CHECK(cuCgemm(handles[d], transA, transB, ib, jb, 0, zero, dA0[d], dlda0[d], dB0[d], dldb0[d], beta, dC[d], dldc[d], stream1[d]));
-
-          for (size_t l = 0; l < k; l += kb) {
-            const size_t lb = min(kb, k - l);
-
-            CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(dA0[d], dlda0[d], 0, 0, A, lda, i, l, ib, lb, sizeof(float complex), stream0[d]));
-            CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(dB0[d], dldb0[d], 0, 0, B, ldb, l, j, lb, jb, sizeof(float complex), stream0[d]));
-            CU_ERROR_CHECK(cuCgemm(handles[d], transA, transB, ib, jb, lb, alpha, dA0[d], dlda0[d], dB0[d], dldb0[d], one, dC[d], dldc[d], stream0[d]));
-
-            l += kb;
-            if (l < k) {
-              const size_t lb = min(kb, k - l);
-
-              CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(dA1[d], dlda1[d], 0, 0, A, lda, i, l, ib, lb, sizeof(float complex), stream1[d]));
-              CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(dB1[d], dldb1[d], 0, 0, B, ldb, l, j, lb, jb, sizeof(float complex), stream1[d]));
-              CU_ERROR_CHECK(cuCgemm(handles[d], transA, transB, ib, jb, lb, alpha, dA1[d], dlda1[d], dB1[d], dldb1[d], one, dC[d], dldc[d], stream1[d]));
-            }
-          }
-
-          CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(C, ldc, i, j, dC[d], dldc[d], 0, 0, ib, jb, sizeof(float complex), NULL));
-
-          CU_ERROR_CHECK(cuCtxPopCurrent(&ctx));
-          d = (d + 1) % deviceCount;
+          args.m = min(m - i, mb);
+          args.A = &A[i];
+          args.B = &B[j * ldb];
+          args.C = &C[j * ldc + i];
+          CU_ERROR_CHECK(cuTaskSchedule(&tasks[t++], multiGPU, background_cgemm,
+                                        &args, sizeof(struct cgemm_args)));
         }
       }
-
     }
     else {
-
-      for (int d = 0; d < deviceCount; d++) {
-        CUcontext ctx = cuHandleGetContext(handles[d]);
-        CU_ERROR_CHECK(cuCtxPushCurrent(ctx));
-
-        CU_ERROR_CHECK(cuHandleGetStream(handles[d], &stream0[d], 0));
-        CU_ERROR_CHECK(cuHandleGetStream(handles[d], &stream1[d], 1));
-
-        CUdeviceptr ptr;
-        size_t pitch;
-        CU_ERROR_CHECK(cuHandleMemAllocPitch(handles[d], &ptr, &pitch, max(mb, nb) * sizeof(float complex), max(kb, nb), sizeof(float complex)));
-
-        dA0[d] = ptr; dlda0[d] = pitch / sizeof(float complex);
-        dA1[d] = ptr + pitch * kb; dlda1[d] = pitch / sizeof(float complex);
-        dB0[d] = ptr + pitch * kb * 2; dldb0[d] = pitch / sizeof(float complex);
-        dB1[d] = ptr + pitch * kb * 2 + pitch * kb; dldb1[d] = pitch / sizeof(float complex);
-        dC[d] = ptr + pitch * kb * 2 + pitch * kb * 2; dldc[d] = pitch / sizeof(float complex);
-
-        CU_ERROR_CHECK(cuCtxPopCurrent(&ctx));
-      }
-
       for (size_t j = 0; j < n; j += nb) {
-        const size_t jb = min(nb, n - j);
+        args.n = min(n - j, nb);
         for (size_t i = 0; i < m; i += mb) {
-          const size_t ib = min(mb, m - i);
-
-          CUcontext ctx = cuHandleGetContext(handles[d]);
-          CU_ERROR_CHECK(cuCtxPushCurrent(ctx));
-
-          CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(dC[d], dldc[d], 0, 0, C, ldc, i, j, ib, jb, sizeof(float complex), stream1[d]));
-
-          CU_ERROR_CHECK(cuCgemm(handles[d], transA, transB, ib, jb, 0, zero, dA0[d], dlda0[d], dB0[d], dldb0[d], beta, dC[d], dldc[d], stream1[d]));
-
-          for (size_t l = 0; l < k; l += kb) {
-            const size_t lb = min(kb, k - l);
-
-            CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(dA0[d], dlda0[d], 0, 0, A, lda, i, l, ib, lb, sizeof(float complex), stream0[d]));
-            CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(dB0[d], dldb0[d], 0, 0, B, ldb, j, l, jb, lb, sizeof(float complex), stream0[d]));
-            CU_ERROR_CHECK(cuCgemm(handles[d], transA, transB, ib, jb, lb, alpha, dA0[d], dlda0[d], dB0[d], dldb0[d], one, dC[d], dldc[d], stream0[d]));
-
-            l += kb;
-            if (l < k) {
-              const size_t lb = min(kb, k - l);
-
-              CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(dA1[d], dlda1[d], 0, 0, A, lda, i, l, ib, lb, sizeof(float complex), stream1[d]));
-              CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(dB1[d], dldb1[d], 0, 0, B, ldb, j, l, jb, lb, sizeof(float complex), stream1[d]));
-              CU_ERROR_CHECK(cuCgemm(handles[d], transA, transB, ib, jb, lb, alpha, dA1[d], dlda1[d], dB1[d], dldb1[d], one, dC[d], dldc[d], stream1[d]));
-            }
-          }
-
-          CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(C, ldc, i, j, dC[d], dldc[d], 0, 0, ib, jb, sizeof(float complex), NULL));
-
-          CU_ERROR_CHECK(cuCtxPopCurrent(&ctx));
-          d = (d + 1) % deviceCount;
+          args.m = min(m - i, mb);
+          args.A = &A[i * lda];
+          args.B = &B[j * ldb];
+          args.C = &C[j * ldc + i];
+          CU_ERROR_CHECK(cuTaskSchedule(&tasks[t++], multiGPU, background_cgemm,
+                                        &args, sizeof(struct cgemm_args)));
         }
       }
-
     }
   }
   else {
-    /*
-     * Each GPU MP processes blocks of 32x32 using 64 threads per block.
-     * There are 30 MPs on the GTX 280 and each requires a minimum of 3 blocks
-     * to mask memory latency (64 * 3 = 192 threads/6 warps).  We can fit a
-     * maximum of 4 blocks on each MP due to shared memory and register
-     * requirements.  Best performance should therefore occur when we have over
-     * 120 blocks sent to the GPU.  This requires a 6x20, 10x12, 3x40, etc. block
-     * size here.  6x20 is chosen to retain the m << n behaviour needed for
-     * SPOTRF('U',..).
-     * mb =  6 * 32 = 192
-     * nb = 20 * 32 = 640
-     * kb defines the amount of work done by each thread and the memory (and
-     * bandwidth) needed for A and B so needs to be tuned to give maximum
-     * performance.  kb = 1024 gives 70GFlops/s.
-     * In SPOTRF('U',...) k ~ n so 1024 seems odd.
-     */
-    const size_t mb = 192, nb = 640, kb = 1024;
-
-    if (transB == CBlasNoTrans) {
-
-      for (int d = 0; d < deviceCount; d++) {
-        CUcontext ctx = cuHandleGetContext(handles[d]);
-        CU_ERROR_CHECK(cuCtxPushCurrent(ctx));
-
-        CU_ERROR_CHECK(cuHandleGetStream(handles[d], &stream0[d], 0));
-        CU_ERROR_CHECK(cuHandleGetStream(handles[d], &stream1[d], 1));
-
-        CUdeviceptr ptr;
-        size_t pitch;
-        CU_ERROR_CHECK(cuHandleMemAllocPitch(handles[d], &ptr, &pitch, max(mb, kb) * sizeof(float complex), max(mb, nb), sizeof(float complex)));
-
-        dA0[d] = ptr; dlda0[d] = pitch / sizeof(float complex);
-        dA1[d] = ptr + pitch * mb; dlda1[d] = pitch / sizeof(float complex);
-        dB0[d] = ptr + pitch * mb * 2; dldb0[d] = pitch / sizeof(float complex);
-        dB1[d] = ptr + pitch * mb * 2 + pitch * nb; dldb1[d] = pitch / sizeof(float complex);
-        dC[d] = ptr + pitch * mb * 2 + pitch * nb * 2; dldc[d] = pitch / sizeof(float complex);
-
-        CU_ERROR_CHECK(cuCtxPopCurrent(&ctx));
-      }
-
+    if (transA == CBlasNoTrans) {
       for (size_t j = 0; j < n; j += nb) {
-        const size_t jb = min(nb, n - j);
+        args.n = min(n - j, nb);
         for (size_t i = 0; i < m; i += mb) {
-          const size_t ib = min(mb, m - i);
-
-          CUcontext ctx = cuHandleGetContext(handles[d]);
-          CU_ERROR_CHECK(cuCtxPushCurrent(ctx));
-
-          CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(dC[d], dldc[d], 0, 0, C, ldc, i, j, ib, jb, sizeof(float complex), stream1[d]));
-
-          CU_ERROR_CHECK(cuCgemm(handles[d], transA, transB, ib, jb, 0, zero, dA0[d], dlda0[d], dB0[d], dldb0[d], beta, dC[d], dldc[d], stream1[d]));
-
-          for (size_t l = 0; l < k; l += kb) {
-            const size_t lb = min(kb, k - l);
-
-            CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(dA0[d], dlda0[d], 0, 0, A, lda, l, i, lb, ib, sizeof(float complex), stream0[d]));
-            CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(dB0[d], dldb0[d], 0, 0, B, ldb, l, j, lb, jb, sizeof(float complex), stream0[d]));
-            CU_ERROR_CHECK(cuCgemm(handles[d], transA, transB, ib, jb, lb, alpha, dA0[d], dlda0[d], dB0[d], dldb0[d], one, dC[d], dldc[d], stream0[d]));
-
-            l += kb;
-            if (l < k) {
-              const size_t lb = min(kb, k - l);
-
-              CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(dA1[d], dlda1[d], 0, 0, A, lda, l, i, lb, ib, sizeof(float complex), stream1[d]));
-              CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(dB1[d], dldb1[d], 0, 0, B, ldb, l, j, lb, jb, sizeof(float complex), stream1[d]));
-              CU_ERROR_CHECK(cuCgemm(handles[d], transA, transB, ib, jb, lb, alpha, dA1[d], dlda1[d], dB1[d], dldb1[d], one, dC[d], dldc[d], stream1[d]));
-            }
-          }
-
-          CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(C, ldc, i, j, dC[d], dldc[d], 0, 0, ib, jb, sizeof(float complex), NULL));
-
-          CU_ERROR_CHECK(cuCtxPopCurrent(&ctx));
-          d = (d + 1) % deviceCount;
+          args.m = min(m - i, mb);
+          args.A = &A[i];
+          args.B = &B[j];
+          args.C = &C[j * ldc + i];
+          CU_ERROR_CHECK(cuTaskSchedule(&tasks[t++], multiGPU, background_cgemm,
+                                        &args, sizeof(struct cgemm_args)));
         }
       }
-
     }
     else {
-
-      for (int d = 0; d < deviceCount; d++) {
-        CUcontext ctx = cuHandleGetContext(handles[d]);
-        CU_ERROR_CHECK(cuCtxPushCurrent(ctx));
-
-        CU_ERROR_CHECK(cuHandleGetStream(handles[d], &stream0[d], 0));
-        CU_ERROR_CHECK(cuHandleGetStream(handles[d], &stream1[d], 1));
-
-        CUdeviceptr ptr;
-        size_t pitch;
-        CU_ERROR_CHECK(cuHandleMemAllocPitch(handles[d], &ptr, &pitch, max(max(mb, nb), kb) * sizeof(float complex), max(max(mb, nb), kb), sizeof(float complex)));
-
-        dA0[d] = ptr; dlda0[d] = pitch / sizeof(float complex);
-        dA1[d] = ptr + pitch * mb; dlda1[d] = pitch / sizeof(float complex);
-        dB0[d] = ptr + pitch * mb * 2; dldb0[d] = pitch / sizeof(float complex);
-        dB1[d] = ptr + pitch * mb * 2 + pitch * kb; dldb1[d] = pitch / sizeof(float complex);
-        dC[d] = ptr + pitch * mb * 2 + pitch * kb * 2; dldc[d] = pitch / sizeof(float complex);
-
-        CU_ERROR_CHECK(cuCtxPopCurrent(&ctx));
-      }
-
       for (size_t j = 0; j < n; j += nb) {
-        const size_t jb = min(nb, n - j);
+        args.n = min(n - j, nb);
         for (size_t i = 0; i < m; i += mb) {
-          const size_t ib = min(mb, m - i);
-
-          CUcontext ctx = cuHandleGetContext(handles[d]);
-          CU_ERROR_CHECK(cuCtxPushCurrent(ctx));
-
-          CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(dC[d], dldc[d], 0, 0, C, ldc, i, j, ib, jb, sizeof(float complex), stream1[d]));
-
-          CU_ERROR_CHECK(cuCgemm(handles[d], transA, transB, ib, jb, 0, zero, dA0[d], dlda0[d], dB0[d], dldb0[d], beta, dC[d], dldc[d], stream1[d]));
-
-          for (size_t l = 0; l < k; l += kb) {
-            const size_t lb = min(kb, k - l);
-
-            CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(dA0[d], dlda0[d], 0, 0, A, lda, l, i, lb, ib, sizeof(float complex), stream0[d]));
-            CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(dB0[d], dldb0[d], 0, 0, B, ldb, j, l, jb, lb, sizeof(float complex), stream0[d]));
-            CU_ERROR_CHECK(cuCgemm(handles[d], transA, transB, ib, jb, lb, alpha, dA0[d], dlda0[d], dB0[d], dldb0[d], one, dC[d], dldc[d], stream0[d]));
-
-            l += kb;
-            if (l < k) {
-              const size_t lb = min(kb, k - l);
-
-              CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(dA1[d], dlda1[d], 0, 0, A, lda, l, i, lb, ib, sizeof(float complex), stream1[d]));
-              CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(dB1[d], dldb1[d], 0, 0, B, ldb, j, l, jb, lb, sizeof(float complex), stream1[d]));
-              CU_ERROR_CHECK(cuCgemm(handles[d], transA, transB, ib, jb, lb, alpha, dA1[d], dlda1[d], dB1[d], dldb1[d], one, dC[d], dldc[d], stream1[d]));
-            }
-          }
-
-          CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(C, ldc, i, j, dC[d], dldc[d], 0, 0, ib, jb, sizeof(float complex), NULL));
-
-          CU_ERROR_CHECK(cuCtxPopCurrent(&ctx));
-          d = (d + 1) % deviceCount;
+          args.m = min(m - i, mb);
+          args.A = &A[i * lda];
+          args.B = &B[j];
+          args.C = &C[j * ldc + i];
+          CU_ERROR_CHECK(cuTaskSchedule(&tasks[t++], multiGPU, background_cgemm,
+                                        &args, sizeof(struct cgemm_args)));
         }
       }
-
     }
   }
 
-  return CUDA_SUCCESS;
+  CUresult result;
+  for (size_t i = 0; i < nTasks; i++)
+    CU_ERROR_CHECK(cuTaskDestroy(tasks[i], &result));
+
+  free(tasks);
+
+  return result;
 }
-#endif

@@ -271,7 +271,7 @@ static CUresult background_dgemm(const void * a) {
           // If there is more work to do
           if (l + kb < k) {
             const size_t lb = min(k - l - kb, kb);
-            // Copy the next blocks of A and B on the opposite stream from the sgemm
+            // Copy the next blocks of A and B on the opposite stream from the dgemm
             CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A1, lda, 0, 0,
                                                args->A, args->lda, 0, l + kb,
                                                m, lb, sizeof(double), copy));
@@ -309,7 +309,7 @@ static CUresult background_dgemm(const void * a) {
           // If there is more work to do
           if (l + kb < k) {
             const size_t lb = min(k - l - kb, kb);
-            // Copy the next blocks of A and B on the opposite stream from the sgemm
+            // Copy the next blocks of A and B on the opposite stream from the dgemm
             CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A1, lda, 0, 0,
                                                args->A, args->lda, l + kb, 0,
                                                lb, m, sizeof(double), copy));
@@ -354,7 +354,7 @@ static CUresult background_dgemm(const void * a) {
           // If there is more work to do
           if (l + kb < k) {
             const size_t lb = min(k - l - kb, kb);
-            // Copy the next blocks of A and B on the opposite stream from the sgemm
+            // Copy the next blocks of A and B on the opposite stream from the dgemm
             CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A1, lda, 0, 0,
                                               args->A, args->lda, 0, l + kb,
                                               m, lb, sizeof(double), copy));
@@ -392,7 +392,7 @@ static CUresult background_dgemm(const void * a) {
           // If there is more work to do
           if (l + kb < k) {
             const size_t lb = min(k - l - kb, kb);
-            // Copy the next blocks of A and B on the opposite stream from the sgemm
+            // Copy the next blocks of A and B on the opposite stream from the dgemm
             CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A1, lda, 0, 0,
                                                args->A, args->lda, l + kb, 0,
                                                lb, m, sizeof(double), copy));
