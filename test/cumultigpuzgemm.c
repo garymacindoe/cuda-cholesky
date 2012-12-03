@@ -1,10 +1,10 @@
 #include "blas.h"
 #include "error.h"
-#include "cuhandle.h"
 #include <stdio.h>
-#include <sys/time.h>
+#include <math.h>
 #include <float.h>
 #include <complex.h>
+#include <sys/time.h>
 #include "zgemm_ref.c"
 
 int main(int argc, char * argv[]) {
@@ -63,12 +63,12 @@ int main(int argc, char * argv[]) {
   int deviceCount;
   CU_ERROR_CHECK(cuDeviceGetCount(&deviceCount));
 
-  CUhandle handles[deviceCount];
-  for (int i = 0; i < deviceCount; i++) {
-    CUdevice device;
-    CU_ERROR_CHECK(cuDeviceGet(&device, i));
-    CU_ERROR_CHECK(cuHandleCreate(&handles[i], CU_CTX_BLOCKING_SYNC, device));
-  }
+  CUdevice devices[deviceCount];
+  for (int i = 0; i < deviceCount; i++)
+    CU_ERROR_CHECK(cuDeviceGet(&devices[i], i));
+
+  CUmultiGPU multiGPU;
+  CU_ERROR_CHECK(cuMultiGPUCreate(&multiGPU, CU_CTX_BLOCKING_SYNC, devices, deviceCount));
 
   alpha = ((double)rand() / (double)RAND_MAX) + ((double)rand() / (double)RAND_MAX) * I;
   beta = ((double)rand() / (double)RAND_MAX) + ((double)rand() / (double)RAND_MAX) * I;
@@ -139,7 +139,7 @@ int main(int argc, char * argv[]) {
   }
 
   zgemm_ref(transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, refC, ldc);
-  CU_ERROR_CHECK(cuMultiGPUZgemm(handles, deviceCount, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc));
+  CU_ERROR_CHECK(cuMultiGPUZgemm(multiGPU, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc));
 
   double rdiff = 0.0, idiff = 0.0;
   for (size_t j = 0; j < n; j++) {
@@ -159,7 +159,7 @@ int main(int argc, char * argv[]) {
     return -5;
   }
   for (size_t i = 0; i < 20; i++)
-    CU_ERROR_CHECK(cuMultiGPUZgemm(handles, deviceCount, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc));
+    CU_ERROR_CHECK(cuMultiGPUZgemm(multiGPU, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc));
   if (gettimeofday(&stop, NULL) != 0) {
     fputs("gettimeofday failed\n", stderr);
     return -6;
@@ -185,8 +185,7 @@ int main(int argc, char * argv[]) {
   free(C);
   free(refC);
 
-  for (int i = 0; i < deviceCount; i++)
-    CU_ERROR_CHECK(cuHandleDestroy(handles[i]));
+  CU_ERROR_CHECK(cuMultiGPUDestroy(multiGPU));
 
   return (int)!passed;
 }

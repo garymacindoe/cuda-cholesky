@@ -214,7 +214,7 @@ static CUresult background_dgemm(const void * a) {
   CUdeviceptr A0, A1, B0, B1, C;
   size_t lda, ldb, ldc;
 
-  const size_t kb = (transA == CBlasNoTrans) ? 256 : 320;
+  const size_t kb = (transA == CBlasNoTrans) ? 128 : 264;
 
   // Load the dgemm module
   CUmodule module;
@@ -481,17 +481,17 @@ CUresult cuMultiGPUDgemm(CUmultiGPU multiGPU,
    * to mask memory latency (64 * 3 = 192 threads/6 warps).
    * A maximum of 8 blocks will fit on each MP concurrently due to shared memory
    * and register requirements.  Best performance should therefore occur when we
-   * have over 30 * 6 = 180 blocks sent to the GPU.  This requires a 9x20,
-   * 12x15, 6x30, etc. block size here.
-   * 9x20 is chosen to retain the m >> n behaviour needed for DPOTRF('L',..).
-   * mb =  9 * 64 = 576
-   * nb = 20 *  8 = 160
+   * have 30 * 8 = 240 blocks sent to the GPU.  This requires a 10x24, 12x20,
+   * 15x16, etc. block size here.
+   * 10x24 is chosen to retain the m >> n behaviour needed for DPOTRF('L',..).
+   * mb = 10 * 64 = 640
+   * nb = 24 * 16 = 384
    * kb defines the amount of work done by each thread and the memory (and
    * bandwidth) needed for A and B so needs to be tuned to give maximum
-   * performance.  kb >= 256 gives 80GFlops/s.  This requires (576 * 160 + 2 *
-   * (576 * 256 + 160 * 256)) * 8 = 3664kB of graphics memory.
+   * performance.  kb >= 128 gives ~80GFlops/s.  This requires (640 * 384 + 2 *
+   * 128 * (640 + 384)) * 8 = 3968kB of graphics memory.
    *
-   * These block sizes give a bandwidth reduction of 2 / (1/576 + 1/160) = 250.43
+   * These block sizes give a bandwidth reduction of 2 / (1/640 + 1/384) = 480
    *
    * Bandwidth between host and device is 6 GB/s each way
    *
@@ -506,13 +506,13 @@ CUresult cuMultiGPUDgemm(CUmultiGPU multiGPU,
    * and register requirements.  Best performance should therefore occur when we
    * have over 30 * 4 = 120 blocks sent to the GPU.  This requires a 6x20,
    * 8x15, 4x30, etc. block size here.
-   * 8x15 is chosen to retain the m << n behaviour needed for DPOTRF('U',..).
+   * 4x30 is chosen to retain the m << n behaviour needed for DPOTRF('U',..).
    * mb =  4 * 32 = 128
    * nb = 30 * 16 = 480
    * kb defines the amount of work done by each thread and the memory (and
    * bandwidth) needed for A and B so needs to be tuned to give maximum
-   * performance.  kb >= 320 gives 75GFlops/s.  This requires (128 * 480 + 2 *
-   * (128 * 320 + 320 * 480)) * 8 = 3520kB of graphics memory.
+   * performance.  264 <= kb <= 480 gives ~75GFlops/s.  This requires (128 * 480
+   * + 2 * 264 * (128 + 480)) * 8 = 2984kB of graphics memory.
    *
    * These block sizes give a bandwidth reduction of 2 / (1/128 + 1/480) = 202.11
    *
@@ -522,8 +522,8 @@ CUresult cuMultiGPUDgemm(CUmultiGPU multiGPU,
    * (75 * 10^9) / (6 * 1,073,741,824 / sizeof(double)) = 93.13
    *
    */
-  const size_t mb = (transA == CBlasNoTrans) ? 576 : 128;
-  const size_t nb = (transA == CBlasNoTrans) ? 160 : 480;
+  const size_t mb = (transA == CBlasNoTrans) ? 640 : 128;
+  const size_t nb = (transA == CBlasNoTrans) ? 384 : 480;
 
   if (m < mb && n < nb) {
     dgemm(transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc);

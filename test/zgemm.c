@@ -7,6 +7,14 @@
 #include <sys/time.h>
 #include "zgemm_ref.c"
 
+// extern void zgemm_(const char *, const char *,
+//                    const size_t *, const size_t *, const size_t *,
+//                    const float complex *,
+//                    const float complex *, const size_t *,
+//                    const float complex *, const size_t *,
+//                    const float complex *,
+//                    float complex *, const size_t *);
+
 int main(int argc, char * argv[]) {
   CBlasTranspose transA, transB;
   size_t m, n, k;
@@ -129,6 +137,7 @@ int main(int argc, char * argv[]) {
 
   zgemm_ref(transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, refC, ldc);
   zgemm(transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc);
+//   zgemm_(&transA, &transB, &m, &n, &k, &alpha, A, &lda, B, &ldb, &beta, C, &ldc);
 
   double rdiff = 0.0, idiff = 0.0;
   for (size_t j = 0; j < n; j++) {
@@ -149,6 +158,7 @@ int main(int argc, char * argv[]) {
   }
   for (size_t i = 0; i < 20; i++)
     zgemm(transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc);
+//     zgemm_(&transA, &transB, &m, &n, &k, &alpha, A, &lda, B, &ldb, &beta, C, &ldc);
   if (gettimeofday(&stop, NULL) != 0) {
     fputs("gettimeofday failed\n", stderr);
     return -6;

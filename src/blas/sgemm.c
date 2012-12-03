@@ -214,7 +214,7 @@ static CUresult background_sgemm(const void * a) {
   CUdeviceptr A0, A1, B0, B1, C;
   size_t lda, ldb, ldc;
 
-  const size_t kb = (transA == CBlasNoTrans) ? 512 : 320;
+  const size_t kb = (transA == CBlasNoTrans) ? 512 : 448;
 
   // Load the sgemm module
   CUmodule module;
@@ -481,17 +481,17 @@ CUresult cuMultiGPUSgemm(CUmultiGPU multiGPU,
    * to mask memory latency (64 * 3 = 192 threads/6 warps).
    * A maximum of 8 blocks will fit on each MP concurrently due to shared memory
    * and register requirements.  Best performance should therefore occur when we
-   * have over 30 * 6 = 180 blocks sent to the GPU.  This requires a 9x20,
-   * 12x15, 6x30, etc. block size here.
-   * 9x20 is chosen to retain the m >> n behaviour needed for SPOTRF('L',..).
-   * mb =  9 * 64 = 576
-   * nb = 20 * 16 = 320
+   * have 30 * 8 = 240 blocks sent to the GPU.  This requires a 10x24, 12x20,
+   * 15x16, etc. block size here.
+   * 10x24 is chosen to retain the m >> n behaviour needed for SPOTRF('L',..).
+   * mb = 10 * 64 = 640
+   * nb = 24 * 16 = 384
    * kb defines the amount of work done by each thread and the memory (and
    * bandwidth) needed for A and B so needs to be tuned to give maximum
-   * performance.  kb >= 512 gives 400GFlops/s.  This requires (576 * 320 + 2 *
-   * (576 * 512 + 320 * 512)) * 4 = 4304kB of graphics memory.
+   * performance.  kb >= 512 gives ~400GFlops/s.  This requires (640 * 384 + 2 *
+   * 512 * (640 + 384)) * 4 = 5056kB of graphics memory.
    *
-   * These block sizes give a bandwidth reduction of 2 / (1/576 + 1/320) = 411.43
+   * These block sizes give a bandwidth reduction of 2 / (1/640 + 1/384) = 480
    *
    * Bandwidth between host and device is 6 GB/s each way
    *
@@ -504,26 +504,26 @@ CUresult cuMultiGPUSgemm(CUmultiGPU multiGPU,
    * to mask memory latency (64 * 3 = 192 threads/6 warps).
    * A maximum of 6 blocks will fit on each MP concurrently due to shared memory
    * and register requirements.  Best performance should therefore occur when we
-   * have over 30 * 6 = 180 blocks sent to the GPU.  This requires a 9x20,
-   * 12x15, 6x30, etc. block size here.
-   * 12x15 is chosen to retain the m << n behaviour needed for SPOTRF('U',..).
-   * mb = 12 * 32 = 384
-   * nb = 15 * 32 = 480
+   * have 30 * 6 = 180 blocks sent to the GPU.  This requires a 9x20, 12x15,
+   * 6x30, etc. block size here.
+   * 9x20 is chosen to retain the m << n behaviour needed for SPOTRF('U',..).
+   * mb =  9 * 32 = 288
+   * nb = 20 * 32 = 640
    * kb defines the amount of work done by each thread and the memory (and
    * bandwidth) needed for A and B so needs to be tuned to give maximum
-   * performance.  kb >= 320 gives 330GFlops/s.  This requires (384 * 480 + 2 *
-   * (384 * 320 + 320 * 480)) * 4 = 2880kB of graphics memory.
+   * performance.  288 <= kb <= 448 gives 330-345GFlops/s.  This requires (288 *
+   * 640 + 2 * 448 * (288 + 640) * 4 = 3968kB of graphics memory.
    *
-   * These block sizes give a bandwidth reduction of 2 / (1/384 + 1/480) = 426.67
+   * These block sizes give a bandwidth reduction of 2 / (1/288 + 1/640) = 397.24
    *
    * Bandwidth between host and device is 6 GB/s each way
    *
    * FLOP:word ratio for transA != CBlasNoTrans is
-   * (330 * 10^9) / (6 * 1,073,741,824 / sizeof(float)) = 204.89
+   * (330 * 10^9) / (6 * 1,073,741,824 / sizeof(float)) = 214.20
    *
    */
-  const size_t mb = (transA == CBlasNoTrans) ? 576 : 384;
-  const size_t nb = (transA == CBlasNoTrans) ? 320 : 480;
+  const size_t mb = (transA == CBlasNoTrans) ? 640 : 288;
+  const size_t nb = (transA == CBlasNoTrans) ? 384 : 640;
 
   if (m < mb && n < nb) {
     sgemm(transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc);
