@@ -63,7 +63,7 @@ int main(int argc, char * argv[]) {
   for (int i = 0; i < deviceCount; i++) {
     CUdevice device;
     CU_ERROR_CHECK(cuDeviceGet(&device, i));
-    CU_ERROR_CHECK(cuHandleCreate(&handles[i], CU_CTX_BLOCKING_SYNC, device));
+    CU_ERROR_CHECK(cuHandleCreate(&handles[i], CU_CTX_SCHED_YIELD, device));
   }
 
   alpha = (float)rand() / (float)RAND_MAX;

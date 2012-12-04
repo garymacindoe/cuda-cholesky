@@ -86,7 +86,6 @@ struct __cumultigpu_st {
  */
 struct thread_args {
   CUmultiGPU multiGPU;            /** MultiGPU context                        */
-  unsigned int flags;             /** Context creation flags                  */
   CUdevice device;                /** Device to create context on             */
 };
 
@@ -101,13 +100,12 @@ static void * cu_thread_main(void * args) {
 
   // Get a pointer to the multiGPU context
   CUmultiGPU mGPU = thread_args->multiGPU;
-  unsigned int flags = thread_args->flags;
   CUdevice device = thread_args->device;
   free(args);
 
   // Create a GPU context on the specified device
   CUcontext context;
-  CU_ERROR_CHECK_PTHREAD_EXIT(cuCtxCreate(&context, flags, device));
+  CU_ERROR_CHECK_PTHREAD_EXIT(cuCtxCreate(&context, CU_CTX_SCHED_YIELD, device));
 
   // Enter main loop
   while (true) {
@@ -163,7 +161,6 @@ static void * cu_thread_main(void * args) {
  *
  * @param multiGPU  the handle to the created context is returned through this
  *                  pointer.
- * @param flags     context creation flags.
  * @param devices   devices to create contexts on.
  * @param n         the number of devices.
  * @return CUDA_SUCCESS, CUDA_ERROR_DEINITIALIZED, CUDA_ERROR_NOT_INITIALIZED,
@@ -171,8 +168,7 @@ static void * cu_thread_main(void * args) {
  *         CUDA_ERROR_INVALID_VALUE, CUDA_ERROR_OPERATING_SYSTEM,
  *         CUDA_ERROR_OUT_OF_MEMORY, CUDA_ERROR_UNKNOWN
  */
-CUresult cuMultiGPUCreate(CUmultiGPU * multiGPU, unsigned int flags,
-                          CUdevice * devices, int n) {
+CUresult cuMultiGPUCreate(CUmultiGPU * multiGPU, CUdevice * devices, int n) {
   if (n <= 0)
     return CUDA_ERROR_INVALID_VALUE;
 
@@ -216,7 +212,6 @@ CUresult cuMultiGPUCreate(CUmultiGPU * multiGPU, unsigned int flags,
       return CUDA_ERROR_OUT_OF_MEMORY;
 
     args->multiGPU = mGPU;
-    args->flags = flags;
     args->device = devices[mGPU->n];
 
     PTHREAD_ERROR_CHECK(pthread_create(&mGPU->threads[mGPU->n], NULL,

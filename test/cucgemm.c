@@ -78,7 +78,7 @@ int main(int argc, char * argv[]) {
   CU_ERROR_CHECK(cuDeviceGet(&device, d));
 
   CUcontext context;
-  CU_ERROR_CHECK(cuCtxCreate(&context, CU_CTX_BLOCKING_SYNC, device));
+  CU_ERROR_CHECK(cuCtxCreate(&context, CU_CTX_SCHED_BLOCKING_SYNC, device));
 
   CUmodule module;
   CU_ERROR_CHECK(cuModuleLoad(&module, "cgemm.fatbin"));

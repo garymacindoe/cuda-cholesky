@@ -56,7 +56,7 @@ int main(int argc, char * argv[]) {
   CU_ERROR_CHECK(cuDeviceGet(&device, d));
 
   CUhandle handle;
-  CU_ERROR_CHECK(cuHandleCreate(&handle, CU_CTX_BLOCKING_SYNC, device));
+  CU_ERROR_CHECK(cuHandleCreate(&handle, CU_CTX_SCHED_BLOCKING_SYNC, device));
 
   lda = (n + 3u) & ~3u;
   if ((A = malloc(lda *  n * sizeof(float))) == NULL) {

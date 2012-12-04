@@ -67,7 +67,7 @@ int main(int argc, char * argv[]) {
     CU_ERROR_CHECK(cuDeviceGet(&devices[i], i));
 
   CUmultiGPU multiGPU;
-  CU_ERROR_CHECK(cuMultiGPUCreate(&multiGPU, CU_CTX_BLOCKING_SYNC, devices, deviceCount));
+  CU_ERROR_CHECK(cuMultiGPUCreate(&multiGPU, devices, deviceCount));
 
   alpha = (double)rand() / (double)RAND_MAX;
   beta = (double)rand() / (double)RAND_MAX;

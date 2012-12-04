@@ -496,7 +496,7 @@ CUresult cuMultiGPUSgemm(CUmultiGPU multiGPU,
    * Bandwidth between host and device is 6 GB/s each way
    *
    * FLOP:word ratio for transA == CBlasNoTrans is
-   * (400 * 10^9) / (6 * 1,073,741,824 / sizeof(float)) = 248.35
+   * (400 * 10^9) / (6 * 1024^3 / sizeof(float)) = 248.35
    *
    * When transA != CBlasNoTrans each GPU MP processes blocks of 32x32 using 64
    * threads per block.
@@ -519,7 +519,7 @@ CUresult cuMultiGPUSgemm(CUmultiGPU multiGPU,
    * Bandwidth between host and device is 6 GB/s each way
    *
    * FLOP:word ratio for transA != CBlasNoTrans is
-   * (330 * 10^9) / (6 * 1,073,741,824 / sizeof(float)) = 214.20
+   * (330 * 10^9) / (6 * 1024^3 / sizeof(float)) = 214.20
    *
    */
   const size_t mb = (transA == CBlasNoTrans) ? 640 : 288;

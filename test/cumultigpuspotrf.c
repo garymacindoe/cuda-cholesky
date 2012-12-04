@@ -45,7 +45,7 @@ int main(int argc, char * argv[]) {
   for (int i = 0; i < deviceCount; i++) {
     CUdevice device;
     CU_ERROR_CHECK(cuDeviceGet(&device, i));
-    CU_ERROR_CHECK(cuCtxCreate(&contexts[i], CU_CTX_BLOCKING_SYNC, device));
+    CU_ERROR_CHECK(cuCtxCreate(&contexts[i], CU_CTX_SCHED_YIELD, device));
   }
 
   lda = (n + 3u) & ~3u;

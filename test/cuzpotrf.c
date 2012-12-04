@@ -56,7 +56,7 @@ int main(int argc, char * argv[]) {
   CU_ERROR_CHECK(cuDeviceGet(&device, d));
 
   CUcontext context;
-  CU_ERROR_CHECK(cuCtxCreate(&context, CU_CTX_BLOCKING_SYNC, device));
+  CU_ERROR_CHECK(cuCtxCreate(&context, CU_CTX_SCHED_BLOCKING_SYNC, device));
 
   lda = n;
   if ((A = malloc(lda *  n * sizeof(double complex))) == NULL) {
