@@ -300,7 +300,7 @@ static CUresult background_zgemm(const void * a) {
   CUdeviceptr A0, A1, B0, B1, C;
   size_t lda, ldb, ldc;
 
-  const size_t kb = (transA == CBlasNoTrans) ? 256 : 264;
+  const size_t kb = (transA == CBlasNoTrans) ? 64 : (transB == CBlasNoTrans) ? 32 : 80;
 
   // Load the cgemm module
   CUmodule module;
@@ -570,46 +570,113 @@ CUresult cuMultiGPUZgemm(CUmultiGPU multiGPU,
    * have 30 * 8 = 240 blocks sent to the GPU.  This requires a 10x24, 12x20,
    * 15x16, etc. block size here.
    * 10x24 is chosen to retain the m >> n behaviour needed for ZPOTRF('L',..).
+   *
    * mb = 10 * 64 = 640
    * nb = 24 *  4 =  96
+   *
    * kb defines the amount of work done by each thread and the memory (and
    * bandwidth) needed for A and B so needs to be tuned to give maximum
-   * performance.  kb >= 256 gives ~79GFlops/s.  This requires (640 * 96 + 2 *
-   * 256 * (640 + 96)) * 16 = 6848kB of graphics memory.
+   * performance.  It should be a multiple of the kb block size used to unroll
+   * the GPU code which in this case is 16.  kb is increased for given mb and nb
+   * until the performance increase is < 1%. This happens at kb = 64 and gives
+   * ~77GFlops/s.  This requires
+   * (640 * 96 + 2 * 64 * (640 + 96)) * 16 = 2432kB
+   * of graphics memory.
    *
    * These block sizes give a bandwidth reduction of 2 / (1/640 + 1/96) = 166.96
    *
    * Bandwidth between host and device is 6 GB/s each way
    *
    * FLOP:word ratio for transA == CBlasNoTrans is
-   * (79 * 10^9) / (6 * 1,073,741,824 / sizeof(double complex)) = 196.20
+   * (77 * 10^9) / (6 * 1024^3 / sizeof(double complex)) = 191.23
    *
-   * When transA != CBlasNoTrans and transB == CBlasNoTrans each GPU MP processes
-   * blocks of 8x8 using 32 threads per block.
+   * Since the bandwidth reduction for this block size is less than the
+   * FLOP:word ratio this creates a bandwidth bound algorithm.  Increasing the
+   * block sizes to 1024 * 180 sends 720 (16 * 45) blocks to the GPU, or 24 to
+   * each MP, which is also a multiple of 8, the maximum that will fit.
+   * This gives a final configuration of:
+   * mb = 16 * 64 = 1024
+   * nb = 45 *  4 =  180
+   * kb (after tuning run with new mb and nb) =  64
+   * memory = (1024 * 180 + 2 * 64 * (1024 + 180)) * 16 = 5288kB
+   * bandwidth reduction = 2 / (1/1024 + 1/180) = 306.18
+   * FLOP:word ratio = (77 * 10^9) / (6 * 1024^3 / sizeof(double complex)) = 191.23
+   *
+   *
+   * When transA != CBlasNoTrans and transB == CBlasNoTrans each GPU MP
+   * processes blocks of 8x8 using 32 threads per block.
    * There are 30 MPs on the GTX 280 and each requires a minimum of 6 blocks
    * to mask memory latency (32 * 6 = 192 threads/6 warps).
    * A maximum of 8 blocks will fit on each MP concurrently due to shared memory
    * and register requirements.  Best performance should therefore occur when we
    * have 30 * 8 = 240 blocks sent to the GPU.  This requires a 10x24, 12x20,
    * 15x16, etc. block size here.
-   * 8x15 is chosen to retain the m << n behaviour needed for CPOTRF('U',..).
-   * mb =  4 * 32 = 128
-   * nb = 30 * 16 = 480
+   * 10x24 is chosen to retain the m << n behaviour needed for ZPOTRF('U',..).
+   *
+   * mb = 10 *  8 =  80
+   * nb = 24 *  8 = 192
+   *
    * kb defines the amount of work done by each thread and the memory (and
    * bandwidth) needed for A and B so needs to be tuned to give maximum
-   * performance.  264 <= kb <= 480 gives ~305GFlops/s.  This requires (128 * 480
-   * + 2 * 264 * (128 + 480)) * 8 = 2984kB of graphics memory.
+   * performance.  It should be a multiple of the kb block size used to unroll
+   * the GPU code which in this case is 4.  kb is increased for given mb and nb
+   * until the performance increase is < 1%. This happens at kb = 80 and gives
+   * ~60GFlops/s.  This requires
+   * (80 * 192 + 2 * 80 * (80 + 192)) * 16 = 920kB
+   * of graphics memory.
    *
-   * These block sizes give a bandwidth reduction of 2 / (1/128 + 1/480) = 202.11
+   * These block sizes give a bandwidth reduction of 2 / (1/80 + 1/192) = 112.94
    *
    * Bandwidth between host and device is 6 GB/s each way
    *
    * FLOP:word ratio for transA != CBlasNoTrans is
-   * (305 * 10^9) / (6 * 1,073,741,824 / sizeof(float complex)) = 378.74
+   * (60 * 10^9) / (6 * 1024^3 / sizeof(double complex)) = 149.01
+   *
+   * Since the bandwidth reduction for this block size is less than the
+   * FLOP:word ratio this creates a bandwidth bound algorithm.  Increasing the
+   * block sizes to 120 * 384 sends 720 (15 * 48) blocks to the GPU, or 24 to
+   * each MP, which is also a multiple of 8, the maximum that will fit.
+   * This gives a final configuration of:
+   * mb = 15 *  8 =  120
+   * nb = 48 *  8 =  384
+   * kb (after tuning run with new mb and nb) = 32
+   * memory = (120 * 384 + 2 * 32 * (120 + 384)) * 16 = 1224kB
+   * bandwidth reduction = 2 / (1/120 + 1/384) = 182.86
+   * FLOP:word ratio = (58 * 10^9) / (6 * 1024^3 / sizeof(float complex)) = 144.04
+   *
+   *
+   * When transA != CBlasNoTrans and transB != CBlasNoTrans each GPU MP
+   * processes blocks of 8x16 using 64 threads per block.
+   * There are 30 MPs on the GTX 280 and each requires a minimum of 3 blocks
+   * to mask memory latency (64 * 3 = 192 threads/6 warps).
+   * A maximum of 4 blocks will fit on each MP concurrently due to shared memory
+   * and register requirements.  Best performance should therefore occur when we
+   * have 30 * 4 = 120 blocks sent to the GPU.  This requires a 6x20, 8x15, 4x30,
+   * etc. block size here.
+   * 10x24 is chosen to retain the m << n behaviour needed for ZPOTRF('U',..).
+   *
+   * mb =  8 *  8 =  64
+   * nb = 15 *  8 = 120
+   *
+   * kb defines the amount of work done by each thread and the memory (and
+   * bandwidth) needed for A and B so needs to be tuned to give maximum
+   * performance.  It should be a multiple of the kb block size used to unroll
+   * the GPU code which in this case is 8.  kb is increased for given mb and nb
+   * until the performance increase is < 1%. This happens at kb = 80 and gives
+   * ~33GFlops/s.  This requires
+   * (64 * 120 + 2 * 80 * (64 + 120)) * 16 = 580kB
+   * of graphics memory.
+   *
+   * These block sizes give a bandwidth reduction of 2 / (1/64 + 1/120) = 83.48
+   *
+   * Bandwidth between host and device is 6 GB/s each way
+   *
+   * FLOP:word ratio for transA != CBlasNoTrans is
+   * (33 * 10^9) / (6 * 1024^3 / sizeof(double complex)) = 81.96
    *
    */
-  const size_t mb = (transA == CBlasNoTrans) ? 640 : 128;
-  const size_t nb = (transA == CBlasNoTrans) ?  96 : 480;
+  const size_t mb = (transA == CBlasNoTrans) ? 1024 : (transB == CBlasNoTrans) ? 120 :  64;
+  const size_t nb = (transA == CBlasNoTrans) ?  180 : (transB == CBlasNoTrans) ? 384 : 120;
 
   if (m < mb && n < nb) {
     zgemm(transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc);

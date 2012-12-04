@@ -485,13 +485,15 @@ CUresult cuMultiGPUDgemm(CUmultiGPU multiGPU,
    * 15x16, etc. block size here.
    * 10x24 is chosen to retain the m >> n behaviour needed for DPOTRF('L',..).
    * mb = 10 * 64 = 640
-   * nb = 24 * 16 = 384
+   * nb = 24 *  8 = 192
    * kb defines the amount of work done by each thread and the memory (and
    * bandwidth) needed for A and B so needs to be tuned to give maximum
-   * performance.  kb >= 128 gives ~80GFlops/s.  This requires (640 * 384 + 2 *
-   * 128 * (640 + 384)) * 8 = 3968kB of graphics memory.
+   * performance.  It should be a multiple of the kb block size used to unroll
+   * the GPU code which in this case is 16.  kb >= 128 gives ~80GFlops/s.  This
+   * requires (640 * 192 + 2 * 128 * (640 + 192)) * 8 = 2624kB of graphics
+   * memory.
    *
-   * These block sizes give a bandwidth reduction of 2 / (1/640 + 1/384) = 480
+   * These block sizes give a bandwidth reduction of 2 / (1/640 + 1/192) = 295.38
    *
    * Bandwidth between host and device is 6 GB/s each way
    *
@@ -511,8 +513,10 @@ CUresult cuMultiGPUDgemm(CUmultiGPU multiGPU,
    * nb = 30 * 16 = 480
    * kb defines the amount of work done by each thread and the memory (and
    * bandwidth) needed for A and B so needs to be tuned to give maximum
-   * performance.  264 <= kb <= 480 gives ~75GFlops/s.  This requires (128 * 480
-   * + 2 * 264 * (128 + 480)) * 8 = 2984kB of graphics memory.
+   * performance.  It should be a multiple of the kb block size used to unroll
+   * the GPU code which in this case is 8.  264 <= kb <= 480 gives ~75GFlops/s.
+   * This requires (128 * 480 + 2 * 264 * (128 + 480)) * 8 = 2988kB of graphics
+   * memory.
    *
    * These block sizes give a bandwidth reduction of 2 / (1/128 + 1/480) = 202.11
    *
@@ -523,7 +527,7 @@ CUresult cuMultiGPUDgemm(CUmultiGPU multiGPU,
    *
    */
   const size_t mb = (transA == CBlasNoTrans) ? 640 : 128;
-  const size_t nb = (transA == CBlasNoTrans) ? 384 : 480;
+  const size_t nb = (transA == CBlasNoTrans) ? 192 : 480;
 
   if (m < mb && n < nb) {
     dgemm(transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc);

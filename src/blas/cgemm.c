@@ -292,7 +292,7 @@ static CUresult background_cgemm(const void * a) {
   CUdeviceptr A0, A1, B0, B1, C;
   size_t lda, ldb, ldc;
 
-  const size_t kb = (transA == CBlasNoTrans) ? 512 : 264;
+  const size_t kb = 128;
 
   // Load the cgemm module
   CUmodule module;
@@ -562,19 +562,38 @@ CUresult cuMultiGPUCgemm(CUmultiGPU multiGPU,
    * have 30 * 8 = 240 blocks sent to the GPU.  This requires a 10x24, 12x20,
    * 15x16, etc. block size here.
    * 10x24 is chosen to retain the m >> n behaviour needed for CPOTRF('L',..).
+   *
    * mb = 10 * 64 = 640
-   * nb = 24 * 16 = 384
+   * nb = 24 *  8 = 192
+   *
    * kb defines the amount of work done by each thread and the memory (and
    * bandwidth) needed for A and B so needs to be tuned to give maximum
-   * performance.  kb >= 512 gives ~440GFlops/s.  This requires (640 * 384 + 2 *
-   * 512 * (640 + 384)) * 8 = 10112kB of graphics memory.
+   * performance.  It should be a multiple of the kb block size used to unroll
+   * the GPU code which in this case is 16.  kb is increased for given mb and nb
+   * until the performance increase is < 1%. This happens at kb = 128 and gives
+   * ~415GFlops/s.  This requires
+   * (640 * 192 + 2 * 128 * (640 + 192)) * 8 = 2624kB
+   * of graphics memory.
    *
-   * These block sizes give a bandwidth reduction of 2 / (1/640 + 1/384) = 480
+   * These block sizes give a bandwidth reduction of 2 / (1/640 + 1/192) = 295.38
    *
    * Bandwidth between host and device is 6 GB/s each way
    *
    * FLOP:word ratio for transA == CBlasNoTrans is
-   * (440 * 10^9) / (6 * 1,073,741,824 / sizeof(float complex)) = 546.38
+   * (415 * 10^9) / (6 * 1024^3 / sizeof(float complex)) = 515.33
+   *
+   * Since the bandwidth reduction for this block size is less than the
+   * FLOP:word ratio this creates a bandwidth bound algorithm.  Increasing the
+   * block sizes to 1024 * 360 sends 720 (16 * 45) blocks to the GPU, or 24 to
+   * each MP, which is also a multiple of 8, the maximum that will fit.
+   * This gives a final configuration of:
+   * mb = 16 * 64 = 1024
+   * nb = 45 *  8 =  360
+   * kb (after tuning run with new mb and nb) = 128
+   * memory = (1024 * 360 + 2 * 128 * (1024 + 360)) * 8 = 5648kB
+   * bandwidth reduction = 2 / (1/1024 + 1/360) = 532.72
+   * FLOP:word ratio = (425 * 10^9) / (6 * 1024^3 / sizeof(float complex)) = 527.75
+   *
    *
    * When transA != CBlasNoTrans each GPU MP processes blocks of 32x16 using 64
    * threads per block.
@@ -585,23 +604,41 @@ CUresult cuMultiGPUCgemm(CUmultiGPU multiGPU,
    * have 30 * 4 = 120 blocks sent to the GPU.  This requires a 6x20, 8x15, 4x30,
    * etc. block size here.
    * 8x15 is chosen to retain the m << n behaviour needed for CPOTRF('U',..).
+   *
    * mb =  4 * 32 = 128
    * nb = 30 * 16 = 480
+   *
    * kb defines the amount of work done by each thread and the memory (and
    * bandwidth) needed for A and B so needs to be tuned to give maximum
-   * performance.  264 <= kb <= 480 gives ~305GFlops/s.  This requires (128 * 480
-   * + 2 * 264 * (128 + 480)) * 8 = 2984kB of graphics memory.
+   * performance.  It should be a multiple of the kb block size used to unroll
+   * the GPU code which in this case is 8.  kb is increased for given mb and nb
+   * until the performance increase is < 1%. This happens at kb = 264 and gives
+   * ~305GFlops/s.  This requires
+   * (128 * 480 + 2 * 264 * (128 + 480)) * 8 = 2988kB
+   * of graphics memory.
    *
    * These block sizes give a bandwidth reduction of 2 / (1/128 + 1/480) = 202.11
    *
    * Bandwidth between host and device is 6 GB/s each way
    *
    * FLOP:word ratio for transA != CBlasNoTrans is
-   * (305 * 10^9) / (6 * 1,073,741,824 / sizeof(float complex)) = 378.74
+   * (305 * 10^9) / (6 * 1024^3 / sizeof(float complex)) = 378.74
+   *
+   * Since the bandwidth reduction for this block size is less than the
+   * FLOP:word ratio this creates a bandwidth bound algorithm.  Increasing the
+   * block sizes to 256 * 720 sends 360 (8 * 45) blocks to the GPU, or 12 to
+   * each MP, which is also a multiple of 4, the maximum that will fit.
+   * This gives a final configuration of:
+   * mb =  8 * 32 =  256
+   * nb = 45 * 16 =  720
+   * kb (after tuning run with new mb and nb) = 128
+   * memory = (256 * 720 + 2 * 128 * (256 + 720)) * 8 = 3392kB
+   * bandwidth reduction = 2 / (1/1024 + 1/360) = 377.70
+   * FLOP:word ratio = (300 * 10^9) / (6 * 1024^3 / sizeof(float complex)) = 372.53
    *
    */
-  const size_t mb = (transA == CBlasNoTrans) ? 640 : 128;
-  const size_t nb = (transA == CBlasNoTrans) ? 384 : 480;
+  const size_t mb = (transA == CBlasNoTrans) ? 1024 : 256;
+  const size_t nb = (transA == CBlasNoTrans) ?  360 : 720;
 
   if (m < mb && n < nb) {
     cgemm(transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc);
