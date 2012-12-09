@@ -622,11 +622,7 @@ __global__ void strmmRUT(int m, int n,
 
     if (k < kb) break;
 
-    if (diag != CBlasNonUnit)
-      x[0] += B[0];
-    else
-      saxpy( 1, B[0], a[ 0], x);
-    B += ldb;
+    INNER_RIGHT_LOOP_INC( 1); B += ldb;
     INNER_RIGHT_LOOP_INC( 2); B += ldb;
     INNER_RIGHT_LOOP_INC( 3); B += ldb;
     INNER_RIGHT_LOOP_INC( 4); B += ldb;
@@ -649,10 +645,22 @@ __global__ void strmmRUT(int m, int n,
     k -= kb;
   }
 
-  for (int ll = 0; ll < k; ll++) {
-    saxpy(ll + 1, B[0], a[ll], x);
-    B += ldb;
-  }
+  if (k >  0) { INNER_RIGHT_LOOP_INC( 1); B += ldb;
+  if (k >  1) { INNER_RIGHT_LOOP_INC( 2); B += ldb;
+  if (k >  2) { INNER_RIGHT_LOOP_INC( 3); B += ldb;
+  if (k >  3) { INNER_RIGHT_LOOP_INC( 4); B += ldb;
+  if (k >  4) { INNER_RIGHT_LOOP_INC( 5); B += ldb;
+  if (k >  5) { INNER_RIGHT_LOOP_INC( 6); B += ldb;
+  if (k >  6) { INNER_RIGHT_LOOP_INC( 7); B += ldb;
+  if (k >  7) { INNER_RIGHT_LOOP_INC( 8); B += ldb;
+  if (k >  8) { INNER_RIGHT_LOOP_INC( 9); B += ldb;
+  if (k >  9) { INNER_RIGHT_LOOP_INC(10); B += ldb;
+  if (k > 10) { INNER_RIGHT_LOOP_INC(11); B += ldb;
+  if (k > 11) { INNER_RIGHT_LOOP_INC(12); B += ldb;
+  if (k > 12) { INNER_RIGHT_LOOP_INC(13); B += ldb;
+  if (k > 13) { INNER_RIGHT_LOOP_INC(14); B += ldb;
+  if (k > 14) { INNER_RIGHT_LOOP_INC(15); B += ldb;
+  if (k > 15) { INNER_RIGHT_LOOP_INC(16); B += ldb; }}}}}}}}}}}}}}}}
 
   // Process non-diagonal blocks as for SGEMM
   k = n - bj - nb;
@@ -712,29 +720,28 @@ __global__ void strmmRLN(int m, int n,
   while (k > 0) {
 #pragma unroll
     for (int j = 0; j < nb; j += by)
-      a[threadIdx.x][j + threadIdx.y] =
-        (diag != CBlasNonUnit && threadIdx.x == j + threadIdx.y) ? 1.0f : A[j * lda];
+      a[threadIdx.x][j + threadIdx.y] = A[j * lda];
 
     __syncthreads();
 
     if (k < kb) break;
 
-    saxpy( 1, B[0], a[ 0], x); B += ldb;
-    saxpy( 2, B[0], a[ 1], x); B += ldb;
-    saxpy( 3, B[0], a[ 2], x); B += ldb;
-    saxpy( 4, B[0], a[ 3], x); B += ldb;
-    saxpy( 5, B[0], a[ 4], x); B += ldb;
-    saxpy( 6, B[0], a[ 5], x); B += ldb;
-    saxpy( 7, B[0], a[ 6], x); B += ldb;
-    saxpy( 8, B[0], a[ 7], x); B += ldb;
-    saxpy( 9, B[0], a[ 8], x); B += ldb;
-    saxpy(10, B[0], a[ 9], x); B += ldb;
-    saxpy(11, B[0], a[10], x); B += ldb;
-    saxpy(12, B[0], a[11], x); B += ldb;
-    saxpy(13, B[0], a[12], x); B += ldb;
-    saxpy(14, B[0], a[13], x); B += ldb;
-    saxpy(15, B[0], a[14], x); B += ldb;
-    saxpy(16, B[0], a[15], x); B += ldb;
+    INNER_RIGHT_LOOP_INC( 1); B += ldb;
+    INNER_RIGHT_LOOP_INC( 2); B += ldb;
+    INNER_RIGHT_LOOP_INC( 3); B += ldb;
+    INNER_RIGHT_LOOP_INC( 4); B += ldb;
+    INNER_RIGHT_LOOP_INC( 5); B += ldb;
+    INNER_RIGHT_LOOP_INC( 6); B += ldb;
+    INNER_RIGHT_LOOP_INC( 7); B += ldb;
+    INNER_RIGHT_LOOP_INC( 8); B += ldb;
+    INNER_RIGHT_LOOP_INC( 9); B += ldb;
+    INNER_RIGHT_LOOP_INC(10); B += ldb;
+    INNER_RIGHT_LOOP_INC(11); B += ldb;
+    INNER_RIGHT_LOOP_INC(12); B += ldb;
+    INNER_RIGHT_LOOP_INC(13); B += ldb;
+    INNER_RIGHT_LOOP_INC(14); B += ldb;
+    INNER_RIGHT_LOOP_INC(15); B += ldb;
+    INNER_RIGHT_LOOP_INC(16); B += ldb;
 
     __syncthreads();
 
@@ -742,10 +749,22 @@ __global__ void strmmRLN(int m, int n,
     k -= kb;
   }
 
-  for (int ll = 0; ll < k; ll++) {
-    saxpy(ll + 1, B[0], a[ll], x);
-    B += ldb;
-  }
+  if (k >  0) { INNER_RIGHT_LOOP_INC( 1); B += ldb;
+  if (k >  1) { INNER_RIGHT_LOOP_INC( 2); B += ldb;
+  if (k >  2) { INNER_RIGHT_LOOP_INC( 3); B += ldb;
+  if (k >  3) { INNER_RIGHT_LOOP_INC( 4); B += ldb;
+  if (k >  4) { INNER_RIGHT_LOOP_INC( 5); B += ldb;
+  if (k >  5) { INNER_RIGHT_LOOP_INC( 6); B += ldb;
+  if (k >  6) { INNER_RIGHT_LOOP_INC( 7); B += ldb;
+  if (k >  7) { INNER_RIGHT_LOOP_INC( 8); B += ldb;
+  if (k >  8) { INNER_RIGHT_LOOP_INC( 9); B += ldb;
+  if (k >  9) { INNER_RIGHT_LOOP_INC(10); B += ldb;
+  if (k > 10) { INNER_RIGHT_LOOP_INC(11); B += ldb;
+  if (k > 11) { INNER_RIGHT_LOOP_INC(12); B += ldb;
+  if (k > 12) { INNER_RIGHT_LOOP_INC(13); B += ldb;
+  if (k > 13) { INNER_RIGHT_LOOP_INC(14); B += ldb;
+  if (k > 14) { INNER_RIGHT_LOOP_INC(15); B += ldb;
+  if (k > 15) { INNER_RIGHT_LOOP_INC(16); B += ldb; }}}}}}}}}}}}}}}}
 
   // Process non-diagonal blocks as for SGEMM
   k = n - bj - nb;
