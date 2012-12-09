@@ -18,6 +18,7 @@ __device__ void saxpy(const float * x, float * y) {
 
 // y(1:n) += alpha * x(1:n)
 __device__ void saxpy(int n, float alpha, const float * x, float * y) {
+  if (n <= 0) return;
   y[ 0] += alpha * x[ 0]; if ( 1 >= n) return; y[ 1] += alpha * x[ 1]; if ( 2 >= n) return;
   y[ 2] += alpha * x[ 2]; if ( 3 >= n) return; y[ 3] += alpha * x[ 3]; if ( 4 >= n) return;
   y[ 4] += alpha * x[ 4]; if ( 5 >= n) return; y[ 5] += alpha * x[ 5]; if ( 6 >= n) return;
@@ -129,9 +130,6 @@ __global__ void strmmLUN(int m, int n,
   // Process any non-diagonal blocks as for SGEMM
   k = m - bi - mb;
   while (k > 0) {
-    // Need to start with a syncthreads to ensure diagonal has finished
-    __syncthreads();
-
 #pragma unroll
     for (int j = 0; j < nb; j += by)
       b[threadIdx.x][j + threadIdx.y] = B[j * ldb];
@@ -197,8 +195,6 @@ __global__ void strmmLUT(int m, int n,
 
     __syncthreads();
 
-    if (k < kb) break;
-
 #pragma unroll
     for (int l = 0; l < kb; l++)
       saxpy(a[ti][l], &b[l][tj], x);
@@ -213,9 +209,6 @@ __global__ void strmmLUT(int m, int n,
   k = min(m - bi, mb);
   int l = 0;
   while (k > 0) {
-    // Need to start with a syncthreads to ensure SGEMM has finished
-    __syncthreads();
-
 #pragma unroll
     for (int i = 0; i < mb; i += by)
       a[i + threadIdx.y][threadIdx.x] = A[i * lda];
@@ -303,8 +296,6 @@ __global__ void strmmLLN(int m, int n,
 
     __syncthreads();
 
-    if (k < kb) break;
-
 #pragma unroll
     for (int l = 0; l < kb; l++) {
       saxpy(A[0], b[l], x);
@@ -321,8 +312,6 @@ __global__ void strmmLLN(int m, int n,
   k = min(m - bi, mb);
   int l = 0;
   while (k > 0) {
-    __syncthreads();
-
 #pragma unroll
     for (int j = 0; j < nb; j += by)
       b[threadIdx.x][j + threadIdx.y] = B[j * ldb];
@@ -463,9 +452,6 @@ __global__ void strmmLLT(int m, int n,
   // Process any non-diagonal blocks as for SGEMM
   k = m - bi - mb;
   while (k > 0) {
-    // Need to start with a syncthreads to ensure diagonal has finished
-    __syncthreads();
-
 #pragma unroll
     for (int i = 0; i < mb; i += by)
       a[i + threadIdx.y][threadIdx.x] = A[i * lda];
@@ -493,6 +479,26 @@ __global__ void strmmLLT(int m, int n,
   if (m - bi - ti > 0)
     sscal(n - bj - tj, alpha, x, X, ldx);
 }
+
+#define INNER_RIGHT_LOOP_DEC(i) \
+  do { \
+    if (diag != CBlasNonUnit) { \
+      x[(i)] += B[0]; \
+      saxpy(16 - (i) - 1, B[0], &a[(i)][(i) + 1], &x[(i) + 1]); \
+    } \
+    else \
+      saxpy(16 - (i), B[0], &a[(i)][(i)], &x[(i)]); \
+  } while (false)
+
+#define INNER_RIGHT_LOOP_INC(i) \
+  do { \
+    if (diag != CBlasNonUnit) { \
+      saxpy((i) - 1, B[0], a[(i) - 1], x); \
+      x[(i) - 1] += B[0]; \
+    } \
+    else \
+      saxpy((i), B[0], a[(i) - 1], x); \
+  } while (false)
 
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
@@ -524,8 +530,6 @@ __global__ void strmmRUN(int m, int n,
 
     __syncthreads();
 
-    if (k < kb) break;
-
 #pragma unroll
     for (int l = 0; l < kb; l++) {
       saxpy(B[0], a[l], x);
@@ -541,55 +545,45 @@ __global__ void strmmRUN(int m, int n,
   // For Upper/NoTrans and Lower/Trans process diagonal last
   k = min(n - bj, nb);
   while (k > 0) {
-
-    __syncthreads();
-
 #pragma unroll
     for (int j = 0; j < nb; j += by)
-      a[threadIdx.x][j + threadIdx.y] =
-        (diag != CBlasNonUnit && threadIdx.x == j + threadIdx.y) ? 1.0f : A[j * lda];
+      a[threadIdx.x][j + threadIdx.y] = A[j * lda];
 
     __syncthreads();
 
     if (k < kb) break;
 
-    saxpy(16, B[0], &a[ 0][ 0], &x[ 0]); B += ldb;
-    saxpy(15, B[0], &a[ 1][ 1], &x[ 1]); B += ldb;
-    saxpy(14, B[0], &a[ 2][ 2], &x[ 2]); B += ldb;
-    saxpy(13, B[0], &a[ 3][ 3], &x[ 3]); B += ldb;
-    saxpy(12, B[0], &a[ 4][ 4], &x[ 4]); B += ldb;
-    saxpy(11, B[0], &a[ 5][ 5], &x[ 5]); B += ldb;
-    saxpy(10, B[0], &a[ 6][ 6], &x[ 6]); B += ldb;
-    saxpy( 9, B[0], &a[ 7][ 7], &x[ 7]); B += ldb;
-    saxpy( 8, B[0], &a[ 8][ 8], &x[ 8]); B += ldb;
-    saxpy( 7, B[0], &a[ 9][ 9], &x[ 9]); B += ldb;
-    saxpy( 6, B[0], &a[10][10], &x[10]); B += ldb;
-    saxpy( 5, B[0], &a[11][11], &x[11]); B += ldb;
-    saxpy( 4, B[0], &a[12][12], &x[12]); B += ldb;
-    saxpy( 3, B[0], &a[13][13], &x[13]); B += ldb;
-    saxpy( 2, B[0], &a[14][14], &x[14]); B += ldb;
-    saxpy( 1, B[0], &a[15][15], &x[15]); B += ldb;
+    INNER_RIGHT_LOOP_DEC( 0); B += ldb; INNER_RIGHT_LOOP_DEC( 1); B += ldb;
+    INNER_RIGHT_LOOP_DEC( 2); B += ldb; INNER_RIGHT_LOOP_DEC( 3); B += ldb;
+    INNER_RIGHT_LOOP_DEC( 4); B += ldb; INNER_RIGHT_LOOP_DEC( 5); B += ldb;
+    INNER_RIGHT_LOOP_DEC( 6); B += ldb; INNER_RIGHT_LOOP_DEC( 7); B += ldb;
+    INNER_RIGHT_LOOP_DEC( 8); B += ldb; INNER_RIGHT_LOOP_DEC( 9); B += ldb;
+    INNER_RIGHT_LOOP_DEC(10); B += ldb; INNER_RIGHT_LOOP_DEC(11); B += ldb;
+    INNER_RIGHT_LOOP_DEC(12); B += ldb; INNER_RIGHT_LOOP_DEC(13); B += ldb;
+    INNER_RIGHT_LOOP_DEC(14); B += ldb; INNER_RIGHT_LOOP_DEC(15); B += ldb;
+
+    __syncthreads();
 
     A += kb;
     k -= kb;
   }
 
-  if (k > 0) { saxpy(16, B[0], &a[ 0][ 0], &x[ 0]); B += ldb;
-  if (k > 1) { saxpy(15, B[0], &a[ 1][ 1], &x[ 1]); B += ldb;
-  if (k > 2) { saxpy(14, B[0], &a[ 2][ 2], &x[ 2]); B += ldb;
-  if (k > 3) { saxpy(13, B[0], &a[ 3][ 3], &x[ 3]); B += ldb;
-  if (k > 4) { saxpy(12, B[0], &a[ 4][ 4], &x[ 4]); B += ldb;
-  if (k > 5) { saxpy(11, B[0], &a[ 5][ 5], &x[ 5]); B += ldb;
-  if (k > 6) { saxpy(10, B[0], &a[ 6][ 6], &x[ 6]); B += ldb;
-  if (k > 7) { saxpy( 9, B[0], &a[ 7][ 7], &x[ 7]); B += ldb;
-  if (k > 8) { saxpy( 8, B[0], &a[ 8][ 8], &x[ 8]); B += ldb;
-  if (k > 9) { saxpy( 7, B[0], &a[ 9][ 9], &x[ 9]); B += ldb;
-  if (k >10) { saxpy( 6, B[0], &a[10][10], &x[10]); B += ldb;
-  if (k >11) { saxpy( 5, B[0], &a[11][11], &x[11]); B += ldb;
-  if (k >12) { saxpy( 4, B[0], &a[12][12], &x[12]); B += ldb;
-  if (k >13) { saxpy( 3, B[0], &a[13][13], &x[13]); B += ldb;
-  if (k >14) { saxpy( 2, B[0], &a[14][14], &x[14]); B += ldb;
-  if (k >15) { saxpy( 1, B[0], &a[15][15], &x[15]); }}}}}}}}}}}}}}}}
+  if (k > 0) { INNER_RIGHT_LOOP_DEC( 0); B += ldb;
+  if (k > 1) { INNER_RIGHT_LOOP_DEC( 1); B += ldb;
+  if (k > 2) { INNER_RIGHT_LOOP_DEC( 2); B += ldb;
+  if (k > 3) { INNER_RIGHT_LOOP_DEC( 3); B += ldb;
+  if (k > 4) { INNER_RIGHT_LOOP_DEC( 4); B += ldb;
+  if (k > 5) { INNER_RIGHT_LOOP_DEC( 5); B += ldb;
+  if (k > 6) { INNER_RIGHT_LOOP_DEC( 6); B += ldb;
+  if (k > 7) { INNER_RIGHT_LOOP_DEC( 7); B += ldb;
+  if (k > 8) { INNER_RIGHT_LOOP_DEC( 8); B += ldb;
+  if (k > 9) { INNER_RIGHT_LOOP_DEC( 9); B += ldb;
+  if (k >10) { INNER_RIGHT_LOOP_DEC(10); B += ldb;
+  if (k >11) { INNER_RIGHT_LOOP_DEC(11); B += ldb;
+  if (k >12) { INNER_RIGHT_LOOP_DEC(12); B += ldb;
+  if (k >13) { INNER_RIGHT_LOOP_DEC(13); B += ldb;
+  if (k >14) { INNER_RIGHT_LOOP_DEC(14); B += ldb;
+  if (k >15) { INNER_RIGHT_LOOP_DEC(15); }}}}}}}}}}}}}}}}
 
   if (m - bi - ti > 0)
     sscal(n - bj, alpha, x, X, ldx);
@@ -622,29 +616,32 @@ __global__ void strmmRUT(int m, int n,
   while (k > 0) {
 #pragma unroll
     for (int l = 0; l < kb; l += by)
-      a[l + threadIdx.y][threadIdx.x] =
-        (diag != CBlasNonUnit && threadIdx.x == l + threadIdx.y) ? 1.0f : A[l * lda];
+      a[l + threadIdx.y][threadIdx.x] = A[l * lda];
 
     __syncthreads();
 
     if (k < kb) break;
 
-    saxpy( 1, B[0], a[ 0], x); B += ldb;
-    saxpy( 2, B[0], a[ 1], x); B += ldb;
-    saxpy( 3, B[0], a[ 2], x); B += ldb;
-    saxpy( 4, B[0], a[ 3], x); B += ldb;
-    saxpy( 5, B[0], a[ 4], x); B += ldb;
-    saxpy( 6, B[0], a[ 5], x); B += ldb;
-    saxpy( 7, B[0], a[ 6], x); B += ldb;
-    saxpy( 8, B[0], a[ 7], x); B += ldb;
-    saxpy( 9, B[0], a[ 8], x); B += ldb;
-    saxpy(10, B[0], a[ 9], x); B += ldb;
-    saxpy(11, B[0], a[10], x); B += ldb;
-    saxpy(12, B[0], a[11], x); B += ldb;
-    saxpy(13, B[0], a[12], x); B += ldb;
-    saxpy(14, B[0], a[13], x); B += ldb;
-    saxpy(15, B[0], a[14], x); B += ldb;
-    saxpy(16, B[0], a[15], x); B += ldb;
+    if (diag != CBlasNonUnit)
+      x[0] += B[0];
+    else
+      saxpy( 1, B[0], a[ 0], x);
+    B += ldb;
+    INNER_RIGHT_LOOP_INC( 2); B += ldb;
+    INNER_RIGHT_LOOP_INC( 3); B += ldb;
+    INNER_RIGHT_LOOP_INC( 4); B += ldb;
+    INNER_RIGHT_LOOP_INC( 5); B += ldb;
+    INNER_RIGHT_LOOP_INC( 6); B += ldb;
+    INNER_RIGHT_LOOP_INC( 7); B += ldb;
+    INNER_RIGHT_LOOP_INC( 8); B += ldb;
+    INNER_RIGHT_LOOP_INC( 9); B += ldb;
+    INNER_RIGHT_LOOP_INC(10); B += ldb;
+    INNER_RIGHT_LOOP_INC(11); B += ldb;
+    INNER_RIGHT_LOOP_INC(12); B += ldb;
+    INNER_RIGHT_LOOP_INC(13); B += ldb;
+    INNER_RIGHT_LOOP_INC(14); B += ldb;
+    INNER_RIGHT_LOOP_INC(15); B += ldb;
+    INNER_RIGHT_LOOP_INC(16); B += ldb;
 
     __syncthreads();
 
@@ -660,8 +657,6 @@ __global__ void strmmRUT(int m, int n,
   // Process non-diagonal blocks as for SGEMM
   k = n - bj - nb;
   while (k > 0) {
-    __syncthreads();
-
 #pragma unroll
     for (int l = 0; l < kb; l += by)
       a[l + threadIdx.y][threadIdx.x] = A[l * lda];
@@ -755,9 +750,6 @@ __global__ void strmmRLN(int m, int n,
   // Process non-diagonal blocks as for SGEMM
   k = n - bj - nb;
   while (k > 0) {
-
-    __syncthreads();
-
 #pragma unroll
     for (int j = 0; j < nb; j += by)
       a[threadIdx.x][j + threadIdx.y] = A[j * lda];
@@ -817,8 +809,6 @@ __global__ void strmmRLT(int m, int n,
 
     __syncthreads();
 
-    if (k < kb) break;
-
 #pragma unroll
     for (int l = 0; l < kb; l++) {
       saxpy(B[0], a[l], x);
@@ -834,34 +824,22 @@ __global__ void strmmRLT(int m, int n,
   // For Upper/NoTrans and Lower/Trans process diagonal last
   k = min(n - bj, nb);
   while (k > 0) {
-
-    __syncthreads();
-
 #pragma unroll
     for (int l = 0; l < kb; l += by)
-      a[l + threadIdx.y][threadIdx.x] =
-          (diag != CBlasNonUnit && threadIdx.x == l + threadIdx.y) ? 1.0f : A[l * lda];
+      a[l + threadIdx.y][threadIdx.x] = A[l * lda];
 
     __syncthreads();
 
     if (k < kb) break;
 
-    saxpy(16, B[0], &a[ 0][ 0], &x[ 0]); B += ldb;
-    saxpy(15, B[0], &a[ 1][ 1], &x[ 1]); B += ldb;
-    saxpy(14, B[0], &a[ 2][ 2], &x[ 2]); B += ldb;
-    saxpy(13, B[0], &a[ 3][ 3], &x[ 3]); B += ldb;
-    saxpy(12, B[0], &a[ 4][ 4], &x[ 4]); B += ldb;
-    saxpy(11, B[0], &a[ 5][ 5], &x[ 5]); B += ldb;
-    saxpy(10, B[0], &a[ 6][ 6], &x[ 6]); B += ldb;
-    saxpy( 9, B[0], &a[ 7][ 7], &x[ 7]); B += ldb;
-    saxpy( 8, B[0], &a[ 8][ 8], &x[ 8]); B += ldb;
-    saxpy( 7, B[0], &a[ 9][ 9], &x[ 9]); B += ldb;
-    saxpy( 6, B[0], &a[10][10], &x[10]); B += ldb;
-    saxpy( 5, B[0], &a[11][11], &x[11]); B += ldb;
-    saxpy( 4, B[0], &a[12][12], &x[12]); B += ldb;
-    saxpy( 3, B[0], &a[13][13], &x[13]); B += ldb;
-    saxpy( 2, B[0], &a[14][14], &x[14]); B += ldb;
-    saxpy( 1, B[0], &a[15][15], &x[15]); B += ldb;
+    INNER_RIGHT_LOOP_DEC( 0); B += ldb; INNER_RIGHT_LOOP_DEC( 1); B += ldb;
+    INNER_RIGHT_LOOP_DEC( 2); B += ldb; INNER_RIGHT_LOOP_DEC( 3); B += ldb;
+    INNER_RIGHT_LOOP_DEC( 4); B += ldb; INNER_RIGHT_LOOP_DEC( 5); B += ldb;
+    INNER_RIGHT_LOOP_DEC( 6); B += ldb; INNER_RIGHT_LOOP_DEC( 7); B += ldb;
+    INNER_RIGHT_LOOP_DEC( 8); B += ldb; INNER_RIGHT_LOOP_DEC( 9); B += ldb;
+    INNER_RIGHT_LOOP_DEC(10); B += ldb; INNER_RIGHT_LOOP_DEC(11); B += ldb;
+    INNER_RIGHT_LOOP_DEC(12); B += ldb; INNER_RIGHT_LOOP_DEC(13); B += ldb;
+    INNER_RIGHT_LOOP_DEC(14); B += ldb; INNER_RIGHT_LOOP_DEC(15); B += ldb;
 
     __syncthreads();
 
@@ -869,22 +847,22 @@ __global__ void strmmRLT(int m, int n,
     k -= kb;
   }
 
-  if (k > 0) { saxpy(16, B[0], &a[ 0][ 0], &x[ 0]); B += ldb;
-  if (k > 1) { saxpy(15, B[0], &a[ 1][ 1], &x[ 1]); B += ldb;
-  if (k > 2) { saxpy(14, B[0], &a[ 2][ 2], &x[ 2]); B += ldb;
-  if (k > 3) { saxpy(13, B[0], &a[ 3][ 3], &x[ 3]); B += ldb;
-  if (k > 4) { saxpy(12, B[0], &a[ 4][ 4], &x[ 4]); B += ldb;
-  if (k > 5) { saxpy(11, B[0], &a[ 5][ 5], &x[ 5]); B += ldb;
-  if (k > 6) { saxpy(10, B[0], &a[ 6][ 6], &x[ 6]); B += ldb;
-  if (k > 7) { saxpy( 9, B[0], &a[ 7][ 7], &x[ 7]); B += ldb;
-  if (k > 8) { saxpy( 8, B[0], &a[ 8][ 8], &x[ 8]); B += ldb;
-  if (k > 9) { saxpy( 7, B[0], &a[ 9][ 9], &x[ 9]); B += ldb;
-  if (k >10) { saxpy( 6, B[0], &a[10][10], &x[10]); B += ldb;
-  if (k >11) { saxpy( 5, B[0], &a[11][11], &x[11]); B += ldb;
-  if (k >12) { saxpy( 4, B[0], &a[12][12], &x[12]); B += ldb;
-  if (k >13) { saxpy( 3, B[0], &a[13][13], &x[13]); B += ldb;
-  if (k >14) { saxpy( 2, B[0], &a[14][14], &x[14]); B += ldb;
-  if (k >15) { saxpy( 1, B[0], &a[15][15], &x[15]); }}}}}}}}}}}}}}}}
+  if (k > 0) { INNER_RIGHT_LOOP_DEC( 0); B += ldb;
+  if (k > 1) { INNER_RIGHT_LOOP_DEC( 1); B += ldb;
+  if (k > 2) { INNER_RIGHT_LOOP_DEC( 2); B += ldb;
+  if (k > 3) { INNER_RIGHT_LOOP_DEC( 3); B += ldb;
+  if (k > 4) { INNER_RIGHT_LOOP_DEC( 4); B += ldb;
+  if (k > 5) { INNER_RIGHT_LOOP_DEC( 5); B += ldb;
+  if (k > 6) { INNER_RIGHT_LOOP_DEC( 6); B += ldb;
+  if (k > 7) { INNER_RIGHT_LOOP_DEC( 7); B += ldb;
+  if (k > 8) { INNER_RIGHT_LOOP_DEC( 8); B += ldb;
+  if (k > 9) { INNER_RIGHT_LOOP_DEC( 9); B += ldb;
+  if (k >10) { INNER_RIGHT_LOOP_DEC(10); B += ldb;
+  if (k >11) { INNER_RIGHT_LOOP_DEC(11); B += ldb;
+  if (k >12) { INNER_RIGHT_LOOP_DEC(12); B += ldb;
+  if (k >13) { INNER_RIGHT_LOOP_DEC(13); B += ldb;
+  if (k >14) { INNER_RIGHT_LOOP_DEC(14); B += ldb;
+  if (k >15) { INNER_RIGHT_LOOP_DEC(15); }}}}}}}}}}}}}}}}
 
   if (m - bi - ti > 0)
     sscal(n - bj, alpha, x, X, ldx);
