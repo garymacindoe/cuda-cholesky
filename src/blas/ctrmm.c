@@ -258,15 +258,20 @@ CUresult cuCtrmm2(CUmodule module,
   const unsigned int bx = (side == CBlasRight) ?  8 : (trans == CBlasNoTrans) ? 16 :  8;
   const unsigned int by = (side == CBlasRight) ?  8 : (trans == CBlasNoTrans) ?  4 :  8;
 
-  char name[110];
-  snprintf(name, 110,
-           "_Z7ctrmm2%cIL9CBlasUplo%dEL14CBlasTranspose%dEL9CBlasDiag%dELj%uELj%uELj%uELj%uELj%uEEvii6float2PKS3_iS5_iPS3_i",
-           side, uplo, trans, diag, mb, nb, kb, bx, by);
+  char name[95];
+  if (trans == CBlasNoTrans)
+    snprintf(name, 95,
+             "_Z8ctrmm%c%c%cIL9CBlasDiag%dELj%uELj%uELj%uELj%uELj%uEEvPK6float2S3_PS1_S1_iiiii",
+             side, uplo, trans, diag, mb, nb, kb, bx, by);
+  else
+    snprintf(name, 95,
+             "_Z8ctrmm%c%cTIL14CBlasTranspose%dEL9CBlasDiag%dELj%uELj%uELj%uELj%uELj%uEEvPK6float2S4_PS2_S2_iiiii",
+             side, uplo, trans, diag, mb, nb, kb, bx, by);
 
   CUfunction function;
   CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
 
-  void * params[] = { &m, &n, &alpha, &A, &lda, &B, &ldb, &X, &ldx };
+  void * params[] = { &A, &B, &X, &alpha, &lda, &ldb, &ldx, &m, &n };
 
   CU_ERROR_CHECK(cuLaunchKernel(function,
                                 (unsigned int)(m + mb - 1) / mb, (unsigned int)(n + nb - 1) / nb, 1,
