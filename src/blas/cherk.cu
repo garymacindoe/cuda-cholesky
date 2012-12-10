@@ -9,7 +9,7 @@ __host__ __device__ static __inline__ cuComplex cuCfmaf(float a, cuComplex b, cu
   return make_cuComplex(a * cuCrealf(b) + cuCrealf(c), a * cuCimagf(b) + cuCimagf(c));
 }
 
-#if __CUDA_ARCH__ < 200 && !defined(__BANK_CONFLICT__)
+#if __CUDA_ARCH__ < 200 && !defined(__BANK_CONFLICTS__)
 
 // y(1:8) += alpha * x(1:8)
 __device__ void caxpy(cuComplex alpha, const float * x_real, const float * x_imag, cuComplex * y) {
@@ -41,9 +41,11 @@ __device__ void caxpy(cuComplex alpha, const float * x_real, const float * x_ima
 template <CBlasUplo uplo, CBlasTranspose trans,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void cherk(int n, int k, float alpha,
-                      const cuComplex * __restrict__ A, int lda,
-                      float beta, cuComplex * __restrict__ C, int ldc) {
+__global__ void cherk(const cuComplex * __restrict__ A,
+                      cuComplex * __restrict__ C,
+                      float alpha, float beta,
+                      int lda, int ldc,
+                      int n, int k) {
 
 //   int bi, bj, nnb = (n + nb - 1) / nb;
 //   if (uplo == CBlasLower) {
@@ -271,9 +273,11 @@ __device__ void caxpy(cuComplex alpha, const cuComplex * x, cuComplex * y) {
 template <CBlasUplo uplo, CBlasTranspose trans,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void cherk(int n, int k, float alpha,
-                      const cuComplex * __restrict__ A, int lda,
-                      float beta, cuComplex * __restrict__ C, int ldc) {
+__global__ void cherk(const cuComplex * __restrict__ A,
+                      cuComplex * __restrict__ C,
+                      float alpha, float beta,
+                      int lda, int ldc,
+                      int n, int k) {
 
 //   int bi, bj, nnb = (n + nb - 1) / nb;
 //   if (uplo == CBlasLower) {
@@ -506,7 +510,7 @@ __global__ void cherk(int n, int k, float alpha,
  * kb is chosen to be the largest multiple of 16 such that the number of blocks
  * per multiprocessor is limited by the register usage.
  */
-template void cherk<CBlasUpper, CBlasNoTrans,   64,  8, 16, 16,  4>(int, int, float, const cuComplex *, int, float, cuComplex *, int);
-template void cherk<CBlasLower, CBlasNoTrans,   64,  8, 16, 16,  4>(int, int, float, const cuComplex *, int, float, cuComplex *, int);
-template void cherk<CBlasUpper, CBlasConjTrans, 32, 16,  8,  8,  8>(int, int, float, const cuComplex *, int, float, cuComplex *, int);
-template void cherk<CBlasLower, CBlasConjTrans, 32, 16,  8,  8,  8>(int, int, float, const cuComplex *, int, float, cuComplex *, int);
+template void cherk<CBlasUpper, CBlasNoTrans,   64,  8, 16, 16,  4>(const cuComplex *, cuComplex *, float, float, int, int, int, int);
+template void cherk<CBlasLower, CBlasNoTrans,   64,  8, 16, 16,  4>(const cuComplex *, cuComplex *, float, float, int, int, int, int);
+template void cherk<CBlasUpper, CBlasConjTrans, 32, 16,  8,  8,  8>(const cuComplex *, cuComplex *, float, float, int, int, int, int);
+template void cherk<CBlasLower, CBlasConjTrans, 32, 16,  8,  8,  8>(const cuComplex *, cuComplex *, float, float, int, int, int, int);

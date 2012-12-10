@@ -1,9 +1,10 @@
 #include "blas.h"
 
-#if __CUDA_ARCH__ < 200 && !defined(__BANK_CONFLICT__)
+#if __CUDA_ARCH__ < 200 && !defined(__BANK_CONFLICTS__)
 
 // y(1:8) += alpha * x(1:8)
-__device__ void daxpy(double alpha, const int * x_hi, const int * x_lo, double * y) {
+__device__ void daxpy(double alpha, const int * __restrict__ x_hi,
+                      const int * __restrict__ x_lo, double * __restrict__ y) {
   y[0] += alpha * __hiloint2double(x_hi[0], x_lo[0]);
   y[1] += alpha * __hiloint2double(x_hi[1], x_lo[1]);
   y[2] += alpha * __hiloint2double(x_hi[2], x_lo[2]);
@@ -15,7 +16,8 @@ __device__ void daxpy(double alpha, const int * x_hi, const int * x_lo, double *
 }
 
 // y(1:8) += x(1:8)
-__device__ void daxpy(const int * x_hi, const int * x_lo, double * y) {
+__device__ void daxpy(const int * __restrict__ x_hi,
+                      const int * __restrict__ x_lo, double * __restrict__ y) {
   y[0] += __hiloint2double(x_hi[0], x_lo[0]);
   y[1] += __hiloint2double(x_hi[1], x_lo[1]);
   y[2] += __hiloint2double(x_hi[2], x_lo[2]);
@@ -27,37 +29,41 @@ __device__ void daxpy(const int * x_hi, const int * x_lo, double * y) {
 }
 
 // y(1:n) += alpha * x(1:n)
-__device__ void daxpy(int n, double alpha, const int * x_hi, const int * x_lo, double * y) {
-  y[0] += alpha * __hiloint2double(x_hi[0], x_lo[0]); if ( 1 >= n) return;
-  y[1] += alpha * __hiloint2double(x_hi[1], x_lo[1]); if ( 2 >= n) return;
-  y[2] += alpha * __hiloint2double(x_hi[2], x_lo[2]); if ( 3 >= n) return;
-  y[3] += alpha * __hiloint2double(x_hi[3], x_lo[3]); if ( 4 >= n) return;
-  y[4] += alpha * __hiloint2double(x_hi[4], x_lo[4]); if ( 5 >= n) return;
-  y[5] += alpha * __hiloint2double(x_hi[5], x_lo[5]); if ( 6 >= n) return;
-  y[6] += alpha * __hiloint2double(x_hi[6], x_lo[6]); if ( 7 >= n) return;
+__device__ void daxpy(int n, double alpha, const int * __restrict__ x_hi,
+                      const int * __restrict__ x_lo, double * __restrict__ y) {
+  if (n <= 0) return;
+  y[0] += alpha * __hiloint2double(x_hi[0], x_lo[0]); if (1 >= n) return;
+  y[1] += alpha * __hiloint2double(x_hi[1], x_lo[1]); if (2 >= n) return;
+  y[2] += alpha * __hiloint2double(x_hi[2], x_lo[2]); if (3 >= n) return;
+  y[3] += alpha * __hiloint2double(x_hi[3], x_lo[3]); if (4 >= n) return;
+  y[4] += alpha * __hiloint2double(x_hi[4], x_lo[4]); if (5 >= n) return;
+  y[5] += alpha * __hiloint2double(x_hi[5], x_lo[5]); if (6 >= n) return;
+  y[6] += alpha * __hiloint2double(x_hi[6], x_lo[6]); if (7 >= n) return;
   y[7] += alpha * __hiloint2double(x_hi[7], x_lo[7]);
 }
 
 // y(1:n) = alpha * x(1:n)
-__device__ void dscal(int n, double alpha, const double * x, double * y, int incy) {
+__device__ void dscal(int n, double alpha, const double * __restrict__ x,
+                      double * __restrict__ y, int incy) {
   if (n <= 0) return;
-  y[0] = alpha * x[ 0]; if ( 1 >= n) return; y += incy;
-  y[0] = alpha * x[ 1]; if ( 2 >= n) return; y += incy;
-  y[0] = alpha * x[ 2]; if ( 3 >= n) return; y += incy;
-  y[0] = alpha * x[ 3]; if ( 4 >= n) return; y += incy;
-  y[0] = alpha * x[ 4]; if ( 5 >= n) return; y += incy;
-  y[0] = alpha * x[ 5]; if ( 6 >= n) return; y += incy;
-  y[0] = alpha * x[ 6]; if ( 7 >= n) return; y += incy;
-  y[0] = alpha * x[ 7];
+  y[0] = alpha * x[0]; if (1 >= n) return; y += incy;
+  y[0] = alpha * x[1]; if (2 >= n) return; y += incy;
+  y[0] = alpha * x[2]; if (3 >= n) return; y += incy;
+  y[0] = alpha * x[3]; if (4 >= n) return; y += incy;
+  y[0] = alpha * x[4]; if (5 >= n) return; y += incy;
+  y[0] = alpha * x[5]; if (6 >= n) return; y += incy;
+  y[0] = alpha * x[6]; if (7 >= n) return; y += incy;
+  y[0] = alpha * x[7];
 }
 
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void dtrmmLUN(int m, int n,
-                         double alpha, const double * __restrict__ A, int lda,
-                         const double * __restrict__ B, int ldb,
-                         double * __restrict__ X, int ldx) {
+__global__ void dtrmmLUN(const double * __restrict__ A,
+                         const double * __restrict__ B, double * __restrict__ X,
+                         double alpha,
+                         int lda, int ldb, int ldx,
+                         int m, int n) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of X
   const int bj = blockIdx.y * nb;       // Starting column of block of X
@@ -149,6 +155,8 @@ __global__ void dtrmmLUN(int m, int n,
       A += lda;
     }
 
+    __syncthreads();
+
     B += kb;
     k -= kb;
   }
@@ -165,10 +173,11 @@ __global__ void dtrmmLUN(int m, int n,
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void dtrmmLUT(int m, int n,
-                         double alpha, const double * __restrict__ A, int lda,
-                         const double * __restrict__ B, int ldb,
-                         double * __restrict__ X, int ldx) {
+__global__ void dtrmmLUT(const double * __restrict__ A,
+                         const double * __restrict__ B, double * __restrict__ X,
+                         double alpha,
+                         int lda, int ldb, int ldx,
+                         int m, int n) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of X
   const int bj = blockIdx.y * nb;       // Starting column of block of X
@@ -288,10 +297,11 @@ __global__ void dtrmmLUT(int m, int n,
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void dtrmmLLN(int m, int n,
-                         double alpha, const double * __restrict__ A, int lda,
-                         const double * __restrict__ B, int ldb,
-                         double * __restrict__ X, int ldx) {
+__global__ void dtrmmLLN(const double * __restrict__ A,
+                         const double * __restrict__ B, double * __restrict__ X,
+                         double alpha,
+                         int lda, int ldb, int ldx,
+                         int m, int n) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of X
   const int bj = blockIdx.y * nb;       // Starting column of block of X
@@ -394,10 +404,11 @@ __global__ void dtrmmLLN(int m, int n,
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void dtrmmLLT(int m, int n,
-                         double alpha, const double * __restrict__ A, int lda,
-                         const double * __restrict__ B, int ldb,
-                         double * __restrict__ X, int ldx) {
+__global__ void dtrmmLLT(const double * __restrict__ A,
+                         const double * __restrict__ B, double * __restrict__ X,
+                         double alpha,
+                         int lda, int ldb, int ldx,
+                         int m, int n) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of X
   const int bj = blockIdx.y * nb;       // Starting column of block of X
@@ -505,6 +516,8 @@ __global__ void dtrmmLLT(int m, int n,
     for (int l = 0; l < kb; l++)
       daxpy(__hiloint2double(a_hi[ti][l], a_lo[ti][l]),
             &b_hi[l][tj], &b_lo[l][tj], x);
+
+    __syncthreads();
 
     B += kb;
     k -= kb;
@@ -541,14 +554,15 @@ __global__ void dtrmmLLT(int m, int n,
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void dtrmmRUN(int m, int n,
-                         double alpha, const double * __restrict__ A, int lda,
-                         const double * __restrict__ B, int ldb,
-                         double * __restrict__ X, int ldx) {
+__global__ void dtrmmRUN(const double * __restrict__ A,
+                         const double * __restrict__ B, double * __restrict__ X,
+                         double alpha,
+                         int lda, int ldb, int ldx,
+                         int m, int n) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of X
   const int bj = blockIdx.y * nb;       // Starting column of block of X
-  int ti = threadIdx.y * bx + threadIdx.x;
+  const int ti = threadIdx.y * bx + threadIdx.x;
 
   A += (bj + threadIdx.y) * lda + threadIdx.x;
   B += bi + ti;
@@ -606,14 +620,14 @@ __global__ void dtrmmRUN(int m, int n,
     k -= kb;
   }
 
-  if (k > 0) { INNER_RIGHT_LOOP_DEC( 0); B += ldb;
-  if (k > 1) { INNER_RIGHT_LOOP_DEC( 1); B += ldb;
-  if (k > 2) { INNER_RIGHT_LOOP_DEC( 2); B += ldb;
-  if (k > 3) { INNER_RIGHT_LOOP_DEC( 3); B += ldb;
-  if (k > 4) { INNER_RIGHT_LOOP_DEC( 4); B += ldb;
-  if (k > 5) { INNER_RIGHT_LOOP_DEC( 5); B += ldb;
-  if (k > 6) { INNER_RIGHT_LOOP_DEC( 6); B += ldb;
-  if (k > 7) { INNER_RIGHT_LOOP_DEC( 7); }}}}}}}}
+  if (k > 0) { INNER_RIGHT_LOOP_DEC(0); B += ldb; }
+  if (k > 1) { INNER_RIGHT_LOOP_DEC(1); B += ldb; }
+  if (k > 2) { INNER_RIGHT_LOOP_DEC(2); B += ldb; }
+  if (k > 3) { INNER_RIGHT_LOOP_DEC(3); B += ldb; }
+  if (k > 4) { INNER_RIGHT_LOOP_DEC(4); B += ldb; }
+  if (k > 5) { INNER_RIGHT_LOOP_DEC(5); B += ldb; }
+  if (k > 6) { INNER_RIGHT_LOOP_DEC(6); B += ldb; }
+  if (k > 7)   INNER_RIGHT_LOOP_DEC(7);
 
   if (m - bi - ti > 0)
     dscal(n - bj, alpha, x, X, ldx);
@@ -622,10 +636,11 @@ __global__ void dtrmmRUN(int m, int n,
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void dtrmmRUT(int m, int n,
-                         double alpha, const double * __restrict__ A, int lda,
-                         const double * __restrict__ B, int ldb,
-                         double * __restrict__ X, int ldx) {
+__global__ void dtrmmRUT(const double * __restrict__ A,
+                         const double * __restrict__ B, double * __restrict__ X,
+                         double alpha,
+                         int lda, int ldb, int ldx,
+                         int m, int n) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of X
   const int bj = blockIdx.y * nb;       // Starting column of block of X
@@ -654,14 +669,14 @@ __global__ void dtrmmRUT(int m, int n,
 
     if (k < kb) break;
 
-    INNER_RIGHT_LOOP_INC( 1); B += ldb;
-    INNER_RIGHT_LOOP_INC( 2); B += ldb;
-    INNER_RIGHT_LOOP_INC( 3); B += ldb;
-    INNER_RIGHT_LOOP_INC( 4); B += ldb;
-    INNER_RIGHT_LOOP_INC( 5); B += ldb;
-    INNER_RIGHT_LOOP_INC( 6); B += ldb;
-    INNER_RIGHT_LOOP_INC( 7); B += ldb;
-    INNER_RIGHT_LOOP_INC( 8); B += ldb;
+    INNER_RIGHT_LOOP_INC(1); B += ldb;
+    INNER_RIGHT_LOOP_INC(2); B += ldb;
+    INNER_RIGHT_LOOP_INC(3); B += ldb;
+    INNER_RIGHT_LOOP_INC(4); B += ldb;
+    INNER_RIGHT_LOOP_INC(5); B += ldb;
+    INNER_RIGHT_LOOP_INC(6); B += ldb;
+    INNER_RIGHT_LOOP_INC(7); B += ldb;
+    INNER_RIGHT_LOOP_INC(8); B += ldb;
 
     __syncthreads();
 
@@ -669,14 +684,14 @@ __global__ void dtrmmRUT(int m, int n,
     k -= kb;
   }
 
-  if (k >  0) { INNER_RIGHT_LOOP_INC( 1); B += ldb;
-  if (k >  1) { INNER_RIGHT_LOOP_INC( 2); B += ldb;
-  if (k >  2) { INNER_RIGHT_LOOP_INC( 3); B += ldb;
-  if (k >  3) { INNER_RIGHT_LOOP_INC( 4); B += ldb;
-  if (k >  4) { INNER_RIGHT_LOOP_INC( 5); B += ldb;
-  if (k >  5) { INNER_RIGHT_LOOP_INC( 6); B += ldb;
-  if (k >  6) { INNER_RIGHT_LOOP_INC( 7); B += ldb;
-  if (k >  7) { INNER_RIGHT_LOOP_INC( 8); }}}}}}}}
+  if (k > 0) { INNER_RIGHT_LOOP_INC(1); B += ldb; }
+  if (k > 1) { INNER_RIGHT_LOOP_INC(2); B += ldb; }
+  if (k > 2) { INNER_RIGHT_LOOP_INC(3); B += ldb; }
+  if (k > 3) { INNER_RIGHT_LOOP_INC(4); B += ldb; }
+  if (k > 4) { INNER_RIGHT_LOOP_INC(5); B += ldb; }
+  if (k > 5) { INNER_RIGHT_LOOP_INC(6); B += ldb; }
+  if (k > 6) { INNER_RIGHT_LOOP_INC(7); B += ldb; }
+  if (k > 7)   INNER_RIGHT_LOOP_INC(8);
 
   // Process non-diagonal blocks as for DGEMM
   k = n - bj - nb;
@@ -715,10 +730,11 @@ __global__ void dtrmmRUT(int m, int n,
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void dtrmmRLN(int m, int n,
-                        double alpha, const double * __restrict__ A, int lda,
-                        const double * __restrict__ B, int ldb,
-                        double * __restrict__ X, int ldx) {
+__global__ void dtrmmRLN(const double * __restrict__ A,
+                         const double * __restrict__ B, double * __restrict__ X,
+                         double alpha,
+                         int lda, int ldb, int ldx,
+                         int m, int n) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of X
   const int bj = blockIdx.y * nb;       // Starting column of block of X
@@ -746,14 +762,14 @@ __global__ void dtrmmRLN(int m, int n,
 
     if (k < kb) break;
 
-    INNER_RIGHT_LOOP_INC( 1); B += ldb;
-    INNER_RIGHT_LOOP_INC( 2); B += ldb;
-    INNER_RIGHT_LOOP_INC( 3); B += ldb;
-    INNER_RIGHT_LOOP_INC( 4); B += ldb;
-    INNER_RIGHT_LOOP_INC( 5); B += ldb;
-    INNER_RIGHT_LOOP_INC( 6); B += ldb;
-    INNER_RIGHT_LOOP_INC( 7); B += ldb;
-    INNER_RIGHT_LOOP_INC( 8); B += ldb;
+    INNER_RIGHT_LOOP_INC(1); B += ldb;
+    INNER_RIGHT_LOOP_INC(2); B += ldb;
+    INNER_RIGHT_LOOP_INC(3); B += ldb;
+    INNER_RIGHT_LOOP_INC(4); B += ldb;
+    INNER_RIGHT_LOOP_INC(5); B += ldb;
+    INNER_RIGHT_LOOP_INC(6); B += ldb;
+    INNER_RIGHT_LOOP_INC(7); B += ldb;
+    INNER_RIGHT_LOOP_INC(8); B += ldb;
 
     __syncthreads();
 
@@ -761,14 +777,14 @@ __global__ void dtrmmRLN(int m, int n,
     k -= kb;
   }
 
-  if (k >  0) { INNER_RIGHT_LOOP_INC( 1); B += ldb;
-  if (k >  1) { INNER_RIGHT_LOOP_INC( 2); B += ldb;
-  if (k >  2) { INNER_RIGHT_LOOP_INC( 3); B += ldb;
-  if (k >  3) { INNER_RIGHT_LOOP_INC( 4); B += ldb;
-  if (k >  4) { INNER_RIGHT_LOOP_INC( 5); B += ldb;
-  if (k >  5) { INNER_RIGHT_LOOP_INC( 6); B += ldb;
-  if (k >  6) { INNER_RIGHT_LOOP_INC( 7); B += ldb;
-  if (k >  7) { INNER_RIGHT_LOOP_INC( 8); }}}}}}}}
+  if (k > 0) { INNER_RIGHT_LOOP_INC(1); B += ldb; }
+  if (k > 1) { INNER_RIGHT_LOOP_INC(2); B += ldb; }
+  if (k > 2) { INNER_RIGHT_LOOP_INC(3); B += ldb; }
+  if (k > 3) { INNER_RIGHT_LOOP_INC(4); B += ldb; }
+  if (k > 4) { INNER_RIGHT_LOOP_INC(5); B += ldb; }
+  if (k > 5) { INNER_RIGHT_LOOP_INC(6); B += ldb; }
+  if (k > 6) { INNER_RIGHT_LOOP_INC(7); B += ldb; }
+  if (k > 7)   INNER_RIGHT_LOOP_INC(8);
 
   // Process non-diagonal blocks as for DGEMM
   k = n - bj - nb;
@@ -807,14 +823,15 @@ __global__ void dtrmmRLN(int m, int n,
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void dtrmmRLT(int m, int n,
-                         double alpha, const double * __restrict__ A, int lda,
-                         const double * __restrict__ B, int ldb,
-                         double * __restrict__ X, int ldx) {
+__global__ void dtrmmRLT(const double * __restrict__ A,
+                         const double * __restrict__ B, double * __restrict__ X,
+                         double alpha,
+                         int lda, int ldb, int ldx,
+                         int m, int n) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of X
   const int bj = blockIdx.y * nb;       // Starting column of block of X
-  int ti = threadIdx.y * bx + threadIdx.x;
+  const int ti = threadIdx.y * bx + threadIdx.x;
 
   A += threadIdx.y * lda + bj + threadIdx.x;
   B += bi + ti;
@@ -861,10 +878,10 @@ __global__ void dtrmmRLT(int m, int n,
 
     if (k < kb) break;
 
-    INNER_RIGHT_LOOP_DEC( 0); B += ldb; INNER_RIGHT_LOOP_DEC( 1); B += ldb;
-    INNER_RIGHT_LOOP_DEC( 2); B += ldb; INNER_RIGHT_LOOP_DEC( 3); B += ldb;
-    INNER_RIGHT_LOOP_DEC( 4); B += ldb; INNER_RIGHT_LOOP_DEC( 5); B += ldb;
-    INNER_RIGHT_LOOP_DEC( 6); B += ldb; INNER_RIGHT_LOOP_DEC( 7); B += ldb;
+    INNER_RIGHT_LOOP_DEC(0); B += ldb; INNER_RIGHT_LOOP_DEC(1); B += ldb;
+    INNER_RIGHT_LOOP_DEC(2); B += ldb; INNER_RIGHT_LOOP_DEC(3); B += ldb;
+    INNER_RIGHT_LOOP_DEC(4); B += ldb; INNER_RIGHT_LOOP_DEC(5); B += ldb;
+    INNER_RIGHT_LOOP_DEC(6); B += ldb; INNER_RIGHT_LOOP_DEC(7); B += ldb;
 
     __syncthreads();
 
@@ -872,14 +889,14 @@ __global__ void dtrmmRLT(int m, int n,
     k -= kb;
   }
 
-  if (k > 0) { INNER_RIGHT_LOOP_DEC( 0); B += ldb;
-  if (k > 1) { INNER_RIGHT_LOOP_DEC( 1); B += ldb;
-  if (k > 2) { INNER_RIGHT_LOOP_DEC( 2); B += ldb;
-  if (k > 3) { INNER_RIGHT_LOOP_DEC( 3); B += ldb;
-  if (k > 4) { INNER_RIGHT_LOOP_DEC( 4); B += ldb;
-  if (k > 5) { INNER_RIGHT_LOOP_DEC( 5); B += ldb;
-  if (k > 6) { INNER_RIGHT_LOOP_DEC( 6); B += ldb;
-  if (k > 7) { INNER_RIGHT_LOOP_DEC( 7); }}}}}}}}
+  if (k > 0) { INNER_RIGHT_LOOP_DEC(0); B += ldb; }
+  if (k > 1) { INNER_RIGHT_LOOP_DEC(1); B += ldb; }
+  if (k > 2) { INNER_RIGHT_LOOP_DEC(2); B += ldb; }
+  if (k > 3) { INNER_RIGHT_LOOP_DEC(3); B += ldb; }
+  if (k > 4) { INNER_RIGHT_LOOP_DEC(4); B += ldb; }
+  if (k > 5) { INNER_RIGHT_LOOP_DEC(5); B += ldb; }
+  if (k > 6) { INNER_RIGHT_LOOP_DEC(6); B += ldb; }
+  if (k > 7)   INNER_RIGHT_LOOP_DEC(7);
 
   if (m - bi - ti > 0)
     dscal(n - bj, alpha, x, X, ldx);
@@ -889,10 +906,8 @@ __global__ void dtrmmRLT(int m, int n,
 
 // y(1:8) += alpha * x(1:8)
 __device__ void daxpy(double alpha, const double * x, double * y) {
-  y[ 0] += alpha * x[ 0]; y[ 1] += alpha * x[ 1];
-  y[ 2] += alpha * x[ 2]; y[ 3] += alpha * x[ 3];
-  y[ 4] += alpha * x[ 4]; y[ 5] += alpha * x[ 5];
-  y[ 6] += alpha * x[ 6]; y[ 7] += alpha * x[ 7];
+  y[ 0] += alpha * x[ 0]; y[ 1] += alpha * x[ 1]; y[ 2] += alpha * x[ 2]; y[ 3] += alpha * x[ 3];
+  y[ 4] += alpha * x[ 4]; y[ 5] += alpha * x[ 5]; y[ 6] += alpha * x[ 6]; y[ 7] += alpha * x[ 7];
 }
 
 // y(1:8) += x(1:8)
@@ -926,10 +941,11 @@ __device__ void dscal(int n, double alpha, const double * x, double * y, int inc
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void dtrmmLUN(int m, int n,
-                         double alpha, const double * __restrict__ A, int lda,
-                         const double * __restrict__ B, int ldb,
-                         double * __restrict__ X, int ldx) {
+__global__ void dtrmmLUN(const double * __restrict__ A,
+                         const double * __restrict__ B, double * __restrict__ X,
+                         double alpha,
+                         int lda, int ldb, int ldx,
+                         int m, int n) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of X
   const int bj = blockIdx.y * nb;       // Starting column of block of X
@@ -1016,6 +1032,8 @@ __global__ void dtrmmLUN(int m, int n,
       A += lda;
     }
 
+    __syncthreads();
+
     B += kb;
     k -= kb;
   }
@@ -1032,10 +1050,11 @@ __global__ void dtrmmLUN(int m, int n,
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void dtrmmLUT(int m, int n,
-                         double alpha, const double * __restrict__ A, int lda,
-                         const double * __restrict__ B, int ldb,
-                         double * __restrict__ X, int ldx) {
+__global__ void dtrmmLUT(const double * __restrict__ A,
+                         const double * __restrict__ B, double * __restrict__ X,
+                         double alpha,
+                         int lda, int ldb, int ldx,
+                         int m, int n) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of X
   const int bj = blockIdx.y * nb;       // Starting column of block of X
@@ -1140,10 +1159,11 @@ __global__ void dtrmmLUT(int m, int n,
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void dtrmmLLN(int m, int n,
-                         double alpha, const double * __restrict__ A, int lda,
-                         const double * __restrict__ B, int ldb,
-                         double * __restrict__ X, int ldx) {
+__global__ void dtrmmLLN(const double * __restrict__ A,
+                         const double * __restrict__ B, double * __restrict__ X,
+                         double alpha,
+                         int lda, int ldb, int ldx,
+                         int m, int n) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of X
   const int bj = blockIdx.y * nb;       // Starting column of block of X
@@ -1241,10 +1261,11 @@ __global__ void dtrmmLLN(int m, int n,
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void dtrmmLLT(int m, int n,
-                         double alpha, const double * __restrict__ A, int lda,
-                         const double * __restrict__ B, int ldb,
-                         double * __restrict__ X, int ldx) {
+__global__ void dtrmmLLT(const double * __restrict__ A,
+                         const double * __restrict__ B, double * __restrict__ X,
+                         double alpha,
+                         int lda, int ldb, int ldx,
+                         int m, int n) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of X
   const int bj = blockIdx.y * nb;       // Starting column of block of X
@@ -1318,7 +1339,7 @@ __global__ void dtrmmLLT(int m, int n,
     }
   }
 
-  // Process any non-diagonal blocks as for SGEMM
+  // Process any non-diagonal blocks as for DGEMM
   k = m - bi - mb;
   while (k > 0) {
 #pragma unroll
@@ -1337,6 +1358,8 @@ __global__ void dtrmmLLT(int m, int n,
 #pragma unroll
     for (int l = 0; l < kb; l++)
       daxpy(a[ti][l], &b[l][tj], x);
+
+    __syncthreads();
 
     B += kb;
     k -= kb;
@@ -1372,14 +1395,15 @@ __global__ void dtrmmLLT(int m, int n,
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void dtrmmRUN(int m, int n,
-                         double alpha, const double * __restrict__ A, int lda,
-                         const double * __restrict__ B, int ldb,
-                         double * __restrict__ X, int ldx) {
+__global__ void dtrmmRUN(const double * __restrict__ A,
+                         const double * __restrict__ B, double * __restrict__ X,
+                         double alpha,
+                         int lda, int ldb, int ldx,
+                         int m, int n) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of X
   const int bj = blockIdx.y * nb;       // Starting column of block of X
-  int ti = threadIdx.y * bx + threadIdx.x;
+  const int ti = threadIdx.y * bx + threadIdx.x;
 
   A += (bj + threadIdx.y) * lda + threadIdx.x;
   B += bi + ti;
@@ -1432,14 +1456,14 @@ __global__ void dtrmmRUN(int m, int n,
     k -= kb;
   }
 
-  if (k > 0) { INNER_RIGHT_LOOP_DEC( 0); B += ldb;
-  if (k > 1) { INNER_RIGHT_LOOP_DEC( 1); B += ldb;
-  if (k > 2) { INNER_RIGHT_LOOP_DEC( 2); B += ldb;
-  if (k > 3) { INNER_RIGHT_LOOP_DEC( 3); B += ldb;
-  if (k > 4) { INNER_RIGHT_LOOP_DEC( 4); B += ldb;
-  if (k > 5) { INNER_RIGHT_LOOP_DEC( 5); B += ldb;
-  if (k > 6) { INNER_RIGHT_LOOP_DEC( 6); B += ldb;
-  if (k > 7) { INNER_RIGHT_LOOP_DEC( 7); }}}}}}}}
+  if (k > 0) { INNER_RIGHT_LOOP_DEC(0); B += ldb; }
+  if (k > 1) { INNER_RIGHT_LOOP_DEC(1); B += ldb; }
+  if (k > 2) { INNER_RIGHT_LOOP_DEC(2); B += ldb; }
+  if (k > 3) { INNER_RIGHT_LOOP_DEC(3); B += ldb; }
+  if (k > 4) { INNER_RIGHT_LOOP_DEC(4); B += ldb; }
+  if (k > 5) { INNER_RIGHT_LOOP_DEC(5); B += ldb; }
+  if (k > 6) { INNER_RIGHT_LOOP_DEC(6); B += ldb; }
+  if (k > 7)   INNER_RIGHT_LOOP_DEC(7);
 
   if (m - bi - ti > 0)
     dscal(n - bj, alpha, x, X, ldx);
@@ -1448,10 +1472,11 @@ __global__ void dtrmmRUN(int m, int n,
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void dtrmmRUT(int m, int n,
-                         double alpha, const double * __restrict__ A, int lda,
-                         const double * __restrict__ B, int ldb,
-                         double * __restrict__ X, int ldx) {
+__global__ void dtrmmRUT(const double * __restrict__ A,
+                         const double * __restrict__ B, double * __restrict__ X,
+                         double alpha,
+                         int lda, int ldb, int ldx,
+                         int m, int n) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of X
   const int bj = blockIdx.y * nb;       // Starting column of block of X
@@ -1477,14 +1502,14 @@ __global__ void dtrmmRUT(int m, int n,
 
     if (k < kb) break;
 
-    INNER_RIGHT_LOOP_INC( 1); B += ldb;
-    INNER_RIGHT_LOOP_INC( 2); B += ldb;
-    INNER_RIGHT_LOOP_INC( 3); B += ldb;
-    INNER_RIGHT_LOOP_INC( 4); B += ldb;
-    INNER_RIGHT_LOOP_INC( 5); B += ldb;
-    INNER_RIGHT_LOOP_INC( 6); B += ldb;
-    INNER_RIGHT_LOOP_INC( 7); B += ldb;
-    INNER_RIGHT_LOOP_INC( 8); B += ldb;
+    INNER_RIGHT_LOOP_INC(1); B += ldb;
+    INNER_RIGHT_LOOP_INC(2); B += ldb;
+    INNER_RIGHT_LOOP_INC(3); B += ldb;
+    INNER_RIGHT_LOOP_INC(4); B += ldb;
+    INNER_RIGHT_LOOP_INC(5); B += ldb;
+    INNER_RIGHT_LOOP_INC(6); B += ldb;
+    INNER_RIGHT_LOOP_INC(7); B += ldb;
+    INNER_RIGHT_LOOP_INC(8); B += ldb;
 
     __syncthreads();
 
@@ -1492,14 +1517,14 @@ __global__ void dtrmmRUT(int m, int n,
     k -= kb;
   }
 
-  if (k >  0) { INNER_RIGHT_LOOP_INC( 1); B += ldb;
-  if (k >  1) { INNER_RIGHT_LOOP_INC( 2); B += ldb;
-  if (k >  2) { INNER_RIGHT_LOOP_INC( 3); B += ldb;
-  if (k >  3) { INNER_RIGHT_LOOP_INC( 4); B += ldb;
-  if (k >  4) { INNER_RIGHT_LOOP_INC( 5); B += ldb;
-  if (k >  5) { INNER_RIGHT_LOOP_INC( 6); B += ldb;
-  if (k >  6) { INNER_RIGHT_LOOP_INC( 7); B += ldb;
-  if (k >  7) { INNER_RIGHT_LOOP_INC( 8); }}}}}}}}
+  if (k > 0) { INNER_RIGHT_LOOP_INC(1); B += ldb; }
+  if (k > 1) { INNER_RIGHT_LOOP_INC(2); B += ldb; }
+  if (k > 2) { INNER_RIGHT_LOOP_INC(3); B += ldb; }
+  if (k > 3) { INNER_RIGHT_LOOP_INC(4); B += ldb; }
+  if (k > 4) { INNER_RIGHT_LOOP_INC(5); B += ldb; }
+  if (k > 5) { INNER_RIGHT_LOOP_INC(6); B += ldb; }
+  if (k > 6) { INNER_RIGHT_LOOP_INC(7); B += ldb; }
+  if (k > 7)   INNER_RIGHT_LOOP_INC(8);
 
   // Process non-diagonal blocks as for DGEMM
   k = n - bj - nb;
@@ -1536,10 +1561,11 @@ __global__ void dtrmmRUT(int m, int n,
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void dtrmmRLN(int m, int n,
-                        double alpha, const double * __restrict__ A, int lda,
-                        const double * __restrict__ B, int ldb,
-                        double * __restrict__ X, int ldx) {
+__global__ void dtrmmRLN(const double * __restrict__ A,
+                         const double * __restrict__ B, double * __restrict__ X,
+                         double alpha,
+                         int lda, int ldb, int ldx,
+                         int m, int n) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of X
   const int bj = blockIdx.y * nb;       // Starting column of block of X
@@ -1564,14 +1590,14 @@ __global__ void dtrmmRLN(int m, int n,
 
     if (k < kb) break;
 
-    INNER_RIGHT_LOOP_INC( 1); B += ldb;
-    INNER_RIGHT_LOOP_INC( 2); B += ldb;
-    INNER_RIGHT_LOOP_INC( 3); B += ldb;
-    INNER_RIGHT_LOOP_INC( 4); B += ldb;
-    INNER_RIGHT_LOOP_INC( 5); B += ldb;
-    INNER_RIGHT_LOOP_INC( 6); B += ldb;
-    INNER_RIGHT_LOOP_INC( 7); B += ldb;
-    INNER_RIGHT_LOOP_INC( 8); B += ldb;
+    INNER_RIGHT_LOOP_INC(1); B += ldb;
+    INNER_RIGHT_LOOP_INC(2); B += ldb;
+    INNER_RIGHT_LOOP_INC(3); B += ldb;
+    INNER_RIGHT_LOOP_INC(4); B += ldb;
+    INNER_RIGHT_LOOP_INC(5); B += ldb;
+    INNER_RIGHT_LOOP_INC(6); B += ldb;
+    INNER_RIGHT_LOOP_INC(7); B += ldb;
+    INNER_RIGHT_LOOP_INC(8); B += ldb;
 
     __syncthreads();
 
@@ -1579,14 +1605,14 @@ __global__ void dtrmmRLN(int m, int n,
     k -= kb;
   }
 
-  if (k >  0) { INNER_RIGHT_LOOP_INC( 1); B += ldb;
-  if (k >  1) { INNER_RIGHT_LOOP_INC( 2); B += ldb;
-  if (k >  2) { INNER_RIGHT_LOOP_INC( 3); B += ldb;
-  if (k >  3) { INNER_RIGHT_LOOP_INC( 4); B += ldb;
-  if (k >  4) { INNER_RIGHT_LOOP_INC( 5); B += ldb;
-  if (k >  5) { INNER_RIGHT_LOOP_INC( 6); B += ldb;
-  if (k >  6) { INNER_RIGHT_LOOP_INC( 7); B += ldb;
-  if (k >  7) { INNER_RIGHT_LOOP_INC( 8); }}}}}}}}
+  if (k > 0) { INNER_RIGHT_LOOP_INC(1); B += ldb; }
+  if (k > 1) { INNER_RIGHT_LOOP_INC(2); B += ldb; }
+  if (k > 2) { INNER_RIGHT_LOOP_INC(3); B += ldb; }
+  if (k > 3) { INNER_RIGHT_LOOP_INC(4); B += ldb; }
+  if (k > 4) { INNER_RIGHT_LOOP_INC(5); B += ldb; }
+  if (k > 5) { INNER_RIGHT_LOOP_INC(6); B += ldb; }
+  if (k > 6) { INNER_RIGHT_LOOP_INC(7); B += ldb; }
+  if (k > 7)   INNER_RIGHT_LOOP_INC(8);
 
   // Process non-diagonal blocks as for DGEMM
   k = n - bj - nb;
@@ -1623,14 +1649,15 @@ __global__ void dtrmmRLN(int m, int n,
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void dtrmmRLT(int m, int n,
-                         double alpha, const double * __restrict__ A, int lda,
-                         const double * __restrict__ B, int ldb,
-                         double * __restrict__ X, int ldx) {
+__global__ void dtrmmRLT(const double * __restrict__ A,
+                         const double * __restrict__ B, double * __restrict__ X,
+                         double alpha,
+                         int lda, int ldb, int ldx,
+                         int m, int n) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of X
   const int bj = blockIdx.y * nb;       // Starting column of block of X
-  int ti = threadIdx.y * bx + threadIdx.x;
+  const int ti = threadIdx.y * bx + threadIdx.x;
 
   A += threadIdx.y * lda + bj + threadIdx.x;
   B += bi + ti;
@@ -1672,10 +1699,10 @@ __global__ void dtrmmRLT(int m, int n,
 
     if (k < kb) break;
 
-    INNER_RIGHT_LOOP_DEC( 0); B += ldb; INNER_RIGHT_LOOP_DEC( 1); B += ldb;
-    INNER_RIGHT_LOOP_DEC( 2); B += ldb; INNER_RIGHT_LOOP_DEC( 3); B += ldb;
-    INNER_RIGHT_LOOP_DEC( 4); B += ldb; INNER_RIGHT_LOOP_DEC( 5); B += ldb;
-    INNER_RIGHT_LOOP_DEC( 6); B += ldb; INNER_RIGHT_LOOP_DEC( 7); B += ldb;
+    INNER_RIGHT_LOOP_DEC(0); B += ldb; INNER_RIGHT_LOOP_DEC(1); B += ldb;
+    INNER_RIGHT_LOOP_DEC(2); B += ldb; INNER_RIGHT_LOOP_DEC(3); B += ldb;
+    INNER_RIGHT_LOOP_DEC(4); B += ldb; INNER_RIGHT_LOOP_DEC(5); B += ldb;
+    INNER_RIGHT_LOOP_DEC(6); B += ldb; INNER_RIGHT_LOOP_DEC(7); B += ldb;
 
     __syncthreads();
 
@@ -1683,14 +1710,14 @@ __global__ void dtrmmRLT(int m, int n,
     k -= kb;
   }
 
-  if (k > 0) { INNER_RIGHT_LOOP_DEC( 0); B += ldb;
-  if (k > 1) { INNER_RIGHT_LOOP_DEC( 1); B += ldb;
-  if (k > 2) { INNER_RIGHT_LOOP_DEC( 2); B += ldb;
-  if (k > 3) { INNER_RIGHT_LOOP_DEC( 3); B += ldb;
-  if (k > 4) { INNER_RIGHT_LOOP_DEC( 4); B += ldb;
-  if (k > 5) { INNER_RIGHT_LOOP_DEC( 5); B += ldb;
-  if (k > 6) { INNER_RIGHT_LOOP_DEC( 6); B += ldb;
-  if (k > 7) { INNER_RIGHT_LOOP_DEC( 7); }}}}}}}}
+  if (k > 0) { INNER_RIGHT_LOOP_DEC(0); B += ldb; }
+  if (k > 1) { INNER_RIGHT_LOOP_DEC(1); B += ldb; }
+  if (k > 2) { INNER_RIGHT_LOOP_DEC(2); B += ldb; }
+  if (k > 3) { INNER_RIGHT_LOOP_DEC(3); B += ldb; }
+  if (k > 4) { INNER_RIGHT_LOOP_DEC(4); B += ldb; }
+  if (k > 5) { INNER_RIGHT_LOOP_DEC(5); B += ldb; }
+  if (k > 6) { INNER_RIGHT_LOOP_DEC(6); B += ldb; }
+  if (k > 7)   INNER_RIGHT_LOOP_DEC(7);
 
   if (m - bi - ti > 0)
     dscal(n - bj, alpha, x, X, ldx);
@@ -1698,20 +1725,20 @@ __global__ void dtrmmRLT(int m, int n,
 
 #endif
 
-template void dtrmmLUN<CBlasUnit,    64,  8, 16, 16,  4>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
-template void dtrmmLUN<CBlasNonUnit, 64,  8, 16, 16,  4>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
-template void dtrmmLUT<CBlasUnit,    32, 16,  8,  8,  8>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
-template void dtrmmLUT<CBlasNonUnit, 32, 16,  8,  8,  8>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
-template void dtrmmLLN<CBlasUnit,    64,  8, 16, 16,  4>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
-template void dtrmmLLN<CBlasNonUnit, 64,  8, 16, 16,  4>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
-template void dtrmmLLT<CBlasUnit,    32, 16,  8,  8,  8>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
-template void dtrmmLLT<CBlasNonUnit, 32, 16,  8,  8,  8>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
+template void dtrmmLUN<CBlasUnit,    64,  8, 16, 16,  4>(const double * __restrict__, const double * __restrict__, double * __restrict__, double, int, int, int, int, int);
+template void dtrmmLUN<CBlasNonUnit, 64,  8, 16, 16,  4>(const double * __restrict__, const double * __restrict__, double * __restrict__, double, int, int, int, int, int);
+template void dtrmmLUT<CBlasUnit,    32, 16,  8,  8,  8>(const double * __restrict__, const double * __restrict__, double * __restrict__, double, int, int, int, int, int);
+template void dtrmmLUT<CBlasNonUnit, 32, 16,  8,  8,  8>(const double * __restrict__, const double * __restrict__, double * __restrict__, double, int, int, int, int, int);
+template void dtrmmLLN<CBlasUnit,    64,  8, 16, 16,  4>(const double * __restrict__, const double * __restrict__, double * __restrict__, double, int, int, int, int, int);
+template void dtrmmLLN<CBlasNonUnit, 64,  8, 16, 16,  4>(const double * __restrict__, const double * __restrict__, double * __restrict__, double, int, int, int, int, int);
+template void dtrmmLLT<CBlasUnit,    32, 16,  8,  8,  8>(const double * __restrict__, const double * __restrict__, double * __restrict__, double, int, int, int, int, int);
+template void dtrmmLLT<CBlasNonUnit, 32, 16,  8,  8,  8>(const double * __restrict__, const double * __restrict__, double * __restrict__, double, int, int, int, int, int);
 
-template void dtrmmRUN<CBlasUnit,    64,  8, 16, 16,  4>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
-template void dtrmmRUN<CBlasNonUnit, 64,  8, 16, 16,  4>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
-template void dtrmmRUT<CBlasUnit,    64,  8, 16,  8,  8>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
-template void dtrmmRUT<CBlasNonUnit, 64,  8, 16,  8,  8>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
-template void dtrmmRLN<CBlasUnit,    64,  8, 16, 16,  4>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
-template void dtrmmRLN<CBlasNonUnit, 64,  8, 16, 16,  4>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
-template void dtrmmRLT<CBlasUnit,    64,  8, 16,  8,  8>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
-template void dtrmmRLT<CBlasNonUnit, 64,  8, 16,  8,  8>(int, int, double, const double * __restrict__, int, const double * __restrict__, int, double * __restrict__, int);
+template void dtrmmRUN<CBlasUnit,    64,  8,  8,  8,  8>(const double * __restrict__, const double * __restrict__, double * __restrict__, double, int, int, int, int, int);
+template void dtrmmRUN<CBlasNonUnit, 64,  8,  8,  8,  8>(const double * __restrict__, const double * __restrict__, double * __restrict__, double, int, int, int, int, int);
+template void dtrmmRUT<CBlasUnit,    64,  8,  8,  8,  8>(const double * __restrict__, const double * __restrict__, double * __restrict__, double, int, int, int, int, int);
+template void dtrmmRUT<CBlasNonUnit, 64,  8,  8,  8,  8>(const double * __restrict__, const double * __restrict__, double * __restrict__, double, int, int, int, int, int);
+template void dtrmmRLN<CBlasUnit,    64,  8,  8,  8,  8>(const double * __restrict__, const double * __restrict__, double * __restrict__, double, int, int, int, int, int);
+template void dtrmmRLN<CBlasNonUnit, 64,  8,  8,  8,  8>(const double * __restrict__, const double * __restrict__, double * __restrict__, double, int, int, int, int, int);
+template void dtrmmRLT<CBlasUnit,    64,  8,  8,  8,  8>(const double * __restrict__, const double * __restrict__, double * __restrict__, double, int, int, int, int, int);
+template void dtrmmRLT<CBlasNonUnit, 64,  8,  8,  8,  8>(const double * __restrict__, const double * __restrict__, double * __restrict__, double, int, int, int, int, int);

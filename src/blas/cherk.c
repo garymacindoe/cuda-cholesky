@@ -211,15 +211,15 @@ CUresult cuCherk(CUmodule module, CBlasUplo uplo, CBlasTranspose trans,
   const unsigned int bx = (trans == CBlasNoTrans) ? 16 :  8;
   const unsigned int by = (trans == CBlasNoTrans) ?  4 :  8;
 
-  char name[88];
-  snprintf(name, 88,
-           "_Z5cherkIL9CBlasUplo%dEL14CBlasTranspose%dELj%uELj%uELj%uELj%uELj%uEEviifPK6float2ifPS2_i",
+  char name[89];
+  snprintf(name, 89,
+           "_Z5cherkIL9CBlasUplo%dEL14CBlasTranspose%dELj%uELj%uELj%uELj%uELj%uEEvPK6float2PS2_ffiiii",
            uplo, trans, mb, nb, kb, bx, by);
 
   CUfunction function;
   CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
 
-  void * params[] = { &n, &k, &alpha, &A, &lda, &beta, &C, &ldc };
+  void * params[] = { &A, &C, &alpha, &beta, &lda, &ldc, &n, &k };
 
   CU_ERROR_CHECK(cuLaunchKernel(function, (unsigned int)(n + mb - 1) / mb, (unsigned int)(n + nb - 1) / nb, 1,
                                 bx, by, 1, 0, stream, params, NULL));

@@ -1,9 +1,10 @@
 #include "blas.h"
 
-#if __CUDA_ARCH__ < 200 && !defined(__BANK_CONFLICT__)
+#if __CUDA_ARCH__ < 200 && !defined(__BANK_CONFLICTS__)
 
 // y(1:8) += alpha * x(1:8)
-__device__ void daxpy(double alpha, const int * x_hi, const int * x_lo, double * y) {
+__device__ void daxpy(double alpha, const int * __restrict__ x_hi,
+                      const int * __restrict__ x_lo, double * __restrict__ y) {
   y[0] += alpha * __hiloint2double(x_hi[0], x_lo[0]);
   y[1] += alpha * __hiloint2double(x_hi[1], x_lo[1]);
   y[2] += alpha * __hiloint2double(x_hi[2], x_lo[2]);
@@ -32,9 +33,10 @@ __device__ void daxpy(double alpha, const int * x_hi, const int * x_lo, double *
 template <CBlasUplo uplo, CBlasTranspose trans,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void dsyrk(int n, int k, double alpha,
-                      const double * __restrict__ A, int lda,
-                      double beta, double * __restrict__ C, int ldc) {
+__global__ void dsyrk(const double * __restrict__ A, double * __restrict__ C,
+                      double alpha, double beta,
+                      int lda, int ldc,
+                      int n, int k) {
 
 //   int bi, bj, nnb = (n + nb - 1) / nb;
 //   if (uplo == CBlasLower) {
@@ -236,7 +238,7 @@ __global__ void dsyrk(int n, int k, double alpha,
 #else
 
 // y(1:8) += alpha * x(1:8)
-__device__ void daxpy(double alpha, const double * x, double * y) {
+__device__ void daxpy(double alpha, const double * __restrict__ x, double * __restrict__ y) {
   y[0] += alpha * x[0]; y[1] += alpha * x[1]; y[2] += alpha * x[2]; y[3] += alpha * x[3];
   y[4] += alpha * x[4]; y[5] += alpha * x[5]; y[6] += alpha * x[6]; y[7] += alpha * x[7];
 }
@@ -259,9 +261,10 @@ __device__ void daxpy(double alpha, const double * x, double * y) {
 template <CBlasUplo uplo, CBlasTranspose trans,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void dsyrk(int n, int k, double alpha,
-                      const double * __restrict__ A, int lda,
-                      double beta, double * __restrict__ C, int ldc) {
+__global__ void dsyrk(const double * __restrict__ A, double * __restrict__ C,
+                      double alpha, double beta,
+                      int lda, int ldc,
+                      int n, int k) {
 
 //   int bi, bj, nnb = (n + nb - 1) / nb;
 //   if (uplo == CBlasLower) {
@@ -493,7 +496,7 @@ __global__ void dsyrk(int n, int k, double alpha,
  * kb is chosen to be the largest multiple of 16 such that the number of blocks
  * per multiprocessor is limited by the register usage.
  */
-template void dsyrk<CBlasUpper, CBlasNoTrans, 64,  8, 16,  8,  8>(int, int, double, const double *, int, double, double *, int);
-template void dsyrk<CBlasLower, CBlasNoTrans, 64,  8, 16,  8,  8>(int, int, double, const double *, int, double, double *, int);
-template void dsyrk<CBlasUpper, CBlasTrans,   32, 16,  8,  8,  8>(int, int, double, const double *, int, double, double *, int);
-template void dsyrk<CBlasLower, CBlasTrans,   32, 16,  8,  8,  8>(int, int, double, const double *, int, double, double *, int);
+template void dsyrk<CBlasUpper, CBlasNoTrans, 64,  8, 16,  8,  8>(const double * __restrict__, double * __restrict__, double, double, int, int, int, int);
+template void dsyrk<CBlasLower, CBlasNoTrans, 64,  8, 16,  8,  8>(const double * __restrict__, double * __restrict__, double, double, int, int, int, int);
+template void dsyrk<CBlasUpper, CBlasTrans,   32, 16,  8,  8,  8>(const double * __restrict__, double * __restrict__, double, double, int, int, int, int);
+template void dsyrk<CBlasLower, CBlasTrans,   32, 16,  8,  8,  8>(const double * __restrict__, double * __restrict__, double, double, int, int, int, int);

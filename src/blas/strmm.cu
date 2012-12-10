@@ -1,7 +1,7 @@
 #include "blas.h"
 
 // y(1:16) += alpha * x(1:16)
-__device__ void saxpy(float alpha, const float * x, float * y) {
+__device__ void saxpy(float alpha, const float * __restrict__ x, float * __restrict__ y) {
   y[ 0] += alpha * x[ 0]; y[ 1] += alpha * x[ 1]; y[ 2] += alpha * x[ 2]; y[ 3] += alpha * x[ 3];
   y[ 4] += alpha * x[ 4]; y[ 5] += alpha * x[ 5]; y[ 6] += alpha * x[ 6]; y[ 7] += alpha * x[ 7];
   y[ 8] += alpha * x[ 8]; y[ 9] += alpha * x[ 9]; y[10] += alpha * x[10]; y[11] += alpha * x[11];
@@ -9,7 +9,7 @@ __device__ void saxpy(float alpha, const float * x, float * y) {
 }
 
 // y(1:16) += x(1:16)
-__device__ void saxpy(const float * x, float * y) {
+__device__ void saxpy(const float * __restrict__ x, float * __restrict__ y) {
   y[ 0] += x[ 0]; y[ 1] += x[ 1]; y[ 2] += x[ 2]; y[ 3] += x[ 3];
   y[ 4] += x[ 4]; y[ 5] += x[ 5]; y[ 6] += x[ 6]; y[ 7] += x[ 7];
   y[ 8] += x[ 8]; y[ 9] += x[ 9]; y[10] += x[10]; y[11] += x[11];
@@ -17,7 +17,7 @@ __device__ void saxpy(const float * x, float * y) {
 }
 
 // y(1:n) += alpha * x(1:n)
-__device__ void saxpy(int n, float alpha, const float * x, float * y) {
+__device__ void saxpy(int n, float alpha, const float * __restrict__ x, float * __restrict__ y) {
   if (n <= 0) return;
   y[ 0] += alpha * x[ 0]; if ( 1 >= n) return; y[ 1] += alpha * x[ 1]; if ( 2 >= n) return;
   y[ 2] += alpha * x[ 2]; if ( 3 >= n) return; y[ 3] += alpha * x[ 3]; if ( 4 >= n) return;
@@ -30,7 +30,7 @@ __device__ void saxpy(int n, float alpha, const float * x, float * y) {
 }
 
 // y(1:n) = alpha * x(1:n)
-__device__ void sscal(int n, float alpha, const float * x, float * y, int incy) {
+__device__ void sscal(int n, float alpha, const float * __restrict__ x, float * __restrict__ y, int incy) {
   if (n <= 0) return;
   y[0] = alpha * x[ 0]; if ( 1 >= n) return; y += incy;
   y[0] = alpha * x[ 1]; if ( 2 >= n) return; y += incy;
@@ -53,10 +53,11 @@ __device__ void sscal(int n, float alpha, const float * x, float * y, int incy) 
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void strmmLUN(int m, int n,
-                         float alpha, const float * __restrict__ A, int lda,
-                         const float * __restrict__ B, int ldb,
-                         float * __restrict__ X, int ldx) {
+__global__ void strmmLUN(const float * __restrict__ A,
+                         const float * __restrict__ B, float * __restrict__ X,
+                         float alpha,
+                         int lda, int ldb, int ldx,
+                         int m, int n) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of X
   const int bj = blockIdx.y * nb;       // Starting column of block of X
@@ -144,6 +145,8 @@ __global__ void strmmLUN(int m, int n,
       A += lda;
     }
 
+    __syncthreads();
+
     B += kb;
     k -= kb;
   }
@@ -160,15 +163,16 @@ __global__ void strmmLUN(int m, int n,
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void strmmLUT(int m, int n,
-                         float alpha, const float * __restrict__ A, int lda,
-                         const float * __restrict__ B, int ldb,
-                         float * __restrict__ X, int ldx) {
+__global__ void strmmLUT(const float * __restrict__ A,
+                         const float * __restrict__ B, float * __restrict__ X,
+                         float alpha,
+                         int lda, int ldb, int ldx,
+                         int m, int n) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of X
   const int bj = blockIdx.y * nb;       // Starting column of block of X
   int ti = threadIdx.y * bx + threadIdx.x;
-  int tj = 16 * (ti / mb);
+  const int tj = 16 * (ti / mb);
   ti = ti % mb;
 
   A += (bi + threadIdx.y) * lda + threadIdx.x;
@@ -269,10 +273,11 @@ __global__ void strmmLUT(int m, int n,
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void strmmLLN(int m, int n,
-                         float alpha, const float * __restrict__ A, int lda,
-                         const float * __restrict__ B, int ldb,
-                         float * __restrict__ X, int ldx) {
+__global__ void strmmLLN(const float * __restrict__ A,
+                         const float * __restrict__ B, float * __restrict__ X,
+                         float alpha,
+                         int lda, int ldb, int ldx,
+                         int m, int n) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of X
   const int bj = blockIdx.y * nb;       // Starting column of block of X
@@ -371,15 +376,16 @@ __global__ void strmmLLN(int m, int n,
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void strmmLLT(int m, int n,
-                         float alpha, const float * __restrict__ A, int lda,
-                         const float * __restrict__ B, int ldb,
-                         float * __restrict__ X, int ldx) {
+__global__ void strmmLLT(const float * __restrict__ A,
+                         const float * __restrict__ B, float * __restrict__ X,
+                         float alpha,
+                         int lda, int ldb, int ldx,
+                         int m, int n) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of X
   const int bj = blockIdx.y * nb;       // Starting column of block of X
   int ti = threadIdx.y * bx + threadIdx.x;
-  int tj = 16 * (ti / mb);
+  const int tj = 16 * (ti / mb);
   ti = ti % mb;
 
   A += (bi + threadIdx.y) * lda + bi + threadIdx.x;
@@ -469,6 +475,8 @@ __global__ void strmmLLT(int m, int n,
     for (int l = 0; l < kb; l++)
       saxpy(a[ti][l], &b[l][tj], x);
 
+    __syncthreads();
+
     B += kb;
     k -= kb;
   }
@@ -503,14 +511,15 @@ __global__ void strmmLLT(int m, int n,
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void strmmRUN(int m, int n,
-                         float alpha, const float * __restrict__ A, int lda,
-                         const float * __restrict__ B, int ldb,
-                         float * __restrict__ X, int ldx) {
+__global__ void strmmRUN(const float * __restrict__ A,
+                         const float * __restrict__ B, float * __restrict__ X,
+                         float alpha,
+                         int lda, int ldb, int ldx,
+                         int m, int n) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of X
   const int bj = blockIdx.y * nb;       // Starting column of block of X
-  int ti = threadIdx.y * bx + threadIdx.x;
+  const int ti = threadIdx.y * bx + threadIdx.x;
 
   A += (bj + threadIdx.y) * lda + threadIdx.x;
   B += bi + ti;
@@ -568,22 +577,22 @@ __global__ void strmmRUN(int m, int n,
     k -= kb;
   }
 
-  if (k > 0) { INNER_RIGHT_LOOP_DEC( 0); B += ldb;
-  if (k > 1) { INNER_RIGHT_LOOP_DEC( 1); B += ldb;
-  if (k > 2) { INNER_RIGHT_LOOP_DEC( 2); B += ldb;
-  if (k > 3) { INNER_RIGHT_LOOP_DEC( 3); B += ldb;
-  if (k > 4) { INNER_RIGHT_LOOP_DEC( 4); B += ldb;
-  if (k > 5) { INNER_RIGHT_LOOP_DEC( 5); B += ldb;
-  if (k > 6) { INNER_RIGHT_LOOP_DEC( 6); B += ldb;
-  if (k > 7) { INNER_RIGHT_LOOP_DEC( 7); B += ldb;
-  if (k > 8) { INNER_RIGHT_LOOP_DEC( 8); B += ldb;
-  if (k > 9) { INNER_RIGHT_LOOP_DEC( 9); B += ldb;
-  if (k >10) { INNER_RIGHT_LOOP_DEC(10); B += ldb;
-  if (k >11) { INNER_RIGHT_LOOP_DEC(11); B += ldb;
-  if (k >12) { INNER_RIGHT_LOOP_DEC(12); B += ldb;
-  if (k >13) { INNER_RIGHT_LOOP_DEC(13); B += ldb;
-  if (k >14) { INNER_RIGHT_LOOP_DEC(14); B += ldb;
-  if (k >15) { INNER_RIGHT_LOOP_DEC(15); }}}}}}}}}}}}}}}}
+  if (k >  0) { INNER_RIGHT_LOOP_DEC( 0); B += ldb; }
+  if (k >  1) { INNER_RIGHT_LOOP_DEC( 1); B += ldb; }
+  if (k >  2) { INNER_RIGHT_LOOP_DEC( 2); B += ldb; }
+  if (k >  3) { INNER_RIGHT_LOOP_DEC( 3); B += ldb; }
+  if (k >  4) { INNER_RIGHT_LOOP_DEC( 4); B += ldb; }
+  if (k >  5) { INNER_RIGHT_LOOP_DEC( 5); B += ldb; }
+  if (k >  6) { INNER_RIGHT_LOOP_DEC( 6); B += ldb; }
+  if (k >  7) { INNER_RIGHT_LOOP_DEC( 7); B += ldb; }
+  if (k >  8) { INNER_RIGHT_LOOP_DEC( 8); B += ldb; }
+  if (k >  9) { INNER_RIGHT_LOOP_DEC( 9); B += ldb; }
+  if (k > 10) { INNER_RIGHT_LOOP_DEC(10); B += ldb; }
+  if (k > 11) { INNER_RIGHT_LOOP_DEC(11); B += ldb; }
+  if (k > 12) { INNER_RIGHT_LOOP_DEC(12); B += ldb; }
+  if (k > 13) { INNER_RIGHT_LOOP_DEC(13); B += ldb; }
+  if (k > 14) { INNER_RIGHT_LOOP_DEC(14); B += ldb; }
+  if (k > 15)   INNER_RIGHT_LOOP_DEC(15);
 
   if (m - bi - ti > 0)
     sscal(n - bj, alpha, x, X, ldx);
@@ -592,14 +601,15 @@ __global__ void strmmRUN(int m, int n,
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void strmmRUT(int m, int n,
-                         float alpha, const float * __restrict__ A, int lda,
-                         const float * __restrict__ B, int ldb,
-                         float * __restrict__ X, int ldx) {
+__global__ void strmmRUT(const float * __restrict__ A,
+                         const float * __restrict__ B, float * __restrict__ X,
+                         float alpha,
+                         int lda, int ldb, int ldx,
+                         int m, int n) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of X
   const int bj = blockIdx.y * nb;       // Starting column of block of X
-  int ti = threadIdx.y * bx + threadIdx.x;
+  const int ti = threadIdx.y * bx + threadIdx.x;
 
 
   A += (bj + threadIdx.y) * lda + bj + threadIdx.x;
@@ -645,22 +655,22 @@ __global__ void strmmRUT(int m, int n,
     k -= kb;
   }
 
-  if (k >  0) { INNER_RIGHT_LOOP_INC( 1); B += ldb;
-  if (k >  1) { INNER_RIGHT_LOOP_INC( 2); B += ldb;
-  if (k >  2) { INNER_RIGHT_LOOP_INC( 3); B += ldb;
-  if (k >  3) { INNER_RIGHT_LOOP_INC( 4); B += ldb;
-  if (k >  4) { INNER_RIGHT_LOOP_INC( 5); B += ldb;
-  if (k >  5) { INNER_RIGHT_LOOP_INC( 6); B += ldb;
-  if (k >  6) { INNER_RIGHT_LOOP_INC( 7); B += ldb;
-  if (k >  7) { INNER_RIGHT_LOOP_INC( 8); B += ldb;
-  if (k >  8) { INNER_RIGHT_LOOP_INC( 9); B += ldb;
-  if (k >  9) { INNER_RIGHT_LOOP_INC(10); B += ldb;
-  if (k > 10) { INNER_RIGHT_LOOP_INC(11); B += ldb;
-  if (k > 11) { INNER_RIGHT_LOOP_INC(12); B += ldb;
-  if (k > 12) { INNER_RIGHT_LOOP_INC(13); B += ldb;
-  if (k > 13) { INNER_RIGHT_LOOP_INC(14); B += ldb;
-  if (k > 14) { INNER_RIGHT_LOOP_INC(15); B += ldb;
-  if (k > 15) { INNER_RIGHT_LOOP_INC(16); B += ldb; }}}}}}}}}}}}}}}}
+  if (k >  0) { INNER_RIGHT_LOOP_INC( 1); B += ldb; }
+  if (k >  1) { INNER_RIGHT_LOOP_INC( 2); B += ldb; }
+  if (k >  2) { INNER_RIGHT_LOOP_INC( 3); B += ldb; }
+  if (k >  3) { INNER_RIGHT_LOOP_INC( 4); B += ldb; }
+  if (k >  4) { INNER_RIGHT_LOOP_INC( 5); B += ldb; }
+  if (k >  5) { INNER_RIGHT_LOOP_INC( 6); B += ldb; }
+  if (k >  6) { INNER_RIGHT_LOOP_INC( 7); B += ldb; }
+  if (k >  7) { INNER_RIGHT_LOOP_INC( 8); B += ldb; }
+  if (k >  8) { INNER_RIGHT_LOOP_INC( 9); B += ldb; }
+  if (k >  9) { INNER_RIGHT_LOOP_INC(10); B += ldb; }
+  if (k > 10) { INNER_RIGHT_LOOP_INC(11); B += ldb; }
+  if (k > 11) { INNER_RIGHT_LOOP_INC(12); B += ldb; }
+  if (k > 12) { INNER_RIGHT_LOOP_INC(13); B += ldb; }
+  if (k > 13) { INNER_RIGHT_LOOP_INC(14); B += ldb; }
+  if (k > 14) { INNER_RIGHT_LOOP_INC(15); B += ldb; }
+  if (k > 15) { INNER_RIGHT_LOOP_INC(16); B += ldb; }
 
   // Process non-diagonal blocks as for SGEMM
   k = n - bj - nb;
@@ -697,14 +707,15 @@ __global__ void strmmRUT(int m, int n,
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void strmmRLN(int m, int n,
-                        float alpha, const float * __restrict__ A, int lda,
-                        const float * __restrict__ B, int ldb,
-                        float * __restrict__ X, int ldx) {
+__global__ void strmmRLN(const float * __restrict__ A,
+                         const float * __restrict__ B, float * __restrict__ X,
+                         float alpha,
+                         int lda, int ldb, int ldx,
+                         int m, int n) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of X
   const int bj = blockIdx.y * nb;       // Starting column of block of X
-  int ti = threadIdx.y * bx + threadIdx.x;
+  const int ti = threadIdx.y * bx + threadIdx.x;
 
   A += (bj + threadIdx.y) * lda + bj + threadIdx.x;
   B += bj * ldb + bi + ti;
@@ -749,22 +760,22 @@ __global__ void strmmRLN(int m, int n,
     k -= kb;
   }
 
-  if (k >  0) { INNER_RIGHT_LOOP_INC( 1); B += ldb;
-  if (k >  1) { INNER_RIGHT_LOOP_INC( 2); B += ldb;
-  if (k >  2) { INNER_RIGHT_LOOP_INC( 3); B += ldb;
-  if (k >  3) { INNER_RIGHT_LOOP_INC( 4); B += ldb;
-  if (k >  4) { INNER_RIGHT_LOOP_INC( 5); B += ldb;
-  if (k >  5) { INNER_RIGHT_LOOP_INC( 6); B += ldb;
-  if (k >  6) { INNER_RIGHT_LOOP_INC( 7); B += ldb;
-  if (k >  7) { INNER_RIGHT_LOOP_INC( 8); B += ldb;
-  if (k >  8) { INNER_RIGHT_LOOP_INC( 9); B += ldb;
-  if (k >  9) { INNER_RIGHT_LOOP_INC(10); B += ldb;
-  if (k > 10) { INNER_RIGHT_LOOP_INC(11); B += ldb;
-  if (k > 11) { INNER_RIGHT_LOOP_INC(12); B += ldb;
-  if (k > 12) { INNER_RIGHT_LOOP_INC(13); B += ldb;
-  if (k > 13) { INNER_RIGHT_LOOP_INC(14); B += ldb;
-  if (k > 14) { INNER_RIGHT_LOOP_INC(15); B += ldb;
-  if (k > 15) { INNER_RIGHT_LOOP_INC(16); B += ldb; }}}}}}}}}}}}}}}}
+  if (k >  0) { INNER_RIGHT_LOOP_INC( 1); B += ldb; }
+  if (k >  1) { INNER_RIGHT_LOOP_INC( 2); B += ldb; }
+  if (k >  2) { INNER_RIGHT_LOOP_INC( 3); B += ldb; }
+  if (k >  3) { INNER_RIGHT_LOOP_INC( 4); B += ldb; }
+  if (k >  4) { INNER_RIGHT_LOOP_INC( 5); B += ldb; }
+  if (k >  5) { INNER_RIGHT_LOOP_INC( 6); B += ldb; }
+  if (k >  6) { INNER_RIGHT_LOOP_INC( 7); B += ldb; }
+  if (k >  7) { INNER_RIGHT_LOOP_INC( 8); B += ldb; }
+  if (k >  8) { INNER_RIGHT_LOOP_INC( 9); B += ldb; }
+  if (k >  9) { INNER_RIGHT_LOOP_INC(10); B += ldb; }
+  if (k > 10) { INNER_RIGHT_LOOP_INC(11); B += ldb; }
+  if (k > 11) { INNER_RIGHT_LOOP_INC(12); B += ldb; }
+  if (k > 12) { INNER_RIGHT_LOOP_INC(13); B += ldb; }
+  if (k > 13) { INNER_RIGHT_LOOP_INC(14); B += ldb; }
+  if (k > 14) { INNER_RIGHT_LOOP_INC(15); B += ldb; }
+  if (k > 15) { INNER_RIGHT_LOOP_INC(16); B += ldb; }
 
   // Process non-diagonal blocks as for SGEMM
   k = n - bj - nb;
@@ -801,14 +812,15 @@ __global__ void strmmRLN(int m, int n,
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void strmmRLT(int m, int n,
-                         float alpha, const float * __restrict__ A, int lda,
-                         const float * __restrict__ B, int ldb,
-                         float * __restrict__ X, int ldx) {
+__global__ void strmmRLT(const float * __restrict__ A,
+                         const float * __restrict__ B, float * __restrict__ X,
+                         float alpha,
+                         int lda, int ldb, int ldx,
+                         int m, int n) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of X
   const int bj = blockIdx.y * nb;       // Starting column of block of X
-  int ti = threadIdx.y * bx + threadIdx.x;
+  const int ti = threadIdx.y * bx + threadIdx.x;
 
   A += threadIdx.y * lda + bj + threadIdx.x;
   B += bi + ti;
@@ -866,41 +878,41 @@ __global__ void strmmRLT(int m, int n,
     k -= kb;
   }
 
-  if (k > 0) { INNER_RIGHT_LOOP_DEC( 0); B += ldb;
-  if (k > 1) { INNER_RIGHT_LOOP_DEC( 1); B += ldb;
-  if (k > 2) { INNER_RIGHT_LOOP_DEC( 2); B += ldb;
-  if (k > 3) { INNER_RIGHT_LOOP_DEC( 3); B += ldb;
-  if (k > 4) { INNER_RIGHT_LOOP_DEC( 4); B += ldb;
-  if (k > 5) { INNER_RIGHT_LOOP_DEC( 5); B += ldb;
-  if (k > 6) { INNER_RIGHT_LOOP_DEC( 6); B += ldb;
-  if (k > 7) { INNER_RIGHT_LOOP_DEC( 7); B += ldb;
-  if (k > 8) { INNER_RIGHT_LOOP_DEC( 8); B += ldb;
-  if (k > 9) { INNER_RIGHT_LOOP_DEC( 9); B += ldb;
-  if (k >10) { INNER_RIGHT_LOOP_DEC(10); B += ldb;
-  if (k >11) { INNER_RIGHT_LOOP_DEC(11); B += ldb;
-  if (k >12) { INNER_RIGHT_LOOP_DEC(12); B += ldb;
-  if (k >13) { INNER_RIGHT_LOOP_DEC(13); B += ldb;
-  if (k >14) { INNER_RIGHT_LOOP_DEC(14); B += ldb;
-  if (k >15) { INNER_RIGHT_LOOP_DEC(15); }}}}}}}}}}}}}}}}
+  if (k >  0) { INNER_RIGHT_LOOP_DEC( 0); B += ldb; }
+  if (k >  1) { INNER_RIGHT_LOOP_DEC( 1); B += ldb; }
+  if (k >  2) { INNER_RIGHT_LOOP_DEC( 2); B += ldb; }
+  if (k >  3) { INNER_RIGHT_LOOP_DEC( 3); B += ldb; }
+  if (k >  4) { INNER_RIGHT_LOOP_DEC( 4); B += ldb; }
+  if (k >  5) { INNER_RIGHT_LOOP_DEC( 5); B += ldb; }
+  if (k >  6) { INNER_RIGHT_LOOP_DEC( 6); B += ldb; }
+  if (k >  7) { INNER_RIGHT_LOOP_DEC( 7); B += ldb; }
+  if (k >  8) { INNER_RIGHT_LOOP_DEC( 8); B += ldb; }
+  if (k >  9) { INNER_RIGHT_LOOP_DEC( 9); B += ldb; }
+  if (k > 10) { INNER_RIGHT_LOOP_DEC(10); B += ldb; }
+  if (k > 11) { INNER_RIGHT_LOOP_DEC(11); B += ldb; }
+  if (k > 12) { INNER_RIGHT_LOOP_DEC(12); B += ldb; }
+  if (k > 13) { INNER_RIGHT_LOOP_DEC(13); B += ldb; }
+  if (k > 14) { INNER_RIGHT_LOOP_DEC(14); B += ldb; }
+  if (k > 15)   INNER_RIGHT_LOOP_DEC(15);
 
   if (m - bi - ti > 0)
     sscal(n - bj, alpha, x, X, ldx);
 }
 
-template void strmmLUN<CBlasUnit,    64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
-template void strmmLUN<CBlasNonUnit, 64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
-template void strmmLUT<CBlasUnit,    32, 32,  8,  8,  8>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
-template void strmmLUT<CBlasNonUnit, 32, 32,  8,  8,  8>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
-template void strmmLLN<CBlasUnit,    64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
-template void strmmLLN<CBlasNonUnit, 64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
-template void strmmLLT<CBlasUnit,    32, 32,  8,  8,  8>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
-template void strmmLLT<CBlasNonUnit, 32, 32,  8,  8,  8>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
+template void strmmLUN<CBlasUnit,    64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
+template void strmmLUN<CBlasNonUnit, 64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
+template void strmmLUT<CBlasUnit,    32, 32,  8,  8,  8>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
+template void strmmLUT<CBlasNonUnit, 32, 32,  8,  8,  8>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
+template void strmmLLN<CBlasUnit,    64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
+template void strmmLLN<CBlasNonUnit, 64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
+template void strmmLLT<CBlasUnit,    32, 32,  8,  8,  8>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
+template void strmmLLT<CBlasNonUnit, 32, 32,  8,  8,  8>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
 
-template void strmmRUN<CBlasUnit,    64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
-template void strmmRUN<CBlasNonUnit, 64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
-template void strmmRUT<CBlasUnit,    64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
-template void strmmRUT<CBlasNonUnit, 64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
-template void strmmRLN<CBlasUnit,    64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
-template void strmmRLN<CBlasNonUnit, 64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
-template void strmmRLT<CBlasUnit,    64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
-template void strmmRLT<CBlasNonUnit, 64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, const float * __restrict__, int, float * __restrict__, int);
+template void strmmRUN<CBlasUnit,    64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
+template void strmmRUN<CBlasNonUnit, 64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
+template void strmmRUT<CBlasUnit,    64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
+template void strmmRUT<CBlasNonUnit, 64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
+template void strmmRLN<CBlasUnit,    64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
+template void strmmRLN<CBlasNonUnit, 64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
+template void strmmRLT<CBlasUnit,    64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
+template void strmmRLT<CBlasNonUnit, 64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);

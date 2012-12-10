@@ -182,15 +182,15 @@ CUresult cuDsyrk(CUmodule module, CBlasUplo uplo, CBlasTranspose trans,
   const unsigned int bx = 8;
   const unsigned int by = 8;
 
-  char name[82];
-  snprintf(name, 82,
-           "_Z5dsyrkIL9CBlasUplo%dEL14CBlasTranspose%dELj%uELj%uELj%uELj%uELj%uEEviidPKdidPdi",
+  char name[80];
+  snprintf(name, 80,
+           "_Z5dsyrkIL9CBlasUplo%dEL14CBlasTranspose%dELj%uELj%uELj%uELj%uELj%uEEvPKdPdddiiii",
            uplo, trans, mb, nb, kb, bx, by);
 
   CUfunction function;
   CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
 
-  void * params[] = { &n, &k, &alpha, &A, &lda, &beta, &C, &ldc };
+  void * params[] = { &A, &C, &alpha, &beta, &lda, &ldc, &n, &k };
 
   CU_ERROR_CHECK(cuLaunchKernel(function, (unsigned int)(n + mb - 1) / mb, (unsigned int)(n + nb - 1) / nb, 1,
                                 bx, by, 1, 0, stream, params, NULL));

@@ -1,7 +1,7 @@
 #include "blas.h"
 
 // y(1:16) += alpha * x(1:16)
-__device__ void saxpy(float alpha, const float * x, float * y) {
+__device__ void saxpy(float alpha, const float * __restrict__ x, float * __restrict__ y) {
   y[ 0] += alpha * x[ 0]; y[ 1] += alpha * x[ 1]; y[ 2] += alpha * x[ 2]; y[ 3] += alpha * x[ 3];
   y[ 4] += alpha * x[ 4]; y[ 5] += alpha * x[ 5]; y[ 6] += alpha * x[ 6]; y[ 7] += alpha * x[ 7];
   y[ 8] += alpha * x[ 8]; y[ 9] += alpha * x[ 9]; y[10] += alpha * x[10]; y[11] += alpha * x[11];
@@ -26,9 +26,10 @@ __device__ void saxpy(float alpha, const float * x, float * y) {
 template <CBlasUplo uplo, CBlasTranspose trans,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void ssyrk(int n, int k,
-                      float alpha, const float * __restrict__ A, int lda,
-                      float beta, float * __restrict__ C, int ldc) {
+__global__ void ssyrk(const float * __restrict__ A, float * __restrict__ C,
+                      float alpha, float beta,
+                      int lda, int ldc,
+                      int n, int k) {
 
 //   int bi, bj, nnb = (n + nb - 1) / nb;
 //   if (uplo == CBlasLower) {
@@ -289,7 +290,7 @@ __global__ void ssyrk(int n, int k,
  * kb is chosen to be the largest multiple of 16 such that the number of blocks
  * per multiprocessor is limited by the register usage.
  */
-template void ssyrk<CBlasUpper, CBlasNoTrans, 64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, float, float * __restrict__, int);
-template void ssyrk<CBlasLower, CBlasNoTrans, 64, 16, 16, 16,  4>(int, int, float, const float * __restrict__, int, float, float * __restrict__, int);
-template void ssyrk<CBlasUpper, CBlasTrans,   32, 32,  8,  8,  8>(int, int, float, const float * __restrict__, int, float, float * __restrict__, int);
-template void ssyrk<CBlasLower, CBlasTrans,   32, 32,  8,  8,  8>(int, int, float, const float * __restrict__, int, float, float * __restrict__, int);
+template void ssyrk<CBlasUpper, CBlasNoTrans, 64, 16, 16, 16,  4>(const float * __restrict__, float * __restrict__, float, float, int, int, int, int);
+template void ssyrk<CBlasLower, CBlasNoTrans, 64, 16, 16, 16,  4>(const float * __restrict__, float * __restrict__, float, float, int, int, int, int);
+template void ssyrk<CBlasUpper, CBlasTrans,   32, 32,  8,  8,  8>(const float * __restrict__, float * __restrict__, float, float, int, int, int, int);
+template void ssyrk<CBlasLower, CBlasTrans,   32, 32,  8,  8,  8>(const float * __restrict__, float * __restrict__, float, float, int, int, int, int);

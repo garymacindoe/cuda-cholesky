@@ -226,13 +226,13 @@ CUresult cuStrmm2(CUmodule module,
 
   char name[68];
   snprintf(name, 68,
-           "_Z8strmm%c%c%cIL9CBlasDiag%dELj%uELj%uELj%uELj%uELj%uEEviifPKfiS2_iPfi",
+           "_Z8strmm%c%c%cIL9CBlasDiag%dELj%uELj%uELj%uELj%uELj%uEEvPKfS2_Pffiiiii",
            side, uplo, trans, diag, mb, nb, kb, bx, by);
 
   CUfunction function;
   CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
 
-  void * params[] = { &m, &n, &alpha, &A, &lda, &B, &ldb, &X, &ldx };
+  void * params[] = { &A, &B, &X, &alpha, &lda, &ldb, &ldx, &m, &n };
 
   CU_ERROR_CHECK(cuLaunchKernel(function,
                                 (unsigned int)(m + mb - 1) / mb, (unsigned int)(n + nb - 1) / nb, 1,

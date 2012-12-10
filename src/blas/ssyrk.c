@@ -184,13 +184,13 @@ CUresult cuSsyrk(CUmodule module, CBlasUplo uplo, CBlasTranspose trans,
 
   char name[82];
   snprintf(name, 82,
-           "_Z5ssyrkIL9CBlasUplo%dEL14CBlasTranspose%dELj%uELj%uELj%uELj%uELj%uEEviifPKfifPfi",
+           "_Z5ssyrkIL9CBlasUplo%dEL14CBlasTranspose%dELj%uELj%uELj%uELj%uELj%uEEvPKfPfffiiii",
            uplo, trans, mb, nb, kb, bx, by);
 
   CUfunction function;
   CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
 
-  void * params[] = { &n, &k, &alpha, &A, &lda, &beta, &C, &ldc };
+  void * params[] = { &A, &C, &alpha, &beta, &lda, &ldc, &n, &k };
 
 //   unsigned int blocks = (unsigned int)(n + nb - 1) / nb;
 //   blocks = (blocks * (blocks + 1)) / 2;

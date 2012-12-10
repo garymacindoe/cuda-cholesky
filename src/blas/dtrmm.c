@@ -224,15 +224,15 @@ CUresult cuDtrmm2(CUmodule module,
   const unsigned int bx = (side == CBlasRight) ?  8 : (trans == CBlasNoTrans) ? 16 :  8;
   const unsigned int by = (side == CBlasRight) ?  8 : (trans == CBlasNoTrans) ?  4 :  8;
 
-  char name[101];
-  snprintf(name, 101,
-           "_Z7dtrmm2%cIL9CBlasUplo%dEL14CBlasTranspose%dEL9CBlasDiag%dELj%uELj%uELj%uELj%uELj%uEEviidPKdiS4_iPdi",
+  char name[67];
+  snprintf(name, 67,
+           "_Z8dtrmm%c%c%cIL9CBlasDiag%dELj%uELj%uELj%uELj%uELj%uEEvPKdS2_Pddiiiii",
            side, uplo, trans, diag, mb, nb, kb, bx, by);
 
   CUfunction function;
   CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
 
-  void * params[] = { &m, &n, &alpha, &A, &lda, &B, &ldb, &X, &ldx };
+  void * params[] = { &A, &B, &X, &alpha, &lda, &ldb, &ldx, &m, &n };
 
   CU_ERROR_CHECK(cuLaunchKernel(function,
                                 (unsigned int)(m + mb - 1) / mb, (unsigned int)(n + nb - 1) / nb, 1,
