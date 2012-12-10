@@ -12,8 +12,8 @@ __host__ __device__ static __inline__ cuDoubleComplex cuCfma(double a, cuDoubleC
 #if __CUDA_ARCH__ < 200 && !defined(__BANK_CONFLICTS__)
 
 // y(1:4) += alpha * x(1:4)
-__device__ void zaxpy(cuDoubleComplex alpha, const int * x_real_hi, const int * x_real_lo,
-                      const int * x_imag_hi, const int * x_imag_lo, cuDoubleComplex * y) {
+__device__ void zaxpy(cuDoubleComplex alpha, const int * __restrict__ x_real_hi, const int * __restrict__ x_real_lo,
+                      const int * __restrict__ x_imag_hi, const int * __restrict__ x_imag_lo, cuDoubleComplex * __restrict__ y) {
   y[0] = cuCfma(alpha, make_cuDoubleComplex(
                      __hiloint2double(x_real_hi[0], x_real_lo[0]),
                      __hiloint2double(x_imag_hi[0], x_imag_lo[0])), y[0]);
@@ -49,9 +49,11 @@ __device__ void zaxpy(cuDoubleComplex alpha, const int * x_real_hi, const int * 
 template <CBlasUplo uplo, CBlasTranspose trans,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void zherk(int n, int k, double alpha,
-                      const cuDoubleComplex * __restrict__ A, int lda,
-                      double beta, cuDoubleComplex * __restrict__ C, int ldc) {
+__global__ void zherk(const cuDoubleComplex * __restrict__ A,
+                      cuDoubleComplex * __restrict__ C,
+                      double alpha, double beta,
+                      int lda, int ldc,
+                      int n, int k) {
 
 //   int bi, bj, nnb = (n + nb - 1) / nb;
 //   if (uplo == CBlasLower) {
@@ -251,7 +253,7 @@ __global__ void zherk(int n, int k, double alpha,
 #else
 
 // y(1:4) += alpha * x(1:4)
-__device__ void zaxpy(cuDoubleComplex alpha, const cuDoubleComplex * x, cuDoubleComplex * y) {
+__device__ void zaxpy(cuDoubleComplex alpha, const cuDoubleComplex * __restrict__ x, cuDoubleComplex * __restrict__ y) {
   y[0] = cuCfma(alpha, x[0], y[0]); y[1] = cuCfma(alpha, x[1], y[1]);
   y[2] = cuCfma(alpha, x[2], y[2]); y[3] = cuCfma(alpha, x[3], y[3]);
 }
@@ -274,9 +276,11 @@ __device__ void zaxpy(cuDoubleComplex alpha, const cuDoubleComplex * x, cuDouble
 template <CBlasUplo uplo, CBlasTranspose trans,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void zherk(int n, int k, double alpha,
-                      const cuDoubleComplex * __restrict__ A, int lda,
-                      double beta, cuDoubleComplex * __restrict__ C, int ldc) {
+__global__ void zherk(const cuDoubleComplex * __restrict__ A,
+                      cuDoubleComplex * __restrict__ C,
+                      double alpha, double beta,
+                      int lda, int ldc,
+                      int n, int k) {
 
 //   int bi, bj, nnb = (n + nb - 1) / nb;
 //   if (uplo == CBlasLower) {
@@ -492,7 +496,7 @@ __global__ void zherk(int n, int k, double alpha,
  * kb is chosen to be the largest multiple of 16 such that the number of blocks
  * per multiprocessor is limited by the register usage.
  */
-template void zherk<CBlasUpper, CBlasNoTrans,   64,  4, 16,  4, 16>(int, int, double, const cuDoubleComplex *, int, double, cuDoubleComplex *, int);
-template void zherk<CBlasLower, CBlasNoTrans,   64,  4, 16,  4, 16>(int, int, double, const cuDoubleComplex *, int, double, cuDoubleComplex *, int);
-template void zherk<CBlasUpper, CBlasConjTrans, 32,  8,  8,  8,  8>(int, int, double, const cuDoubleComplex *, int, double, cuDoubleComplex *, int);
-template void zherk<CBlasLower, CBlasConjTrans, 32,  8,  8,  8,  8>(int, int, double, const cuDoubleComplex *, int, double, cuDoubleComplex *, int);
+template void zherk<CBlasUpper, CBlasNoTrans,   64,  4, 16,  4, 16>(const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, double, double, int, int, int, int);
+template void zherk<CBlasLower, CBlasNoTrans,   64,  4, 16,  4, 16>(const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, double, double, int, int, int, int);
+template void zherk<CBlasUpper, CBlasConjTrans, 32,  8,  8,  8,  8>(const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, double, double, int, int, int, int);
+template void zherk<CBlasLower, CBlasConjTrans, 32,  8,  8,  8,  8>(const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, double, double, int, int, int, int);

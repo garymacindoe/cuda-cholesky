@@ -4,8 +4,8 @@
 #if __CUDA_ARCH__ < 200 && !defined(__BANK_CONFLICTS__)
 
 // y(1:4) += alpha * x(1:4)
-__device__ void zaxpy4(cuDoubleComplex alpha, const int * x_real_hi, const int * x_real_lo,
-                       const int * x_imag_hi, const int * x_imag_lo, cuDoubleComplex * y) {
+__device__ void zaxpy4(cuDoubleComplex alpha, const int * __restrict__ x_real_hi, const int * __restrict__ x_real_lo,
+                       const int * __restrict__ x_imag_hi, const int * __restrict__ x_imag_lo, cuDoubleComplex * __restrict__ y) {
   y[0] = cuCfma(alpha, make_cuDoubleComplex(
                      __hiloint2double(x_real_hi[0], x_real_lo[0]),
                      __hiloint2double(x_imag_hi[0], x_imag_lo[0])), y[0]);
@@ -24,8 +24,8 @@ __device__ void zaxpy4(cuDoubleComplex alpha, const int * x_real_hi, const int *
 }
 
 // y(1:2) += alpha * x(1:2)
-__device__ void zaxpy2(cuDoubleComplex alpha, const int * x_real_hi, const int * x_real_lo,
-                       const int * x_imag_hi, const int * x_imag_lo, cuDoubleComplex * y) {
+__device__ void zaxpy2(cuDoubleComplex alpha, const int * __restrict__ x_real_hi, const int * __restrict__ x_real_lo,
+                       const int * __restrict__ x_imag_hi, const int * __restrict__ x_imag_lo, cuDoubleComplex * __restrict__ y) {
   y[0] = cuCfma(alpha, make_cuDoubleComplex(
                      __hiloint2double(x_real_hi[0], x_real_lo[0]),
                      __hiloint2double(x_imag_hi[0], x_imag_lo[0])), y[0]);
@@ -331,13 +331,13 @@ __global__ void zgemmT(const cuDoubleComplex * __restrict__ A, const cuDoubleCom
 #else
 
 // y(1:4) += alpha * x(1:4)
-__device__ void zaxpy4(cuDoubleComplex alpha, const cuDoubleComplex * x, cuDoubleComplex * y) {
+__device__ void zaxpy4(cuDoubleComplex alpha, const cuDoubleComplex * __restrict__ x, cuDoubleComplex * __restrict__ y) {
   y[0] = cuCfma(alpha, x[0], y[0]); y[1] = cuCfma(alpha, x[1], y[1]);
   y[2] = cuCfma(alpha, x[2], y[2]); y[3] = cuCfma(alpha, x[3], y[3]);
 }
 
 // y(1:2) += alpha * x(1:2)
-__device__ void zaxpy2(cuDoubleComplex alpha, const cuDoubleComplex * x, cuDoubleComplex * y) {
+__device__ void zaxpy2(cuDoubleComplex alpha, const cuDoubleComplex * __restrict__ x, cuDoubleComplex * __restrict__ y) {
   y[0] = cuCfma(alpha, x[0], y[0]); y[1] = cuCfma(alpha, x[1], y[1]);
 }
 
@@ -381,9 +381,9 @@ __global__ void zgemmN(const cuDoubleComplex * __restrict__ A, const cuDoubleCom
    */
   A += bi + ti;
   B += (transB == CBlasNoTrans) ? (bj + threadIdx.y) * ldb + threadIdx.x : threadIdx.y * ldb + bj + threadIdx.x;
-  C += (bj + tj) * ldc + bi + ti;
-  D += (bj + tj) * ldd + bi + ti;
-  n -= bj + tj;
+  C += bj * ldc + bi + ti;
+  D += bj * ldd + bi + ti;
+  n -= bj;
   m -= bi + ti;
 
   /*
