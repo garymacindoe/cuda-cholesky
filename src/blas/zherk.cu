@@ -259,7 +259,7 @@ __global__ void zherkC(const cuDoubleComplex * __restrict__ A,
   const cuDoubleComplex * __restrict__ B = A;
 
   int ti = threadIdx.y * bx + threadIdx.x;        // Unwrapped thread index [0, bx * by]
-  const int tj = 4 * (ti / mb);
+  const int tj = 2 * (ti / mb);
   ti = ti % mb;
 
   /*
@@ -580,7 +580,7 @@ __global__ void zherkC(const cuDoubleComplex * __restrict__ A,
   const cuDoubleComplex * __restrict__ B = A;
 
   int ti = threadIdx.y * bx + threadIdx.x;        // Unwrapped thread index [0, bx * by]
-  const int tj = 4 * (ti / mb);
+  const int tj = 2 * (ti / mb);
   ti = ti % mb;
 
   /*
