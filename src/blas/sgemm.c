@@ -214,7 +214,7 @@ static CUresult background_sgemm(const void * a) {
   CUdeviceptr A0, A1, B0, B1, C;
   size_t lda, ldb, ldc;
 
-  const size_t kb = (transA == CBlasNoTrans) ? 512 : 448;
+  const size_t kb = (transA == CBlasNoTrans) ? 512 : 288;
 
   // Load the sgemm module
   CUmodule module;
@@ -512,7 +512,7 @@ CUresult cuMultiGPUSgemm(CUmultiGPU multiGPU,
    * kb defines the amount of work done by each thread and the memory (and
    * bandwidth) needed for A and B so needs to be tuned to give maximum
    * performance.  288 <= kb <= 448 gives 330-345GFlops/s.  This requires (288 *
-   * 640 + 2 * 448 * (288 + 640) * 4 = 3968kB of graphics memory.
+   * 640 + 2 * 288 * (288 + 640) * 4 = 1764kB of graphics memory.
    *
    * These block sizes give a bandwidth reduction of 2 / (1/288 + 1/640) = 397.24
    *

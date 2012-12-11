@@ -220,7 +220,7 @@ CUresult cuZherk(CUmodule module,
   CUfunction function;
   CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
 
-  void * params[] = { &n, &k, &alpha, &A, &lda, &beta, &C, &ldc };
+  void * params[] = { &A, &C, &alpha, &beta, &lda, &ldc, &n, &k };
 
   CU_ERROR_CHECK(cuLaunchKernel(function, (unsigned int)(n + mb - 1) / mb, (unsigned int)(n + nb - 1) / nb, 1,
                                 bx, by, 1, 0, stream, params, NULL));
