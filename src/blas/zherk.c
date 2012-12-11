@@ -206,16 +206,16 @@ CUresult cuZherk(CUmodule module,
   if (n == 0 || ((alpha == zero || k == 0) && beta == one))
     return CUDA_SUCCESS;
 
-  const unsigned int mb = (trans == CBlasNoTrans) ? 64 : 32;
+  const unsigned int mb = (trans == CBlasNoTrans) ? 64 :  8;
   const unsigned int nb = (trans == CBlasNoTrans) ?  4 :  8;
-  const unsigned int kb = (trans == CBlasNoTrans) ? 16 :  8;
-  const unsigned int bx = (trans == CBlasNoTrans) ?  4 :  8;
+  const unsigned int kb = (trans == CBlasNoTrans) ? 16 :  4;
+  const unsigned int bx = (trans == CBlasNoTrans) ?  4 :  4;
   const unsigned int by = (trans == CBlasNoTrans) ? 16 :  8;
 
-  char name[90];
-  snprintf(name, 90,
-           "_Z5zherkIL9CBlasUplo%dEL14CBlasTranspose%dELj%uELj%uELj%uELj%uELj%uEEviidPK7double2idPS2_i",
-           uplo, trans, mb, nb, kb, bx, by);
+  char name[71];
+  snprintf(name, 71,
+           "_Z6zherk%cIL9CBlasUplo%dELj%uELj%uELj%uELj%uELj%uEEvPK7double2PS1_ddiiii",
+           trans, uplo, mb, nb, kb, bx, by);
 
   CUfunction function;
   CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
