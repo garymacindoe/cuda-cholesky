@@ -510,7 +510,7 @@ __global__ void cherk(const cuComplex * __restrict__ A,
  * kb is chosen to be the largest multiple of 16 such that the number of blocks
  * per multiprocessor is limited by the register usage.
  */
-template void cherk<CBlasUpper, CBlasNoTrans,   64,  8, 16, 16,  4>(const cuComplex *, cuComplex *, float, float, int, int, int, int);
-template void cherk<CBlasLower, CBlasNoTrans,   64,  8, 16, 16,  4>(const cuComplex *, cuComplex *, float, float, int, int, int, int);
+template void cherk<CBlasUpper, CBlasNoTrans,   64,  8,  8,  8,  8>(const cuComplex *, cuComplex *, float, float, int, int, int, int);
+template void cherk<CBlasLower, CBlasNoTrans,   64,  8,  8,  8,  8>(const cuComplex *, cuComplex *, float, float, int, int, int, int);
 template void cherk<CBlasUpper, CBlasConjTrans, 32, 16,  8,  8,  8>(const cuComplex *, cuComplex *, float, float, int, int, int, int);
 template void cherk<CBlasLower, CBlasConjTrans, 32, 16,  8,  8,  8>(const cuComplex *, cuComplex *, float, float, int, int, int, int);
