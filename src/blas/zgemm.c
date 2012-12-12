@@ -661,7 +661,7 @@ CUresult cuMultiGPUZgemm(CUmultiGPU multiGPU,
    * kb defines the amount of work done by each thread and the memory (and
    * bandwidth) needed for A and B so needs to be tuned to give maximum
    * performance.  It should be a multiple of the kb block size used to unroll
-   * the GPU code which in this case is 8.  kb is increased for given mb and nb
+   * the GPU code which in this case is 80.  kb is increased for given mb and nb
    * until the performance increase is < 1%. This happens at kb = 80 and gives
    * ~33GFlops/s.  This requires
    * (64 * 120 + 2 * 80 * (64 + 120)) * 16 = 580kB
