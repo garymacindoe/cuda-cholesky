@@ -178,7 +178,7 @@ CUresult cuDsyrk(CUmodule module, CBlasUplo uplo, CBlasTranspose trans,
 
   const unsigned int mb = (trans == CBlasNoTrans) ? 64 : 32;
   const unsigned int nb = (trans == CBlasNoTrans) ?  8 : 16;
-  const unsigned int kb = (trans == CBlasNoTrans) ? 16 :  8;
+  const unsigned int kb = (trans == CBlasNoTrans && uplo == CBlasLower) ? 16 :  8;
   const unsigned int bx = 8;
   const unsigned int by = 8;
 
@@ -197,8 +197,9 @@ CUresult cuDsyrk(CUmodule module, CBlasUplo uplo, CBlasTranspose trans,
 
   return CUDA_SUCCESS;
 }
-#if 0
-CUresult cuMultiGPUDsyrk(CBlasUplo uplo, CBlasTranspose trans,
+
+CUresult cuMultiGPUDsyrk(CUmultiGPU multiGPU,
+                         CBlasUplo uplo, CBlasTranspose trans,
                          size_t n, size_t k,
                          double alpha, const double * restrict A, size_t lda,
                          double beta, double * restrict C, size_t ldc) {
@@ -217,6 +218,7 @@ CUresult cuMultiGPUDsyrk(CBlasUplo uplo, CBlasTranspose trans,
   if (n == 0 || ((alpha == zero || k == 0) && beta == one))
     return CUDA_SUCCESS;
 
+#if 0
   if (trans == CBlasNoTrans) {
     const size_t nb = 576;
 
@@ -257,7 +259,7 @@ CUresult cuMultiGPUDsyrk(CBlasUplo uplo, CBlasTranspose trans,
       }
     }
   }
+#endif
 
   return CUDA_SUCCESS;
 }
-#endif

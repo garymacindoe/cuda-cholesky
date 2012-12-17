@@ -24,7 +24,7 @@ ifeq ($(notdir $(CC)), icc)
   LDFLAGS += -L$(INTEL_HOME)
   LDLIBS += -liomp5
 else
-  CFLAGS = -march=native -O2 -pipe -std=c99 -pedantic -Wall -Wextra -Wconversion -ftree-vectorize -ffast-math -fopenmp
+  CFLAGS = -march=native -ggdb -pipe -std=c99 -pedantic -Wall -Wextra -Wconversion -ftree-vectorize -ffast-math -fopenmp
   LDLIBS += -lgomp
 endif
 
@@ -38,7 +38,7 @@ ifdef verbose
 endif
 
 ifdef bank_conflicts
-  CPPFLAGS += -D__BANK_CONFLICTS__
+  CPPFLAGS += -D__BANK_CONFLICTS__=$(bank_conflicts)
 endif
 
 RM = rm -f
@@ -99,26 +99,26 @@ $(TEST_PROGS):
 $(TEST_FATBINS_DOUBLE): PTX_ARCH = $(PTX_ARCH_DOUBLE)
 $(TEST_FATBINS_DOUBLE): CUBIN_ARCHES = $(CUBIN_ARCHES_DOUBLE)
 
-sgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/test/sgemm.o
-dgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/test/dgemm.o
-cgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/test/cgemm.o
-zgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/test/zgemm.o
-ssyrk: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/src/blas/ssyrk.o $(OBJDIR)/test/ssyrk.o
-dsyrk: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/src/blas/dsyrk.o $(OBJDIR)/test/dsyrk.o
-cherk: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/src/blas/cherk.o $(OBJDIR)/test/cherk.o
-zherk: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/blas/zherk.o $(OBJDIR)/test/zherk.o
-strmm: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/src/blas/strmm.o $(OBJDIR)/test/strmm.o
-dtrmm: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/src/blas/dtrmm.o $(OBJDIR)/test/dtrmm.o
-ctrmm: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/src/blas/ctrmm.o $(OBJDIR)/test/ctrmm.o
-ztrmm: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/blas/ztrmm.o $(OBJDIR)/test/ztrmm.o
-strmm2: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/src/blas/strmm.o $(OBJDIR)/test/strmm2.o
-dtrmm2: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/src/blas/dtrmm.o $(OBJDIR)/test/dtrmm2.o
-ctrmm2: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/src/blas/ctrmm.o $(OBJDIR)/test/ctrmm2.o
-ztrmm2: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/blas/ztrmm.o $(OBJDIR)/test/ztrmm2.o
-strsm: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/src/blas/strsm.o $(OBJDIR)/test/strsm.o
-dtrsm: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/src/blas/dtrsm.o $(OBJDIR)/test/dtrsm.o
-ctrsm: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/src/blas/ctrsm.o $(OBJDIR)/test/ctrsm.o
-ztrsm: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/blas/ztrsm.o $(OBJDIR)/test/ztrsm.o
+sgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/test/sgemm.o
+dgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/test/dgemm.o
+cgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/test/cgemm.o
+zgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/test/zgemm.o
+ssyrk: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/src/blas/ssyrk.o $(OBJDIR)/test/ssyrk.o
+dsyrk: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/src/blas/dsyrk.o $(OBJDIR)/test/dsyrk.o
+cherk: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/src/blas/cherk.o $(OBJDIR)/test/cherk.o
+zherk: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/blas/zherk.o $(OBJDIR)/test/zherk.o
+strmm: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/src/blas/strmm.o $(OBJDIR)/test/strmm.o
+dtrmm: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/src/blas/dtrmm.o $(OBJDIR)/test/dtrmm.o
+ctrmm: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/src/blas/ctrmm.o $(OBJDIR)/test/ctrmm.o
+ztrmm: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/blas/ztrmm.o $(OBJDIR)/test/ztrmm.o
+strmm2: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/src/blas/strmm.o $(OBJDIR)/test/strmm2.o
+dtrmm2: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/src/blas/dtrmm.o $(OBJDIR)/test/dtrmm2.o
+ctrmm2: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/src/blas/ctrmm.o $(OBJDIR)/test/ctrmm2.o
+ztrmm2: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/blas/ztrmm.o $(OBJDIR)/test/ztrmm2.o
+strsm: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/src/blas/strsm.o $(OBJDIR)/test/strsm.o
+dtrsm: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/src/blas/dtrsm.o $(OBJDIR)/test/dtrsm.o
+ctrsm: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/src/blas/ctrsm.o $(OBJDIR)/test/ctrsm.o
+ztrsm: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/blas/ztrsm.o $(OBJDIR)/test/ztrsm.o
 
 spotrf: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/src/blas/ssyrk.o $(OBJDIR)/src/blas/strsm.o $(OBJDIR)/src/blas/strmm.o $(OBJDIR)/src/lapack/spotrf.o $(OBJDIR)/src/lapack/strtri.o $(OBJDIR)/test/spotrf.o
 dpotrf: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/src/blas/dsyrk.o $(OBJDIR)/src/blas/dtrsm.o $(OBJDIR)/src/blas/dtrmm.o $(OBJDIR)/src/lapack/dpotrf.o $(OBJDIR)/src/lapack/dtrtri.o $(OBJDIR)/test/dpotrf.o
@@ -160,7 +160,7 @@ cudpotrf: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/d
 cucpotrf: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/src/blas/cherk.o $(OBJDIR)/src/blas/ctrsm.o $(OBJDIR)/src/blas/ctrmm.o $(OBJDIR)/src/lapack/cpotrf.o $(OBJDIR)/src/lapack/ctrtri.o $(OBJDIR)/test/cucpotrf.o | cgemm.fatbin cherk.fatbin ctrsm.fatbin ctrmm.fatbin cpotrf.fatbin
 cuzpotrf: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/blas/zherk.o $(OBJDIR)/src/blas/ztrsm.o $(OBJDIR)/src/blas/ztrmm.o $(OBJDIR)/src/lapack/zpotrf.o $(OBJDIR)/src/lapack/ztrtri.o $(OBJDIR)/test/cuzpotrf.o | zgemm.fatbin zherk.fatbin ztrsm.fatbin ztrmm.fatbin zpotrf.fatbin
 
-cumultigpusgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/test/cumultigpusgemm.o | sgemm.fatbin
+cumultigpusgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/task.o $(OBJDIR)/src/util/arrayqueue.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/test/cumultigpusgemm.o | sgemm.fatbin
 cumultigpudgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/test/cumultigpudgemm.o | dgemm.fatbin
 cumultigpucgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/test/cumultigpucgemm.o | cgemm.fatbin
 cumultigpuzgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/test/cumultigpuzgemm.o | zgemm.fatbin
@@ -190,6 +190,12 @@ $(OBJDIR)/src: | $(OBJDIR)
 
 $(OBJDIR)/src/error.o: error.h | $(OBJDIR)/src
 $(OBJDIR)/src/multigpu.o: multigpu.h cumultigpu.h error.h | $(OBJDIR)/src
+$(OBJDIR)/src/task.o: task.h error.h | $(OBJDIR)/src
+
+$(OBJDIR)/src/util: | $(OBJDIR)/src
+	$(MKDIR) $(@)
+
+$(OBJDIR)/src/util/arrayqueue.o: util/arrayqueue.h | $(OBJDIR)/src/util
 
 $(OBJDIR)/src/blas: | $(OBJDIR)/src
 	$(MKDIR) $(@)

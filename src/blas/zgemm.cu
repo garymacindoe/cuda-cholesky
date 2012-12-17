@@ -1,7 +1,7 @@
 #include "blas.h"
 #include <cuComplex.h>
 
-#if __CUDA_ARCH__ < 200 && !defined(__BANK_CONFLICTS__)
+#if __CUDA_ARCH__ < 200 && (!defined(__BANK_CONFLICTS__) || __BANK_CONFLICTS__ <= 1)
 
 // y(1:4) += alpha * x(1:4)
 __device__ void zaxpy4(cuDoubleComplex alpha, const int * __restrict__ x_real_hi, const int * __restrict__ x_real_lo,
@@ -53,10 +53,10 @@ __device__ void zaxpy2(cuDoubleComplex alpha, const int * __restrict__ x_real_hi
 template <CBlasTranspose transB,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void zgemmN(const cuDoubleComplex * __restrict__ A, const cuDoubleComplex * __restrict__ B,
+__global__ void zgemmN(cuDoubleComplex alpha, cuDoubleComplex beta,
+                       const cuDoubleComplex * __restrict__ A, const cuDoubleComplex * __restrict__ B,
                        const cuDoubleComplex * __restrict__ C, cuDoubleComplex * __restrict__ D,
-                       cuDoubleComplex alpha, cuDoubleComplex beta,
-                       int lda, int ldb, int ldc, int ldd,
+int lda, int ldb, int ldc, int ldd,
                        int m, int n, int k) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of C/D
@@ -188,9 +188,9 @@ __global__ void zgemmN(const cuDoubleComplex * __restrict__ A, const cuDoubleCom
 template <CBlasTranspose transA, CBlasTranspose transB,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void zgemmT(const cuDoubleComplex * __restrict__ A, const cuDoubleComplex * __restrict__ B,
+__global__ void zgemmT(cuDoubleComplex alpha, cuDoubleComplex beta,
+                       const cuDoubleComplex * __restrict__ A, const cuDoubleComplex * __restrict__ B,
                        const cuDoubleComplex * __restrict__ C, cuDoubleComplex * __restrict__ D,
-                       cuDoubleComplex alpha, cuDoubleComplex beta,
                        int lda, int ldb, int ldc, int ldd,
                        int m, int n, int k) {
 
@@ -328,6 +328,283 @@ __global__ void zgemmT(const cuDoubleComplex * __restrict__ A, const cuDoubleCom
   }
 }
 
+#elif __CUDA_ARCH__ >= 200 && __CUDA_ARCH__ < 210 || __CUDA_ARCH__ < 200 && __BANK_CONFLICTS__ == 2
+
+// y(1:4) += alpha * x(1:4)
+__device__ void zaxpy4(cuDoubleComplex alpha, const double * x_real, const double * x_imag, cuDoubleComplex * y) {
+  y[0] = cuCfma(alpha, make_cuDoubleComplex(x_real[0], x_imag[0]), y[0]);
+  y[1] = cuCfma(alpha, make_cuDoubleComplex(x_real[1], x_imag[1]), y[1]);
+  y[2] = cuCfma(alpha, make_cuDoubleComplex(x_real[2], x_imag[2]), y[2]);
+  y[3] = cuCfma(alpha, make_cuDoubleComplex(x_real[3], x_imag[3]), y[3]);
+}
+
+// y(1:2) += alpha * x(1:2)
+__device__ void zaxpy2(cuDoubleComplex alpha, const double * x_real, const double * x_imag, cuDoubleComplex * y) {
+  y[0] = cuCfma(alpha, make_cuDoubleComplex(x_real[0], x_imag[0]), y[0]);
+  y[1] = cuCfma(alpha, make_cuDoubleComplex(x_real[1], x_imag[1]), y[1]);
+}
+
+/**
+ * This implementation is out-of-place.  For in-place call with D = C and ldd = ldc.
+ *
+ * ZGEMM:
+ *   D := alpha * AB   + beta * C for transA == CBlasNoTrans and transB == CBlasNoTrans
+ *   D := alpha * AB'  + beta * C for transA == CBlasNoTrans and transB == CBlasTrans
+ *   D := alpha * AB^  + beta * C for transA == CBlasNoTrans and transB == CBlasConjTrans
+ *
+ * @param transB  transpose for B.
+ * @param mb      the number of rows in the block of C/D.
+ * @param nb      the number of columns in the block of C/D.
+ * @param kb      how far to unroll the inner loop.
+ * @param bx      blockDim.x.
+ * @param by      blockDim.y.
+ */
+template <CBlasTranspose transB,
+          unsigned int mb, unsigned int nb, unsigned int kb,
+          unsigned int bx, unsigned int by>
+__global__ void zgemmN(cuDoubleComplex alpha, cuDoubleComplex beta,
+                       const cuDoubleComplex * __restrict__ A, const cuDoubleComplex * __restrict__ B,
+                       const cuDoubleComplex * __restrict__ C, cuDoubleComplex * __restrict__ D,
+int lda, int ldb, int ldc, int ldd,
+                      int m, int n, int k) {
+
+  const int bi = blockIdx.x * mb;       // Starting row of block of C/D
+  const int bj = blockIdx.y * nb;       // Starting column of block of C/D
+  const int ti = threadIdx.y * bx + threadIdx.x;
+
+  /*
+   * Compute our starting points in A, B, C and D.
+   *
+   * For transA != CBlasNoTrans A is cached in shared memory so the unwrapped
+   * thread index can be re-wrapped around mb when calculating D.
+   *
+   * If transA == CBlasNoTrans then bx * by == mb (checked later on) so there
+   * doesn't need to be a separate check for transA == CBlasNoTrans in
+   * calculating the start of C/D here.
+   */
+  A += bi + ti;
+  B += (transB == CBlasNoTrans) ? (bj + threadIdx.y) * ldb + threadIdx.x : threadIdx.y * ldb + bj + threadIdx.x;
+  C += bj * ldc + bi + ti;
+  D += bj * ldd + bi + ti;
+  n -= bj;
+  m -= bi + ti;
+
+  /*
+   * Blocks of A and B in shared memory and D in registers.
+   */
+  __shared__ double b_real[kb][(transB == CBlasNoTrans) ? nb + 1 : nb];
+  __shared__ double b_imag[kb][(transB == CBlasNoTrans) ? nb + 1 : nb];
+
+  cuDoubleComplex d[] = { { 0.0, 0.0 }, { 0.0, 0.0 }, { 0.0, 0.0 }, { 0.0, 0.0 } };
+
+  while (k > 0) {
+    // B will always be "transposed" w.r.t. C so must always be cached in shared
+    // memory (i.e. it is read along the K or N dimensions when M is the
+    // dimension being expanded).
+    if (transB == CBlasNoTrans) {
+#pragma unroll
+      for (int j = 0; j < nb; j += by) {
+        b_real[threadIdx.x][j + threadIdx.y] = cuCreal(B[j * ldb]);
+        b_imag[threadIdx.x][j + threadIdx.y] = cuCimag(B[j * ldb]);
+      }
+    }
+    else if (transB == CBlasConjTrans) {
+#pragma unroll
+      for (int l = 0; l < kb; l += by) {
+#pragma unroll
+        for (int j = 0; j < nb; j += bx) {
+          b_real[l + threadIdx.y][j + threadIdx.x] =  cuCreal(B[l * ldb + j]);
+          b_imag[l + threadIdx.y][j + threadIdx.x] = -cuCimag(B[l * ldb + j]);
+        }
+      }
+    }
+    else {
+#pragma unroll
+      for (int l = 0; l < kb; l += by) {
+#pragma unroll
+        for (int j = 0; j < nb; j += bx) {
+          b_real[l + threadIdx.y][j + threadIdx.x] = cuCreal(B[l * ldb + j]);
+          b_imag[l + threadIdx.y][j + threadIdx.x] = cuCimag(B[l * ldb + j]);
+        }
+      }
+    }
+
+    __syncthreads();
+
+    if (k < kb) break;
+
+    // Read A straight from global memory.
+#pragma unroll
+    for (int l = 0; l < kb; l++) {
+      zaxpy4(A[0], b_real[l], b_imag[l], d);
+      A += lda;
+    }
+
+    __syncthreads();
+
+    B += (transB == CBlasNoTrans) ? kb : kb * ldb;
+    k -= kb;
+  }
+
+  for (int l = 0; l < k; l++) {
+    zaxpy4(A[0], b_real[l], b_imag[l], d);
+    A += lda;
+  }
+
+  if (n <= 0 || m <= 0) return;
+  if (cuCreal(beta) == 0.0 && cuCimag(beta) == 0.0) {
+    D[0] = cuCmul(alpha, d[0]); if (1 >= n) return; D += ldd;
+    D[0] = cuCmul(alpha, d[1]); if (2 >= n) return; D += ldd;
+    D[0] = cuCmul(alpha, d[2]); if (3 >= n) return; D += ldd;
+    D[0] = cuCmul(alpha, d[3]);
+  }
+  else {
+    D[0] = cuCfma(alpha, d[0], cuCmul(beta, C[0])); if (1 >= n) return; C += ldc; D += ldd;
+    D[0] = cuCfma(alpha, d[1], cuCmul(beta, C[0])); if (2 >= n) return; C += ldc; D += ldd;
+    D[0] = cuCfma(alpha, d[2], cuCmul(beta, C[0])); if (3 >= n) return; C += ldc; D += ldd;
+    D[0] = cuCfma(alpha, d[3], cuCmul(beta, C[0]));
+  }
+}
+
+/**
+ * This implementation is out-of-place.  For in-place call with D = C and ldd = ldc.
+ *
+ * ZGEMM:
+ *   D := alpha * AB   + beta * C for transA == CBlasNoTrans and transB == CBlasNoTrans
+ *   D := alpha * AB'  + beta * C for transA == CBlasNoTrans and transB == CBlasTrans
+ *   D := alpha * AB^  + beta * C for transA == CBlasNoTrans and transB == CBlasConjTrans
+ *
+ * @param transB  transpose for B.
+ * @param mb      the number of rows in the block of C/D.
+ * @param nb      the number of columns in the block of C/D.
+ * @param kb      how far to unroll the inner loop.
+ * @param bx      blockDim.x.
+ * @param by      blockDim.y.
+ */
+template <CBlasTranspose transA, CBlasTranspose transB,
+          unsigned int mb, unsigned int nb, unsigned int kb,
+          unsigned int bx, unsigned int by>
+__global__ void zgemmT(cuDoubleComplex alpha, cuDoubleComplex beta,
+                       const cuDoubleComplex * __restrict__ A, const cuDoubleComplex * __restrict__ B,
+                       const cuDoubleComplex * __restrict__ C, cuDoubleComplex * __restrict__ D,
+                       int lda, int ldb, int ldc, int ldd,
+                       int m, int n, int k) {
+
+  const int bi = blockIdx.x * mb;       // Starting row of block of C/D
+  const int bj = blockIdx.y * nb;       // Starting column of block of C/D
+  int ti = threadIdx.y * bx + threadIdx.x;
+  const int tj = 2 * (ti / mb);
+  ti = ti % mb;
+
+  /*
+   * Compute our starting points in A, B, C and D.
+   *
+   * For transA != CBlasNoTrans A is cached in shared memory so the unwrapped
+   * thread index can be re-wrapped around mb when calculating D.
+   *
+   * If transA == CBlasNoTrans then bx * by == mb (checked later on) so there
+   * doesn't need to be a separate check for transA == CBlasNoTrans in
+   * calculating the start of C/D here.
+   */
+  A += (bi + threadIdx.y) * lda + threadIdx.x;
+  B += (transB == CBlasNoTrans) ? (bj + threadIdx.y) * ldb + threadIdx.x : threadIdx.y * ldb + bj + threadIdx.x;
+  C += (bj + tj) * ldc + bi + ti;
+  D += (bj + tj) * ldd + bi + ti;
+  n -= bj + tj;
+  m -= bi + ti;
+
+  /*
+   * Blocks of A and B in shared memory and D in registers.
+   */
+  __shared__ double a_real[mb][kb + 1];       // Optimised away when transA == CBlasNoTrans
+  __shared__ double a_imag[mb][kb + 1];       // Optimised away when transA == CBlasNoTrans
+  __shared__ double b_real[kb][(transB == CBlasNoTrans) ? nb + 1 : nb];
+  __shared__ double b_imag[kb][(transB == CBlasNoTrans) ? nb + 1 : nb];
+
+  cuDoubleComplex d[] = { { 0.0, 0.0 }, { 0.0, 0.0 } };
+
+  while (k > 0) {
+    // If A is to be transposed cache it in shared memory
+    if (transA != CBlasNoTrans) {
+      if (transA == CBlasConjTrans) {
+#pragma unroll
+        for (int i = 0; i < mb; i += by) {
+          a_real[i + threadIdx.y][threadIdx.x] =  cuCreal(A[i * lda]);
+          a_imag[i + threadIdx.y][threadIdx.x] = -cuCimag(A[i * lda]);
+        }
+      }
+      else {
+#pragma unroll
+        for (int i = 0; i < mb; i += by) {
+          a_real[i + threadIdx.y][threadIdx.x] = cuCreal(A[i * lda]);
+          a_imag[i + threadIdx.y][threadIdx.x] = cuCimag(A[i * lda]);
+        }
+      }
+      A += kb;
+    }
+
+    // B will always be "transposed" w.r.t. C so must always be cached in shared
+    // memory (i.e. it is read along the K or N dimensions when M is the
+    // dimension being expanded).
+    if (transB == CBlasNoTrans) {
+#pragma unroll
+      for (int j = 0; j < nb; j += by) {
+        b_real[threadIdx.x][j + threadIdx.y] = cuCreal(B[j * ldb]);
+        b_imag[threadIdx.x][j + threadIdx.y] = cuCimag(B[j * ldb]);
+      }
+    }
+    else if (transB == CBlasConjTrans) {
+#pragma unroll
+      for (int l = 0; l < kb; l += by) {
+#pragma unroll
+        for (int j = 0; j < nb; j += bx) {
+          b_real[l + threadIdx.y][j + threadIdx.x] =  cuCreal(B[l * ldb + j]);
+          b_imag[l + threadIdx.y][j + threadIdx.x] = -cuCimag(B[l * ldb + j]);
+        }
+      }
+    }
+    else {
+#pragma unroll
+      for (int l = 0; l < kb; l += by) {
+#pragma unroll
+        for (int j = 0; j < nb; j += bx) {
+          b_real[l + threadIdx.y][j + threadIdx.x] = cuCreal(B[l * ldb + j]);
+          b_imag[l + threadIdx.y][j + threadIdx.x] = cuCimag(B[l * ldb + j]);
+        }
+      }
+    }
+
+    __syncthreads();
+
+    if (k < kb) break;
+
+    // Read A from shared memory.
+#pragma unroll
+    for (int l = 0; l < kb; l++)
+      zaxpy2(make_cuDoubleComplex(a_real[ti][l], a_imag[ti][l]),
+            &b_real[l][tj], &b_imag[l][tj], d);
+
+    __syncthreads();
+
+    B += (transB == CBlasNoTrans) ? kb : kb * ldb;
+    k -= kb;
+  }
+
+  for (int l = 0; l < k; l++)
+    zaxpy2(make_cuDoubleComplex(a_real[ti][l], a_imag[ti][l]),
+          &b_real[l][tj], &b_imag[l][tj], d);
+
+  if (n <= 0 || m <= 0) return;
+  if (cuCreal(beta) == 0.0 && cuCimag(beta) == 0.0) {
+    D[0] = cuCmul(alpha, d[0]); if (1 >= n) return; D += ldd;
+    D[0] = cuCmul(alpha, d[1]);
+  }
+  else {
+    D[0] = cuCfma(alpha, d[0], cuCmul(beta, C[0])); if (1 >= n) return; C += ldc; D += ldd;
+    D[0] = cuCfma(alpha, d[1], cuCmul(beta, C[0]));
+  }
+}
+
 #else
 
 // y(1:4) += alpha * x(1:4)
@@ -359,9 +636,9 @@ __device__ void zaxpy2(cuDoubleComplex alpha, const cuDoubleComplex * __restrict
 template <CBlasTranspose transB,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void zgemmN(const cuDoubleComplex * __restrict__ A, const cuDoubleComplex * __restrict__ B,
+__global__ void zgemmN(cuDoubleComplex alpha, cuDoubleComplex beta,
+                       const cuDoubleComplex * __restrict__ A, const cuDoubleComplex * __restrict__ B,
                        const cuDoubleComplex * __restrict__ C, cuDoubleComplex * __restrict__ D,
-                       cuDoubleComplex alpha, cuDoubleComplex beta,
                        int lda, int ldb, int ldc, int ldd,
                        int m, int n, int k) {
 
@@ -481,9 +758,9 @@ __global__ void zgemmN(const cuDoubleComplex * __restrict__ A, const cuDoubleCom
 template <CBlasTranspose transA, CBlasTranspose transB,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void zgemmT(const cuDoubleComplex * __restrict__ A, const cuDoubleComplex * __restrict__ B,
+__global__ void zgemmT(cuDoubleComplex alpha, cuDoubleComplex beta,
+                       const cuDoubleComplex * __restrict__ A, const cuDoubleComplex * __restrict__ B,
                        const cuDoubleComplex * __restrict__ C, cuDoubleComplex * __restrict__ D,
-                       cuDoubleComplex alpha, cuDoubleComplex beta,
                        int lda, int ldb, int ldc, int ldd,
                        int m, int n, int k) {
 
@@ -604,7 +881,7 @@ __global__ void zgemmT(const cuDoubleComplex * __restrict__ A, const cuDoubleCom
  *   nb must be less than or equal to 20 (registers start spilling to global
  *        memory after 20).
  *   kb must be a multiple of the half-warp size (16) and such that
- *        (nb + 1)*kb*sizeof(float) is less than the amount of shared memory
+ *        (nb + 1)*kb*sizeof(double) is less than the amount of shared memory
  *        available per block (16384 bytes).
  *
  * mb and nb must be selected such that the bandwidth reduction is greater than
@@ -638,13 +915,13 @@ __global__ void zgemmT(const cuDoubleComplex * __restrict__ A, const cuDoubleCom
  * kb is chosen to be the largest multiple of 16 such that the number of blocks
  * per multiprocessor is limited by the register usage.
  */
-template void zgemmN<CBlasNoTrans,   64,  4, 16, 16,  4>(const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, cuDoubleComplex, cuDoubleComplex, int, int, int, int, int, int, int);
-template void zgemmN<CBlasTrans,     64,  4, 16,  4, 16>(const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, cuDoubleComplex, cuDoubleComplex, int, int, int, int, int, int, int);
-template void zgemmN<CBlasConjTrans, 64,  4, 16,  4, 16>(const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, cuDoubleComplex, cuDoubleComplex, int, int, int, int, int, int, int);
+template void zgemmN<CBlasNoTrans,   64,  4, 16, 16,  4>(cuDoubleComplex, cuDoubleComplex, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int, int, int, int);
+template void zgemmN<CBlasTrans,     64,  4, 16,  4, 16>(cuDoubleComplex, cuDoubleComplex, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int, int, int, int);
+template void zgemmN<CBlasConjTrans, 64,  4, 16,  4, 16>(cuDoubleComplex, cuDoubleComplex, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int, int, int, int);
 
-template void zgemmT<CBlasTrans,     CBlasNoTrans,    8,  8,  4,  4,  8>(const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, cuDoubleComplex, cuDoubleComplex, int, int, int, int, int, int, int);
-template void zgemmT<CBlasTrans,     CBlasTrans,      8, 16,  8,  8,  8>(const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, cuDoubleComplex, cuDoubleComplex, int, int, int, int, int, int, int);
-template void zgemmT<CBlasTrans,     CBlasConjTrans,  8, 16,  8,  8,  8>(const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, cuDoubleComplex, cuDoubleComplex, int, int, int, int, int, int, int);
-template void zgemmT<CBlasConjTrans, CBlasNoTrans,    8,  8,  4,  4,  8>(const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, cuDoubleComplex, cuDoubleComplex, int, int, int, int, int, int, int);
-template void zgemmT<CBlasConjTrans, CBlasTrans,      8, 16,  8,  8,  8>(const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, cuDoubleComplex, cuDoubleComplex, int, int, int, int, int, int, int);
-template void zgemmT<CBlasConjTrans, CBlasConjTrans,  8, 16,  8,  8,  8>(const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, cuDoubleComplex, cuDoubleComplex, int, int, int, int, int, int, int);
+template void zgemmT<CBlasTrans,     CBlasNoTrans,    8,  8,  4,  4,  8>(cuDoubleComplex, cuDoubleComplex, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int, int, int, int);
+template void zgemmT<CBlasTrans,     CBlasTrans,      8, 16,  8,  8,  8>(cuDoubleComplex, cuDoubleComplex, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int, int, int, int);
+template void zgemmT<CBlasTrans,     CBlasConjTrans,  8, 16,  8,  8,  8>(cuDoubleComplex, cuDoubleComplex, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int, int, int, int);
+template void zgemmT<CBlasConjTrans, CBlasNoTrans,    8,  8,  4,  4,  8>(cuDoubleComplex, cuDoubleComplex, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int, int, int, int);
+template void zgemmT<CBlasConjTrans, CBlasTrans,      8, 16,  8,  8,  8>(cuDoubleComplex, cuDoubleComplex, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int, int, int, int);
+template void zgemmT<CBlasConjTrans, CBlasConjTrans,  8, 16,  8,  8,  8>(cuDoubleComplex, cuDoubleComplex, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int, int, int, int);

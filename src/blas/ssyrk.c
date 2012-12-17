@@ -200,8 +200,9 @@ CUresult cuSsyrk(CUmodule module, CBlasUplo uplo, CBlasTranspose trans,
 
   return CUDA_SUCCESS;
 }
-#if 0
-CUresult cuMultiGPUSsyrk(CBlasUplo uplo, CBlasTranspose trans,
+
+CUresult cuMultiGPUSsyrk(CUmultiGPU multiGPU,
+                         CBlasUplo uplo, CBlasTranspose trans,
                          size_t n, size_t k, float alpha, const float * restrict A, size_t lda,
                          float beta, float * restrict C, size_t ldc) {
   size_t nRowA = (trans == CBlasNoTrans) ? n : k;
@@ -219,15 +220,56 @@ CUresult cuMultiGPUSsyrk(CBlasUplo uplo, CBlasTranspose trans,
   if (n == 0 || ((alpha == zero || k == 0) && beta == one))
     return CUDA_SUCCESS;
 
-  if (trans == CBlasNoTrans) {
-    const size_t nb = 576;
+  if (alpha == zero) {
+    if (uplo == CBlasUpper) {
+      if (beta == zero) {
+#pragma omp parallel for
+        for (size_t j = 0; j < n; j++) {
+          for (size_t i = 0; i <= j; i++)
+            C[j * ldc + i] = zero;
+        }
+      }
+      else {
+#pragma omp parallel for
+        for (size_t j = 0; j < n; j++) {
+          for (size_t i = 0; i <= j; i++)
+            C[j * ldc + i] *= beta;
+        }
+      }
+    }
+    else {
+      if (beta == zero) {
+#pragma omp parallel for
+        for (size_t j = 0; j < n; j++) {
+          for (size_t i = j; i < n; i++)
+            C[j * ldc + i] = zero;
+        }
+      }
+      else {
+#pragma omp parallel for
+        for (size_t j = 0; j < n; j++) {
+          for (size_t i = j; i < n; i++)
+            C[j * ldc + i] *= beta;
+        }
+      }
+    }
+    return CUDA_SUCCESS;
+  }
 
+  const size_t nb = (trans == CBlasNoTrans) ? 640 : 384;
+
+  if (n < nb) {
+    ssyrk(uplo, trans, n, k, alpha, A, lda, beta, C, ldc);
+    return CUDA_SUCCESS;
+  }
+
+  if (trans == CBlasNoTrans) {
     if (uplo == CBlasLower) {
       for (size_t j = 0; j < n; j += nb) {
         const size_t jb = min(nb, n - j);
         ssyrk(uplo, trans, jb, k, alpha, &A[j], lda, beta, &C[j * ldc + j], ldc);
         if (j + jb < n)
-          CU_ERROR_CHECK(cuMultiGPUSgemm(handles, deviceCount, CBlasNoTrans, CBlasTrans, n - j - jb, jb, k, alpha, &A[j + jb], lda, &A[j], lda, beta, &C[j * ldc + j + jb], ldc));
+          CU_ERROR_CHECK(cuMultiGPUSgemm(multiGPU, CBlasNoTrans, CBlasTrans, n - j - jb, jb, k, alpha, &A[j + jb], lda, &A[j], lda, beta, &C[j * ldc + j + jb], ldc));
       }
     }
     else {
@@ -235,19 +277,17 @@ CUresult cuMultiGPUSsyrk(CBlasUplo uplo, CBlasTranspose trans,
         const size_t jb = min(nb, n - j);
         ssyrk(uplo, trans, jb, k, alpha, &A[j], lda, beta, &C[j * ldc + j], ldc);
         if (j + jb < n)
-          CU_ERROR_CHECK(cuMultiGPUSgemm(handles, deviceCount, CBlasNoTrans, CBlasTrans, jb, n - j - jb, k, alpha, &A[j], lda, &A[j + jb], lda, beta, &C[(j + jb) * ldc + j], ldc));
+          CU_ERROR_CHECK(cuMultiGPUSgemm(multiGPU, CBlasNoTrans, CBlasTrans, jb, n - j - jb, k, alpha, &A[j], lda, &A[j + jb], lda, beta, &C[(j + jb) * ldc + j], ldc));
       }
     }
   }
   else {
-    const size_t nb = 192;
-
     if (uplo == CBlasLower) {
       for (size_t j = 0; j < n; j += nb) {
         const size_t jb = min(nb, n - j);
         ssyrk(uplo, trans, jb, k, alpha, &A[j * lda], lda, beta, &C[j * ldc + j], ldc);
         if (j + jb < n)
-          CU_ERROR_CHECK(cuMultiGPUSgemm(handles, deviceCount, CBlasTrans, CBlasNoTrans, n - j - jb, jb, k, alpha, &A[(j + jb) * lda], lda, &A[j * lda], lda, beta, &C[j * ldc + j + jb], ldc));
+          CU_ERROR_CHECK(cuMultiGPUSgemm(multiGPU, CBlasTrans, CBlasNoTrans, n - j - jb, jb, k, alpha, &A[(j + jb) * lda], lda, &A[j * lda], lda, beta, &C[j * ldc + j + jb], ldc));
       }
     }
     else {
@@ -255,11 +295,10 @@ CUresult cuMultiGPUSsyrk(CBlasUplo uplo, CBlasTranspose trans,
         const size_t jb = min(nb, n - j);
         ssyrk(uplo, trans, jb, k, alpha, &A[j * lda], lda, beta, &C[j * ldc + j], ldc);
         if (j + jb < n)
-          CU_ERROR_CHECK(cuMultiGPUSgemm(handles, deviceCount, CBlasTrans, CBlasNoTrans, jb, n - j - jb, k, alpha, &A[j * lda], lda, &A[(j + jb) * lda], lda, beta, &C[(j + jb) * ldc + j], ldc));
+          CU_ERROR_CHECK(cuMultiGPUSgemm(multiGPU, CBlasTrans, CBlasNoTrans, jb, n - j - jb, k, alpha, &A[j * lda], lda, &A[(j + jb) * lda], lda, beta, &C[(j + jb) * ldc + j], ldc));
       }
     }
   }
 
   return CUDA_SUCCESS;
 }
-#endif

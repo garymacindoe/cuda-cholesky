@@ -241,8 +241,9 @@ CUresult cuDtrmm2(CUmodule module,
 
   return CUDA_SUCCESS;
 }
-#if 0
-CUresult cuMultiGPUDtrmm(CBlasSide side, CBlasUplo uplo, CBlasTranspose trans, CBlasDiag diag,
+
+CUresult cuMultiGPUDtrmm(CUmultiGPU multiGPU,
+                         CBlasSide side, CBlasUplo uplo, CBlasTranspose trans, CBlasDiag diag,
                          size_t m, size_t n,
                          double alpha, const double * restrict A, size_t lda,
                          double * restrict B, size_t ldb) {
@@ -261,6 +262,7 @@ CUresult cuMultiGPUDtrmm(CBlasSide side, CBlasUplo uplo, CBlasTranspose trans, C
   if (m == 0 || n == 0)
     return CUDA_SUCCESS;
 
+#if 0
   if (alpha == zero) {
     dgemm(CBlasNoTrans, CBlasNoTrans, m, n, 0, zero, A, lda, B, ldb, zero, B, ldb);
     return CUDA_SUCCESS;
@@ -398,7 +400,7 @@ CUresult cuMultiGPUDtrmm(CBlasSide side, CBlasUplo uplo, CBlasTranspose trans, C
       }
     }
   }
+#endif
 
   return CUDA_SUCCESS;
 }
-#endif

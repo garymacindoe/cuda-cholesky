@@ -1,10 +1,10 @@
 #include "blas.h"
 #include "error.h"
-#include "cuhandle.h"
 #include <stdio.h>
-#include <sys/time.h>
+#include <math.h>
 #include <float.h>
 #include <complex.h>
+#include <sys/time.h>
 #include "ctrmm_ref.c"
 
 // extern void ctrmm_(const char *, const char *, const char *, const char *,
@@ -89,12 +89,12 @@ int main(int argc, char * argv[]) {
   int deviceCount;
   CU_ERROR_CHECK(cuDeviceGetCount(&deviceCount));
 
-  CUhandle handles[deviceCount];
-  for (int i = 0; i < deviceCount; i++) {
-    CUdevice device;
-    CU_ERROR_CHECK(cuDeviceGet(&device, i));
-    CU_ERROR_CHECK(cuHandleCreate(&handles[i], CU_CTX_SCHED_YIELD, device));
-  }
+  CUdevice devices[deviceCount];
+  for (int i = 0; i < deviceCount; i++)
+    CU_ERROR_CHECK(cuDeviceGet(&devices[i], i));
+
+  CUmultiGPU multiGPU;
+  CU_ERROR_CHECK(cuMultiGPUCreate(&multiGPU, devices, deviceCount));
 
   alpha = (float)rand() / (float)RAND_MAX + ((float)rand() / (float)RAND_MAX) * I;
 
@@ -139,7 +139,7 @@ int main(int argc, char * argv[]) {
   }
 
   ctrmm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb);
-  CU_ERROR_CHECK(cuMultiGPUCtrmm(handles, deviceCount, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb));
+  CU_ERROR_CHECK(cuMultiGPUCtrmm(multiGPU, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb));
 
   bool passed = true;
   float rdiff = 0.0f, idiff = 0.0f;
@@ -174,7 +174,7 @@ int main(int argc, char * argv[]) {
     return -5;
   }
   for (size_t i = 0; i < 20; i++)
-    CU_ERROR_CHECK(cuMultiGPUCtrmm(handles, deviceCount, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb));
+    CU_ERROR_CHECK(cuMultiGPUCtrmm(multiGPU, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb));
   if (gettimeofday(&stop, NULL) != 0) {
     fputs("gettimeofday failed\n", stderr);
     return -6;
@@ -196,8 +196,7 @@ int main(int argc, char * argv[]) {
   free(B);
   free(refB);
 
-  for (int i = 0; i < deviceCount; i++)
-    CU_ERROR_CHECK(cuHandleDestroy(handles[i]));
+  CU_ERROR_CHECK(cuMultiGPUDestroy(multiGPU));
 
   return (int)!passed;
 }

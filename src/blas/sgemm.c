@@ -550,8 +550,8 @@ CUresult cuMultiGPUSgemm(CUmultiGPU multiGPU,
           args.A = &A[i];
           args.B = &B[j * ldb];
           args.C = &C[j * ldc + i];
-          CU_ERROR_CHECK(cuTaskSchedule(&tasks[t++], multiGPU, background_sgemm,
-                                        &args, sizeof(struct sgemm_args)));
+          CU_ERROR_CHECK(cuTaskCreate(&tasks[t], background_sgemm, &args, sizeof(struct sgemm_args)));
+          CU_ERROR_CHECK(cuMultiGPUSchedule(multiGPU, tasks[t++]));
         }
       }
     }
@@ -563,8 +563,8 @@ CUresult cuMultiGPUSgemm(CUmultiGPU multiGPU,
           args.A = &A[i * lda];
           args.B = &B[j * ldb];
           args.C = &C[j * ldc + i];
-          CU_ERROR_CHECK(cuTaskSchedule(&tasks[t++], multiGPU, background_sgemm,
-                                        &args, sizeof(struct sgemm_args)));
+          CU_ERROR_CHECK(cuTaskCreate(&tasks[t], background_sgemm, &args, sizeof(struct sgemm_args)));
+          CU_ERROR_CHECK(cuMultiGPUSchedule(multiGPU, tasks[t++]));
         }
       }
     }
@@ -578,8 +578,8 @@ CUresult cuMultiGPUSgemm(CUmultiGPU multiGPU,
           args.A = &A[i];
           args.B = &B[j];
           args.C = &C[j * ldc + i];
-          CU_ERROR_CHECK(cuTaskSchedule(&tasks[t++], multiGPU, background_sgemm,
-                                        &args, sizeof(struct sgemm_args)));
+          CU_ERROR_CHECK(cuTaskCreate(&tasks[t], background_sgemm, &args, sizeof(struct sgemm_args)));
+          CU_ERROR_CHECK(cuMultiGPUSchedule(multiGPU, tasks[t++]));
         }
       }
     }
@@ -591,8 +591,8 @@ CUresult cuMultiGPUSgemm(CUmultiGPU multiGPU,
           args.A = &A[i * lda];
           args.B = &B[j];
           args.C = &C[j * ldc + i];
-          CU_ERROR_CHECK(cuTaskSchedule(&tasks[t++], multiGPU, background_sgemm,
-                                        &args, sizeof(struct sgemm_args)));
+          CU_ERROR_CHECK(cuTaskCreate(&tasks[t], background_sgemm, &args, sizeof(struct sgemm_args)));
+          CU_ERROR_CHECK(cuMultiGPUSchedule(multiGPU, tasks[t++]));
         }
       }
     }

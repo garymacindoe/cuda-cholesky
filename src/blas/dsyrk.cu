@@ -1,6 +1,6 @@
 #include "blas.h"
 
-#if __CUDA_ARCH__ < 200 && !defined(__BANK_CONFLICTS__)
+#if __CUDA_ARCH__ < 200 && (!defined(__BANK_CONFLICTS__) || __BANK_CONFLICTS__ <= 1)
 
 // y(1:8) += alpha * x(1:8)
 __device__ void daxpy(double alpha, const int * __restrict__ x_hi,
@@ -106,7 +106,7 @@ __global__ void dsyrk(const double * __restrict__ A, double * __restrict__ C,
     B += (bj + threadIdx.y) * lda + threadIdx.x;
   }
   C += (bj + tj) * ldc + bi + ti;
-  int m = n - bi - ti;
+  const int m = n - bi - ti;
   n -= bj + tj;
 
   /*
@@ -187,7 +187,7 @@ __global__ void dsyrk(const double * __restrict__ A, double * __restrict__ C,
   }
 
   if (m <= 0 || n <= 0) return;
-  int i = bi + ti;
+  const int i = bi + ti;
   int j = bj + tj;
   if (beta == 0.0) {
     if (uplo == CBlasUpper) {
@@ -334,7 +334,7 @@ __global__ void dsyrk(const double * __restrict__ A, double * __restrict__ C,
     B += (bj + threadIdx.y) * lda + threadIdx.x;
   }
   C += (bj + tj) * ldc + bi + ti;
-  int m = n - bi - ti;
+  const int m = n - bi - ti;
   n -= bj + tj;
 
   /*
@@ -405,7 +405,7 @@ __global__ void dsyrk(const double * __restrict__ A, double * __restrict__ C,
   }
 
   if (m <= 0 || n <= 0) return;
-  int i = bi + ti;
+  const int i = bi + ti;
   int j = bj + tj;
   if (beta == 0.0) {
     if (uplo == CBlasUpper) {
@@ -496,7 +496,7 @@ __global__ void dsyrk(const double * __restrict__ A, double * __restrict__ C,
  * kb is chosen to be the largest multiple of 16 such that the number of blocks
  * per multiprocessor is limited by the register usage.
  */
-template void dsyrk<CBlasUpper, CBlasNoTrans, 64,  8, 16,  8,  8>(const double * __restrict__, double * __restrict__, double, double, int, int, int, int);
+template void dsyrk<CBlasUpper, CBlasNoTrans, 64,  8,  8,  8,  8>(const double * __restrict__, double * __restrict__, double, double, int, int, int, int);
 template void dsyrk<CBlasLower, CBlasNoTrans, 64,  8, 16,  8,  8>(const double * __restrict__, double * __restrict__, double, double, int, int, int, int);
 template void dsyrk<CBlasUpper, CBlasTrans,   32, 16,  8,  8,  8>(const double * __restrict__, double * __restrict__, double, double, int, int, int, int);
 template void dsyrk<CBlasLower, CBlasTrans,   32, 16,  8,  8,  8>(const double * __restrict__, double * __restrict__, double, double, int, int, int, int);

@@ -252,21 +252,26 @@ CUresult cuZtrmm2(CUmodule module,
   if (m == 0 || n == 0)
     return CUDA_SUCCESS;
 
-  const unsigned int mb = (side == CBlasRight) ? 64 : (trans == CBlasNoTrans) ? 64 : 32;
-  const unsigned int nb = (side == CBlasRight) ?  4 : (trans == CBlasNoTrans) ?  4 :  8;
-  const unsigned int kb = (side == CBlasRight) ? 16 : (trans == CBlasNoTrans) ? 16 :  8;
-  const unsigned int bx = (side == CBlasRight) ?  4 : (trans == CBlasNoTrans) ? 16 :  8;
-  const unsigned int by = (side == CBlasRight) ? 16 : (trans == CBlasNoTrans) ?  4 :  8;
+  const unsigned int mb = (side == CBlasRight) ? 64 :  8;
+  const unsigned int nb = (side == CBlasRight) ?  4 :  8;
+  const unsigned int kb = (side == CBlasRight) ? 16 :  4;
+  const unsigned int bx = (side == CBlasRight) ? 16 :  4;
+  const unsigned int by = (side == CBlasRight) ?  4 :  8;
 
-  char name[111];
-  snprintf(name, 111,
-           "_Z7ztrmm2%cIL9CBlasUplo%dEL14CBlasTranspose%dEL9CBlasDiag%dELj%uELj%uELj%uELj%uELj%uEEvii7double2PKS3_iS5_iPS3_i",
-           side, uplo, trans, diag, mb, nb, kb, bx, by);
+  char name[95];
+  if (trans == CBlasNoTrans)
+    snprintf(name, 78,
+             "_Z8ztrmm%c%c%cIL9CBlasDiag%dELj%uELj%uELj%uELj%uELj%uEEvPK7double2S3_PS1_S1_iiiii",
+             side, uplo, trans, diag, mb, nb, kb, bx, by);
+  else
+    snprintf(name, 95,
+             "_Z8ztrmm%c%cTIL14CBlasTranspose%dEL9CBlasDiag%dELj%uELj%uELj%uELj%uELj%uEEvPK7double2S4_PS2_S2_iiiii",
+             side, uplo, trans, diag, mb, nb, kb, bx, by);
 
   CUfunction function;
   CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
 
-  void * params[] = { &m, &n, &alpha, &A, &lda, &B, &ldb, &X, &ldx };
+  void * params[] = { &alpha, &A, &B, &X, &lda, &ldb, &ldx, &m, &n };
 
   CU_ERROR_CHECK(cuLaunchKernel(function,
                                 (unsigned int)(m + mb - 1) / mb, (unsigned int)(n + nb - 1) / nb, 1,
@@ -275,8 +280,9 @@ CUresult cuZtrmm2(CUmodule module,
 
   return CUDA_SUCCESS;
 }
-#if 0
-CUresult cuMultiGPUZtrmm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag,
+
+CUresult cuMultiGPUZtrmm(CUmultiGPU multiGPU,
+                         CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag,
                          size_t m, size_t n,
                          double complex alpha, const double complex * restrict A, size_t lda,
                          double complex * restrict B, size_t ldb) {
@@ -295,6 +301,7 @@ CUresult cuMultiGPUZtrmm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, 
   if (m == 0 || n == 0)
     return CUDA_SUCCESS;
 
+#if 0
   if (alpha == zero) {
     zgemm(CBlasNoTrans, CBlasNoTrans, m, n, 0, zero, A, lda, B, ldb, zero, B, ldb);
     return CUDA_SUCCESS;
@@ -432,7 +439,7 @@ CUresult cuMultiGPUZtrmm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, 
       }
     }
   }
+#endif
 
   return CUDA_SUCCESS;
 }
-#endif

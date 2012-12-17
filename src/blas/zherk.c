@@ -227,8 +227,9 @@ CUresult cuZherk(CUmodule module,
 
   return CUDA_SUCCESS;
 }
-#if 0
-CUresult cuMultiGPUZherk(CBlasUplo uplo, CBlasTranspose trans,
+
+CUresult cuMultiGPUZherk(CUmultiGPU multiGPU,
+                         CBlasUplo uplo, CBlasTranspose trans,
                          size_t n, size_t k,
                          double alpha, const double complex * restrict A, size_t lda,
                          double beta, double complex * restrict C, size_t ldc) {
@@ -248,6 +249,7 @@ CUresult cuMultiGPUZherk(CBlasUplo uplo, CBlasTranspose trans,
 
   if (n == 0 || ((alpha == zero || k == 0) && beta == one)) return CUDA_SUCCESS;
 
+#if 0
   if (trans == CBlasNoTrans) {
     const size_t nb = 64;
 
@@ -288,7 +290,7 @@ CUresult cuMultiGPUZherk(CBlasUplo uplo, CBlasTranspose trans,
       }
     }
   }
+#endif
 
   return CUDA_SUCCESS;
 }
-#endif

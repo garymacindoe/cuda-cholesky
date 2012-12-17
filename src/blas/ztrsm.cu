@@ -1,7 +1,7 @@
 #include "blas.h"
 #include <cuComplex.h>
 
-#if __CUDA_ARCH__ < 200 && !defined(__BANK_CONFLICTS__)
+#if __CUDA_ARCH__ < 200 && (!defined(__BANK_CONFLICTS__) || __BANK_CONFLICTS__ <= 1)
 
 // y(1:2) -= alpha * x(1:2)
 __device__ void zaxpy(cuDoubleComplex alpha, const int * x_real_hi, const int * x_real_lo,

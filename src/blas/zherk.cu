@@ -9,7 +9,7 @@ __host__ __device__ static __inline__ cuDoubleComplex cuCfma(double a, cuDoubleC
   return make_cuDoubleComplex(a * cuCreal(b) + cuCreal(c), a * cuCimag(b) + cuCimag(c));
 }
 
-#if __CUDA_ARCH__ < 200 && !defined(__BANK_CONFLICTS__)
+#if __CUDA_ARCH__ < 200 && (!defined(__BANK_CONFLICTS__) || __BANK_CONFLICTS__ <= 1)
 
 // y(1:4) += alpha * x(1:4)
 __device__ void zaxpy4(cuDoubleComplex alpha,
@@ -362,6 +362,338 @@ __global__ void zherkC(const cuDoubleComplex * __restrict__ A,
   }
 }
 
+#elif __CUDA_ARCH__ >= 200 && __CUDA_ARCH__ < 210 || __CUDA_ARCH__ < 200 && __BANK_CONFLICTS__ == 2
+
+// y(1:4) += alpha * x(1:4)
+__device__ void zaxpy4(cuDoubleComplex alpha, const double * x_real, const double * x_imag, cuDoubleComplex * y) {
+  y[0] = cuCfma(alpha, make_cuDoubleComplex(x_real[0], x_imag[0]), y[0]);
+  y[1] = cuCfma(alpha, make_cuDoubleComplex(x_real[1], x_imag[1]), y[1]);
+  y[2] = cuCfma(alpha, make_cuDoubleComplex(x_real[2], x_imag[2]), y[2]);
+  y[3] = cuCfma(alpha, make_cuDoubleComplex(x_real[3], x_imag[3]), y[3]);
+}
+
+// y(1:2) += alpha * x(1:2)
+__device__ void zaxpy2(cuDoubleComplex alpha, const double * x_real, const double * x_imag, cuDoubleComplex * y) {
+  y[0] = cuCfma(alpha, make_cuDoubleComplex(x_real[0], x_imag[0]), y[0]);
+  y[1] = cuCfma(alpha, make_cuDoubleComplex(x_real[1], x_imag[1]), y[1]);
+}
+
+/**
+ * ZHERK:
+ *   C := alpha * A'A + beta * C for trans == CBlasNoTrans; or
+ *   C := alpha * AA' + beta * C for trans != CBlasNoTrans.
+ *
+ * Only the upper or lower triangle of C is updated.
+ *
+ * @param uplo   uplo for C.
+ * @param trans  transpose for A.
+ * @param mb     the number of rows in the block of C.
+ * @param nb     the number of columns in the block of C.
+ * @param kb     how far to unroll the inner loop.
+ * @param bx     blockDim.x.
+ * @param by     blockDim.y.
+ */
+template <CBlasUplo uplo,
+          unsigned int mb, unsigned int nb, unsigned int kb,
+          unsigned int bx, unsigned int by>
+__global__ void zherkN(const cuDoubleComplex * __restrict__ A,
+                       cuDoubleComplex * __restrict__ C,
+                       double alpha, double beta,
+                       int lda, int ldc,
+                       int n, int k) {
+
+//   int bi, bj, nnb = (n + nb - 1) / nb;
+//   if (uplo == CBlasLower) {
+//     bi = blockIdx.x % nnb;
+//     bj = blockIdx.x / nnb;
+//     if (bi < bj) {
+//       bi = nnb - bi - 1;
+//       bj = nnb - bj;
+//     }
+//   }
+//   else {
+//     bi = blockIdx.x / nnb;
+//     bj = blockIdx.x % nnb;
+//     if (bj < bi) {
+//       bi = nnb - bi;
+//       bj = nnb - bj - 1;
+//     }
+//   }
+//
+//   bi *= mb;
+//   bj *= nb;
+
+  const int bi = blockIdx.x * mb;       // Starting row of block of C
+  const int bj = blockIdx.y * nb;       // Starting column of block of C
+
+  /*
+   * Cause blocks that are entirely above or below the diagonal to exit now.
+   */
+  if (uplo == CBlasUpper) {
+    if (bj + nb - 1 < bi)
+      return;
+  }
+  else if (uplo == CBlasLower) {
+    if (bi + mb - 1 < bj)
+      return;
+  }
+
+  // Using a ZGEMM kernel, ZHERK is:
+  // C = alpha * A * B + beta * C
+  // with A = A and B = A' when trans == CBlasNoTrans, and
+  // with A = A' and B = A when trans == CBlasTrans
+  const cuDoubleComplex * __restrict__ B = A;
+
+  const int ti = threadIdx.y * bx + threadIdx.x;        // Unwrapped thread index [0, bx * by]
+
+  /*
+   * Compute our starting points in A, "B" and C.
+   *
+   * For trans != CBlasNoTrans A is cached in shared memory so the unwrapped
+   * thread index can be re-wrapped around mb when calculating C.
+   *
+   * If trans == CBlasNoTrans then bx * by == mb (checked later on) so there
+   * doesn't need to be a separate check for trans == CBlasNoTrans in
+   * calculating the start of C here.
+   */
+  A += bi + ti;
+  B += threadIdx.y * lda + bj + threadIdx.x;
+  C += bj * ldc + bi + ti;
+  int m = n - bi - ti;
+  n -= bj;
+
+  /*
+   * Blocks of A and "B" in shared memory and C in registers.
+   */
+  __shared__ double b_real[kb][nb];
+  __shared__ double b_imag[kb][nb];
+
+  cuDoubleComplex c[] = { { 0.0, 0.0 }, { 0.0, 0.0 }, { 0.0, 0.0 }, { 0.0, 0.0 } };
+
+  while (k > 0) {
+      // C = aAA' + bC so read B into shared memory and transpose leaving A
+      // untransposed in global memory
+#pragma unroll
+    for (int l = 0; l < kb; l += by) {
+      b_real[l + threadIdx.y][threadIdx.x] =  cuCreal(B[l * lda]);
+      b_imag[l + threadIdx.y][threadIdx.x] = -cuCimag(B[l * lda]);
+    }
+
+    __syncthreads();
+
+    if (k < kb) break;
+
+    // Read A from global memory
+#pragma unroll
+    for (int l = 0; l < kb; l++) {
+      zaxpy4(A[0], b_real[l], b_imag[l], c);
+      A += lda;
+    }
+
+    __syncthreads();
+
+    B += kb * lda;
+    k -= kb;
+  }
+
+  // Read A from global memory
+  for (int l = 0; l < k; l++) {
+    zaxpy4(A[0], b_real[l], b_imag[l], c);
+    A += lda;
+  }
+
+  if (m <= 0 || n <= 0) return;
+  const int i = bi + ti;
+  int j = bj;
+  if (beta == 0.0) {
+    if (uplo == CBlasUpper) {
+      if (i <= j) C[0] = (i == j) ? make_cuDoubleComplex(alpha * cuCreal(c[0]), 0.0) : cuCmul(alpha, c[0]); if (1 >= n) return; j++; C += ldc;
+      if (i <= j) C[0] = (i == j) ? make_cuDoubleComplex(alpha * cuCreal(c[1]), 0.0) : cuCmul(alpha, c[1]); if (2 >= n) return; j++; C += ldc;
+      if (i <= j) C[0] = (i == j) ? make_cuDoubleComplex(alpha * cuCreal(c[2]), 0.0) : cuCmul(alpha, c[2]); if (3 >= n) return; j++; C += ldc;
+      if (i <= j) C[0] = (i == j) ? make_cuDoubleComplex(alpha * cuCreal(c[3]), 0.0) : cuCmul(alpha, c[3]);
+    }
+    else {
+      if (i >= j) C[0] = (i == j) ? make_cuDoubleComplex(alpha * cuCreal(c[0]), 0.0) : cuCmul(alpha, c[0]); if (1 >= n) return; j++; C += ldc;
+      if (i >= j) C[0] = (i == j) ? make_cuDoubleComplex(alpha * cuCreal(c[1]), 0.0) : cuCmul(alpha, c[1]); if (2 >= n) return; j++; C += ldc;
+      if (i >= j) C[0] = (i == j) ? make_cuDoubleComplex(alpha * cuCreal(c[2]), 0.0) : cuCmul(alpha, c[2]); if (3 >= n) return; j++; C += ldc;
+      if (i >= j) C[0] = (i == j) ? make_cuDoubleComplex(alpha * cuCreal(c[3]), 0.0) : cuCmul(alpha, c[3]);
+    }
+  }
+  else {
+    if (uplo == CBlasUpper) {
+      if (i <= j) C[0] = cuCfma(alpha, c[0], cuCmul(beta, ((i == j) ? make_cuDoubleComplex(cuCreal(C[0]), 0.0) : C[0]))); if (1 >= n) return; j++; C += ldc;
+      if (i <= j) C[0] = cuCfma(alpha, c[1], cuCmul(beta, ((i == j) ? make_cuDoubleComplex(cuCreal(C[0]), 0.0) : C[0]))); if (2 >= n) return; j++; C += ldc;
+      if (i <= j) C[0] = cuCfma(alpha, c[2], cuCmul(beta, ((i == j) ? make_cuDoubleComplex(cuCreal(C[0]), 0.0) : C[0]))); if (3 >= n) return; j++; C += ldc;
+      if (i <= j) C[0] = cuCfma(alpha, c[3], cuCmul(beta, ((i == j) ? make_cuDoubleComplex(cuCreal(C[0]), 0.0) : C[0])));
+    }
+    else {
+      if (i >= j) C[0] = cuCfma(alpha, c[0], cuCmul(beta, ((i == j) ? make_cuDoubleComplex(cuCreal(C[0]), 0.0) : C[0]))); if (1 >= n) return; j++; C += ldc;
+      if (i >= j) C[0] = cuCfma(alpha, c[1], cuCmul(beta, ((i == j) ? make_cuDoubleComplex(cuCreal(C[0]), 0.0) : C[0]))); if (2 >= n) return; j++; C += ldc;
+      if (i >= j) C[0] = cuCfma(alpha, c[2], cuCmul(beta, ((i == j) ? make_cuDoubleComplex(cuCreal(C[0]), 0.0) : C[0]))); if (3 >= n) return; j++; C += ldc;
+      if (i >= j) C[0] = cuCfma(alpha, c[3], cuCmul(beta, ((i == j) ? make_cuDoubleComplex(cuCreal(C[0]), 0.0) : C[0])));
+    }
+  }
+}
+
+/**
+ * ZHERK:
+ *   C := alpha * A'A + beta * C for trans == CBlasNoTrans; or
+ *   C := alpha * AA' + beta * C for trans != CBlasNoTrans.
+ *
+ * Only the upper or lower triangle of C is updated.
+ *
+ * @param uplo   uplo for C.
+ * @param trans  transpose for A.
+ * @param mb     the number of rows in the block of C.
+ * @param nb     the number of columns in the block of C.
+ * @param kb     how far to unroll the inner loop.
+ * @param bx     blockDim.x.
+ * @param by     blockDim.y.
+ */
+template <CBlasUplo uplo,
+          unsigned int mb, unsigned int nb, unsigned int kb,
+          unsigned int bx, unsigned int by>
+__global__ void zherkC(const cuDoubleComplex * __restrict__ A,
+                      cuDoubleComplex * __restrict__ C,
+                      double alpha, double beta,
+                      int lda, int ldc,
+                      int n, int k) {
+
+//   int bi, bj, nnb = (n + nb - 1) / nb;
+//   if (uplo == CBlasLower) {
+//     bi = blockIdx.x % nnb;
+//     bj = blockIdx.x / nnb;
+//     if (bi < bj) {
+//       bi = nnb - bi - 1;
+//       bj = nnb - bj;
+//     }
+//   }
+//   else {
+//     bi = blockIdx.x / nnb;
+//     bj = blockIdx.x % nnb;
+//     if (bj < bi) {
+//       bi = nnb - bi;
+//       bj = nnb - bj - 1;
+//     }
+//   }
+//
+//   bi *= mb;
+//   bj *= nb;
+
+  const int bi = blockIdx.x * mb;       // Starting row of block of C
+  const int bj = blockIdx.y * nb;       // Starting column of block of C
+
+  /*
+   * Cause blocks that are entirely above or below the diagonal to exit now.
+   */
+  if (uplo == CBlasUpper) {
+    if (bj + nb - 1 < bi)
+      return;
+  }
+  else if (uplo == CBlasLower) {
+    if (bi + mb - 1 < bj)
+      return;
+  }
+
+  // Using a CGEMM kernel, CHERK is:
+  // C = alpha * A * B + beta * C
+  // with A = A and B = A' when trans == CBlasNoTrans, and
+  // with A = A' and B = A when trans == CBlasTrans
+  const cuDoubleComplex * __restrict__ B = A;
+
+  int ti = threadIdx.y * bx + threadIdx.x;        // Unwrapped thread index [0, bx * by]
+  const int tj = 2 * (ti / mb);
+  ti = ti % mb;
+
+  /*
+   * Compute our starting points in A, "B" and C.
+   *
+   * For trans != CBlasNoTrans A is cached in shared memory so the unwrapped
+   * thread index can be re-wrapped around mb when calculating C.
+   *
+   * If trans == CBlasNoTrans then bx * by == mb (checked later on) so there
+   * doesn't need to be a separate check for trans == CBlasNoTrans in
+   * calculating the start of C here.
+   */
+  A += (bi + threadIdx.y) * lda + threadIdx.x;
+  B += (bj + threadIdx.y) * lda + threadIdx.x;
+  C += (bj + tj) * ldc + bi + ti;
+  int m = n - bi - ti;
+  n -= bj + tj;
+
+  /*
+   * Blocks of A and "B" in shared memory and C in registers.
+   */
+  __shared__ double a_real[mb][kb + 1];
+  __shared__ double a_imag[mb][kb + 1];
+  __shared__ double b_real[kb][nb + 1];
+  __shared__ double b_imag[kb][nb + 1];
+
+  cuDoubleComplex c[] = { { 0.0, 0.0 }, { 0.0, 0.0 } };
+
+  while (k > 0) {
+    // C = aA'A + bC so read A into shared memory and transpose before reading
+    // B into shared memory untransposed
+#pragma unroll
+    for (int i = 0; i < mb; i += by) {
+      a_real[i + threadIdx.y][threadIdx.x] =  cuCreal(A[i * lda]);
+      a_imag[i + threadIdx.y][threadIdx.x] = -cuCimag(A[i * lda]);
+    }
+    A += kb;
+
+#pragma unroll
+    for (int j = 0; j < nb; j += by) {
+      b_real[threadIdx.x][j + threadIdx.y] = cuCreal(B[j * lda]);
+      b_imag[threadIdx.x][j + threadIdx.y] = cuCimag(B[j * lda]);
+    }
+
+    __syncthreads();
+
+    if (k < kb) break;
+
+    // Read A' from shared memory
+#pragma unroll
+    for (int l = 0; l < kb; l++)
+      zaxpy2(make_cuDoubleComplex(a_real[ti][l], a_imag[ti][l]),
+             &b_real[l][tj], &b_imag[l][tj], c);
+
+    __syncthreads();
+
+    B += kb;
+    k -= kb;
+  }
+
+
+  // Read A' from shared memory
+  for (int l = 0; l < k; l++)
+    zaxpy2(make_cuDoubleComplex(a_real[ti][l], a_imag[ti][l]),
+           &b_real[l][tj], &b_imag[l][tj], c);
+
+  if (m <= 0 || n <= 0) return;
+  const int i = bi + ti;
+  int j = bj + tj;
+  if (beta == 0.0) {
+    if (uplo == CBlasUpper) {
+      if (i <= j) C[0] = (i == j) ? make_cuDoubleComplex(alpha * cuCreal(c[0]), 0.0) : cuCmul(alpha, c[0]); if (1 >= n) return; j++; C += ldc;
+      if (i <= j) C[0] = (i == j) ? make_cuDoubleComplex(alpha * cuCreal(c[1]), 0.0) : cuCmul(alpha, c[1]);
+    }
+    else {
+      if (i >= j) C[0] = (i == j) ? make_cuDoubleComplex(alpha * cuCreal(c[0]), 0.0) : cuCmul(alpha, c[0]); if (1 >= n) return; j++; C += ldc;
+      if (i >= j) C[0] = (i == j) ? make_cuDoubleComplex(alpha * cuCreal(c[1]), 0.0) : cuCmul(alpha, c[1]);
+    }
+  }
+  else {
+    if (uplo == CBlasUpper) {
+      if (i <= j) C[0] = cuCfma(alpha, c[0], cuCmul(beta, ((i == j) ? make_cuDoubleComplex(cuCreal(C[0]), 0.0) : C[0]))); if (1 >= n) return; j++; C += ldc;
+      if (i <= j) C[0] = cuCfma(alpha, c[1], cuCmul(beta, ((i == j) ? make_cuDoubleComplex(cuCreal(C[0]), 0.0) : C[0])));
+    }
+    else {
+      if (i >= j) C[0] = cuCfma(alpha, c[0], cuCmul(beta, ((i == j) ? make_cuDoubleComplex(cuCreal(C[0]), 0.0) : C[0]))); if (1 >= n) return; j++; C += ldc;
+      if (i >= j) C[0] = cuCfma(alpha, c[1], cuCmul(beta, ((i == j) ? make_cuDoubleComplex(cuCreal(C[0]), 0.0) : C[0])));
+    }
+  }
+}
+
 #else
 
 // y(1:4) += alpha * x(1:4)
@@ -486,7 +818,7 @@ __global__ void zherkN(const cuDoubleComplex * __restrict__ A,
 
     __syncthreads();
 
-    B += kb;
+    B += kb * lda;
     k -= kb;
   }
 
@@ -528,6 +860,7 @@ __global__ void zherkN(const cuDoubleComplex * __restrict__ A,
     }
   }
 }
+
 template <CBlasUplo uplo,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
@@ -672,7 +1005,7 @@ __global__ void zherkC(const cuDoubleComplex * __restrict__ A,
  *   nb must be less than or equal to 20 (registers start spilling to global
  *        memory after 20).
  *   kb must be a multiple of the half-warp size (16) and such that
- *        (nb + 1)*kb*sizeof(cuComplex) is less than the amount of shared memory
+ *        (nb + 1)*kb*sizeof(cuDoubleComplex) is less than the amount of shared memory
  *        available per block (16384 bytes).
  *
  * mb and nb must be selected such that the bandwidth reduction is greater than
@@ -706,7 +1039,7 @@ __global__ void zherkC(const cuDoubleComplex * __restrict__ A,
  * kb is chosen to be the largest multiple of 16 such that the number of blocks
  * per multiprocessor is limited by the register usage.
  */
-template void zherkN<CBlasUpper,   64,  4, 16,  4, 16>(const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, double, double, int, int, int, int);
-template void zherkN<CBlasLower,   64,  4, 16,  4, 16>(const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, double, double, int, int, int, int);
+template void zherkN<CBlasUpper, 64,  4, 16,  4, 16>(const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, double, double, int, int, int, int);
+template void zherkN<CBlasLower, 64,  4, 16,  4, 16>(const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, double, double, int, int, int, int);
 template void zherkC<CBlasUpper,  8,  8,  4,  4,  8>(const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, double, double, int, int, int, int);
 template void zherkC<CBlasLower,  8,  8,  4,  4,  8>(const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, double, double, int, int, int, int);

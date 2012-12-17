@@ -34,6 +34,12 @@ extern errorHandler_t errorHandler;
  */
 const char * cuGetErrorString(CUresult);
 
+#define ERROR_HANDLER(call, error, strerror) \
+  do { \
+    if (errorHandler != NULL) \
+      errorHandler(call, __func__, __FILE__, __LINE__, error, strerror); \
+  } while (false)
+
 #define CU_ERROR_CHECK(call) \
   do { \
     CUresult __error__; \
@@ -42,6 +48,17 @@ const char * cuGetErrorString(CUresult);
         errorHandler(STRING(call), __func__, __FILE__, __LINE__, __error__, \
                      (const char * (*)(int))cuGetErrorString); \
       return __error__; \
+    } \
+  } while (false)
+
+#define ERROR_CHECK(call) \
+  do { \
+    int __error__; \
+    if ((__error__ = (call)) != CUDA_SUCCESS) { \
+      if (errorHandler != NULL) \
+        errorHandler(STRING(call), __func__, __FILE__, __LINE__, __error__, \
+                     (const char * (*)(int))strerror); \
+      return CUDA_ERROR_OPERATING_SYSTEM; \
     } \
   } while (false)
 

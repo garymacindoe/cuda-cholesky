@@ -9,7 +9,7 @@ __host__ __device__ static __inline__ cuComplex cuCfmaf(float a, cuComplex b, cu
   return make_cuComplex(a * cuCrealf(b) + cuCrealf(c), a * cuCimagf(b) + cuCimagf(c));
 }
 
-#if __CUDA_ARCH__ < 200 && !defined(__BANK_CONFLICTS__)
+#if __CUDA_ARCH__ < 200 && (!defined(__BANK_CONFLICTS__) || __BANK_CONFLICTS__ <= 1)
 
 // y(1:8) += alpha * x(1:8)
 __device__ void caxpy(cuComplex alpha, const float * x_real, const float * x_imag, cuComplex * y) {

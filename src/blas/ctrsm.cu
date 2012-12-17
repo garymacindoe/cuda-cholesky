@@ -1,7 +1,7 @@
 #include "blas.h"
 #include <cuComplex.h>
 
-#if __CUDA_ARCH__ < 200 && !defined(__BANK_CONFLICTS__)
+#if __CUDA_ARCH__ < 200 && (!defined(__BANK_CONFLICTS__) || __BANK_CONFLICTS__ <= 1)
 
 // y(1:4) -= alpha * x(1:4)
 __device__ void caxpy(cuComplex alpha, const float * x_real, const float * x_imag, cuComplex * y) {

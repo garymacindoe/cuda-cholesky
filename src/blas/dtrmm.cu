@@ -1,6 +1,6 @@
 #include "blas.h"
 
-#if __CUDA_ARCH__ < 200 && !defined(__BANK_CONFLICTS__)
+#if __CUDA_ARCH__ < 200 && (!defined(__BANK_CONFLICTS__) || __BANK_CONFLICTS__ <= 1)
 
 // y(1:8) += alpha * x(1:8)
 __device__ void daxpy(double alpha, const int * __restrict__ x_hi,
@@ -1725,20 +1725,20 @@ __global__ void dtrmmRLT(const double * __restrict__ A,
 
 #endif
 
-template void dtrmmLUN<CBlasUnit,    64,  8, 16, 16,  4>(const double * __restrict__, const double * __restrict__, double * __restrict__, double, int, int, int, int, int);
-template void dtrmmLUN<CBlasNonUnit, 64,  8, 16, 16,  4>(const double * __restrict__, const double * __restrict__, double * __restrict__, double, int, int, int, int, int);
+// template void dtrmmLUN<CBlasUnit,    64,  8, 16, 16,  4>(const double * __restrict__, const double * __restrict__, double * __restrict__, double, int, int, int, int, int);
+// template void dtrmmLUN<CBlasNonUnit, 64,  8, 16, 16,  4>(const double * __restrict__, const double * __restrict__, double * __restrict__, double, int, int, int, int, int);
 template void dtrmmLUT<CBlasUnit,    32, 16,  8,  8,  8>(const double * __restrict__, const double * __restrict__, double * __restrict__, double, int, int, int, int, int);
 template void dtrmmLUT<CBlasNonUnit, 32, 16,  8,  8,  8>(const double * __restrict__, const double * __restrict__, double * __restrict__, double, int, int, int, int, int);
-template void dtrmmLLN<CBlasUnit,    64,  8, 16, 16,  4>(const double * __restrict__, const double * __restrict__, double * __restrict__, double, int, int, int, int, int);
-template void dtrmmLLN<CBlasNonUnit, 64,  8, 16, 16,  4>(const double * __restrict__, const double * __restrict__, double * __restrict__, double, int, int, int, int, int);
-template void dtrmmLLT<CBlasUnit,    32, 16,  8,  8,  8>(const double * __restrict__, const double * __restrict__, double * __restrict__, double, int, int, int, int, int);
-template void dtrmmLLT<CBlasNonUnit, 32, 16,  8,  8,  8>(const double * __restrict__, const double * __restrict__, double * __restrict__, double, int, int, int, int, int);
-
-template void dtrmmRUN<CBlasUnit,    64,  8,  8,  8,  8>(const double * __restrict__, const double * __restrict__, double * __restrict__, double, int, int, int, int, int);
-template void dtrmmRUN<CBlasNonUnit, 64,  8,  8,  8,  8>(const double * __restrict__, const double * __restrict__, double * __restrict__, double, int, int, int, int, int);
-template void dtrmmRUT<CBlasUnit,    64,  8,  8,  8,  8>(const double * __restrict__, const double * __restrict__, double * __restrict__, double, int, int, int, int, int);
-template void dtrmmRUT<CBlasNonUnit, 64,  8,  8,  8,  8>(const double * __restrict__, const double * __restrict__, double * __restrict__, double, int, int, int, int, int);
-template void dtrmmRLN<CBlasUnit,    64,  8,  8,  8,  8>(const double * __restrict__, const double * __restrict__, double * __restrict__, double, int, int, int, int, int);
-template void dtrmmRLN<CBlasNonUnit, 64,  8,  8,  8,  8>(const double * __restrict__, const double * __restrict__, double * __restrict__, double, int, int, int, int, int);
-template void dtrmmRLT<CBlasUnit,    64,  8,  8,  8,  8>(const double * __restrict__, const double * __restrict__, double * __restrict__, double, int, int, int, int, int);
-template void dtrmmRLT<CBlasNonUnit, 64,  8,  8,  8,  8>(const double * __restrict__, const double * __restrict__, double * __restrict__, double, int, int, int, int, int);
+// template void dtrmmLLN<CBlasUnit,    64,  8, 16, 16,  4>(const double * __restrict__, const double * __restrict__, double * __restrict__, double, int, int, int, int, int);
+// template void dtrmmLLN<CBlasNonUnit, 64,  8, 16, 16,  4>(const double * __restrict__, const double * __restrict__, double * __restrict__, double, int, int, int, int, int);
+// template void dtrmmLLT<CBlasUnit,    32, 16,  8,  8,  8>(const double * __restrict__, const double * __restrict__, double * __restrict__, double, int, int, int, int, int);
+// template void dtrmmLLT<CBlasNonUnit, 32, 16,  8,  8,  8>(const double * __restrict__, const double * __restrict__, double * __restrict__, double, int, int, int, int, int);
+//
+// template void dtrmmRUN<CBlasUnit,    64,  8,  8,  8,  8>(const double * __restrict__, const double * __restrict__, double * __restrict__, double, int, int, int, int, int);
+// template void dtrmmRUN<CBlasNonUnit, 64,  8,  8,  8,  8>(const double * __restrict__, const double * __restrict__, double * __restrict__, double, int, int, int, int, int);
+// template void dtrmmRUT<CBlasUnit,    64,  8,  8,  8,  8>(const double * __restrict__, const double * __restrict__, double * __restrict__, double, int, int, int, int, int);
+// template void dtrmmRUT<CBlasNonUnit, 64,  8,  8,  8,  8>(const double * __restrict__, const double * __restrict__, double * __restrict__, double, int, int, int, int, int);
+// template void dtrmmRLN<CBlasUnit,    64,  8,  8,  8,  8>(const double * __restrict__, const double * __restrict__, double * __restrict__, double, int, int, int, int, int);
+// template void dtrmmRLN<CBlasNonUnit, 64,  8,  8,  8,  8>(const double * __restrict__, const double * __restrict__, double * __restrict__, double, int, int, int, int, int);
+// template void dtrmmRLT<CBlasUnit,    64,  8,  8,  8,  8>(const double * __restrict__, const double * __restrict__, double * __restrict__, double, int, int, int, int, int);
+// template void dtrmmRLT<CBlasNonUnit, 64,  8,  8,  8,  8>(const double * __restrict__, const double * __restrict__, double * __restrict__, double, int, int, int, int, int);

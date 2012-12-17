@@ -97,7 +97,7 @@ __global__ void ssyrk(const float * __restrict__ A, float * __restrict__ C,
     B += (bj + threadIdx.y) * lda + threadIdx.x;
   }
   C += (bj + tj) * ldc + bi + ti;
-  int m = n - bi - ti;
+  const int m = n - bi - ti;
   n -= bj + tj;
 
   /*
@@ -169,7 +169,7 @@ __global__ void ssyrk(const float * __restrict__ A, float * __restrict__ C,
   }
 
   if (m <= 0 || n <= 0) return;
-  int i = bi + ti;
+  const int i = bi + ti;
   int j = bj + tj;
   if (beta == 0.0f) {
     if (uplo == CBlasUpper) {

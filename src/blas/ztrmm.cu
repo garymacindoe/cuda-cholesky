@@ -1,7 +1,7 @@
 #include "blas.h"
 #include <cuComplex.h>
 
-#if __CUDA_ARCH__ < 200 && !defined(__BANK_CONFLICTS__)
+#if __CUDA_ARCH__ < 200 && (!defined(__BANK_CONFLICTS__) || __BANK_CONFLICTS__ <= 1)
 
 // y(1:4) += alpha * x(1:4)
 __device__ void zaxpy(cuDoubleComplex alpha, const int * __restrict__ x_real_hi,
@@ -70,10 +70,10 @@ __device__ void zscal(int n, cuDoubleComplex alpha,
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void ztrmmLUN(const cuDoubleComplex * __restrict__ A,
+__global__ void ztrmmLUN(cuDoubleComplex alpha,
+                         const cuDoubleComplex * __restrict__ A,
                          const cuDoubleComplex * __restrict__ B,
                          cuDoubleComplex * __restrict__ X,
-                         cuDoubleComplex alpha,
                          int lda, int ldb, int ldx,
                          int m, int n) {
 
@@ -191,9 +191,10 @@ __global__ void ztrmmLUN(const cuDoubleComplex * __restrict__ A,
 template <CBlasTranspose trans, CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void ztrmmLUT(const cuDoubleComplex * __restrict__ A,
-                         const cuDoubleComplex * __restrict__ B, cuDoubleComplex * __restrict__ X,
-                         cuDoubleComplex alpha,
+__global__ void ztrmmLUT(cuDoubleComplex alpha,
+                         const cuDoubleComplex * __restrict__ A,
+                         const cuDoubleComplex * __restrict__ B,
+                         cuDoubleComplex * __restrict__ X,
                          int lda, int ldb, int ldx,
                          int m, int n) {
 
@@ -340,9 +341,10 @@ __global__ void ztrmmLUT(const cuDoubleComplex * __restrict__ A,
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void ztrmmLLN(const cuDoubleComplex * __restrict__ A,
-                         const cuDoubleComplex * __restrict__ B, cuDoubleComplex * __restrict__ X,
-                         cuDoubleComplex alpha,
+__global__ void ztrmmLLN(cuDoubleComplex alpha,
+                         const cuDoubleComplex * __restrict__ A,
+                         const cuDoubleComplex * __restrict__ B,
+                         cuDoubleComplex * __restrict__ X,
                          int lda, int ldb, int ldx,
                          int m, int n) {
 
@@ -453,9 +455,10 @@ __global__ void ztrmmLLN(const cuDoubleComplex * __restrict__ A,
 template <CBlasTranspose trans, CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void ztrmmLLT(const cuDoubleComplex * __restrict__ A,
-                         const cuDoubleComplex * __restrict__ B, cuDoubleComplex * __restrict__ X,
-                         cuDoubleComplex alpha,
+__global__ void ztrmmLLT(cuDoubleComplex alpha,
+                         const cuDoubleComplex * __restrict__ A,
+                         const cuDoubleComplex * __restrict__ B,
+                         cuDoubleComplex * __restrict__ X,
                          int lda, int ldb, int ldx,
                          int m, int n) {
 
@@ -632,9 +635,10 @@ __global__ void ztrmmLLT(const cuDoubleComplex * __restrict__ A,
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void ztrmmRUN(const cuDoubleComplex * __restrict__ A,
-                         const cuDoubleComplex * __restrict__ B, cuDoubleComplex * __restrict__ X,
-                         cuDoubleComplex alpha,
+__global__ void ztrmmRUN(cuDoubleComplex alpha,
+                         const cuDoubleComplex * __restrict__ A,
+                         const cuDoubleComplex * __restrict__ B,
+                         cuDoubleComplex * __restrict__ X,
                          int lda, int ldb, int ldx,
                          int m, int n) {
 
@@ -714,9 +718,10 @@ __global__ void ztrmmRUN(const cuDoubleComplex * __restrict__ A,
 template <CBlasTranspose trans, CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void ztrmmRUT(const cuDoubleComplex * __restrict__ A,
-                         const cuDoubleComplex * __restrict__ B, cuDoubleComplex * __restrict__ X,
-                         cuDoubleComplex alpha,
+__global__ void ztrmmRUT(cuDoubleComplex alpha,
+                         const cuDoubleComplex * __restrict__ A,
+                         const cuDoubleComplex * __restrict__ B,
+                         cuDoubleComplex * __restrict__ X,
                          int lda, int ldb, int ldx,
                          int m, int n) {
 
@@ -814,9 +819,10 @@ __global__ void ztrmmRUT(const cuDoubleComplex * __restrict__ A,
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void ztrmmRLN(const cuDoubleComplex * __restrict__ A,
-                         const cuDoubleComplex * __restrict__ B, cuDoubleComplex * __restrict__ X,
-                         cuDoubleComplex alpha,
+__global__ void ztrmmRLN(cuDoubleComplex alpha,
+                         const cuDoubleComplex * __restrict__ A,
+                         const cuDoubleComplex * __restrict__ B,
+                         cuDoubleComplex * __restrict__ X,
                          int lda, int ldb, int ldx,
                          int m, int n) {
 
@@ -905,9 +911,10 @@ __global__ void ztrmmRLN(const cuDoubleComplex * __restrict__ A,
 template <CBlasTranspose trans, CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void ztrmmRLT(const cuDoubleComplex * __restrict__ A,
-                         const cuDoubleComplex * __restrict__ B, cuDoubleComplex * __restrict__ X,
-                         cuDoubleComplex alpha,
+__global__ void ztrmmRLT(cuDoubleComplex alpha,
+                         const cuDoubleComplex * __restrict__ A,
+                         const cuDoubleComplex * __restrict__ B,
+                         cuDoubleComplex * __restrict__ X,
                          int lda, int ldb, int ldx,
                          int m, int n) {
 
@@ -1025,9 +1032,10 @@ __device__ void zscal(int n, cuDoubleComplex alpha, const cuDoubleComplex * x, c
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void ztrmmLUN(const cuDoubleComplex * __restrict__ A,
-                         const cuDoubleComplex * __restrict__ B, cuDoubleComplex * __restrict__ X,
-                         cuDoubleComplex alpha,
+__global__ void ztrmmLUN(cuDoubleComplex alpha,
+                         const cuDoubleComplex * __restrict__ A,
+                         const cuDoubleComplex * __restrict__ B,
+                         cuDoubleComplex * __restrict__ X,
                          int lda, int ldb, int ldx,
                          int m, int n) {
 
@@ -1134,9 +1142,10 @@ __global__ void ztrmmLUN(const cuDoubleComplex * __restrict__ A,
 template <CBlasTranspose trans, CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void ztrmmLUT(const cuDoubleComplex * __restrict__ A,
-                         const cuDoubleComplex * __restrict__ B, cuDoubleComplex * __restrict__ X,
-                         cuDoubleComplex alpha,
+__global__ void ztrmmLUT(cuDoubleComplex alpha,
+                         const cuDoubleComplex * __restrict__ A,
+                         const cuDoubleComplex * __restrict__ B,
+                         cuDoubleComplex * __restrict__ X,
                          int lda, int ldb, int ldx,
                          int m, int n) {
 
@@ -1243,9 +1252,10 @@ __global__ void ztrmmLUT(const cuDoubleComplex * __restrict__ A,
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void ztrmmLLN(const cuDoubleComplex * __restrict__ A,
-                         const cuDoubleComplex * __restrict__ B, cuDoubleComplex * __restrict__ X,
-                         cuDoubleComplex alpha,
+__global__ void ztrmmLLN(cuDoubleComplex alpha,
+                         const cuDoubleComplex * __restrict__ A,
+                         const cuDoubleComplex * __restrict__ B,
+                         cuDoubleComplex * __restrict__ X,
                          int lda, int ldb, int ldx,
                          int m, int n) {
 
@@ -1345,9 +1355,10 @@ __global__ void ztrmmLLN(const cuDoubleComplex * __restrict__ A,
 template <CBlasTranspose trans, CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void ztrmmLLT(const cuDoubleComplex * __restrict__ A,
-                         const cuDoubleComplex * __restrict__ B, cuDoubleComplex * __restrict__ X,
-                         cuDoubleComplex alpha,
+__global__ void ztrmmLLT(cuDoubleComplex alpha,
+                         const cuDoubleComplex * __restrict__ A,
+                         const cuDoubleComplex * __restrict__ B,
+                         cuDoubleComplex * __restrict__ X,
                          int lda, int ldb, int ldx,
                          int m, int n) {
 
@@ -1479,9 +1490,10 @@ __global__ void ztrmmLLT(const cuDoubleComplex * __restrict__ A,
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void ztrmmRUN(const cuDoubleComplex * __restrict__ A,
-                         const cuDoubleComplex * __restrict__ B, cuDoubleComplex * __restrict__ X,
-                         cuDoubleComplex alpha,
+__global__ void ztrmmRUN(cuDoubleComplex alpha,
+                         const cuDoubleComplex * __restrict__ A,
+                         const cuDoubleComplex * __restrict__ B,
+                         cuDoubleComplex * __restrict__ X,
                          int lda, int ldb, int ldx,
                          int m, int n) {
 
@@ -1550,9 +1562,10 @@ __global__ void ztrmmRUN(const cuDoubleComplex * __restrict__ A,
 template <CBlasTranspose trans, CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void ztrmmRUT(const cuDoubleComplex * __restrict__ A,
-                         const cuDoubleComplex * __restrict__ B, cuDoubleComplex * __restrict__ X,
-                         cuDoubleComplex alpha,
+__global__ void ztrmmRUT(cuDoubleComplex alpha,
+                         const cuDoubleComplex * __restrict__ A,
+                         const cuDoubleComplex * __restrict__ B,
+                         cuDoubleComplex * __restrict__ X,
                          int lda, int ldb, int ldx,
                          int m, int n) {
 
@@ -1631,9 +1644,10 @@ __global__ void ztrmmRUT(const cuDoubleComplex * __restrict__ A,
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void ztrmmRLN(const cuDoubleComplex * __restrict__ A,
-                         const cuDoubleComplex * __restrict__ B, cuDoubleComplex * __restrict__ X,
-                         cuDoubleComplex alpha,
+__global__ void ztrmmRLN(cuDoubleComplex alpha,
+                         const cuDoubleComplex * __restrict__ A,
+                         const cuDoubleComplex * __restrict__ B,
+                         cuDoubleComplex * __restrict__ X,
                          int lda, int ldb, int ldx,
                          int m, int n) {
 
@@ -1711,9 +1725,10 @@ __global__ void ztrmmRLN(const cuDoubleComplex * __restrict__ A,
 template <CBlasTranspose trans, CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void ztrmmRLT(const cuDoubleComplex * __restrict__ A,
-                         const cuDoubleComplex * __restrict__ B, cuDoubleComplex * __restrict__ X,
-                         cuDoubleComplex alpha,
+__global__ void ztrmmRLT(cuDoubleComplex alpha,
+                         const cuDoubleComplex * __restrict__ A,
+                         const cuDoubleComplex * __restrict__ B,
+                         cuDoubleComplex * __restrict__ X,
                          int lda, int ldb, int ldx,
                          int m, int n) {
 
@@ -1781,28 +1796,28 @@ __global__ void ztrmmRLT(const cuDoubleComplex * __restrict__ A,
 
 #endif
 
-template void ztrmmLUN<CBlasUnit,    64,  4, 16, 16,  4>(const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, cuDoubleComplex, int, int, int, int, int);
-template void ztrmmLUN<CBlasNonUnit, 64,  4, 16, 16,  4>(const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, cuDoubleComplex, int, int, int, int, int);
-template void ztrmmLUT<CBlasTrans,     CBlasUnit,    8, 8,  4,  4,  8>(const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, cuDoubleComplex, int, int, int, int, int);
-template void ztrmmLUT<CBlasTrans,     CBlasNonUnit, 8, 8,  4,  4,  8>(const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, cuDoubleComplex, int, int, int, int, int);
-template void ztrmmLUT<CBlasConjTrans, CBlasUnit,    8, 8,  4,  4,  8>(const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, cuDoubleComplex, int, int, int, int, int);
-template void ztrmmLUT<CBlasConjTrans, CBlasNonUnit, 8, 8,  4,  4,  8>(const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, cuDoubleComplex, int, int, int, int, int);
-template void ztrmmLLN<CBlasUnit,    64,  4, 16, 16,  4>(const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, cuDoubleComplex, int, int, int, int, int);
-template void ztrmmLLN<CBlasNonUnit, 64,  4, 16, 16,  4>(const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, cuDoubleComplex, int, int, int, int, int);
-template void ztrmmLLT<CBlasTrans,     CBlasUnit,    8, 8,  4,  4,  8>(const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, cuDoubleComplex, int, int, int, int, int);
-template void ztrmmLLT<CBlasTrans,     CBlasNonUnit, 8, 8,  4,  4,  8>(const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, cuDoubleComplex, int, int, int, int, int);
-template void ztrmmLLT<CBlasConjTrans, CBlasUnit,    8, 8,  4,  4,  8>(const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, cuDoubleComplex, int, int, int, int, int);
-template void ztrmmLLT<CBlasConjTrans, CBlasNonUnit, 8, 8,  4,  4,  8>(const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, cuDoubleComplex, int, int, int, int, int);
+template void ztrmmLUN<CBlasUnit,    64,  4, 16, 16,  4>(cuDoubleComplex, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int, int);
+template void ztrmmLUN<CBlasNonUnit, 64,  4, 16, 16,  4>(cuDoubleComplex, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int, int);
+template void ztrmmLUT<CBlasTrans,     CBlasUnit,    8, 8,  4,  4,  8>(cuDoubleComplex, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int, int);
+template void ztrmmLUT<CBlasTrans,     CBlasNonUnit, 8, 8,  4,  4,  8>(cuDoubleComplex, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int, int);
+template void ztrmmLUT<CBlasConjTrans, CBlasUnit,    8, 8,  4,  4,  8>(cuDoubleComplex, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int, int);
+template void ztrmmLUT<CBlasConjTrans, CBlasNonUnit, 8, 8,  4,  4,  8>(cuDoubleComplex, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int, int);
+template void ztrmmLLN<CBlasUnit,    64,  4, 16, 16,  4>(cuDoubleComplex, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int, int);
+template void ztrmmLLN<CBlasNonUnit, 64,  4, 16, 16,  4>(cuDoubleComplex, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int, int);
+template void ztrmmLLT<CBlasTrans,     CBlasUnit,    8, 8,  4,  4,  8>(cuDoubleComplex, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int, int);
+template void ztrmmLLT<CBlasTrans,     CBlasNonUnit, 8, 8,  4,  4,  8>(cuDoubleComplex, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int, int);
+template void ztrmmLLT<CBlasConjTrans, CBlasUnit,    8, 8,  4,  4,  8>(cuDoubleComplex, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int, int);
+template void ztrmmLLT<CBlasConjTrans, CBlasNonUnit, 8, 8,  4,  4,  8>(cuDoubleComplex, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int, int);
 
-template void ztrmmRUN<CBlasUnit,    64,  4, 16, 16,  4>(const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, cuDoubleComplex, int, int, int, int, int);
-template void ztrmmRUN<CBlasNonUnit, 64,  4, 16, 16,  4>(const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, cuDoubleComplex, int, int, int, int, int);
-template void ztrmmRUT<CBlasTrans,     CBlasUnit,     8,  8,  4,  4,  8>(const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, cuDoubleComplex, int, int, int, int, int);
-template void ztrmmRUT<CBlasTrans,     CBlasNonUnit,  8,  8,  4,  4,  8>(const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, cuDoubleComplex, int, int, int, int, int);
-template void ztrmmRUT<CBlasConjTrans, CBlasUnit,     8,  8,  4,  4,  8>(const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, cuDoubleComplex, int, int, int, int, int);
-template void ztrmmRUT<CBlasConjTrans, CBlasNonUnit,  8,  8,  4,  4,  8>(const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, cuDoubleComplex, int, int, int, int, int);
-template void ztrmmRLN<CBlasUnit,    64,  4, 16, 16,  4>(const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, cuDoubleComplex, int, int, int, int, int);
-template void ztrmmRLN<CBlasNonUnit, 64,  4, 16, 16,  4>(const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, cuDoubleComplex, int, int, int, int, int);
-template void ztrmmRLT<CBlasTrans,     CBlasUnit,     8,  8,  4,  4,  8>(const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, cuDoubleComplex, int, int, int, int, int);
-template void ztrmmRLT<CBlasTrans,     CBlasNonUnit,  8,  8,  4,  4,  8>(const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, cuDoubleComplex, int, int, int, int, int);
-template void ztrmmRLT<CBlasConjTrans, CBlasUnit,     8,  8,  4,  4,  8>(const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, cuDoubleComplex, int, int, int, int, int);
-template void ztrmmRLT<CBlasConjTrans, CBlasNonUnit,  8,  8,  4,  4,  8>(const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, cuDoubleComplex, int, int, int, int, int);
+template void ztrmmRUN<CBlasUnit,    64,  4, 16, 16,  4>(cuDoubleComplex, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int, int);
+template void ztrmmRUN<CBlasNonUnit, 64,  4, 16, 16,  4>(cuDoubleComplex, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int, int);
+template void ztrmmRUT<CBlasTrans,     CBlasUnit,     8,  8,  4,  4,  8>(cuDoubleComplex, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int, int);
+template void ztrmmRUT<CBlasTrans,     CBlasNonUnit,  8,  8,  4,  4,  8>(cuDoubleComplex, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int, int);
+template void ztrmmRUT<CBlasConjTrans, CBlasUnit,     8,  8,  4,  4,  8>(cuDoubleComplex, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int, int);
+template void ztrmmRUT<CBlasConjTrans, CBlasNonUnit,  8,  8,  4,  4,  8>(cuDoubleComplex, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int, int);
+template void ztrmmRLN<CBlasUnit,    64,  4, 16, 16,  4>(cuDoubleComplex, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int, int);
+template void ztrmmRLN<CBlasNonUnit, 64,  4, 16, 16,  4>(cuDoubleComplex, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int, int);
+template void ztrmmRLT<CBlasTrans,     CBlasUnit,     8,  8,  4,  4,  8>(cuDoubleComplex, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int, int);
+template void ztrmmRLT<CBlasTrans,     CBlasNonUnit,  8,  8,  4,  4,  8>(cuDoubleComplex, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int, int);
+template void ztrmmRLT<CBlasConjTrans, CBlasUnit,     8,  8,  4,  4,  8>(cuDoubleComplex, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int, int);
+template void ztrmmRLT<CBlasConjTrans, CBlasNonUnit,  8,  8,  4,  4,  8>(cuDoubleComplex, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int, int);
