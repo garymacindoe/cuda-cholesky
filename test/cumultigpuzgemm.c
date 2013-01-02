@@ -3,9 +3,25 @@
 #include <stdio.h>
 #include <math.h>
 #include <float.h>
-#include <complex.h>
 #include <sys/time.h>
 #include "zgemm_ref.c"
+
+static CUresult createContext(const void * args) {
+  CUdevice * device = (CUdevice *)args;
+  CUcontext context;
+  CU_ERROR_CHECK(cuCtxCreate(&context, CU_CTX_SCHED_YIELD, *device));
+  return CUDA_SUCCESS;
+}
+
+static CUresult destroyContext(const void * args) {
+  (void)args;
+
+  CUcontext context;
+  CU_ERROR_CHECK(cuCtxGetCurrent(&context));
+  CU_ERROR_CHECK(cuCtxDestroy(context));
+
+  return CUDA_SUCCESS;
+}
 
 int main(int argc, char * argv[]) {
   CBlasTranspose transA, transB;
@@ -63,12 +79,22 @@ int main(int argc, char * argv[]) {
   int deviceCount;
   CU_ERROR_CHECK(cuDeviceGetCount(&deviceCount));
 
-  CUdevice devices[deviceCount];
-  for (int i = 0; i < deviceCount; i++)
-    CU_ERROR_CHECK(cuDeviceGet(&devices[i], i));
+  CUthread threads[deviceCount];
+  for (int i = 0; i < deviceCount; i++) {
+    CUdevice device;
+    CU_ERROR_CHECK(cuDeviceGet(&device, i));
 
-  CUmultiGPU multiGPU;
-  CU_ERROR_CHECK(cuMultiGPUCreate(&multiGPU, devices, deviceCount));
+    CUtask task;
+    CU_ERROR_CHECK(cuTaskCreate(&task, createContext, &device, sizeof(CUdevice)));
+
+    CU_ERROR_CHECK(cuThreadCreate(&threads[i]));
+    CU_ERROR_CHECK(cuThreadRunTask(threads[i], task));
+
+    CUresult result;
+    CU_ERROR_CHECK(cuTaskDestroy(task, &result));
+    if (result != CUDA_SUCCESS)
+      return (int)result;
+  }
 
   alpha = ((double)rand() / (double)RAND_MAX) + ((double)rand() / (double)RAND_MAX) * I;
   beta = ((double)rand() / (double)RAND_MAX) + ((double)rand() / (double)RAND_MAX) * I;
@@ -123,7 +149,7 @@ int main(int argc, char * argv[]) {
     }
   }
 
-  ldc = (m + 1u) & ~1u;
+  ldc = m;
   if ((C = malloc(ldc * n * sizeof(double complex))) == NULL) {
     fputs("Unable to allocate C\n", stderr);
     return -3;
@@ -139,7 +165,7 @@ int main(int argc, char * argv[]) {
   }
 
   zgemm_ref(transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, refC, ldc);
-  CU_ERROR_CHECK(cuMultiGPUZgemm(multiGPU, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc));
+  CU_ERROR_CHECK(cuMultiGPUZgemm(threads, deviceCount, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc));
 
   double rdiff = 0.0, idiff = 0.0;
   for (size_t j = 0; j < n; j++) {
@@ -159,7 +185,7 @@ int main(int argc, char * argv[]) {
     return -5;
   }
   for (size_t i = 0; i < 20; i++)
-    CU_ERROR_CHECK(cuMultiGPUZgemm(multiGPU, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc));
+    CU_ERROR_CHECK(cuMultiGPUZgemm(threads, deviceCount, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc));
   if (gettimeofday(&stop, NULL) != 0) {
     fputs("gettimeofday failed\n", stderr);
     return -6;
@@ -177,15 +203,26 @@ int main(int argc, char * argv[]) {
   flops *= m * n;
 
   bool passed = (rdiff <= error) && (idiff <= error);
-  fprintf(stdout, "%.3es %.3gGFlops/s Error: %.3e + %.3ei\n%sED!\n", time,
-          ((double)flops * 1.e-9) / time, rdiff, idiff, (passed) ? "PASS" : "FAIL");
+  fprintf(stdout, "%.3ems %.3gGFlops/s Error: %.3e + %.3ei\n%sED!\n", time,
+          ((double)flops * 1.e-6f) / time, rdiff, idiff, (passed) ? "PASS" : "FAIL");
 
   free(A);
   free(B);
   free(C);
   free(refC);
 
-  CU_ERROR_CHECK(cuMultiGPUDestroy(multiGPU));
+  for (int i = 0; i < deviceCount; i++) {
+    CUtask task;
+    CU_ERROR_CHECK(cuTaskCreate(&task, destroyContext, NULL, 0));
+    CU_ERROR_CHECK(cuThreadRunTask(threads[i], task));
+
+    CUresult result;
+    CU_ERROR_CHECK(cuTaskDestroy(task, &result));
+    if (result != 0)
+      return result;
+
+    CU_ERROR_CHECK(cuThreadDestroy(threads[i]));
+  }
 
   return (int)!passed;
 }
