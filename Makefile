@@ -1,6 +1,7 @@
 CUDA_HOME = /opt/cuda
 INTEL_HOME = /opt/intel/composerxe-2011.6.233
 
+AR = ar
 CC = gcc
 NVCC = nvcc
 PTXAS = ptxas
@@ -12,6 +13,7 @@ PTX_ARCH = compute_11
 CUBIN_ARCHES_DOUBLE = sm_13
 PTX_ARCH_DOUBLE = compute_13
 
+ARFLAGS = crs
 CPPFLAGS = -Iinclude -I$(CUDA_HOME)/include
 NVCPPFLAGS = -Iinclude
 LDFLAGS = -rdynamic -L$(CUDA_HOME)/lib64
@@ -24,7 +26,7 @@ ifeq ($(notdir $(CC)), icc)
   LDFLAGS += -L$(INTEL_HOME)
   LDLIBS += -liomp5
 else
-  CFLAGS = -march=native -ggdb -pipe -std=c99 -pedantic -Wall -Wextra -Wconversion -ftree-vectorize -ffast-math -fopenmp
+  CFLAGS = -march=native -O2 -pipe -std=c99 -pedantic -Wall -Wextra -Wconversion -ftree-vectorize -ffast-math -fopenmp
   LDLIBS += -lgomp
 endif
 
@@ -54,7 +56,8 @@ PTXDIR = ptx
 
 .PHONY: all clean distclean
 
-TEST_PROGS = sgemm dgemm cgemm zgemm \
+TEST_PROGS = cutask cutaskqueue cuthread \
+             sgemm dgemm cgemm zgemm \
              ssyrk dsyrk cherk zherk \
              strsm dtrsm ctrsm ztrsm \
              strmm dtrmm ctrmm ztrmm \
@@ -85,10 +88,12 @@ TEST_FATBINS_DOUBLE = dgemm.fatbin zgemm.fatbin \
                       dtrsm.fatbin ztrsm.fatbin \
                       dpotrf.fatbin zpotrf.fatbin
 
+MULTIGPU_OBJS = $(OBJDIR)/task.o $(OBJDIR)/taskqueue.o $(OBJDIR)/thread.o
+
 all: $(TEST_PROGS)
 
 clean:
-	$(RMDIR) obj
+	$(RMDIR) $(OBJDIR)
 
 distclean: clean
 	$(RM) $(TEST_PROGS) $(TEST_FATBINS)
@@ -98,6 +103,12 @@ $(TEST_PROGS):
 
 $(TEST_FATBINS_DOUBLE): PTX_ARCH = $(PTX_ARCH_DOUBLE)
 $(TEST_FATBINS_DOUBLE): CUBIN_ARCHES = $(CUBIN_ARCHES_DOUBLE)
+
+cutask: $(OBJDIR)/src/error.o $(OBJDIR)/src/task.o $(OBJDIR)/test/cutask.o
+
+cutaskqueue: $(OBJDIR)/src/error.o $(OBJDIR)/src/task.o $(OBJDIR)/src/taskqueue.o $(OBJDIR)/test/cutaskqueue.o
+
+cuthread: $(OBJDIR)/src/error.o $(OBJDIR)/src/task.o $(OBJDIR)/src/taskqueue.o $(OBJDIR)/src/thread.o $(OBJDIR)/test/cuthread.o
 
 sgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/test/sgemm.o
 dgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/test/dgemm.o
@@ -160,7 +171,7 @@ cudpotrf: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/d
 cucpotrf: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/src/blas/cherk.o $(OBJDIR)/src/blas/ctrsm.o $(OBJDIR)/src/blas/ctrmm.o $(OBJDIR)/src/lapack/cpotrf.o $(OBJDIR)/src/lapack/ctrtri.o $(OBJDIR)/test/cucpotrf.o | cgemm.fatbin cherk.fatbin ctrsm.fatbin ctrmm.fatbin cpotrf.fatbin
 cuzpotrf: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/blas/zherk.o $(OBJDIR)/src/blas/ztrsm.o $(OBJDIR)/src/blas/ztrmm.o $(OBJDIR)/src/lapack/zpotrf.o $(OBJDIR)/src/lapack/ztrtri.o $(OBJDIR)/test/cuzpotrf.o | zgemm.fatbin zherk.fatbin ztrsm.fatbin ztrmm.fatbin zpotrf.fatbin
 
-cumultigpusgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/task.o $(OBJDIR)/src/util/arrayqueue.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/test/cumultigpusgemm.o | sgemm.fatbin
+cumultigpusgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/task.o $(OBJDIR)/src/taskqueue.o $(OBJDIR)/src/thread.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/test/cumultigpusgemm.o | sgemm.fatbin
 cumultigpudgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/test/cumultigpudgemm.o | dgemm.fatbin
 cumultigpucgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/test/cumultigpucgemm.o | cgemm.fatbin
 cumultigpuzgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/test/cumultigpuzgemm.o | zgemm.fatbin
@@ -189,34 +200,34 @@ $(OBJDIR)/src: | $(OBJDIR)
 	$(MKDIR) $(@)
 
 $(OBJDIR)/src/error.o: error.h | $(OBJDIR)/src
-$(OBJDIR)/src/multigpu.o: multigpu.h cumultigpu.h error.h | $(OBJDIR)/src
-$(OBJDIR)/src/task.o: task.h error.h | $(OBJDIR)/src
 
 $(OBJDIR)/src/util: | $(OBJDIR)/src
 	$(MKDIR) $(@)
 
 $(OBJDIR)/src/util/arrayqueue.o: util/arrayqueue.h | $(OBJDIR)/src/util
+$(OBJDIR)/src/util/task.o: util/task.h | $(OBJDIR)/src/util
+$(OBJDIR)/src/util/thread.o: util/thread.h util/arrayqueue.h util/task.h | $(OBJDIR)/src/util
 
 $(OBJDIR)/src/blas: | $(OBJDIR)/src
 	$(MKDIR) $(@)
 
 $(OBJDIR)/src/blas/xerbla.o: blas.h | $(OBJDIR)/src/blas
-$(OBJDIR)/src/blas/sgemm.o: blas.h multigpu.h cumultigpu.h error.h | $(OBJDIR)/src/blas
-$(OBJDIR)/src/blas/dgemm.o: blas.h multigpu.h cumultigpu.h error.h | $(OBJDIR)/src/blas
-$(OBJDIR)/src/blas/cgemm.o: blas.h multigpu.h cumultigpu.h error.h | $(OBJDIR)/src/blas
-$(OBJDIR)/src/blas/zgemm.o: blas.h multigpu.h cumultigpu.h error.h | $(OBJDIR)/src/blas
-$(OBJDIR)/src/blas/ssyrk.o: blas.h multigpu.h cumultigpu.h error.h | $(OBJDIR)/src/blas
-$(OBJDIR)/src/blas/dsyrk.o: blas.h multigpu.h cumultigpu.h error.h | $(OBJDIR)/src/blas
-$(OBJDIR)/src/blas/cherk.o: blas.h multigpu.h cumultigpu.h error.h | $(OBJDIR)/src/blas
-$(OBJDIR)/src/blas/zherk.o: blas.h multigpu.h cumultigpu.h error.h | $(OBJDIR)/src/blas
-$(OBJDIR)/src/blas/strsm.o: blas.h multigpu.h cumultigpu.h error.h | $(OBJDIR)/src/blas
-$(OBJDIR)/src/blas/dtrsm.o: blas.h multigpu.h cumultigpu.h error.h | $(OBJDIR)/src/blas
-$(OBJDIR)/src/blas/ctrsm.o: blas.h multigpu.h cumultigpu.h error.h | $(OBJDIR)/src/blas
-$(OBJDIR)/src/blas/ztrsm.o: blas.h multigpu.h cumultigpu.h error.h | $(OBJDIR)/src/blas
-$(OBJDIR)/src/blas/strmm.o: blas.h multigpu.h cumultigpu.h error.h | $(OBJDIR)/src/blas
-$(OBJDIR)/src/blas/dtrmm.o: blas.h multigpu.h cumultigpu.h error.h | $(OBJDIR)/src/blas
-$(OBJDIR)/src/blas/ctrmm.o: blas.h multigpu.h cumultigpu.h error.h | $(OBJDIR)/src/blas
-$(OBJDIR)/src/blas/ztrmm.o: blas.h multigpu.h cumultigpu.h error.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/sgemm.o: blas.h cuthread.h cutask.h cutaskqueue.h error.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/dgemm.o: blas.h cuthread.h cutask.h cutaskqueue.h error.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/cgemm.o: blas.h cuthread.h cutask.h cutaskqueue.h error.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/zgemm.o: blas.h cuthread.h cutask.h cutaskqueue.h error.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/ssyrk.o: blas.h cuthread.h cutask.h cutaskqueue.h error.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/dsyrk.o: blas.h cuthread.h cutask.h cutaskqueue.h error.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/cherk.o: blas.h cuthread.h cutask.h cutaskqueue.h error.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/zherk.o: blas.h cuthread.h cutask.h cutaskqueue.h error.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/strsm.o: blas.h cuthread.h cutask.h cutaskqueue.h error.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/dtrsm.o: blas.h cuthread.h cutask.h cutaskqueue.h error.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/ctrsm.o: blas.h cuthread.h cutask.h cutaskqueue.h error.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/ztrsm.o: blas.h cuthread.h cutask.h cutaskqueue.h error.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/strmm.o: blas.h cuthread.h cutask.h cutaskqueue.h error.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/dtrmm.o: blas.h cuthread.h cutask.h cutaskqueue.h error.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/ctrmm.o: blas.h cuthread.h cutask.h cutaskqueue.h error.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/ztrmm.o: blas.h cuthread.h cutask.h cutaskqueue.h error.h | $(OBJDIR)/src/blas
 
 $(OBJDIR)/src/lapack: | $(OBJDIR)/src
 	$(MKDIR) $(@)
@@ -236,6 +247,10 @@ $(OBJDIR)/src/lapack/ztrtri.o: lapack.h blas.h multigpu.h cumultigpu.h error.h |
 
 $(OBJDIR)/test: | $(OBJDIR)
 	$(MKDIR) $(@)
+
+$(OBJDIR)/test/cutask.o: cutask.h | $(OBJDIR)/test
+$(OBJDIR)/test/cutaskqueue.o: cutaskqueue.h cutask.h | $(OBJDIR)/test
+$(OBJDIR)/test/cuthread.o: cuthread.h cutaskqueue.h cutask.h | $(OBJDIR)/test
 
 $(OBJDIR)/test/sgemm.o: test/sgemm_ref.c blas.h error.h | $(OBJDIR)/test
 $(OBJDIR)/test/dgemm.o: test/dgemm_ref.c blas.h error.h | $(OBJDIR)/test
@@ -281,7 +296,7 @@ $(OBJDIR)/test/custrmm2.o: test/strmm_ref.c error.h | $(OBJDIR)/test
 $(OBJDIR)/test/cudtrmm2.o: test/dtrmm_ref.c error.h | $(OBJDIR)/test
 $(OBJDIR)/test/cuctrmm2.o: test/ctrmm_ref.c error.h | $(OBJDIR)/test
 $(OBJDIR)/test/cuztrmm2.o: test/ztrmm_ref.c error.h | $(OBJDIR)/test
-$(OBJDIR)/test/cumultigpusgemm.o: test/sgemm_ref.c multigpu.h cumultigpu.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cumultigpusgemm.o: test/sgemm_ref.c blas.h cutask.h cutaskqueue.h cuthread.h error.h | $(OBJDIR)/test
 $(OBJDIR)/test/cumultigpudgemm.o: test/dgemm_ref.c multigpu.h cumultigpu.h error.h | $(OBJDIR)/test
 $(OBJDIR)/test/cumultigpucgemm.o: test/cgemm_ref.c multigpu.h cumultigpu.h error.h | $(OBJDIR)/test
 $(OBJDIR)/test/cumultigpuzgemm.o: test/zgemm_ref.c multigpu.h cumultigpu.h error.h | $(OBJDIR)/test
@@ -340,15 +355,19 @@ $(TEST_FATBINS): blas.h
 
 # Rules
 # Shell files
-%.c : %.sh
+%.c: %.sh
 	$(SHELL) $(.SHELLFLAGS) $(<) > $(@)
 
 # Object files
 $(OBJDIR)/%.o : %.c
 	$(CC) $(CPPFLAGS) $(CFLAGS) -o $(@) -c $(<)
 
+# Archive files
+%.a:
+	$(AR) $(ARFLAGS) $(@) $(^)
+
 # PTX files
-%.ptx : %.cu
+%.ptx: %.cu
 	$(NVCC) $(NVCPPFLAGS) $(NVCFLAGS) -o $(@) -ptx $(<)
 
 define ptx_template

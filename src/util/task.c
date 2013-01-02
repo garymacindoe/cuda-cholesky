@@ -1,17 +1,17 @@
-#include "cutask.h"
+#include "util/task.h"
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
 #include <pthread.h>
-#include "error.h"
+#include <errno.h>
 
 /**
  * Task structure.
  */
-struct __cutask_st {
-  CUresult (*function)(const void *);  /** The function to run                */
+struct __task_st {
+  int (*function)(const void *);       /** The function to run                */
   void * args;                         /** Arguments for the function         */
-  CUresult result;                     /** Result of the function             */
+  int result;                          /** Result of the function             */
   bool complete;                       /** Flag set when function is finished */
   pthread_mutex_t mutex;               /** Mutex to protect access to result and
                                            flag                               */
@@ -26,19 +26,18 @@ struct __cutask_st {
  * @param function  the function to execute.
  * @param args      arguments for the function.
  * @param size      the size of the arguments.
- * @return CUDA_SUCCESS on success,
- *         CUDA_ERROR_INVALID_VALUE if <b>function</b> is NULL or <b>args</b> is
- *         NULL and <b>size</b> is greater than 0,
- *         CUDA_ERROR_OUT_OF_MEMORY if there is not enough memory to create
- *         another task.
+ * @return zero on success,
+ *         EINVAL if <b>function</b> is NULL or <b>args</b> is NULL and
+ *         <b>size</b> is greater than 0,
+ *         ENOMEM if there is not enough memory to create another task.
  */
-CUresult cuTaskCreate(CUtask * task, CUresult (*function)(const void *),
-                      const void * args, size_t size) {
+int task_create(task_t * task, int (*function)(const void *), const void * args,
+                size_t size) {
   if (function == NULL || (args == NULL && size > 0))
-    return CUDA_ERROR_INVALID_VALUE;
+    return EINVAL;
 
-  if (((*task) = malloc(sizeof(struct __cutask_st))) == NULL)
-    return CUDA_ERROR_OUT_OF_MEMORY;
+  if (((*task) = malloc(sizeof(struct __task_st))) == NULL)
+    return ENOMEM;
 
   (*task)->function = function;
   (*task)->complete = false;
@@ -47,13 +46,13 @@ CUresult cuTaskCreate(CUtask * task, CUresult (*function)(const void *),
 
   if (((*task)->args = malloc(size)) == NULL) {
     free(*task);
-    return CUDA_ERROR_OUT_OF_MEMORY;
+    return ENOMEM;
   }
 
   // Copy arguments
   (*task)->args = memcpy((*task)->args, args, size);
 
-  return CUDA_SUCCESS;
+  return 0;
 }
 
 /**
@@ -62,39 +61,48 @@ CUresult cuTaskCreate(CUtask * task, CUresult (*function)(const void *),
  *
  * @param task    the task to destroy.
  * @param result  the result returned by the background task (may be NULL).
- * @return CUDA_SUCCESS, CUDA_ERROR_OPERATING_SYSTEM.
+ * @return zero on success.
  */
-CUresult cuTaskDestroy(CUtask task, CUresult * result) {
+int task_destroy(task_t task, int * result) {
+  int error;
+
   // Lock the mutex for the task
-  ERROR_CHECK(pthread_mutex_lock(&task->mutex));
+  if ((error = pthread_mutex_lock(&task->mutex)) != 0)
+    return error;
 
   // Wait until the task has been completed
-  while (!task->complete)
-    ERROR_CHECK(pthread_cond_wait(&task->cond, &task->mutex));
+  while (!task->complete) {
+    if ((error = pthread_cond_wait(&task->cond, &task->mutex)) != 0)
+      return error;
+  }
 
   // Copy the result
   if (result != NULL)
     *result = task->result;
 
   // Unlock the task mutex
-  ERROR_CHECK(pthread_mutex_unlock(&task->mutex));
+  if ((error = pthread_mutex_unlock(&task->mutex)) != 0)
+    return error;
 
   // Free the task and arguments
   free(task->args);
   free(task);
 
-  return CUDA_SUCCESS;
+  return 0;
 }
 
 /**
  * Executes the task on the calling thread.
  *
  * @param task  the task to execute.
- * @return CUDA_SUCCESS, CUDA_ERROR_OPERATING_SYSTEM.
+ * @return zero on success.
  */
-CUresult cuTaskExecute(CUtask task) {
+int task_execute(task_t task) {
+  int error;
+
   // Lock the mutex for the task
-  ERROR_CHECK(pthread_mutex_lock(&task->mutex));
+  if ((error = pthread_mutex_lock(&task->mutex)) != 0)
+    return error;
 
   // Run the task function using the arguments and assign the result
   task->result = task->function(task->args);
@@ -103,10 +111,12 @@ CUresult cuTaskExecute(CUtask task) {
   task->complete = true;
 
   // Unlock the task mutex
-  ERROR_CHECK(pthread_mutex_unlock(&task->mutex));
+  if ((error = pthread_mutex_unlock(&task->mutex)) != 0)
+    return error;
 
   // Signal to waiting threads that the task has now completed
-  ERROR_CHECK(pthread_cond_signal(&task->cond));
+  if ((error = pthread_cond_signal(&task->cond)) != 0)
+    return error;
 
-  return CUDA_SUCCESS;
+  return 0;
 }

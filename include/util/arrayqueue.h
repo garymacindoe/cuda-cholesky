@@ -20,13 +20,11 @@ typedef struct __arrayqueue_st * arrayqueue_t;
 int arrayqueue_create(arrayqueue_t *, size_t);
 
 /**
- * Destroys the queue using the given destructor function to destroy any objects
- * still in the queue.
+ * Destroys the queue.
  *
  * @param queue    the queue to destroy.
- * @param destroy  the destructor function for objects in the queue.
  */
-void arrayqueue_destroy(arrayqueue_t, void (*)(void *));
+void arrayqueue_destroy(arrayqueue_t);
 
 /**
  * Gets the object currently at the front of the queue.
@@ -73,5 +71,12 @@ size_t arrayqueue_size(const arrayqueue_t);
  * @return <b>true</b> if the queue is empty, <b>false</b> otherwise.
  */
 bool arrayqueue_isempty(const arrayqueue_t);
+
+/**
+ * Removes all items in the queue.
+ *
+ * @param queue  the queue.
+ */
+void arrayqueue_clear(arrayqueue_t);
 
 #endif

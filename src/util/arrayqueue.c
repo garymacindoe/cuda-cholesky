@@ -26,6 +26,7 @@ static inline size_t nextPow2(size_t n) {
   n |= n >> 4;
   n |= n >> 8;
   n |= n >> 16;
+  n |= n >> 32;
   n++;
   return n;
 }
@@ -58,21 +59,11 @@ int arrayqueue_create(arrayqueue_t * queue, size_t capacity) {
 }
 
 /**
- * Destroys the queue using the given destructor function to destroy any objects
- * still in the queue.
+ * Destroys the queue.
  *
- * @param queue    the queue to destroy.
- * @param destroy  the destructor function for objects in the queue.
+ * @param queue  the queue to destroy.
  */
-void arrayqueue_destroy(arrayqueue_t queue, void (*destroy)(void *)) {
-  // Call destructor function on objects in the queue
-  while (queue->head != queue->tail) {
-    destroy(queue->data[queue->head++]);
-
-    if (queue->head == queue->capacity)
-      queue->head = 0;
-  }
-
+void arrayqueue_destroy(arrayqueue_t queue) {
   // Free the data and queue
   free(queue->data);
   free(queue);
@@ -172,9 +163,9 @@ int arrayqueue_pop(arrayqueue_t queue, void ** obj) {
  * @return the size of the queue.
  */
 size_t arrayqueue_size(const arrayqueue_t queue) {
-  return (queue->head < queue->tail)    // Head can be greater than tail
-       ? queue->tail - queue->head
-       : (queue->capacity - queue->head) + queue->tail;
+  return (queue->head > queue->tail)    // Head can be greater than tail
+       ? (queue->capacity - queue->head) + queue->tail
+       : queue->tail - queue->head;
 }
 
 /**
@@ -185,4 +176,13 @@ size_t arrayqueue_size(const arrayqueue_t queue) {
  */
 bool arrayqueue_isempty(const arrayqueue_t queue) {
   return (queue->head == queue->tail);
+}
+
+/**
+ * Removes all items in the queue.
+ *
+ * @param queue  the queue.
+ */
+void arrayqueue_clear(arrayqueue_t queue) {
+  queue->head = queue->tail;
 }

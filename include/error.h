@@ -2,6 +2,7 @@
 #define ERROR_H
 
 #include <stdbool.h>
+#include <string.h>
 #include <cuda.h>
 
 // Expand and stringify argument
@@ -33,12 +34,6 @@ extern errorHandler_t errorHandler;
  * @return a human-readable description of the error that occurred.
  */
 const char * cuGetErrorString(CUresult);
-
-#define ERROR_HANDLER(call, error, strerror) \
-  do { \
-    if (errorHandler != NULL) \
-      errorHandler(call, __func__, __FILE__, __LINE__, error, strerror); \
-  } while (false)
 
 #define CU_ERROR_CHECK(call) \
   do { \
