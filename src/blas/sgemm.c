@@ -299,7 +299,8 @@ CUresult cuMultiGPUSgemm(CUthread * threads, int nThreads,
   CU_ERROR_CHECK(cuTaskQueueCreate(&queue, ((m + mb - 1) / mb) * ((n + nb - 1) / nb)));
   int t = 0;
 
-  struct sgemm_args args = { .k = k,
+  struct sgemm_args args = { .transA = transA, .transB = transB,
+                             .k = k,
                              .alpha = alpha, .lda = lda, .ldb = ldb,
                              .beta = beta, .ldc = ldc };
 

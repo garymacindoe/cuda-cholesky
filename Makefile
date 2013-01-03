@@ -232,18 +232,18 @@ $(OBJDIR)/src/blas/ztrmm.o: blas.h cuthread.h cutask.h cutaskqueue.h error.h | $
 $(OBJDIR)/src/lapack: | $(OBJDIR)/src
 	$(MKDIR) $(@)
 
-$(OBJDIR)/src/lapack/spotrf.o: lapack.h blas.h multigpu.h cumultigpu.h error.h | $(OBJDIR)/src/lapack
-$(OBJDIR)/src/lapack/dpotrf.o: lapack.h blas.h multigpu.h cumultigpu.h error.h | $(OBJDIR)/src/lapack
-$(OBJDIR)/src/lapack/cpotrf.o: lapack.h blas.h multigpu.h cumultigpu.h error.h | $(OBJDIR)/src/lapack
-$(OBJDIR)/src/lapack/zpotrf.o: lapack.h blas.h multigpu.h cumultigpu.h error.h | $(OBJDIR)/src/lapack
-$(OBJDIR)/src/lapack/spotri.o: lapack.h blas.h multigpu.h cumultigpu.h error.h | $(OBJDIR)/src/lapack
-$(OBJDIR)/src/lapack/dpotri.o: lapack.h blas.h multigpu.h cumultigpu.h error.h | $(OBJDIR)/src/lapack
-$(OBJDIR)/src/lapack/cpotri.o: lapack.h blas.h multigpu.h cumultigpu.h error.h | $(OBJDIR)/src/lapack
-$(OBJDIR)/src/lapack/zpotri.o: lapack.h blas.h multigpu.h cumultigpu.h error.h | $(OBJDIR)/src/lapack
-$(OBJDIR)/src/lapack/strtri.o: lapack.h blas.h multigpu.h cumultigpu.h error.h | $(OBJDIR)/src/lapack
-$(OBJDIR)/src/lapack/dtrtri.o: lapack.h blas.h multigpu.h cumultigpu.h error.h | $(OBJDIR)/src/lapack
-$(OBJDIR)/src/lapack/ctrtri.o: lapack.h blas.h multigpu.h cumultigpu.h error.h | $(OBJDIR)/src/lapack
-$(OBJDIR)/src/lapack/ztrtri.o: lapack.h blas.h multigpu.h cumultigpu.h error.h | $(OBJDIR)/src/lapack
+$(OBJDIR)/src/lapack/spotrf.o: lapack.h blas.h blas.h cutask.h cutaskqueue.h cuthread.h error.h | $(OBJDIR)/src/lapack
+$(OBJDIR)/src/lapack/dpotrf.o: lapack.h blas.h blas.h cutask.h cutaskqueue.h cuthread.h error.h | $(OBJDIR)/src/lapack
+$(OBJDIR)/src/lapack/cpotrf.o: lapack.h blas.h blas.h cutask.h cutaskqueue.h cuthread.h error.h | $(OBJDIR)/src/lapack
+$(OBJDIR)/src/lapack/zpotrf.o: lapack.h blas.h blas.h cutask.h cutaskqueue.h cuthread.h error.h | $(OBJDIR)/src/lapack
+$(OBJDIR)/src/lapack/spotri.o: lapack.h blas.h blas.h cutask.h cutaskqueue.h cuthread.h error.h | $(OBJDIR)/src/lapack
+$(OBJDIR)/src/lapack/dpotri.o: lapack.h blas.h blas.h cutask.h cutaskqueue.h cuthread.h error.h | $(OBJDIR)/src/lapack
+$(OBJDIR)/src/lapack/cpotri.o: lapack.h blas.h blas.h cutask.h cutaskqueue.h cuthread.h error.h | $(OBJDIR)/src/lapack
+$(OBJDIR)/src/lapack/zpotri.o: lapack.h blas.h blas.h cutask.h cutaskqueue.h cuthread.h error.h | $(OBJDIR)/src/lapack
+$(OBJDIR)/src/lapack/strtri.o: lapack.h blas.h blas.h cutask.h cutaskqueue.h cuthread.h error.h | $(OBJDIR)/src/lapack
+$(OBJDIR)/src/lapack/dtrtri.o: lapack.h blas.h blas.h cutask.h cutaskqueue.h cuthread.h error.h | $(OBJDIR)/src/lapack
+$(OBJDIR)/src/lapack/ctrtri.o: lapack.h blas.h blas.h cutask.h cutaskqueue.h cuthread.h error.h | $(OBJDIR)/src/lapack
+$(OBJDIR)/src/lapack/ztrtri.o: lapack.h blas.h blas.h cutask.h cutaskqueue.h cuthread.h error.h | $(OBJDIR)/src/lapack
 
 $(OBJDIR)/test: | $(OBJDIR)
 	$(MKDIR) $(@)
@@ -300,18 +300,18 @@ $(OBJDIR)/test/cumultigpusgemm.o: test/sgemm_ref.c blas.h cutask.h cutaskqueue.h
 $(OBJDIR)/test/cumultigpudgemm.o: test/dgemm_ref.c blas.h cutask.h cutaskqueue.h cuthread.h error.h | $(OBJDIR)/test
 $(OBJDIR)/test/cumultigpucgemm.o: test/cgemm_ref.c blas.h cutask.h cutaskqueue.h cuthread.h error.h | $(OBJDIR)/test
 $(OBJDIR)/test/cumultigpuzgemm.o: test/zgemm_ref.c blas.h cutask.h cutaskqueue.h cuthread.h error.h | $(OBJDIR)/test
-$(OBJDIR)/test/cumultigpussyrk.o: test/ssyrk_ref.c multigpu.h cumultigpu.h error.h | $(OBJDIR)/test
-$(OBJDIR)/test/cumultigpudsyrk.o: test/dsyrk_ref.c multigpu.h cumultigpu.h error.h | $(OBJDIR)/test
-$(OBJDIR)/test/cumultigpucherk.o: test/cherk_ref.c multigpu.h cumultigpu.h error.h | $(OBJDIR)/test
-$(OBJDIR)/test/cumultigpuzherk.o: test/zherk_ref.c multigpu.h cumultigpu.h error.h | $(OBJDIR)/test
-$(OBJDIR)/test/cumultigpustrsm.o: test/strsm_ref.c multigpu.h cumultigpu.h error.h | $(OBJDIR)/test
-$(OBJDIR)/test/cumultigpudtrsm.o: test/dtrsm_ref.c multigpu.h cumultigpu.h error.h | $(OBJDIR)/test
-$(OBJDIR)/test/cumultigpuctrsm.o: test/ctrsm_ref.c multigpu.h cumultigpu.h error.h | $(OBJDIR)/test
-$(OBJDIR)/test/cumultigpuztrsm.o: test/ztrsm_ref.c multigpu.h cumultigpu.h error.h | $(OBJDIR)/test
-$(OBJDIR)/test/cumultigpustrmm.o: test/strmm_ref.c multigpu.h cumultigpu.h error.h | $(OBJDIR)/test
-$(OBJDIR)/test/cumultigpudtrmm.o: test/dtrmm_ref.c multigpu.h cumultigpu.h error.h | $(OBJDIR)/test
-$(OBJDIR)/test/cumultigpuctrmm.o: test/ctrmm_ref.c multigpu.h cumultigpu.h error.h | $(OBJDIR)/test
-$(OBJDIR)/test/cumultigpuztrmm.o: test/ztrmm_ref.c multigpu.h cumultigpu.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cumultigpussyrk.o: test/ssyrk_ref.c blas.h cutask.h cutaskqueue.h cuthread.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cumultigpudsyrk.o: test/dsyrk_ref.c blas.h cutask.h cutaskqueue.h cuthread.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cumultigpucherk.o: test/cherk_ref.c blas.h cutask.h cutaskqueue.h cuthread.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cumultigpuzherk.o: test/zherk_ref.c blas.h cutask.h cutaskqueue.h cuthread.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cumultigpustrsm.o: test/strsm_ref.c blas.h cutask.h cutaskqueue.h cuthread.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cumultigpudtrsm.o: test/dtrsm_ref.c blas.h cutask.h cutaskqueue.h cuthread.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cumultigpuctrsm.o: test/ctrsm_ref.c blas.h cutask.h cutaskqueue.h cuthread.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cumultigpuztrsm.o: test/ztrsm_ref.c blas.h cutask.h cutaskqueue.h cuthread.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cumultigpustrmm.o: test/strmm_ref.c blas.h cutask.h cutaskqueue.h cuthread.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cumultigpudtrmm.o: test/dtrmm_ref.c blas.h cutask.h cutaskqueue.h cuthread.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cumultigpuctrmm.o: test/ctrmm_ref.c blas.h cutask.h cutaskqueue.h cuthread.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cumultigpuztrmm.o: test/ztrmm_ref.c blas.h cutask.h cutaskqueue.h cuthread.h error.h | $(OBJDIR)/test
 
 $(OBJDIR)/test/spotrf.o: test/spotrf_ref.c lapack.h blas.h error.h | $(OBJDIR)/test
 $(OBJDIR)/test/dpotrf.o: test/dpotrf_ref.c lapack.h blas.h error.h | $(OBJDIR)/test
@@ -321,10 +321,10 @@ $(OBJDIR)/test/cuspotrf.o: test/spotrf_ref.c lapack.h error.h | $(OBJDIR)/test
 $(OBJDIR)/test/cudpotrf.o: test/dpotrf_ref.c lapack.h error.h | $(OBJDIR)/test
 $(OBJDIR)/test/cucpotrf.o: test/cpotrf_ref.c lapack.h error.h | $(OBJDIR)/test
 $(OBJDIR)/test/cuzpotrf.o: test/zpotrf_ref.c lapack.h error.h | $(OBJDIR)/test
-$(OBJDIR)/test/cumultigpuspotrf.o: test/spotrf_ref.c lapack.h multigpu.h cumultigpu.h error.h | $(OBJDIR)/test
-$(OBJDIR)/test/cumultigpudpotrf.o: test/dpotrf_ref.c lapack.h multigpu.h cumultigpu.h error.h | $(OBJDIR)/test
-$(OBJDIR)/test/cumultigpucpotrf.o: test/cpotrf_ref.c lapack.h multigpu.h cumultigpu.h error.h | $(OBJDIR)/test
-$(OBJDIR)/test/cumultigpuzpotrf.o: test/zpotrf_ref.c lapack.h multigpu.h cumultigpu.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cumultigpuspotrf.o: test/spotrf_ref.c lapack.h blas.h cutask.h cutaskqueue.h cuthread.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cumultigpudpotrf.o: test/dpotrf_ref.c lapack.h blas.h cutask.h cutaskqueue.h cuthread.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cumultigpucpotrf.o: test/cpotrf_ref.c lapack.h blas.h cutask.h cutaskqueue.h cuthread.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cumultigpuzpotrf.o: test/zpotrf_ref.c lapack.h blas.h cutask.h cutaskqueue.h cuthread.h error.h | $(OBJDIR)/test
 
 $(OBJDIR)/test/strtri.o: lapack.h blas.h error.h | $(OBJDIR)/test
 $(OBJDIR)/test/dtrtri.o: lapack.h blas.h error.h | $(OBJDIR)/test
