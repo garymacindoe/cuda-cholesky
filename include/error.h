@@ -57,5 +57,16 @@ const char * cuGetErrorString(CUresult);
     } \
   } while (false)
 
+#define ERROR_CHECK_VOID(call) \
+  do { \
+    int __error__; \
+    if ((__error__ = (call)) != CUDA_SUCCESS) { \
+      if (errorHandler != NULL) \
+        errorHandler(STRING(call), __func__, __FILE__, __LINE__, __error__, \
+                     (const char * (*)(int))strerror); \
+      return; \
+    } \
+  } while (false)
+
 
 #endif

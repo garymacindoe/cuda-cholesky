@@ -212,10 +212,10 @@ $(OBJDIR)/src/blas: | $(OBJDIR)/src
 	$(MKDIR) $(@)
 
 $(OBJDIR)/src/blas/xerbla.o: blas.h | $(OBJDIR)/src/blas
-$(OBJDIR)/src/blas/sgemm.o: blas.h cuthread.h cutask.h cutaskqueue.h error.h | $(OBJDIR)/src/blas
-$(OBJDIR)/src/blas/dgemm.o: blas.h cuthread.h cutask.h cutaskqueue.h error.h | $(OBJDIR)/src/blas
-$(OBJDIR)/src/blas/cgemm.o: blas.h cuthread.h cutask.h cutaskqueue.h error.h | $(OBJDIR)/src/blas
-$(OBJDIR)/src/blas/zgemm.o: blas.h cuthread.h cutask.h cutaskqueue.h error.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/sgemm.o: src/blas/multigpusgemm.c blas.h cuthread.h cutask.h cutaskqueue.h error.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/dgemm.o: src/blas/multigpudgemm.c blas.h cuthread.h cutask.h cutaskqueue.h error.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/cgemm.o: src/blas/multigpucgemm.c blas.h cuthread.h cutask.h cutaskqueue.h error.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/zgemm.o: src/blas/multigpuzgemm.c blas.h cuthread.h cutask.h cutaskqueue.h error.h | $(OBJDIR)/src/blas
 $(OBJDIR)/src/blas/ssyrk.o: blas.h cuthread.h cutask.h cutaskqueue.h error.h | $(OBJDIR)/src/blas
 $(OBJDIR)/src/blas/dsyrk.o: blas.h cuthread.h cutask.h cutaskqueue.h error.h | $(OBJDIR)/src/blas
 $(OBJDIR)/src/blas/cherk.o: blas.h cuthread.h cutask.h cutaskqueue.h error.h | $(OBJDIR)/src/blas

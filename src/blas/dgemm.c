@@ -190,265 +190,63 @@ CUresult cuDgemm2(CUmodule module, CBlasTranspose transA, CBlasTranspose transB,
   return CUDA_SUCCESS;
 }
 
-struct dgemm_data {
-  CUmodule module;
-  CUstream compute, copy;
-  CUdeviceptr A0, A1, B0, B1, C;
-  size_t m, n, k, lda, ldb, ldc;
-  CBlasTranspose transA, transB;
-};
+/**
+  * When transA == CBlasNoTrans each GPU MP processes blocks of 64x8 using 64
+  * threads per block.
+  * There are 30 MPs on the GTX 280 and each requires a minimum of 3 blocks
+  * to mask memory latency (64 * 3 = 192 threads/6 warps).
+  * A maximum of 8 blocks will fit on each MP concurrently due to shared memory
+  * and register requirements.  Best performance should therefore occur when we
+  * have 30 * 8 = 240 blocks sent to the GPU.  This requires a 10x24, 12x20,
+  * 15x16, etc. block size here.
+  * 10x24 is chosen to retain the m >> n behaviour needed for DPOTRF('L',..).
+  * mb = 10 * 64 = 640
+  * nb = 24 *  8 = 192
+  * kb defines the amount of work done by each thread and the memory (and
+  * bandwidth) needed for A and B so needs to be tuned to give maximum
+  * performance.  It should be a multiple of the kb block size used to unroll
+  * the GPU code which in this case is 16.  kb >= 128 gives ~80GFlops/s.  This
+  * requires (640 * 192 + 2 * 128 * (640 + 192)) * 8 = 2624kB of graphics
+  * memory.
+  *
+  * These block sizes give a bandwidth reduction of 2 / (1/640 + 1/192) = 295.38
+  *
+  * Bandwidth between host and device is 6 GB/s each way
+  *
+  * FLOP:word ratio for transA == CBlasNoTrans is
+  * (80 * 10^9) / (6 * 1,073,741,824 / sizeof(double)) = 99.34
+  *
+  * When transA != CBlasNoTrans each GPU MP processes blocks of 32x16 using 64
+  * threads per block.
+  * There are 30 MPs on the GTX 280 and each requires a minimum of 3 blocks
+  * to mask memory latency (64 * 3 = 192 threads/6 warps).
+  * A maximum of 4 blocks will fit on each MP concurrently due to shared memory
+  * and register requirements.  Best performance should therefore occur when we
+  * have over 30 * 4 = 120 blocks sent to the GPU.  This requires a 6x20,
+  * 8x15, 4x30, etc. block size here.
+  * 4x30 is chosen to retain the m << n behaviour needed for DPOTRF('U',..).
+  * mb =  4 * 32 = 128
+  * nb = 30 * 16 = 480
+  * kb defines the amount of work done by each thread and the memory (and
+  * bandwidth) needed for A and B so needs to be tuned to give maximum
+  * performance.  It should be a multiple of the kb block size used to unroll
+  * the GPU code which in this case is 8.  264 <= kb <= 480 gives ~75GFlops/s.
+  * This requires (128 * 480 + 2 * 264 * (128 + 480)) * 8 = 2988kB of graphics
+  * memory.
+  *
+  * These block sizes give a bandwidth reduction of 2 / (1/128 + 1/480) = 202.11
+  *
+  * Bandwidth between host and device is 6 GB/s each way
+  *
+  * FLOP:word ratio for transA != CBlasNoTrans is
+  * (75 * 10^9) / (6 * 1,073,741,824 / sizeof(double)) = 93.13
+  *
+  */
+#define MB ((transA == CBlasNoTrans) ? 640 : 128)
+#define NB ((transA == CBlasNoTrans) ? 192 : 480)
+#define KB ((transA == CBlasNoTrans) ? 128 : 264)
 
-static CUresult init(const void * a) {
-  struct dgemm_data * data = *(struct dgemm_data **)a;
-
-  // Load the sgemm module
-  CU_ERROR_CHECK(cuModuleLoad(&data->module, "dgemm.fatbin"));
-
-  // Create separate streams for concurrent copy and execute
-  CU_ERROR_CHECK(cuStreamCreate(&data->compute, 0));
-  CU_ERROR_CHECK(cuStreamCreate(&data->copy, 0));
-
-  // Allocate C (always m * n)
-  CU_ERROR_CHECK(cuMemAllocPitch(&data->C, &data->ldc,
-                                 data->m * sizeof(double), data->n,
-                                 sizeof(double)));
-  data->ldc /= sizeof(double);
-
-  if (data->transA == CBlasNoTrans) {
-    // A is m * k
-    CU_ERROR_CHECK(cuMemAllocPitch(&data->A0, &data->lda,
-                                   data->m * sizeof(double), data->k,
-                                   sizeof(double)));
-    CU_ERROR_CHECK(cuMemAllocPitch(&data->A1, &data->lda,
-                                   data->m * sizeof(double), data->k,
-                                   sizeof(double)));
-    data->lda /= sizeof(double);
-  }
-  else {
-    // A is k * m
-    CU_ERROR_CHECK(cuMemAllocPitch(&data->A0, &data->lda,
-                                   data->k * sizeof(double), data->m,
-                                   sizeof(double)));
-    CU_ERROR_CHECK(cuMemAllocPitch(&data->A1, &data->lda,
-                                   data->k * sizeof(double), data->m,
-                                   sizeof(double)));
-    data->lda /= sizeof(double);
-  }
-
-  if (data->transB == CBlasNoTrans) {
-    // B is k * n
-    CU_ERROR_CHECK(cuMemAllocPitch(&data->B0, &data->ldb,
-                                   data->k * sizeof(double), data->n,
-                                   sizeof(double)));
-    CU_ERROR_CHECK(cuMemAllocPitch(&data->B1, &data->ldb,
-                                   data->k * sizeof(double), data->n,
-                                   sizeof(double)));
-    data->ldb /= sizeof(double);
-  }
-  else {
-    // B is n * k
-    CU_ERROR_CHECK(cuMemAllocPitch(&data->B0, &data->ldb,
-                                   data->n * sizeof(double), data->k,
-                                   sizeof(double)));
-    CU_ERROR_CHECK(cuMemAllocPitch(&data->B1, &data->ldb,
-                                   data->n * sizeof(double), data->k,
-                                   sizeof(double)));
-    data->ldb /= sizeof(double);
-  }
-
-  return CUDA_SUCCESS;
-}
-
-static CUresult cleanup(const void * a) {
-  struct dgemm_data * data = *(struct dgemm_data **)a;
-
-  // Free A, B and C
-  CU_ERROR_CHECK(cuMemFree(data->A0));
-  CU_ERROR_CHECK(cuMemFree(data->A1));
-  CU_ERROR_CHECK(cuMemFree(data->B0));
-  CU_ERROR_CHECK(cuMemFree(data->B1));
-  CU_ERROR_CHECK(cuMemFree(data->C));
-
-  // Destroy the streams
-  CU_ERROR_CHECK(cuStreamDestroy(data->compute));
-  CU_ERROR_CHECK(cuStreamDestroy(data->copy));
-
-  // Unload the module
-  CU_ERROR_CHECK(cuModuleUnload(data->module));
-
-  return CUDA_SUCCESS;
-}
-
-struct dgemm_args {
-  const struct dgemm_data * data;
-  size_t m, n, k, lda, ldb, ldc;
-  const double * A, * B;
-  double * C;
-  double alpha, beta;
-};
-
-static CUresult background_dgemm(const void * a) {
-  struct dgemm_args * args = (struct dgemm_args *)a;
-
-  // Unpack the arguments
-  const struct dgemm_data * data = args->data;
-  CUmodule module = data->module;
-  const CBlasTranspose transA = data->transA, transB = data->transB;
-  CUdeviceptr A0 = data->A0, A1 = data->A1,
-              B0 = data->B0, B1 = data->B1, dC = data->C;
-  const size_t dlda = data->lda, dldb = data->ldb, dldc = data->ldc;
-  const size_t kb = data->k;
-
-  const size_t m = args->m, n = args->n, k = args->k;
-  double alpha = args->alpha, beta = args->beta;
-  const double * A = args->A, * B = args->B;
-  double * C = args->C;
-  const size_t lda = args->lda, ldb = args->ldb, ldc = args->ldc;
-
-  // Create copies of the streams as they get swapped
-  CUstream compute = data->compute;
-  CUstream copy = data->copy;
-
-  // Copy C onto the device using the compute stream
-  CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(dC, dldc, 0, 0, C, ldc, 0, 0,
-                                     m, n, sizeof(double), compute));
-
-  // Perform C *= beta on the compute stream to ensure C has finished copying
-  CU_ERROR_CHECK(cuDgemm(module, CBlasNoTrans, CBlasNoTrans, m, n, 0,
-                         zero, 0, ldc, 0, 0, beta, dC, dldc, compute));
-
-  // Can exit early if alpha * op(A) * op(B) will evaluate to zero
-  if (alpha != zero && k > 0) {
-
-    // Perform C += alpha * op(A) * op(B)
-    if (transB == CBlasNoTrans) {
-      if (transA == CBlasNoTrans) {
-        // Copy A and B onto the device asynchronously on the same stream as C
-        const size_t lb = min(k, kb);
-        CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A0, dlda, 0, 0, A, lda, 0, 0,
-                                           m, lb, sizeof(double), compute));
-        CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(B0, dldb, 0, 0, B, ldb, 0, 0,
-                                           lb, n, sizeof(double), compute));
-
-        for (size_t l = 0; l < k; l += kb) {
-          // Compute C on the same stream as the copies to ensure they have finished first
-          CU_ERROR_CHECK(cuDgemm(module, transA, transB, m, n, min(k - l, kb),
-                                 alpha, A0, dlda, B0, dldb, one, dC, dldc, compute));
-
-          // If there is more work to do
-          if (l + kb < k) {
-            const size_t lb = min(k - l - kb, kb);
-            // Copy the next blocks of A and B on the opposite stream from the sgemm
-            CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A1, dlda, 0, 0, A, lda, 0, l + kb,
-                                               m, lb, sizeof(double), copy));
-            CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(B1, dldb, 0, 0, B, ldb, l + kb, 0,
-                                               lb, n, sizeof(double), copy));
-
-            // Swap the streams and pointers so that the compute starts after the copy
-            CUstream stream = compute; compute = copy; copy = stream;
-            CUdeviceptr ptr = A0; A0 = A1; A1 = ptr;
-            ptr = B0; B0 = B1; B1 = ptr;
-          }
-        }
-      }
-      else {
-        // Copy A and B onto the device asynchronously on the same stream as C
-        const size_t lb = min(k, kb);
-        CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A0, dlda, 0, 0, A, lda, 0, 0,
-                                           lb, m, sizeof(double), compute));
-        CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(B0, dldb, 0, 0, B, ldb, 0, 0,
-                                           lb, n, sizeof(double), compute));
-
-        for (size_t l = 0; l < k; l += kb) {
-          // Compute C on the same stream as the copies to ensure they have finished first
-          CU_ERROR_CHECK(cuDgemm(module, transA, transB, m, n, min(k - l, kb),
-                                 alpha, A0, dlda, B0, dldb, one, dC, dldc, compute));
-
-          // If there is more work to do
-          if (l + kb < k) {
-            const size_t lb = min(k - l - kb, kb);
-            // Copy the next blocks of A and B on the opposite stream from the sgemm
-            CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A1, dlda, 0, 0, A, lda, l + kb, 0,
-                                               lb, m, sizeof(double), copy));
-            CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(B1, dldb, 0, 0, B, ldb, l + kb, 0,
-                                               lb, n, sizeof(double), copy));
-
-            // Swap the streams and pointers so that the compute starts after the copy
-            CUstream stream = compute; compute = copy; copy = stream;
-            CUdeviceptr ptr = A0; A0 = A1; A1 = ptr;
-            ptr = B0; B0 = B1; B1 = ptr;
-          }
-        }
-      }
-    }
-    else {
-      if (transA == CBlasNoTrans) {
-        // Copy A and B onto the device asynchronously on the same stream as C
-        const size_t lb = min(k, kb);
-        CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A0, dlda, 0, 0, A, lda, 0, 0,
-                                           m, lb, sizeof(double), compute));
-        CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(B0, dldb, 0, 0, B, ldb, 0, 0,
-                                           n, lb, sizeof(double), compute));
-
-        for (size_t l = 0; l < k; l += kb) {
-          // Compute C on the same stream as the copies to ensure they have finished first
-          CU_ERROR_CHECK(cuDgemm(module, transA, transB, m, n, min(k - l, kb),
-                                 alpha, A0, dlda, B0, dldb, one, dC, dldc, compute));
-
-          // If there is more work to do
-          if (l + kb < k) {
-            const size_t lb = min(k - l - kb, kb);
-            // Copy the next blocks of A and B on the opposite stream from the sgemm
-            CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A1, dlda, 0, 0, A, lda, 0, l + kb,
-                                               m, lb, sizeof(double), copy));
-            CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(B1, dldb, 0, 0, B, ldb, 0, l + kb,
-                                               n, lb, sizeof(double), copy));
-
-            // Swap the streams and pointers so that the compute starts after the copy
-            CUstream stream = compute; compute = copy; copy = stream;
-            CUdeviceptr ptr = A0; A0 = A1; A1 = ptr;
-            ptr = B0; B0 = B1; B1 = ptr;
-          }
-        }
-      }
-      else {
-        // Copy A and B onto the device asynchronously on the same stream as C
-        const size_t lb = min(k, kb);
-        CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A0, dlda, 0, 0, A, lda, 0, 0,
-                                           lb, m, sizeof(double), compute));
-        CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(B0, dldb, 0, 0, B, ldb, 0, 0,
-                                           n, lb, sizeof(double), compute));
-
-        for (size_t l = 0; l < k; l += kb) {
-          // Compute C on the same stream as the copies to ensure they have finished first
-          CU_ERROR_CHECK(cuDgemm(module, transA, transB, m, n, min(k - l, kb),
-                                 alpha, A0, dlda, B0, dldb, one, dC, dldc, compute));
-
-          // If there is more work to do
-          if (l + kb < k) {
-            const size_t lb = min(k - l - kb, kb);
-            // Copy the next blocks of A and B on the opposite stream from the sgemm
-            CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A1, dlda, 0, 0, A, lda, l + kb, 0,
-                                               lb, m, sizeof(double), copy));
-            CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(B1, dldb, 0, 0, B, ldb, 0, l + kb,
-                                               n, lb, sizeof(double), copy));
-
-            // Swap the streams and pointers so that the compute starts after the copy
-            CUstream stream = compute; compute = copy; copy = stream;
-            CUdeviceptr ptr = A0; A0 = A1; A1 = ptr;
-            ptr = B0; B0 = B1; B1 = ptr;
-          }
-        }
-      }
-    }
-  }
-
-  // Copy C back onto the host on the compute stream
-  CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(C, ldc, 0, 0, dC, dldc, 0, 0,
-                                     m, n, sizeof(double), compute));
-
-  return CUDA_SUCCESS;
-}
+#include "multigpudgemm.c"
 
 CUresult cuMultiGPUDgemm(CUthread * threads, int nThreads,
                          CBlasTranspose transA, CBlasTranspose transB,
@@ -492,61 +290,8 @@ CUresult cuMultiGPUDgemm(CUthread * threads, int nThreads,
     return CUDA_SUCCESS;
   }
 
-  /**
-   * When transA == CBlasNoTrans each GPU MP processes blocks of 64x8 using 64
-   * threads per block.
-   * There are 30 MPs on the GTX 280 and each requires a minimum of 3 blocks
-   * to mask memory latency (64 * 3 = 192 threads/6 warps).
-   * A maximum of 8 blocks will fit on each MP concurrently due to shared memory
-   * and register requirements.  Best performance should therefore occur when we
-   * have 30 * 8 = 240 blocks sent to the GPU.  This requires a 10x24, 12x20,
-   * 15x16, etc. block size here.
-   * 10x24 is chosen to retain the m >> n behaviour needed for DPOTRF('L',..).
-   * mb = 10 * 64 = 640
-   * nb = 24 *  8 = 192
-   * kb defines the amount of work done by each thread and the memory (and
-   * bandwidth) needed for A and B so needs to be tuned to give maximum
-   * performance.  It should be a multiple of the kb block size used to unroll
-   * the GPU code which in this case is 16.  kb >= 128 gives ~80GFlops/s.  This
-   * requires (640 * 192 + 2 * 128 * (640 + 192)) * 8 = 2624kB of graphics
-   * memory.
-   *
-   * These block sizes give a bandwidth reduction of 2 / (1/640 + 1/192) = 295.38
-   *
-   * Bandwidth between host and device is 6 GB/s each way
-   *
-   * FLOP:word ratio for transA == CBlasNoTrans is
-   * (80 * 10^9) / (6 * 1,073,741,824 / sizeof(double)) = 99.34
-   *
-   * When transA != CBlasNoTrans each GPU MP processes blocks of 32x16 using 64
-   * threads per block.
-   * There are 30 MPs on the GTX 280 and each requires a minimum of 3 blocks
-   * to mask memory latency (64 * 3 = 192 threads/6 warps).
-   * A maximum of 4 blocks will fit on each MP concurrently due to shared memory
-   * and register requirements.  Best performance should therefore occur when we
-   * have over 30 * 4 = 120 blocks sent to the GPU.  This requires a 6x20,
-   * 8x15, 4x30, etc. block size here.
-   * 4x30 is chosen to retain the m << n behaviour needed for DPOTRF('U',..).
-   * mb =  4 * 32 = 128
-   * nb = 30 * 16 = 480
-   * kb defines the amount of work done by each thread and the memory (and
-   * bandwidth) needed for A and B so needs to be tuned to give maximum
-   * performance.  It should be a multiple of the kb block size used to unroll
-   * the GPU code which in this case is 8.  264 <= kb <= 480 gives ~75GFlops/s.
-   * This requires (128 * 480 + 2 * 264 * (128 + 480)) * 8 = 2988kB of graphics
-   * memory.
-   *
-   * These block sizes give a bandwidth reduction of 2 / (1/128 + 1/480) = 202.11
-   *
-   * Bandwidth between host and device is 6 GB/s each way
-   *
-   * FLOP:word ratio for transA != CBlasNoTrans is
-   * (75 * 10^9) / (6 * 1,073,741,824 / sizeof(double)) = 93.13
-   *
-   */
-  const size_t mb = (transA == CBlasNoTrans) ? 640 : 128;
-  const size_t nb = (transA == CBlasNoTrans) ? 192 : 480;
-  const size_t kb = (transA == CBlasNoTrans) ? 128 : 264;
+  const size_t mb = MB;
+  const size_t nb = NB;
 
   if (m < mb && n < nb) {
     dgemm(transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc);
@@ -555,27 +300,12 @@ CUresult cuMultiGPUDgemm(CUthread * threads, int nThreads,
 
   CUtask task;
   CUtaskqueue queue;
-  CU_ERROR_CHECK(cuTaskQueueCreate(&queue, ((m + mb - 1) / mb) * ((n + nb - 1) / nb) + (size_t)nThreads * 2));
+  CU_ERROR_CHECK(cuTaskQueueCreate(&queue, ((m + mb - 1) / mb) * ((n + nb - 1) / nb)));
   int t = 0;
 
   struct dgemm_args args = { .k = k,
                              .alpha = alpha, .lda = lda, .ldb = ldb,
                              .beta = beta, .ldc = ldc };
-
-  struct dgemm_data * data[nThreads];
-  for (int i = 0; i < nThreads; i++) {
-    if ((data[i] = malloc(sizeof(struct dgemm_data))) == NULL) {
-      cuTaskQueueDestroy(queue);
-      return CUDA_ERROR_OUT_OF_MEMORY;
-    }
-    data[i]->m = mb;
-    data[i]->n = nb;
-    data[i]->k = kb;
-    data[i]->transA = transA;
-    data[i]->transB = transB;
-    CU_ERROR_CHECK(cuTaskCreate(&task, init, &data[i], sizeof(struct dgemm_data *)));
-    CU_ERROR_CHECK(cuThreadRunTask(threads[i], task));
-  }
 
   if (transB == CBlasNoTrans) {
     if (transA == CBlasNoTrans) {
@@ -586,7 +316,6 @@ CUresult cuMultiGPUDgemm(CUthread * threads, int nThreads,
           args.A = &A[i];
           args.B = &B[j * ldb];
           args.C = &C[j * ldc + i];
-          args.data = data[t];
           CU_ERROR_CHECK(cuTaskCreate(&task, background_dgemm, &args, sizeof(struct dgemm_args)));
           CU_ERROR_CHECK(cuTaskQueuePush(queue, task));
           CU_ERROR_CHECK(cuThreadRunTask(threads[t++], task));
@@ -603,7 +332,6 @@ CUresult cuMultiGPUDgemm(CUthread * threads, int nThreads,
           args.A = &A[i * lda];
           args.B = &B[j * ldb];
           args.C = &C[j * ldc + i];
-          args.data = data[t];
           CU_ERROR_CHECK(cuTaskCreate(&task, background_dgemm, &args, sizeof(struct dgemm_args)));
           CU_ERROR_CHECK(cuTaskQueuePush(queue, task));
           CU_ERROR_CHECK(cuThreadRunTask(threads[t++], task));
@@ -622,7 +350,6 @@ CUresult cuMultiGPUDgemm(CUthread * threads, int nThreads,
           args.A = &A[i];
           args.B = &B[j];
           args.C = &C[j * ldc + i];
-          args.data = data[t];
           CU_ERROR_CHECK(cuTaskCreate(&task, background_dgemm, &args, sizeof(struct dgemm_args)));
           CU_ERROR_CHECK(cuTaskQueuePush(queue, task));
           CU_ERROR_CHECK(cuThreadRunTask(threads[t++], task));
@@ -639,7 +366,6 @@ CUresult cuMultiGPUDgemm(CUthread * threads, int nThreads,
           args.A = &A[i * lda];
           args.B = &B[j];
           args.C = &C[j * ldc + i];
-          args.data = data[t];
           CU_ERROR_CHECK(cuTaskCreate(&task, background_dgemm, &args, sizeof(struct dgemm_args)));
           CU_ERROR_CHECK(cuTaskQueuePush(queue, task));
           CU_ERROR_CHECK(cuThreadRunTask(threads[t++], task));
@@ -650,18 +376,9 @@ CUresult cuMultiGPUDgemm(CUthread * threads, int nThreads,
     }
   }
 
-  for (int i = 0; i < nThreads; i++) {
-    CU_ERROR_CHECK(cuTaskCreate(&task, cleanup, &data[i], sizeof(struct dgemm_data *)));
-    CU_ERROR_CHECK(cuTaskQueuePush(queue, task));
-    CU_ERROR_CHECK(cuThreadRunTask(threads[i], task));
-  }
-
   CUresult result;
   while (cuTaskQueuePop(queue, &task) == CUDA_SUCCESS)
     CU_ERROR_CHECK(cuTaskDestroy(task, &result));
-
-  for (int i = 0; i < nThreads; i++)
-    free(data[i]);
 
   cuTaskQueueDestroy(queue);
 

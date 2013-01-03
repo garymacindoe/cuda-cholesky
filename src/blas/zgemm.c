@@ -276,265 +276,126 @@ CUresult cuZgemm2(CUmodule module,
   return CUDA_SUCCESS;
 }
 
-struct zgemm_data {
-  CUmodule module;
-  CUstream compute, copy;
-  CUdeviceptr A0, A1, B0, B1, C;
-  size_t m, n, k, lda, ldb, ldc;
-  CBlasTranspose transA, transB;
-};
+/**
+  * When transA == CBlasNoTrans each GPU MP processes blocks of 64x4 using 64
+  * threads per block.
+  * There are 30 MPs on the GTX 280 and each requires a minimum of 3 blocks
+  * to mask memory latency (64 * 3 = 192 threads/6 warps).
+  * A maximum of 8 blocks will fit on each MP concurrently due to shared memory
+  * and register requirements.  Best performance should therefore occur when we
+  * have 30 * 8 = 240 blocks sent to the GPU.  This requires a 10x24, 12x20,
+  * 15x16, etc. block size here.
+  * 10x24 is chosen to retain the m >> n behaviour needed for ZPOTRF('L',..).
+  *
+  * mb = 10 * 64 = 640
+  * nb = 24 *  4 =  96
+  *
+  * kb defines the amount of work done by each thread and the memory (and
+  * bandwidth) needed for A and B so needs to be tuned to give maximum
+  * performance.  It should be a multiple of the kb block size used to unroll
+  * the GPU code which in this case is 16.  kb is increased for given mb and nb
+  * until the performance increase is < 1%. This happens at kb = 64 and gives
+  * ~77GFlops/s.  This requires
+  * (640 * 96 + 2 * 64 * (640 + 96)) * 16 = 2432kB
+  * of graphics memory.
+  *
+  * These block sizes give a bandwidth reduction of 2 / (1/640 + 1/96) = 166.96
+  *
+  * Bandwidth between host and device is 6 GB/s each way
+  *
+  * FLOP:word ratio for transA == CBlasNoTrans is
+  * (77 * 10^9) / (6 * 1024^3 / sizeof(double complex)) = 191.23
+  *
+  * Since the bandwidth reduction for this block size is less than the
+  * FLOP:word ratio this creates a bandwidth bound algorithm.  Increasing the
+  * block sizes to 1024 * 180 sends 720 (16 * 45) blocks to the GPU, or 24 to
+  * each MP, which is also a multiple of 8, the maximum that will fit.
+  * This gives a final configuration of:
+  * mb = 16 * 64 = 1024
+  * nb = 45 *  4 =  180
+  * kb (after tuning run with new mb and nb) =  64
+  * memory = (1024 * 180 + 2 * 64 * (1024 + 180)) * 16 = 5288kB
+  * bandwidth reduction = 2 / (1/1024 + 1/180) = 306.18
+  * FLOP:word ratio = (77 * 10^9) / (6 * 1024^3 / sizeof(double complex)) = 191.23
+  *
+  *
+  * When transA != CBlasNoTrans and transB == CBlasNoTrans each GPU MP
+  * processes blocks of 8x8 using 32 threads per block.
+  * There are 30 MPs on the GTX 280 and each requires a minimum of 6 blocks
+  * to mask memory latency (32 * 6 = 192 threads/6 warps).
+  * A maximum of 8 blocks will fit on each MP concurrently due to shared memory
+  * and register requirements.  Best performance should therefore occur when we
+  * have 30 * 8 = 240 blocks sent to the GPU.  This requires a 10x24, 12x20,
+  * 15x16, etc. block size here.
+  * 10x24 is chosen to retain the m << n behaviour needed for ZPOTRF('U',..).
+  *
+  * mb = 10 *  8 =  80
+  * nb = 24 *  8 = 192
+  *
+  * kb defines the amount of work done by each thread and the memory (and
+  * bandwidth) needed for A and B so needs to be tuned to give maximum
+  * performance.  It should be a multiple of the kb block size used to unroll
+  * the GPU code which in this case is 4.  kb is increased for given mb and nb
+  * until the performance increase is < 1%. This happens at kb = 80 and gives
+  * ~60GFlops/s.  This requires
+  * (80 * 192 + 2 * 80 * (80 + 192)) * 16 = 920kB
+  * of graphics memory.
+  *
+  * These block sizes give a bandwidth reduction of 2 / (1/80 + 1/192) = 112.94
+  *
+  * Bandwidth between host and device is 6 GB/s each way
+  *
+  * FLOP:word ratio for transA != CBlasNoTrans is
+  * (60 * 10^9) / (6 * 1024^3 / sizeof(double complex)) = 149.01
+  *
+  * Since the bandwidth reduction for this block size is less than the
+  * FLOP:word ratio this creates a bandwidth bound algorithm.  Increasing the
+  * block sizes to 120 * 384 sends 720 (15 * 48) blocks to the GPU, or 24 to
+  * each MP, which is also a multiple of 8, the maximum that will fit.
+  * This gives a final configuration of:
+  * mb = 15 *  8 =  120
+  * nb = 48 *  8 =  384
+  * kb (after tuning run with new mb and nb) = 32
+  * memory = (120 * 384 + 2 * 32 * (120 + 384)) * 16 = 1224kB
+  * bandwidth reduction = 2 / (1/120 + 1/384) = 182.86
+  * FLOP:word ratio = (58 * 10^9) / (6 * 1024^3 / sizeof(float complex)) = 144.04
+  *
+  *
+  * When transA != CBlasNoTrans and transB != CBlasNoTrans each GPU MP
+  * processes blocks of 8x16 using 64 threads per block.
+  * There are 30 MPs on the GTX 280 and each requires a minimum of 3 blocks
+  * to mask memory latency (64 * 3 = 192 threads/6 warps).
+  * A maximum of 4 blocks will fit on each MP concurrently due to shared memory
+  * and register requirements.  Best performance should therefore occur when we
+  * have 30 * 4 = 120 blocks sent to the GPU.  This requires a 6x20, 8x15, 4x30,
+  * etc. block size here.
+  * 10x24 is chosen to retain the m << n behaviour needed for ZPOTRF('U',..).
+  *
+  * mb =  8 *  8 =  64
+  * nb = 15 *  8 = 120
+  *
+  * kb defines the amount of work done by each thread and the memory (and
+  * bandwidth) needed for A and B so needs to be tuned to give maximum
+  * performance.  It should be a multiple of the kb block size used to unroll
+  * the GPU code which in this case is 80.  kb is increased for given mb and nb
+  * until the performance increase is < 1%. This happens at kb = 80 and gives
+  * ~33GFlops/s.  This requires
+  * (64 * 120 + 2 * 80 * (64 + 120)) * 16 = 580kB
+  * of graphics memory.
+  *
+  * These block sizes give a bandwidth reduction of 2 / (1/64 + 1/120) = 83.48
+  *
+  * Bandwidth between host and device is 6 GB/s each way
+  *
+  * FLOP:word ratio for transA != CBlasNoTrans is
+  * (33 * 10^9) / (6 * 1024^3 / sizeof(double complex)) = 81.96
+  *
+  */
+#define MB ((transA == CBlasNoTrans) ? 1024 : (transB == CBlasNoTrans) ? 120 :  64)
+#define NB ((transA == CBlasNoTrans) ?  180 : (transB == CBlasNoTrans) ? 384 : 180)
+#define KB ((transA == CBlasNoTrans) ?   64 : (transB == CBlasNoTrans) ?  32 :  80)
 
-static CUresult init(const void * a) {
-  struct zgemm_data * data = *(struct zgemm_data **)a;
-
-  // Load the sgemm module
-  CU_ERROR_CHECK(cuModuleLoad(&data->module, "zgemm.fatbin"));
-
-  // Create separate streams for concurrent copy and execute
-  CU_ERROR_CHECK(cuStreamCreate(&data->compute, 0));
-  CU_ERROR_CHECK(cuStreamCreate(&data->copy, 0));
-
-  // Allocate C (always m * n)
-  CU_ERROR_CHECK(cuMemAllocPitch(&data->C, &data->ldc,
-                                 data->m * sizeof(double complex), data->n,
-                                 sizeof(double complex)));
-  data->ldc /= sizeof(double complex);
-
-  if (data->transA == CBlasNoTrans) {
-    // A is m * k
-    CU_ERROR_CHECK(cuMemAllocPitch(&data->A0, &data->lda,
-                                   data->m * sizeof(double complex), data->k,
-                                   sizeof(double complex)));
-    CU_ERROR_CHECK(cuMemAllocPitch(&data->A1, &data->lda,
-                                   data->m * sizeof(double complex), data->k,
-                                   sizeof(double complex)));
-    data->lda /= sizeof(double complex);
-  }
-  else {
-    // A is k * m
-    CU_ERROR_CHECK(cuMemAllocPitch(&data->A0, &data->lda,
-                                   data->k * sizeof(double complex), data->m,
-                                   sizeof(double complex)));
-    CU_ERROR_CHECK(cuMemAllocPitch(&data->A1, &data->lda,
-                                   data->k * sizeof(double complex), data->m,
-                                   sizeof(double complex)));
-    data->lda /= sizeof(double complex);
-  }
-
-  if (data->transB == CBlasNoTrans) {
-    // B is k * n
-    CU_ERROR_CHECK(cuMemAllocPitch(&data->B0, &data->ldb,
-                                   data->k * sizeof(double complex), data->n,
-                                   sizeof(double complex)));
-    CU_ERROR_CHECK(cuMemAllocPitch(&data->B1, &data->ldb,
-                                   data->k * sizeof(double complex), data->n,
-                                   sizeof(double complex)));
-    data->ldb /= sizeof(double complex);
-  }
-  else {
-    // B is n * k
-    CU_ERROR_CHECK(cuMemAllocPitch(&data->B0, &data->ldb,
-                                   data->n * sizeof(double complex), data->k,
-                                   sizeof(double complex)));
-    CU_ERROR_CHECK(cuMemAllocPitch(&data->B1, &data->ldb,
-                                   data->n * sizeof(double complex), data->k,
-                                   sizeof(double complex)));
-    data->ldb /= sizeof(double complex);
-  }
-
-  return CUDA_SUCCESS;
-}
-
-static CUresult cleanup(const void * a) {
-  struct zgemm_data * data = *(struct zgemm_data **)a;
-
-  // Free A, B and C
-  CU_ERROR_CHECK(cuMemFree(data->A0));
-  CU_ERROR_CHECK(cuMemFree(data->A1));
-  CU_ERROR_CHECK(cuMemFree(data->B0));
-  CU_ERROR_CHECK(cuMemFree(data->B1));
-  CU_ERROR_CHECK(cuMemFree(data->C));
-
-  // Destroy the streams
-  CU_ERROR_CHECK(cuStreamDestroy(data->compute));
-  CU_ERROR_CHECK(cuStreamDestroy(data->copy));
-
-  // Unload the module
-  CU_ERROR_CHECK(cuModuleUnload(data->module));
-
-  return CUDA_SUCCESS;
-}
-
-struct zgemm_args {
-  const struct zgemm_data * data;
-  size_t m, n, k, lda, ldb, ldc;
-  const double complex * A, * B;
-  double complex * C;
-  double complex alpha, beta;
-};
-
-static CUresult background_zgemm(const void * a) {
-  struct zgemm_args * args = (struct zgemm_args *)a;
-
-  // Unpack the arguments
-  const struct zgemm_data * data = args->data;
-  CUmodule module = data->module;
-  const CBlasTranspose transA = data->transA, transB = data->transB;
-  CUdeviceptr A0 = data->A0, A1 = data->A1,
-              B0 = data->B0, B1 = data->B1, dC = data->C;
-  const size_t dlda = data->lda, dldb = data->ldb, dldc = data->ldc;
-  const size_t kb = data->k;
-
-  const size_t m = args->m, n = args->n, k = args->k;
-  double complex alpha = args->alpha, beta = args->beta;
-  const double complex * A = args->A, * B = args->B;
-  double complex * C = args->C;
-  const size_t lda = args->lda, ldb = args->ldb, ldc = args->ldc;
-
-  // Create copies of the streams as they get swapped
-  CUstream compute = data->compute;
-  CUstream copy = data->copy;
-
-  // Copy C onto the device using the compute stream
-  CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(dC, dldc, 0, 0, C, ldc, 0, 0,
-                                     m, n, sizeof(double complex), compute));
-
-  // Perform C *= beta on the compute stream to ensure C has finished copying
-  CU_ERROR_CHECK(cuZgemm(module, CBlasNoTrans, CBlasNoTrans, m, n, 0,
-                         zero, 0, ldc, 0, 0, beta, dC, dldc, compute));
-
-  // Can exit early if alpha * op(A) * op(B) will evaluate to zero
-  if (alpha != zero && k > 0) {
-
-    // Perform C += alpha * op(A) * op(B)
-    if (transB == CBlasNoTrans) {
-      if (transA == CBlasNoTrans) {
-        // Copy A and B onto the device asynchronously on the same stream as C
-        const size_t lb = min(k, kb);
-        CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A0, dlda, 0, 0, A, lda, 0, 0,
-                                           m, lb, sizeof(double complex), compute));
-        CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(B0, dldb, 0, 0, B, ldb, 0, 0,
-                                           lb, n, sizeof(double complex), compute));
-
-        for (size_t l = 0; l < k; l += kb) {
-          // Compute C on the same stream as the copies to ensure they have finished first
-          CU_ERROR_CHECK(cuZgemm(module, transA, transB, m, n, min(k - l, kb),
-                                 alpha, A0, dlda, B0, dldb, one, dC, dldc, compute));
-
-          // If there is more work to do
-          if (l + kb < k) {
-            const size_t lb = min(k - l - kb, kb);
-            // Copy the next blocks of A and B on the opposite stream from the sgemm
-            CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A1, dlda, 0, 0, A, lda, 0, l + kb,
-                                               m, lb, sizeof(double complex), copy));
-            CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(B1, dldb, 0, 0, B, ldb, l + kb, 0,
-                                               lb, n, sizeof(double complex), copy));
-
-            // Swap the streams and pointers so that the compute starts after the copy
-            CUstream stream = compute; compute = copy; copy = stream;
-            CUdeviceptr ptr = A0; A0 = A1; A1 = ptr;
-            ptr = B0; B0 = B1; B1 = ptr;
-          }
-        }
-      }
-      else {
-        // Copy A and B onto the device asynchronously on the same stream as C
-        const size_t lb = min(k, kb);
-        CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A0, dlda, 0, 0, A, lda, 0, 0,
-                                           lb, m, sizeof(double complex), compute));
-        CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(B0, dldb, 0, 0, B, ldb, 0, 0,
-                                           lb, n, sizeof(double complex), compute));
-
-        for (size_t l = 0; l < k; l += kb) {
-          // Compute C on the same stream as the copies to ensure they have finished first
-          CU_ERROR_CHECK(cuZgemm(module, transA, transB, m, n, min(k - l, kb),
-                                 alpha, A0, dlda, B0, dldb, one, dC, dldc, compute));
-
-          // If there is more work to do
-          if (l + kb < k) {
-            const size_t lb = min(k - l - kb, kb);
-            // Copy the next blocks of A and B on the opposite stream from the sgemm
-            CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A1, dlda, 0, 0, A, lda, l + kb, 0,
-                                               lb, m, sizeof(double complex), copy));
-            CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(B1, dldb, 0, 0, B, ldb, l + kb, 0,
-                                               lb, n, sizeof(double complex), copy));
-
-            // Swap the streams and pointers so that the compute starts after the copy
-            CUstream stream = compute; compute = copy; copy = stream;
-            CUdeviceptr ptr = A0; A0 = A1; A1 = ptr;
-            ptr = B0; B0 = B1; B1 = ptr;
-          }
-        }
-      }
-    }
-    else {
-      if (transA == CBlasNoTrans) {
-        // Copy A and B onto the device asynchronously on the same stream as C
-        const size_t lb = min(k, kb);
-        CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A0, dlda, 0, 0, A, lda, 0, 0,
-                                           m, lb, sizeof(double complex), compute));
-        CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(B0, dldb, 0, 0, B, ldb, 0, 0,
-                                           n, lb, sizeof(double complex), compute));
-
-        for (size_t l = 0; l < k; l += kb) {
-          // Compute C on the same stream as the copies to ensure they have finished first
-          CU_ERROR_CHECK(cuZgemm(module, transA, transB, m, n, min(k - l, kb),
-                                 alpha, A0, dlda, B0, dldb, one, dC, dldc, compute));
-
-          // If there is more work to do
-          if (l + kb < k) {
-            const size_t lb = min(k - l - kb, kb);
-            // Copy the next blocks of A and B on the opposite stream from the sgemm
-            CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A1, dlda, 0, 0, A, lda, 0, l + kb,
-                                               m, lb, sizeof(double complex), copy));
-            CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(B1, dldb, 0, 0, B, ldb, 0, l + kb,
-                                               n, lb, sizeof(double complex), copy));
-
-            // Swap the streams and pointers so that the compute starts after the copy
-            CUstream stream = compute; compute = copy; copy = stream;
-            CUdeviceptr ptr = A0; A0 = A1; A1 = ptr;
-            ptr = B0; B0 = B1; B1 = ptr;
-          }
-        }
-      }
-      else {
-        // Copy A and B onto the device asynchronously on the same stream as C
-        const size_t lb = min(k, kb);
-        CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A0, dlda, 0, 0, A, lda, 0, 0,
-                                           lb, m, sizeof(double complex), compute));
-        CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(B0, dldb, 0, 0, B, ldb, 0, 0,
-                                           n, lb, sizeof(double complex), compute));
-
-        for (size_t l = 0; l < k; l += kb) {
-          // Compute C on the same stream as the copies to ensure they have finished first
-          CU_ERROR_CHECK(cuZgemm(module, transA, transB, m, n, min(k - l, kb),
-                                 alpha, A0, dlda, B0, dldb, one, dC, dldc, compute));
-
-          // If there is more work to do
-          if (l + kb < k) {
-            const size_t lb = min(k - l - kb, kb);
-            // Copy the next blocks of A and B on the opposite stream from the sgemm
-            CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A1, dlda, 0, 0, A, lda, l + kb, 0,
-                                               lb, m, sizeof(double complex), copy));
-            CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(B1, dldb, 0, 0, B, ldb, 0, l + kb,
-                                               n, lb, sizeof(double complex), copy));
-
-            // Swap the streams and pointers so that the compute starts after the copy
-            CUstream stream = compute; compute = copy; copy = stream;
-            CUdeviceptr ptr = A0; A0 = A1; A1 = ptr;
-            ptr = B0; B0 = B1; B1 = ptr;
-          }
-        }
-      }
-    }
-  }
-
-  // Copy C back onto the host on the compute stream
-  CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(C, ldc, 0, 0, dC, dldc, 0, 0,
-                                     m, n, sizeof(double complex), compute));
-
-  return CUDA_SUCCESS;
-}
+#include "multigpuzgemm.c"
 
 CUresult cuMultiGPUZgemm(CUthread * threads, int nThreads,
                          CBlasTranspose transA, CBlasTranspose transB,
@@ -578,124 +439,8 @@ CUresult cuMultiGPUZgemm(CUthread * threads, int nThreads,
     return CUDA_SUCCESS;
   }
 
-  /**
-   * When transA == CBlasNoTrans each GPU MP processes blocks of 64x4 using 64
-   * threads per block.
-   * There are 30 MPs on the GTX 280 and each requires a minimum of 3 blocks
-   * to mask memory latency (64 * 3 = 192 threads/6 warps).
-   * A maximum of 8 blocks will fit on each MP concurrently due to shared memory
-   * and register requirements.  Best performance should therefore occur when we
-   * have 30 * 8 = 240 blocks sent to the GPU.  This requires a 10x24, 12x20,
-   * 15x16, etc. block size here.
-   * 10x24 is chosen to retain the m >> n behaviour needed for ZPOTRF('L',..).
-   *
-   * mb = 10 * 64 = 640
-   * nb = 24 *  4 =  96
-   *
-   * kb defines the amount of work done by each thread and the memory (and
-   * bandwidth) needed for A and B so needs to be tuned to give maximum
-   * performance.  It should be a multiple of the kb block size used to unroll
-   * the GPU code which in this case is 16.  kb is increased for given mb and nb
-   * until the performance increase is < 1%. This happens at kb = 64 and gives
-   * ~77GFlops/s.  This requires
-   * (640 * 96 + 2 * 64 * (640 + 96)) * 16 = 2432kB
-   * of graphics memory.
-   *
-   * These block sizes give a bandwidth reduction of 2 / (1/640 + 1/96) = 166.96
-   *
-   * Bandwidth between host and device is 6 GB/s each way
-   *
-   * FLOP:word ratio for transA == CBlasNoTrans is
-   * (77 * 10^9) / (6 * 1024^3 / sizeof(double complex)) = 191.23
-   *
-   * Since the bandwidth reduction for this block size is less than the
-   * FLOP:word ratio this creates a bandwidth bound algorithm.  Increasing the
-   * block sizes to 1024 * 180 sends 720 (16 * 45) blocks to the GPU, or 24 to
-   * each MP, which is also a multiple of 8, the maximum that will fit.
-   * This gives a final configuration of:
-   * mb = 16 * 64 = 1024
-   * nb = 45 *  4 =  180
-   * kb (after tuning run with new mb and nb) =  64
-   * memory = (1024 * 180 + 2 * 64 * (1024 + 180)) * 16 = 5288kB
-   * bandwidth reduction = 2 / (1/1024 + 1/180) = 306.18
-   * FLOP:word ratio = (77 * 10^9) / (6 * 1024^3 / sizeof(double complex)) = 191.23
-   *
-   *
-   * When transA != CBlasNoTrans and transB == CBlasNoTrans each GPU MP
-   * processes blocks of 8x8 using 32 threads per block.
-   * There are 30 MPs on the GTX 280 and each requires a minimum of 6 blocks
-   * to mask memory latency (32 * 6 = 192 threads/6 warps).
-   * A maximum of 8 blocks will fit on each MP concurrently due to shared memory
-   * and register requirements.  Best performance should therefore occur when we
-   * have 30 * 8 = 240 blocks sent to the GPU.  This requires a 10x24, 12x20,
-   * 15x16, etc. block size here.
-   * 10x24 is chosen to retain the m << n behaviour needed for ZPOTRF('U',..).
-   *
-   * mb = 10 *  8 =  80
-   * nb = 24 *  8 = 192
-   *
-   * kb defines the amount of work done by each thread and the memory (and
-   * bandwidth) needed for A and B so needs to be tuned to give maximum
-   * performance.  It should be a multiple of the kb block size used to unroll
-   * the GPU code which in this case is 4.  kb is increased for given mb and nb
-   * until the performance increase is < 1%. This happens at kb = 80 and gives
-   * ~60GFlops/s.  This requires
-   * (80 * 192 + 2 * 80 * (80 + 192)) * 16 = 920kB
-   * of graphics memory.
-   *
-   * These block sizes give a bandwidth reduction of 2 / (1/80 + 1/192) = 112.94
-   *
-   * Bandwidth between host and device is 6 GB/s each way
-   *
-   * FLOP:word ratio for transA != CBlasNoTrans is
-   * (60 * 10^9) / (6 * 1024^3 / sizeof(double complex)) = 149.01
-   *
-   * Since the bandwidth reduction for this block size is less than the
-   * FLOP:word ratio this creates a bandwidth bound algorithm.  Increasing the
-   * block sizes to 120 * 384 sends 720 (15 * 48) blocks to the GPU, or 24 to
-   * each MP, which is also a multiple of 8, the maximum that will fit.
-   * This gives a final configuration of:
-   * mb = 15 *  8 =  120
-   * nb = 48 *  8 =  384
-   * kb (after tuning run with new mb and nb) = 32
-   * memory = (120 * 384 + 2 * 32 * (120 + 384)) * 16 = 1224kB
-   * bandwidth reduction = 2 / (1/120 + 1/384) = 182.86
-   * FLOP:word ratio = (58 * 10^9) / (6 * 1024^3 / sizeof(float complex)) = 144.04
-   *
-   *
-   * When transA != CBlasNoTrans and transB != CBlasNoTrans each GPU MP
-   * processes blocks of 8x16 using 64 threads per block.
-   * There are 30 MPs on the GTX 280 and each requires a minimum of 3 blocks
-   * to mask memory latency (64 * 3 = 192 threads/6 warps).
-   * A maximum of 4 blocks will fit on each MP concurrently due to shared memory
-   * and register requirements.  Best performance should therefore occur when we
-   * have 30 * 4 = 120 blocks sent to the GPU.  This requires a 6x20, 8x15, 4x30,
-   * etc. block size here.
-   * 10x24 is chosen to retain the m << n behaviour needed for ZPOTRF('U',..).
-   *
-   * mb =  8 *  8 =  64
-   * nb = 15 *  8 = 120
-   *
-   * kb defines the amount of work done by each thread and the memory (and
-   * bandwidth) needed for A and B so needs to be tuned to give maximum
-   * performance.  It should be a multiple of the kb block size used to unroll
-   * the GPU code which in this case is 80.  kb is increased for given mb and nb
-   * until the performance increase is < 1%. This happens at kb = 80 and gives
-   * ~33GFlops/s.  This requires
-   * (64 * 120 + 2 * 80 * (64 + 120)) * 16 = 580kB
-   * of graphics memory.
-   *
-   * These block sizes give a bandwidth reduction of 2 / (1/64 + 1/120) = 83.48
-   *
-   * Bandwidth between host and device is 6 GB/s each way
-   *
-   * FLOP:word ratio for transA != CBlasNoTrans is
-   * (33 * 10^9) / (6 * 1024^3 / sizeof(double complex)) = 81.96
-   *
-   */
-  const size_t mb = (transA == CBlasNoTrans) ? 1024 : (transB == CBlasNoTrans) ? 120 :  64;
-  const size_t nb = (transA == CBlasNoTrans) ?  180 : (transB == CBlasNoTrans) ? 384 : 180;
-  const size_t kb = (transA == CBlasNoTrans) ?   64 : (transB == CBlasNoTrans) ?  32 :  80;
+  const size_t mb = MB;
+  const size_t nb = NB;
 
   if (m < mb && n < nb) {
     zgemm(transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc);
@@ -704,27 +449,12 @@ CUresult cuMultiGPUZgemm(CUthread * threads, int nThreads,
 
   CUtask task;
   CUtaskqueue queue;
-  CU_ERROR_CHECK(cuTaskQueueCreate(&queue, ((m + mb - 1) / mb) * ((n + nb - 1) / nb) + (size_t)nThreads * 2));
+  CU_ERROR_CHECK(cuTaskQueueCreate(&queue, ((m + mb - 1) / mb) * ((n + nb - 1) / nb)));
   int t = 0;
 
   struct zgemm_args args = { .k = k,
                              .alpha = alpha, .lda = lda, .ldb = ldb,
                              .beta = beta, .ldc = ldc };
-
-  struct zgemm_data * data[nThreads];
-  for (int i = 0; i < nThreads; i++) {
-    if ((data[i] = malloc(sizeof(struct zgemm_data))) == NULL) {
-      cuTaskQueueDestroy(queue);
-      return CUDA_ERROR_OUT_OF_MEMORY;
-    }
-    data[i]->m = mb;
-    data[i]->n = nb;
-    data[i]->k = kb;
-    data[i]->transA = transA;
-    data[i]->transB = transB;
-    CU_ERROR_CHECK(cuTaskCreate(&task, init, &data[i], sizeof(struct zgemm_data *)));
-    CU_ERROR_CHECK(cuThreadRunTask(threads[i], task));
-  }
 
   if (transB == CBlasNoTrans) {
     if (transA == CBlasNoTrans) {
@@ -735,7 +465,6 @@ CUresult cuMultiGPUZgemm(CUthread * threads, int nThreads,
           args.A = &A[i];
           args.B = &B[j * ldb];
           args.C = &C[j * ldc + i];
-          args.data = data[t];
           CU_ERROR_CHECK(cuTaskCreate(&task, background_zgemm, &args, sizeof(struct zgemm_args)));
           CU_ERROR_CHECK(cuTaskQueuePush(queue, task));
           CU_ERROR_CHECK(cuThreadRunTask(threads[t++], task));
@@ -752,7 +481,6 @@ CUresult cuMultiGPUZgemm(CUthread * threads, int nThreads,
           args.A = &A[i * lda];
           args.B = &B[j * ldb];
           args.C = &C[j * ldc + i];
-          args.data = data[t];
           CU_ERROR_CHECK(cuTaskCreate(&task, background_zgemm, &args, sizeof(struct zgemm_args)));
           CU_ERROR_CHECK(cuTaskQueuePush(queue, task));
           CU_ERROR_CHECK(cuThreadRunTask(threads[t++], task));
@@ -771,7 +499,6 @@ CUresult cuMultiGPUZgemm(CUthread * threads, int nThreads,
           args.A = &A[i];
           args.B = &B[j];
           args.C = &C[j * ldc + i];
-          args.data = data[t];
           CU_ERROR_CHECK(cuTaskCreate(&task, background_zgemm, &args, sizeof(struct zgemm_args)));
           CU_ERROR_CHECK(cuTaskQueuePush(queue, task));
           CU_ERROR_CHECK(cuThreadRunTask(threads[t++], task));
@@ -788,7 +515,6 @@ CUresult cuMultiGPUZgemm(CUthread * threads, int nThreads,
           args.A = &A[i * lda];
           args.B = &B[j];
           args.C = &C[j * ldc + i];
-          args.data = data[t];
           CU_ERROR_CHECK(cuTaskCreate(&task, background_zgemm, &args, sizeof(struct zgemm_args)));
           CU_ERROR_CHECK(cuTaskQueuePush(queue, task));
           CU_ERROR_CHECK(cuThreadRunTask(threads[t++], task));
@@ -799,18 +525,9 @@ CUresult cuMultiGPUZgemm(CUthread * threads, int nThreads,
     }
   }
 
-  for (int i = 0; i < nThreads; i++) {
-    CU_ERROR_CHECK(cuTaskCreate(&task, cleanup, &data[i], sizeof(struct zgemm_data *)));
-    CU_ERROR_CHECK(cuTaskQueuePush(queue, task));
-    CU_ERROR_CHECK(cuThreadRunTask(threads[i], task));
-  }
-
   CUresult result;
   while (cuTaskQueuePop(queue, &task) == CUDA_SUCCESS)
     CU_ERROR_CHECK(cuTaskDestroy(task, &result));
-
-  for (int i = 0; i < nThreads; i++)
-    free(data[i]);
 
   cuTaskQueueDestroy(queue);
 
