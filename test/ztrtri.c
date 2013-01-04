@@ -15,10 +15,11 @@ int main(int argc, char * argv[]) {
   size_t n;
 
   if (argc != 4) {
-    fprintf(stderr, "Usage: %s <uplo> <diag> <n>\nwhere:\n"
-    "  uplo is 'u' or 'U' for CBlasUpper or 'l' or 'L' for CBlasLower\n"
-    "  diag is 'u' or 'U' for CBlasUnit or 'n' or 'N' for CBlasNonUnit\n"
-    "  n                  is the size of the matrix\n", argv[0]);
+    fprintf(stderr, "Usage: %s <uplo> <diag> <n>\n"
+                    "where:\n"
+                    "  uplo is 'u' or 'U' for CBlasUpper or 'l' or 'L' for CBlasLower\n"
+                    "  diag is 'u' or 'U' for CBlasUnit or 'n' or 'N' for CBlasNonUnit\n"
+                    "  n                  is the size of the matrix\n", argv[0]);
     return 1;
   }
 
@@ -134,10 +135,12 @@ int main(int argc, char * argv[]) {
     return -5;
   }
 
-  double time = ((double)(stop.tv_sec - start.tv_sec) + (double)(stop.tv_usec - start.tv_usec) * 1.e-6) / 20.0;
+  double time = ((double)(stop.tv_sec - start.tv_sec) +
+                 (double)(stop.tv_usec - start.tv_usec) * 1.e-6) / 20.0;
   size_t flops = (((n * n * n) / 6) + ((n * n) / 2) + (n / 3)) * 6 +
                  (((n * n * n) / 6) - ((n * n) / 2) + (n / 3)) * 2;
-  fprintf(stdout, "%.3es %.3gGFlops/s Error: %.3e + %.3ei\n%sED!\n", time, ((double)flops * 1.e-9) / time, rdiff, idiff, (passed) ? "PASS" : "FAIL");
+  fprintf(stdout, "%.3es %.3gGFlops/s Error: %.3e + %.3ei\n%sED!\n", time,
+          ((double)flops * 1.e-9) / time, rdiff, idiff, (passed) ? "PASS" : "FAIL");
 
   free(A);
   free(refA);
@@ -145,7 +148,10 @@ int main(int argc, char * argv[]) {
   return (int)!passed;
 }
 
-static void ztrtri_ref(CBlasUplo uplo, CBlasDiag diag, size_t n, double complex * restrict A, size_t lda, long * restrict info) {
+static void ztrtri_ref(CBlasUplo uplo, CBlasDiag diag,
+                       size_t n,
+                       double complex * restrict A, size_t lda,
+                       long * restrict info) {
   *info = 0;
   if (lda < n)
     *info = -5;

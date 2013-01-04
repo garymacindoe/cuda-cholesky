@@ -255,7 +255,7 @@ int main(int argc, char * argv[]) {
     if (diag == CBlasNonUnit) flops += m * n;
   }
 
-  fprintf(stdout, "%.3ems %.3gGFlops/s Error: %.3e\n%sED!\n", time,
+  fprintf(stdout, "%.3es %.3gGFlops/s Error: %.3e\n%sED!\n", time * 1.e-3f,
           ((float)flops * 1.e-6f) / time, diff, (passed) ? "PASS" : "FAIL");
 
   free(A);

@@ -28,7 +28,10 @@ int main(int argc, char * argv[]) {
   size_t m, n, k;
 
   if (argc != 6) {
-    fprintf(stderr, "Usage: %s <transA> <transB> <m> <n> <k>\nwhere:\n  transA and transB  are 'n' or 'N' for CBlasNoTrans, 't' or 'T' for CBlasTrans or 'c' or 'C' for CBlasConjTrans\n  m, n and k         are the sizes of the matrices\n", argv[0]);
+    fprintf(stderr, "Usage: %s <transA> <transB> <m> <n> <k>\n"
+                    "where:\n"
+                    "  transA and transB  are 'n' or 'N' for CBlasNoTrans, 't' or 'T' for CBlasTrans or 'c' or 'C' for CBlasConjTrans\n"
+                    "  m, n and k         are the sizes of the matrices\n", argv[0]);
     return 1;
   }
 
@@ -203,8 +206,8 @@ int main(int argc, char * argv[]) {
   flops *= m * n;
 
   bool passed = (rdiff <= error) && (idiff <= error);
-  fprintf(stdout, "%.3ems %.3gGFlops/s Error: %.3e + %.3ei\n%sED!\n", time,
-          ((float)flops * 1.e-6f) / time, rdiff, idiff, (passed) ? "PASS" : "FAIL");
+  fprintf(stdout, "%.3es %.3gGFlops/s Error: %.3e + %.3ei\n%sED!\n", time,
+          ((double)flops * 1.e-9) / time, rdiff, idiff, (passed) ? "PASS" : "FAIL");
 
   free(A);
   free(B);

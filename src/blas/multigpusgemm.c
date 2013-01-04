@@ -105,6 +105,8 @@ static CUresult background_sgemm(const void * a) {
                                     sizeof(float)));
       data->ldb /= sizeof(float);
     }
+
+    ERROR_CHECK(pthread_setspecific(key, data));
   }
 
   // Copy C onto the device using the compute stream

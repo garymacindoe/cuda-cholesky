@@ -130,9 +130,11 @@ int main(int argc, char * argv[]) {
     return -5;
   }
 
-  double time = ((double)(stop.tv_sec - start.tv_sec) + (double)(stop.tv_usec - start.tv_usec) * 1.e-6) / 20.0;
+  double time = ((double)(stop.tv_sec - start.tv_sec) +
+  (double)(stop.tv_usec - start.tv_usec) * 1.e-6) / 20.0;
   size_t flops = ((n * n * n) / 3) + ((2 * n) / 3);
-  fprintf(stdout, "%.3es %.3gGFlops/s Error: %.3e\n%sED!\n", time, ((double)flops * 1.e-9) / time, diff, (passed) ? "PASS" : "FAIL");
+  fprintf(stdout, "%.3es %.3gGFlops/s Error: %.3e\n%sED!\n", time,
+          ((double)flops * 1.e-9) / time, diff, (passed) ? "PASS" : "FAIL");
 
   free(A);
   free(refA);
@@ -140,7 +142,10 @@ int main(int argc, char * argv[]) {
   return (int)!passed;
 }
 
-static void dtrtri_ref(CBlasUplo uplo, CBlasDiag diag, size_t n, double * restrict A, size_t lda, long * restrict info) {
+static void dtrtri_ref(CBlasUplo uplo, CBlasDiag diag,
+                       size_t n,
+                       double * restrict A, size_t lda,
+                       long * restrict info) {
   *info = 0;
   if (lda < n)
     *info = -5;

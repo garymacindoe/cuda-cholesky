@@ -11,7 +11,11 @@ int main(int argc, char * argv[]) {
   int d;
 
   if (argc < 3 || argc > 4) {
-    fprintf(stderr, "Usage: %s <uplo> <n> [device]\nwhere:\n  uplo is 'u' or 'U' for CBlasUpper or 'l' or 'L' for CBlasLower\n  n                  is the size of the matrix\n  device             is the ordinal of the GPU to use (default 0)\n", argv[0]);
+    fprintf(stderr, "Usage: %s <uplo> <n> [device]\n"
+                    "where:\n"
+                    "  uplo is 'u' or 'U' for CBlasUpper or 'l' or 'L' for CBlasLower\n"
+                    "  n                  is the size of the matrix\n"
+                    "  device             is the ordinal of the GPU to use (default 0)\n", argv[0]);
     return 1;
   }
 
@@ -152,7 +156,7 @@ int main(int argc, char * argv[]) {
 
   size_t flops = ((n * n * n) / 3) + ((n * n) / 2) + (n / 6);
 
-  fprintf(stdout, "%.3ems %.3gGFlops/s Error: %.3e\n%sED!\n", time,
+  fprintf(stdout, "%.3es %.3gGFlops/s Error: %.3e\n%sED!\n", time * 1.e-3f,
           ((float)flops * 1.e-6f) / time, diff, (passed) ? "PASS" : "FAIL");
 
   free(A);

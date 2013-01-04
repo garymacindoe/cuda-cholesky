@@ -391,9 +391,9 @@ CUresult cuZgemm2(CUmodule module,
   * (33 * 10^9) / (6 * 1024^3 / sizeof(double complex)) = 81.96
   *
   */
-#define MB ((transA == CBlasNoTrans) ? 1024 : (transB == CBlasNoTrans) ? 120 :  64)
-#define NB ((transA == CBlasNoTrans) ?  180 : (transB == CBlasNoTrans) ? 384 : 180)
-#define KB ((transA == CBlasNoTrans) ?   64 : (transB == CBlasNoTrans) ?  32 :  80)
+#define MB ((transA == CBlasNoTrans) ? 1024 : ((transB == CBlasNoTrans) ? 120 :  64))
+#define NB ((transA == CBlasNoTrans) ?  180 : ((transB == CBlasNoTrans) ? 384 : 180))
+#define KB ((transA == CBlasNoTrans) ?   64 : ((transB == CBlasNoTrans) ?  32 :  80))
 
 #include "multigpuzgemm.c"
 

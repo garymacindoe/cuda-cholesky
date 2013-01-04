@@ -28,7 +28,10 @@ int main(int argc, char * argv[]) {
   size_t m, n, k;
 
   if (argc != 6) {
-    fprintf(stderr, "Usage: %s <transA> <transB> <m> <n> <k>\nwhere:\n  transA and transB  are 'n' or 'N' for CBlasNoTrans, 't' or 'T' for CBlasTrans or 'c' or 'C' for CBlasConjTrans\n  m, n and k         are the sizes of the matrices\n", argv[0]);
+    fprintf(stderr, "Usage: %s <transA> <transB> <m> <n> <k>\n"
+                    "where:\n"
+                    "  transA and transB  are 'n' or 'N' for CBlasNoTrans, 't' or 'T' for CBlasTrans or 'c' or 'C' for CBlasConjTrans\n"
+                    "  m, n and k         are the sizes of the matrices\n", argv[0]);
     return 1;
   }
 

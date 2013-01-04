@@ -19,7 +19,13 @@ int main(int argc, char * argv[]) {
   size_t m, n;
 
   if (argc != 7) {
-    fprintf(stderr, "Usage: %s <side> <uplo> <trans> <diag> <m> <n>\nwhere:\n  side               is 'l' or 'L' for CBlasLeft and 'r' or 'R' for CBlasRight\n  uplo               is 'u' or 'U' for CBlasUpper and 'l' or 'L' for CBlasLower\n  trans              is 'n' or 'N' for CBlasNoTrans, 't' or 'T' for CBlasTrans or 'c' or 'C' for CBlasConjTrans\n  diag               is 'n' or 'N' for CBlasNonUnit and 'u' or 'U' for CBlasUnit\n  m and n           are the sizes of the matrices\n", argv[0]);
+    fprintf(stderr, "Usage: %s <side> <uplo> <trans> <diag> <m> <n>\n"
+                    "where:\n"
+                    "  side               is 'l' or 'L' for CBlasLeft and 'r' or 'R' for CBlasRight\n"
+                    "  uplo               is 'u' or 'U' for CBlasUpper and 'l' or 'L' for CBlasLower\n"
+                    "  trans              is 'n' or 'N' for CBlasNoTrans, 't' or 'T' for CBlasTrans or 'c' or 'C' for CBlasConjTrans\n"
+                    "  diag               is 'n' or 'N' for CBlasNonUnit and 'u' or 'U' for CBlasUnit\n"
+                    "  m and n           are the sizes of the matrices\n", argv[0]);
     return 1;
   }
 
