@@ -553,8 +553,10 @@ CUresult cuMultiGPUSgemm(CUcontext * contexts, int nContexts,
     }
   }
 
-  // Deallocate objects in context (context doesn't need to be current)
+  // Deallocate objects in context (context needs to be current)
   for (int i = 0; i < nContexts; i++) {
+    CU_ERROR_CHECK(cuCtxPushCurrent(contexts[i]));
+
     // Free temporary memory
     CU_ERROR_CHECK(cuMemFree(data[i].C));
     CU_ERROR_CHECK(cuMemFree(data[i].B0));
@@ -568,6 +570,11 @@ CUresult cuMultiGPUSgemm(CUcontext * contexts, int nContexts,
 
     // Unload the module
     CU_ERROR_CHECK(cuModuleUnload(data[i].module));
+
+    CU_ERROR_CHECK(cuCtxPopCurrent(&contexts[i]));
+
+    // Destroy the context
+    CU_ERROR_CHECK(cuCtxDestroy(contexts[i]));
   }
 
   return CUDA_SUCCESS;
