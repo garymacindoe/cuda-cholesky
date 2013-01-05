@@ -572,9 +572,6 @@ CUresult cuMultiGPUSgemm(CUcontext * contexts, int nContexts,
     CU_ERROR_CHECK(cuModuleUnload(data[i].module));
 
     CU_ERROR_CHECK(cuCtxPopCurrent(&contexts[i]));
-
-    // Destroy the context
-    CU_ERROR_CHECK(cuCtxDestroy(contexts[i]));
   }
 
   return CUDA_SUCCESS;
