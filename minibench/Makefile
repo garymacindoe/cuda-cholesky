@@ -22,7 +22,7 @@ VPATH = . ../include
 
 OBJDIR = obj
 
-TARGETS = bandwidth-test block-test context-test cumemalloc-test event flop-test flop-word gpu-bandwidth kernel-test kernel-test-rt module-test multigpu pitch timer
+TARGETS = bandwidth-test block-test context-test cumemalloc-test event flop-test flop-word gpu-bandwidth kernel-test kernel-test-rt module-test multigpu pitch stream-test timer
 
 .PHONY: all debug $(foreach target,$(TARGETS),debug-$(target)) clean distclean
 .NOTPARALLEL: $(OBJDIR)
@@ -86,6 +86,9 @@ multigpu: $(OBJDIR)/multigpu.o $(OBJDIR)/error.o kernel-test.ptx
 pitch: $(OBJDIR)/pitch.o $(OBJDIR)/error.o
 	$(CC) $(LDFLAGS) -o $(@) $(^) $(LOADLIBES) $(LDLIBS)
 
+stream-test: $(OBJDIR)/stream-test.o $(OBJDIR)/error.o
+	$(CC) $(LDFLAGS) -o $(@) $(^) $(LOADLIBES) $(LDLIBS)
+
 timer: $(OBJDIR)/timer.o $(OBJDIR)/error.o
 	$(CC) $(LDFLAGS) -o $(@) $(^) $(LOADLIBES) $(LDLIBS)
 
@@ -101,6 +104,7 @@ $(OBJDIR)/module-test.o: error.h | $(OBJDIR)
 $(OBJDIR)/multigpu.o: error.h | $(OBJDIR)
 $(OBJDIR)/kernel-test.o: error.h | $(OBJDIR)
 $(OBJDIR)/pitch.o: error.h | $(OBJDIR)
+$(OBJDIR)/stream-test.o: error.h | $(OBJDIR)
 $(OBJDIR)/timer.o: CPPFLAGS += -D_POSIX_C_SOURCE=199309L
 $(OBJDIR)/timer.o: error.h | $(OBJDIR)
 

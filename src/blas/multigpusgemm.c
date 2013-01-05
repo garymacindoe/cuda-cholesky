@@ -1,3 +1,12 @@
+struct sgemm_data {
+
+};
+
+typedef struct __cumultigpusgemmconfig_st {
+  CBlasTranspose transA, transB;
+  size_t mb, nb, kb;
+} * CUmultiGPUSgemmConfig;
+
 #include <pthread.h>
 
 static pthread_key_t key;
@@ -8,20 +17,9 @@ static void make_key() {
 }
 
 /**
- * Thread-specific data.
- */
-struct sgemm_data {
-  CUmodule module;
-  CUstream compute, copy;
-  CUdeviceptr A0, A1, B0, B1, C;
-  size_t lda, ldb, ldc;
-};
-
-/**
  * Arguments for background function.
  */
 struct sgemm_args {
-  CBlasTranspose transA, transB;
   size_t m, n, k, lda, ldb, ldc;
   const float * A, * B;
   float * C;

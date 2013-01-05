@@ -110,7 +110,7 @@ cutaskqueue: $(OBJDIR)/src/error.o $(OBJDIR)/src/task.o $(OBJDIR)/src/taskqueue.
 
 cuthread: $(OBJDIR)/src/error.o $(OBJDIR)/src/task.o $(OBJDIR)/src/taskqueue.o $(OBJDIR)/src/thread.o $(OBJDIR)/test/cuthread.o
 
-sgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/task.o $(OBJDIR)/src/taskqueue.o $(OBJDIR)/src/thread.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/test/sgemm.o
+sgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/test/sgemm.o
 dgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/task.o $(OBJDIR)/src/taskqueue.o $(OBJDIR)/src/thread.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/test/dgemm.o
 cgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/task.o $(OBJDIR)/src/taskqueue.o $(OBJDIR)/src/thread.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/test/cgemm.o
 zgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/task.o $(OBJDIR)/src/taskqueue.o $(OBJDIR)/src/thread.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/test/zgemm.o
@@ -145,11 +145,11 @@ dtrtri2: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dt
 ctrtri2: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/ctrmm.o $(OBJDIR)/src/blas/ctrsm.o $(OBJDIR)/src/blas/cherk.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/src/lapack/cpotrf.o $(OBJDIR)/src/lapack/ctrtri.o $(OBJDIR)/test/ctrtri2.o
 ztrtri2: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/ztrmm.o $(OBJDIR)/src/blas/ztrsm.o $(OBJDIR)/src/blas/zherk.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/lapack/zpotrf.o $(OBJDIR)/src/lapack/ztrtri.o $(OBJDIR)/test/ztrtri2.o
 
-cusgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/task.o $(OBJDIR)/src/taskqueue.o $(OBJDIR)/src/thread.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/test/cusgemm.o | sgemm.fatbin
+cusgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/test/cusgemm.o | sgemm.fatbin
 cudgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/task.o $(OBJDIR)/src/taskqueue.o $(OBJDIR)/src/thread.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/test/cudgemm.o | dgemm.fatbin
 cucgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/task.o $(OBJDIR)/src/taskqueue.o $(OBJDIR)/src/thread.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/test/cucgemm.o | cgemm.fatbin
 cuzgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/task.o $(OBJDIR)/src/taskqueue.o $(OBJDIR)/src/thread.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/test/cuzgemm.o | zgemm.fatbin
-cusgemm2: $(OBJDIR)/src/error.o $(OBJDIR)/src/task.o $(OBJDIR)/src/taskqueue.o $(OBJDIR)/src/thread.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/test/cusgemm2.o | sgemm.fatbin
+cusgemm2: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/test/cusgemm2.o | sgemm.fatbin
 cudgemm2: $(OBJDIR)/src/error.o $(OBJDIR)/src/task.o $(OBJDIR)/src/taskqueue.o $(OBJDIR)/src/thread.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/test/cudgemm2.o | dgemm.fatbin
 cucgemm2: $(OBJDIR)/src/error.o $(OBJDIR)/src/task.o $(OBJDIR)/src/taskqueue.o $(OBJDIR)/src/thread.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/test/cucgemm2.o | cgemm.fatbin
 cuzgemm2: $(OBJDIR)/src/error.o $(OBJDIR)/src/task.o $(OBJDIR)/src/taskqueue.o $(OBJDIR)/src/thread.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/test/cuzgemm2.o | zgemm.fatbin
@@ -171,7 +171,7 @@ cudpotrf: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/d
 cucpotrf: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/src/blas/cherk.o $(OBJDIR)/src/blas/ctrsm.o $(OBJDIR)/src/blas/ctrmm.o $(OBJDIR)/src/lapack/cpotrf.o $(OBJDIR)/src/lapack/ctrtri.o $(OBJDIR)/test/cucpotrf.o | cgemm.fatbin cherk.fatbin ctrsm.fatbin ctrmm.fatbin cpotrf.fatbin
 cuzpotrf: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/blas/zherk.o $(OBJDIR)/src/blas/ztrsm.o $(OBJDIR)/src/blas/ztrmm.o $(OBJDIR)/src/lapack/zpotrf.o $(OBJDIR)/src/lapack/ztrtri.o $(OBJDIR)/test/cuzpotrf.o | zgemm.fatbin zherk.fatbin ztrsm.fatbin ztrmm.fatbin zpotrf.fatbin
 
-cumultigpusgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/task.o $(OBJDIR)/src/taskqueue.o $(OBJDIR)/src/thread.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/test/cumultigpusgemm.o | sgemm.fatbin
+cumultigpusgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/test/cumultigpusgemm.o | sgemm.fatbin
 cumultigpudgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/task.o $(OBJDIR)/src/taskqueue.o $(OBJDIR)/src/thread.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/test/cumultigpudgemm.o | dgemm.fatbin
 cumultigpucgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/task.o $(OBJDIR)/src/taskqueue.o $(OBJDIR)/src/thread.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/test/cumultigpucgemm.o | cgemm.fatbin
 cumultigpuzgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/task.o $(OBJDIR)/src/taskqueue.o $(OBJDIR)/src/thread.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/test/cumultigpuzgemm.o | zgemm.fatbin
@@ -212,7 +212,7 @@ $(OBJDIR)/src/blas: | $(OBJDIR)/src
 	$(MKDIR) $(@)
 
 $(OBJDIR)/src/blas/xerbla.o: blas.h | $(OBJDIR)/src/blas
-$(OBJDIR)/src/blas/sgemm.o: src/blas/multigpusgemm.c blas.h cuthread.h cutask.h cutaskqueue.h error.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/sgemm.o: blas.h error.h | $(OBJDIR)/src/blas
 $(OBJDIR)/src/blas/dgemm.o: src/blas/multigpudgemm.c blas.h cuthread.h cutask.h cutaskqueue.h error.h | $(OBJDIR)/src/blas
 $(OBJDIR)/src/blas/cgemm.o: src/blas/multigpucgemm.c blas.h cuthread.h cutask.h cutaskqueue.h error.h | $(OBJDIR)/src/blas
 $(OBJDIR)/src/blas/zgemm.o: src/blas/multigpuzgemm.c blas.h cuthread.h cutask.h cutaskqueue.h error.h | $(OBJDIR)/src/blas
@@ -296,7 +296,7 @@ $(OBJDIR)/test/custrmm2.o: test/strmm_ref.c error.h | $(OBJDIR)/test
 $(OBJDIR)/test/cudtrmm2.o: test/dtrmm_ref.c error.h | $(OBJDIR)/test
 $(OBJDIR)/test/cuctrmm2.o: test/ctrmm_ref.c error.h | $(OBJDIR)/test
 $(OBJDIR)/test/cuztrmm2.o: test/ztrmm_ref.c error.h | $(OBJDIR)/test
-$(OBJDIR)/test/cumultigpusgemm.o: test/sgemm_ref.c blas.h cutask.h cutaskqueue.h cuthread.h error.h | $(OBJDIR)/test
+$(OBJDIR)/test/cumultigpusgemm.o: test/sgemm_ref.c blas.h error.h | $(OBJDIR)/test
 $(OBJDIR)/test/cumultigpudgemm.o: test/dgemm_ref.c blas.h cutask.h cutaskqueue.h cuthread.h error.h | $(OBJDIR)/test
 $(OBJDIR)/test/cumultigpucgemm.o: test/cgemm_ref.c blas.h cutask.h cutaskqueue.h cuthread.h error.h | $(OBJDIR)/test
 $(OBJDIR)/test/cumultigpuzgemm.o: test/zgemm_ref.c blas.h cutask.h cutaskqueue.h cuthread.h error.h | $(OBJDIR)/test

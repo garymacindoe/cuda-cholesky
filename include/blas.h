@@ -268,7 +268,7 @@ CUresult cuMultiGPUZherk(CUthread *, int,
                          double, double complex * restrict, size_t);
 
 // Single precision matrix multiply
-CUresult cuMultiGPUSgemm(CUthread *, int,
+CUresult cuMultiGPUSgemm(CUcontext *, int,
                          CBlasTranspose, CBlasTranspose,
                          size_t, size_t, size_t,
                          float, const float * restrict, size_t, const float * restrict, size_t,

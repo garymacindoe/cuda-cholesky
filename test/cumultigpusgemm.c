@@ -6,23 +6,6 @@
 #include <sys/time.h>
 #include "sgemm_ref.c"
 
-static CUresult createContext(const void * args) {
-  CUdevice * device = (CUdevice *)args;
-  CUcontext context;
-  CU_ERROR_CHECK(cuCtxCreate(&context, CU_CTX_SCHED_YIELD, *device));
-  return CUDA_SUCCESS;
-}
-
-static CUresult destroyContext(const void * args) {
-  (void)args;
-
-  CUcontext context;
-  CU_ERROR_CHECK(cuCtxGetCurrent(&context));
-  CU_ERROR_CHECK(cuCtxDestroy(context));
-
-  return CUDA_SUCCESS;
-}
-
 int main(int argc, char * argv[]) {
   CBlasTranspose transA, transB;
   size_t m, n, k;
@@ -82,21 +65,11 @@ int main(int argc, char * argv[]) {
   int deviceCount;
   CU_ERROR_CHECK(cuDeviceGetCount(&deviceCount));
 
-  CUthread threads[deviceCount];
+  CUcontext contexts[deviceCount];
   for (int i = 0; i < deviceCount; i++) {
     CUdevice device;
     CU_ERROR_CHECK(cuDeviceGet(&device, i));
-
-    CUtask task;
-    CU_ERROR_CHECK(cuTaskCreate(&task, createContext, &device, sizeof(CUdevice)));
-
-    CU_ERROR_CHECK(cuThreadCreate(&threads[i]));
-    CU_ERROR_CHECK(cuThreadRunTask(threads[i], task));
-
-    CUresult result;
-    CU_ERROR_CHECK(cuTaskDestroy(task, &result));
-    if (result != CUDA_SUCCESS)
-      return (int)result;
+    CU_ERROR_CHECK(cuCtxCreate(&contexts[i], CU_CTX_SCHED_AUTO, device));
   }
 
   alpha = (float)rand() / (float)RAND_MAX;
@@ -168,7 +141,8 @@ int main(int argc, char * argv[]) {
   }
 
   sgemm_ref(transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, refC, ldc);
-  CU_ERROR_CHECK(cuMultiGPUSgemm(threads, deviceCount, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc));
+  CU_ERROR_CHECK(cuMultiGPUSgemm(contexts, deviceCount, transA, transB, m, n, k,
+                                 alpha, A, lda, B, ldb, beta, C, ldc));
 
   float diff = 0.0f;
   for (size_t j = 0; j < n; j++) {
@@ -185,7 +159,13 @@ int main(int argc, char * argv[]) {
     return -5;
   }
   for (size_t i = 0; i < 20; i++)
-    CU_ERROR_CHECK(cuMultiGPUSgemm(threads, deviceCount, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc));
+  CU_ERROR_CHECK(cuMultiGPUSgemm(contexts, deviceCount, transA, transB, m, n, k,
+                                 alpha, A, lda, B, ldb, beta, C, ldc));
+  for (int i = 0; i < deviceCount; i++) {
+    CU_ERROR_CHECK(cuCtxPushCurrent(contexts[i]));
+    CU_ERROR_CHECK(cuCtxSynchronize());
+    CU_ERROR_CHECK(cuCtxPopCurrent(&contexts[i]));
+  }
   if (gettimeofday(&stop, NULL) != 0) {
     fputs("gettimeofday failed\n", stderr);
     return -6;
@@ -211,18 +191,8 @@ int main(int argc, char * argv[]) {
   free(C);
   free(refC);
 
-  for (int i = 0; i < deviceCount; i++) {
-    CUtask task;
-    CU_ERROR_CHECK(cuTaskCreate(&task, destroyContext, NULL, 0));
-    CU_ERROR_CHECK(cuThreadRunTask(threads[i], task));
-
-    CUresult result;
-    CU_ERROR_CHECK(cuTaskDestroy(task, &result));
-    if (result != 0)
-      return result;
-
-    CU_ERROR_CHECK(cuThreadDestroy(threads[i]));
-  }
+  for (int i = 0; i < deviceCount; i++)
+    CU_ERROR_CHECK(cuCtxDestroy(contexts[i]));
 
   return (int)!passed;
 }
