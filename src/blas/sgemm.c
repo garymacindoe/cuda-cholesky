@@ -200,7 +200,7 @@ struct sgemm_plan {
 };
 
 static CUresult init(const void * args) {
-  struct sgemm_plan * plan = (struct sgemm_plan *)args;
+  struct sgemm_plan * plan = *(struct sgemm_plan **)args;
 
   // Load the module
   CU_ERROR_CHECK(cuModuleLoad(&plan->module, "sgemm.fatbin"));
@@ -258,8 +258,8 @@ static CUresult cleanup(const void * args) {
   CU_ERROR_CHECK(cuMemFree(plan->A1));
 
   // Destroy the streams (this is asynchronous)
-  CU_ERROR_CHECK(cuStreamDestroy(plan->compute));
   CU_ERROR_CHECK(cuStreamDestroy(plan->copy));
+  CU_ERROR_CHECK(cuStreamDestroy(plan->compute));
 
   // Unload the module
   CU_ERROR_CHECK(cuModuleUnload(plan->module));
@@ -267,16 +267,16 @@ static CUresult cleanup(const void * args) {
   return CUDA_SUCCESS;
 }
 
-struct __cumultigpusconfig_st {
+struct __cumultigpusblasconfig_st {
   CUmultiGPU mGPU;
   struct sgemm_plan * plans;
   size_t mb, nb;
 };
 
-CUresult cuMultiGPUSConfigCreate(CUmultiGPUSConfig * config, CUmultiGPU mGPU,
-                                 CBlasTranspose transA, CBlasTranspose transB,
-                                 size_t mb, size_t nb, size_t kb) {
-  if ((*config = malloc(sizeof(struct __cumultigpusconfig_st))) == NULL)
+CUresult cuMultiGPUSBlasConfigCreate(CUmultiGPUSBlasConfig * config, CUmultiGPU mGPU,
+                                     CBlasTranspose transA, CBlasTranspose transB,
+                                     size_t mb, size_t nb, size_t kb) {
+  if ((*config = malloc(sizeof(struct __cumultigpusblasconfig_st))) == NULL)
     return CUDA_ERROR_OUT_OF_MEMORY;
 
   (*config)->mGPU = mGPU;
@@ -288,14 +288,15 @@ CUresult cuMultiGPUSConfigCreate(CUmultiGPUSConfig * config, CUmultiGPU mGPU,
     return CUDA_ERROR_OUT_OF_MEMORY;
 
   for (int i = 0; i < n; i++) {
-    (*config)->plans[i].transA = transA;
-    (*config)->plans[i].transB = transB;
-    (*config)->plans[i].mb = mb;
-    (*config)->plans[i].nb = nb;
-    (*config)->plans[i].kb = kb;
+    struct sgemm_plan * plan = &(*config)->plans[i];
+    plan->transA = transA;
+    plan->transB = transB;
+    plan->mb = mb;
+    plan->nb = nb;
+    plan->kb = kb;
 
     CUtask task;
-    CU_ERROR_CHECK(cuTaskCreate(&task, init, &(*config)->plans[i], sizeof(struct sgemm_plan)));
+    CU_ERROR_CHECK(cuTaskCreate(&task, init, &plan, sizeof(struct sgemm_plan *)));
     CU_ERROR_CHECK(cuMultiGPURunTask(mGPU, i, task));
 
     CUresult result;
@@ -307,7 +308,7 @@ CUresult cuMultiGPUSConfigCreate(CUmultiGPUSConfig * config, CUmultiGPU mGPU,
   return CUDA_SUCCESS;
 }
 
-CUresult cuMultiGPUSConfigDestroy(CUmultiGPUSConfig config) {
+CUresult cuMultiGPUSBlasConfigDestroy(CUmultiGPUSBlasConfig config) {
   int n = cuMultiGPUGetContextCount(config->mGPU);
   for (int i = 0; i < n; i++) {
     CUtask task;
@@ -503,7 +504,7 @@ static CUresult background_sgemm(const void * a) {
   return CUDA_SUCCESS;
 }
 
-CUresult cuMultiGPUSgemm(CUmultiGPUSConfig config,
+CUresult cuMultiGPUSgemm(CUmultiGPUSBlasConfig config,
                          CBlasTranspose transA, CBlasTranspose transB,
                          size_t m, size_t n, size_t k,
                          float alpha, const float * restrict A, size_t lda,
@@ -624,6 +625,7 @@ CUresult cuMultiGPUSgemm(CUmultiGPUSConfig config,
           args.A = &A[i];
           args.B = &B[j * ldb];
           args.C = &C[j * ldc + i];
+          args.plan = &config->plans[t];
           CU_ERROR_CHECK(cuTaskCreate(&task, background_sgemm, &args, sizeof(struct sgemm_args)));
           CU_ERROR_CHECK(cuTaskQueuePush(queue, task));
           CU_ERROR_CHECK(cuMultiGPURunTask(config->mGPU, t++, task));
@@ -640,6 +642,7 @@ CUresult cuMultiGPUSgemm(CUmultiGPUSConfig config,
           args.A = &A[i * lda];
           args.B = &B[j * ldb];
           args.C = &C[j * ldc + i];
+          args.plan = &config->plans[t];
           CU_ERROR_CHECK(cuTaskCreate(&task, background_sgemm, &args, sizeof(struct sgemm_args)));
           CU_ERROR_CHECK(cuTaskQueuePush(queue, task));
           CU_ERROR_CHECK(cuMultiGPURunTask(config->mGPU, t++, task));
@@ -658,6 +661,7 @@ CUresult cuMultiGPUSgemm(CUmultiGPUSConfig config,
           args.A = &A[i];
           args.B = &B[j];
           args.C = &C[j * ldc + i];
+          args.plan = &config->plans[t];
           CU_ERROR_CHECK(cuTaskCreate(&task, background_sgemm, &args, sizeof(struct sgemm_args)));
           CU_ERROR_CHECK(cuTaskQueuePush(queue, task));
           CU_ERROR_CHECK(cuMultiGPURunTask(config->mGPU, t++, task));
@@ -674,6 +678,7 @@ CUresult cuMultiGPUSgemm(CUmultiGPUSConfig config,
           args.A = &A[i * lda];
           args.B = &B[j];
           args.C = &C[j * ldc + i];
+          args.plan = &config->plans[t];
           CU_ERROR_CHECK(cuTaskCreate(&task, background_sgemm, &args, sizeof(struct sgemm_args)));
           CU_ERROR_CHECK(cuTaskQueuePush(queue, task));
           CU_ERROR_CHECK(cuMultiGPURunTask(config->mGPU, t++, task));

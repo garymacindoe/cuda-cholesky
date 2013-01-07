@@ -242,125 +242,125 @@ CUresult cuZtrsm(CUmodule, CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
 
 /** My MultiGPU/Hybrid implementations */
 // MultiGPU configurations
-typedef struct __cumultigpusconfig_st * CUmultiGPUSConfig;
-CUresult cuMultiGPUSConfigCreate(CUmultiGPUSConfig *, CUmultiGPU,
-                                 CBlasTranspose, CBlasTranspose,
+typedef struct __cumultigpusblasconfig_st * CUmultiGPUSBlasConfig;
+CUresult cuMultiGPUSBlasConfigCreate(CUmultiGPUSBlasConfig *, CUmultiGPU,
+                                     CBlasTranspose, CBlasTranspose,
                                      size_t, size_t, size_t);
-CUresult cuMultiGPUSConfigDestroy(CUmultiGPUSConfig);
+CUresult cuMultiGPUSBlasConfigDestroy(CUmultiGPUSBlasConfig);
 
-typedef struct __cumultigpudconfig_st * CUmultiGPUDConfig;
-CUresult cuMultiGPUDConfigCreate(CUmultiGPUDConfig *, CUmultiGPU,
-                                 CBlasTranspose, CBlasTranspose,
+typedef struct __cumultigpudblasconfig_st * CUmultiGPUDBlasConfig;
+CUresult cuMultiGPUDBlasConfigCreate(CUmultiGPUDBlasConfig *, CUmultiGPU,
+                                     CBlasTranspose, CBlasTranspose,
                                      size_t, size_t, size_t);
-CUresult cuMultiGPUDConfigDestroy(CUmultiGPUDConfig);
+CUresult cuMultiGPUDBlasConfigDestroy(CUmultiGPUDBlasConfig);
 
-typedef struct __cumultigpucconfig_st * CUmultiGPUCConfig;
-CUresult cuMultiGPUCConfigCreate(CUmultiGPUCConfig *, CUmultiGPU,
-                                 CBlasTranspose, CBlasTranspose,
+typedef struct __cumultigpucblasconfig_st * CUmultiGPUCBlasConfig;
+CUresult cuMultiGPUCBlasConfigCreate(CUmultiGPUCBlasConfig *, CUmultiGPU,
+                                     CBlasTranspose, CBlasTranspose,
                                      size_t, size_t, size_t);
-CUresult cuMultiGPUCConfigDestroy(CUmultiGPUCConfig);
+CUresult cuMultiGPUCBlasConfigDestroy(CUmultiGPUCBlasConfig);
 
-typedef struct __cumultigpuzconfig_st * CUmultiGPUZConfig;
-CUresult cuMultiGPUZConfigCreate(CUmultiGPUZConfig *, CUmultiGPU,
-                                 CBlasTranspose, CBlasTranspose,
+typedef struct __cumultigpuzblasconfig_st * CUmultiGPUZBlasConfig;
+CUresult cuMultiGPUZBlasConfigCreate(CUmultiGPUZBlasConfig *, CUmultiGPU,
+                                     CBlasTranspose, CBlasTranspose,
                                      size_t, size_t, size_t);
-CUresult cuMultiGPUZConfigDestroy(CUmultiGPUZConfig);
+CUresult cuMultiGPUZBlasConfigDestroy(CUmultiGPUZBlasConfig);
 
 // Single precision rank-K update
-CUresult cuMultiGPUSsyrk(CUmultiGPUSConfig,
+CUresult cuMultiGPUSsyrk(CUmultiGPUSBlasConfig,
                          CBlasUplo, CBlasTranspose,
                          size_t, size_t,
                          float, const float * restrict, size_t,
                          float, float * restrict, size_t);
 // Double precision rank-K update
-CUresult cuMultiGPUDsyrk(CUmultiGPUDConfig,
+CUresult cuMultiGPUDsyrk(CUmultiGPUDBlasConfig,
                          CBlasUplo, CBlasTranspose,
                          size_t, size_t,
                          double, const double * restrict, size_t,
                          double, double * restrict, size_t);
 // Single precision complex hermitian rank-K update
-CUresult cuMultiGPUCherk(CUmultiGPUCConfig,
+CUresult cuMultiGPUCherk(CUmultiGPUCBlasConfig,
                          CBlasUplo, CBlasTranspose,
                          size_t, size_t,
                          float, const float complex * restrict, size_t,
                          float, float complex * restrict, size_t);
 // Double precision complex hermitian rank-K update
-CUresult cuMultiGPUZherk(CUmultiGPUZConfig,
+CUresult cuMultiGPUZherk(CUmultiGPUZBlasConfig,
                          CBlasUplo, CBlasTranspose,
                          size_t, size_t,
                          double, const double complex * restrict, size_t,
                          double, double complex * restrict, size_t);
 
 // Single precision matrix multiply
-CUresult cuMultiGPUSgemm(CUmultiGPUSConfig,
+CUresult cuMultiGPUSgemm(CUmultiGPUSBlasConfig,
                          CBlasTranspose, CBlasTranspose,
                          size_t, size_t, size_t,
                          float, const float * restrict, size_t, const float * restrict, size_t,
                          float, float * restrict, size_t);
 // Double precision matrix multiply
-CUresult cuMultiGPUDgemm(CUmultiGPUDConfig,
+CUresult cuMultiGPUDgemm(CUmultiGPUDBlasConfig,
                          CBlasTranspose, CBlasTranspose,
                          size_t, size_t, size_t,
                          double, const double * restrict, size_t, const double * restrict, size_t,
                          double, double * restrict, size_t);
 // Single precision complex matrix multiply
-CUresult cuMultiGPUCgemm(CUmultiGPUCConfig,
+CUresult cuMultiGPUCgemm(CUmultiGPUCBlasConfig,
                          CBlasTranspose, CBlasTranspose,
                          size_t, size_t, size_t,
                          float complex, const float complex * restrict, size_t, const float complex * restrict, size_t,
                          float complex,  float complex * restrict, size_t);
 // Double precision complex matrix multiply
-CUresult cuMultiGPUZgemm(CUmultiGPUZConfig,
+CUresult cuMultiGPUZgemm(CUmultiGPUZBlasConfig,
                          CBlasTranspose, CBlasTranspose,
                          size_t, size_t, size_t,
                          double complex, const double complex * restrict, size_t, const double complex * restrict, size_t,
                          double complex, double complex * restrict, size_t);
 
 // Single precision triangular matrix multiply
-CUresult cuMultiGPUStrmm(CUmultiGPUSConfig,
+CUresult cuMultiGPUStrmm(CUmultiGPUSBlasConfig,
                          CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
                          size_t, size_t,
                          float, const float * restrict, size_t,
                          float * restrict, size_t);
 // Double precision triangular matrix multiply
-CUresult cuMultiGPUDtrmm(CUmultiGPUDConfig,
+CUresult cuMultiGPUDtrmm(CUmultiGPUDBlasConfig,
                          CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
                          size_t, size_t,
                          double, const double * restrict, size_t,
                          double * restrict, size_t);
 // Single precision complex triangular matrix multiply
-CUresult cuMultiGPUCtrmm(CUmultiGPUCConfig,
+CUresult cuMultiGPUCtrmm(CUmultiGPUCBlasConfig,
                          CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
                          size_t, size_t,
                          float complex, const float complex * restrict, size_t,
                          float complex * restrict, size_t);
 // Double precision complex triangular matrix multiply
-CUresult cuMultiGPUZtrmm(CUmultiGPUZConfig,
+CUresult cuMultiGPUZtrmm(CUmultiGPUZBlasConfig,
                          CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
                          size_t, size_t,
                          double complex, const double complex * restrict, size_t,
                          double complex * restrict, size_t);
 
 // Single precision triangular solve
-CUresult cuMultiGPUStrsm(CUmultiGPUSConfig,
+CUresult cuMultiGPUStrsm(CUmultiGPUSBlasConfig,
                          CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
                          size_t, size_t,
                          float, const float * restrict, size_t,
                          float * restrict, size_t);
 // Double precision triangular solve
-CUresult cuMultiGPUDtrsm(CUmultiGPUDConfig,
+CUresult cuMultiGPUDtrsm(CUmultiGPUDBlasConfig,
                          CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
                          size_t, size_t,
                          double, const double * restrict, size_t,
                          double * restrict, size_t);
 // Single precision complex triangular solve
-CUresult cuMultiGPUCtrsm(CUmultiGPUCConfig,
+CUresult cuMultiGPUCtrsm(CUmultiGPUCBlasConfig,
                          CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
                          size_t, size_t,
                          float complex, const float complex * restrict, size_t,
                          float complex * restrict, size_t);
 // Double precision complex triangular solve
-CUresult cuMultiGPUZtrsm(CUmultiGPUZConfig,
+CUresult cuMultiGPUZtrsm(CUmultiGPUZBlasConfig,
                          CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
                          size_t, size_t,
                          double complex, const double complex * restrict, size_t,

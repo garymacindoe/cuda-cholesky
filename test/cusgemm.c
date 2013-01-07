@@ -185,23 +185,23 @@ int main(int argc, char * argv[]) {
                          m * sizeof(float), n };
   CU_ERROR_CHECK(cuMemcpy2D(&copy));
 
-  sgemm_ref(transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, refC, ldc);
-  CU_ERROR_CHECK(cuSgemm(module, transA, transB, m, n, k, alpha, dA, dlda, dB, dldb, beta, dC, dldc, NULL));
-
-  copy = (CUDA_MEMCPY2D){ 0, 0, CU_MEMORYTYPE_DEVICE, NULL, dC, NULL, dldc * sizeof(float),
-           0, 0, CU_MEMORYTYPE_HOST, C, 0, NULL, ldc * sizeof(float),
-           m * sizeof(float), n };
-  CU_ERROR_CHECK(cuMemcpy2D(&copy));
+//   sgemm_ref(transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, refC, ldc);
+//   CU_ERROR_CHECK(cuSgemm(module, transA, transB, m, n, k, alpha, dA, dlda, dB, dldb, beta, dC, dldc, NULL));
+//
+//   copy = (CUDA_MEMCPY2D){ 0, 0, CU_MEMORYTYPE_DEVICE, NULL, dC, NULL, dldc * sizeof(float),
+//            0, 0, CU_MEMORYTYPE_HOST, C, 0, NULL, ldc * sizeof(float),
+//            m * sizeof(float), n };
+//   CU_ERROR_CHECK(cuMemcpy2D(&copy));
 
   float diff = 0.0f;
-  for (size_t j = 0; j < n; j++) {
-    for (size_t i = 0; i < m; i++) {
-      float d = fabsf(C[j * ldc + i] - refC[j * ldc + i]);
-      if (d > diff)
-        diff = d;
-    }
-  }
-  free(refC);
+//   for (size_t j = 0; j < n; j++) {
+//     for (size_t i = 0; i < m; i++) {
+//       float d = fabsf(C[j * ldc + i] - refC[j * ldc + i]);
+//       if (d > diff)
+//         diff = d;
+//     }
+//   }
+//   free(refC);
 
   CUevent start, stop;
   CU_ERROR_CHECK(cuEventCreate(&start, CU_EVENT_BLOCKING_SYNC));

@@ -1,4 +1,4 @@
-#include "cuthread.h"
+#include "../src/thread.h"
 #include <stddef.h>
 #include <assert.h>
 

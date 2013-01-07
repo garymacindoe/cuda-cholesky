@@ -1,9 +1,7 @@
-#include "cuthread.h"
-#include <stdlib.h>
+#include "thread.h"
 #include <pthread.h>
-
 #include "error.h"
-#include "cutaskqueue.h"
+#include "taskqueue.h"
 
 /**
  * Background thread type.

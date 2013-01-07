@@ -1,4 +1,4 @@
-#include "cutaskqueue.h"
+#include "../src/taskqueue.h"
 #include <stdlib.h>
 #include <assert.h>
 
