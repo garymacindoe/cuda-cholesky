@@ -242,7 +242,7 @@ CUresult cuStrmm2(CUmodule module,
   return CUDA_SUCCESS;
 }
 
-CUresult cuMultiGPUStrmm(CUmultiGPU multiGPU,
+CUresult cuMultiGPUStrmm(CUmultiGPUSBlasConfig config,
                          CBlasSide side, CBlasUplo uplo, CBlasTranspose trans, CBlasDiag diag,
                          size_t m, size_t n,
                          float alpha, const float * restrict A, size_t lda,
@@ -262,7 +262,6 @@ CUresult cuMultiGPUStrmm(CUmultiGPU multiGPU,
   if (m == 0 || n == 0)
     return CUDA_SUCCESS;
 
-#if 0
   if (alpha == zero) {
     sgemm(CBlasNoTrans, CBlasNoTrans, m, n, 0, zero, A, lda, B, ldb, zero, B, ldb);
     return CUDA_SUCCESS;
@@ -287,7 +286,7 @@ CUresult cuMultiGPUStrmm(CUmultiGPU multiGPU,
           for (size_t j = 0; j < n; j += nb) {
             const size_t jb = min(nb, n - j);
 
-            CU_ERROR_CHECK(cuMultiGPUSgemm(handles, deviceCount, CBlasNoTrans, CBlasNoTrans, ib, jb, m - i - ib, -one, &A[(i + ib) * lda + i], lda, &B[j * ldb + i + ib], ldb, alpha, &B[j * ldb + i], ldb));
+            CU_ERROR_CHECK(cuMultiGPUSgemm(config, CBlasNoTrans, CBlasNoTrans, ib, jb, m - i - ib, -one, &A[(i + ib) * lda + i], lda, &B[j * ldb + i + ib], ldb, alpha, &B[j * ldb + i], ldb));
 
             strmm(CBlasLeft, CBlasUpper, CBlasNoTrans, diag, ib, jb, one, &A[i * lda + i], lda, &B[j * ldb + i], ldb);
           }
@@ -300,7 +299,7 @@ CUresult cuMultiGPUStrmm(CUmultiGPU multiGPU,
           for (size_t j = 0; j < n; j += nb) {
             const size_t jb = min(nb, n - j);
 
-            CU_ERROR_CHECK(cuMultiGPUSgemm(handles, deviceCount, CBlasNoTrans, CBlasNoTrans, ib, jb, i, -one, &A[i], lda, &B[j * ldb], ldb, alpha, &B[j * ldb + i], ldb));
+            CU_ERROR_CHECK(cuMultiGPUSgemm(config, CBlasNoTrans, CBlasNoTrans, ib, jb, i, -one, &A[i], lda, &B[j * ldb], ldb, alpha, &B[j * ldb + i], ldb));
 
             strmm(CBlasLeft, CBlasLower, CBlasNoTrans, diag, ib, jb, one, &A[i * lda + i], lda, &B[j * ldb + i], ldb);
           }
@@ -315,7 +314,7 @@ CUresult cuMultiGPUStrmm(CUmultiGPU multiGPU,
           for (size_t j = 0; j < n; j += nb) {
             const size_t jb = min(nb, n - j);
 
-            CU_ERROR_CHECK(cuMultiGPUSgemm(handles, deviceCount, CBlasTrans, CBlasNoTrans, ib, jb, i, -one, &A[i * lda], lda, &B[j * ldb], ldb, alpha, &B[j * ldb + i], ldb));
+            CU_ERROR_CHECK(cuMultiGPUSgemm(config, CBlasTrans, CBlasNoTrans, ib, jb, i, -one, &A[i * lda], lda, &B[j * ldb], ldb, alpha, &B[j * ldb + i], ldb));
 
             strmm(CBlasLeft, CBlasUpper, CBlasTrans, diag, ib, jb, one, &A[i * lda + i], lda, &B[j * ldb + i], ldb);
           }
@@ -330,7 +329,7 @@ CUresult cuMultiGPUStrmm(CUmultiGPU multiGPU,
           for (size_t j = 0; j < n; j += nb) {
             const size_t jb = min(nb, n - j);
 
-            CU_ERROR_CHECK(cuMultiGPUSgemm(handles, deviceCount, CBlasTrans, CBlasNoTrans, ib, jb, m - i - ib, -one, &A[i * lda + i + ib], lda, &B[j * ldb + i + ib], ldb, alpha, &B[j * ldb + i], ldb));
+            CU_ERROR_CHECK(cuMultiGPUSgemm(config, CBlasTrans, CBlasNoTrans, ib, jb, m - i - ib, -one, &A[i * lda + i + ib], lda, &B[j * ldb + i + ib], ldb, alpha, &B[j * ldb + i], ldb));
 
             strmm(CBlasLeft, CBlasLower, CBlasTrans, diag, ib, jb, one, &A[i * lda + i], lda, &B[j * ldb + i], ldb);
           }
@@ -347,7 +346,7 @@ CUresult cuMultiGPUStrmm(CUmultiGPU multiGPU,
           for (size_t i = 0; i < m; i += mb) {
             const size_t ib = min(mb, m - i);
 
-            CU_ERROR_CHECK(cuMultiGPUSgemm(handles, deviceCount, CBlasNoTrans, CBlasNoTrans, ib, jb, j, -one, &B[i], ldb, &A[j * lda], lda, alpha, &B[j * ldb + i], ldb));
+            CU_ERROR_CHECK(cuMultiGPUSgemm(config, CBlasNoTrans, CBlasNoTrans, ib, jb, j, -one, &B[i], ldb, &A[j * lda], lda, alpha, &B[j * ldb + i], ldb));
 
             strmm(CBlasRight, CBlasUpper, CBlasNoTrans, diag, ib, jb, one, &A[j * lda + j], lda, &B[j * ldb + i], ldb);
           }
@@ -362,7 +361,7 @@ CUresult cuMultiGPUStrmm(CUmultiGPU multiGPU,
           for (size_t i = 0; i < m; i += mb) {
             const size_t ib = min(mb, m - i);
 
-            CU_ERROR_CHECK(cuMultiGPUSgemm(handles, deviceCount, CBlasNoTrans, CBlasNoTrans, ib, jb, n - j - jb, -one, &B[(j + jb) * ldb + i], ldb, &A[j * lda + j + jb], lda, alpha, &B[j * ldb + i], ldb));
+            CU_ERROR_CHECK(cuMultiGPUSgemm(config, CBlasNoTrans, CBlasNoTrans, ib, jb, n - j - jb, -one, &B[(j + jb) * ldb + i], ldb, &A[j * lda + j + jb], lda, alpha, &B[j * ldb + i], ldb));
 
             strmm(CBlasRight, CBlasLower, CBlasNoTrans, diag, ib, jb, one, &A[j * lda + j], lda, &B[j * ldb + i], ldb);
           }
@@ -379,7 +378,7 @@ CUresult cuMultiGPUStrmm(CUmultiGPU multiGPU,
           for (size_t i = 0; i < m; i += mb) {
             const size_t ib = min(mb, m - i);
 
-            CU_ERROR_CHECK(cuMultiGPUSgemm(handles, deviceCount, CBlasNoTrans, CBlasTrans, ib, jb, n - j - jb, -one, &B[(j + jb) * ldb + i], ldb, &A[(j + jb) * lda + j], lda, alpha, &B[j * ldb + i], ldb));
+            CU_ERROR_CHECK(cuMultiGPUSgemm(config, CBlasNoTrans, CBlasTrans, ib, jb, n - j - jb, -one, &B[(j + jb) * ldb + i], ldb, &A[(j + jb) * lda + j], lda, alpha, &B[j * ldb + i], ldb));
 
             strmm(CBlasRight, CBlasUpper, CBlasTrans, diag, ib, jb, one, &A[j * lda + j], lda, &B[j * ldb + i], ldb);
           }
@@ -392,7 +391,7 @@ CUresult cuMultiGPUStrmm(CUmultiGPU multiGPU,
           for (size_t i = 0; i < m; i += mb) {
             const size_t ib = min(mb, m - i);
 
-            CU_ERROR_CHECK(cuMultiGPUSgemm(handles, deviceCount, CBlasNoTrans, CBlasTrans, ib, jb, j, -one, &B[i], ldb, &A[j], lda, alpha, &B[j * ldb + i], ldb));
+            CU_ERROR_CHECK(cuMultiGPUSgemm(config, CBlasNoTrans, CBlasTrans, ib, jb, j, -one, &B[i], ldb, &A[j], lda, alpha, &B[j * ldb + i], ldb));
 
             strmm(CBlasRight, CBlasLower, CBlasTrans, diag, ib, jb, one, &A[j * lda + j], lda, &B[j * ldb + i], ldb);
           }
@@ -400,7 +399,6 @@ CUresult cuMultiGPUStrmm(CUmultiGPU multiGPU,
       }
     }
   }
-#endif
 
   return CUDA_SUCCESS;
 }

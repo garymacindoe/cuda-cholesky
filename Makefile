@@ -186,23 +186,23 @@ cumultigpusgemm: $(OBJDIR)/src/error.o $(MULTIGPU_OBJS) $(OBJDIR)/src/blas/xerbl
 cumultigpudgemm: $(OBJDIR)/src/error.o $(MULTIGPU_OBJS) $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/test/cumultigpudgemm.o | dgemm.fatbin
 cumultigpucgemm: $(OBJDIR)/src/error.o $(MULTIGPU_OBJS) $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/test/cumultigpucgemm.o | cgemm.fatbin
 cumultigpuzgemm: $(OBJDIR)/src/error.o $(MULTIGPU_OBJS) $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/test/cumultigpuzgemm.o | zgemm.fatbin
-cumultigpussyrk: $(OBJDIR)/src/error.o $(MULTIGPU_OBJS) $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/src/blas/ssyrk.o $(OBJDIR)/test/cumultigpussyrk.o | sgemm.fatbin ssyrk.fatbin
-cumultigpudsyrk: $(OBJDIR)/src/error.o $(MULTIGPU_OBJS) $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/src/blas/dsyrk.o $(OBJDIR)/test/cumultigpudsyrk.o | dgemm.fatbin dsyrk.fatbin
-cumultigpucherk: $(OBJDIR)/src/error.o $(MULTIGPU_OBJS) $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/src/blas/cherk.o $(OBJDIR)/test/cumultigpucherk.o | cgemm.fatbin cherk.fatbin
-cumultigpuzherk: $(OBJDIR)/src/error.o $(MULTIGPU_OBJS) $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/blas/zherk.o $(OBJDIR)/test/cumultigpuzherk.o | zgemm.fatbin zherk.fatbin
-cumultigpustrmm: $(OBJDIR)/src/error.o $(MULTIGPU_OBJS) $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/src/blas/strmm.o $(OBJDIR)/test/cumultigpustrmm.o | sgemm.fatbin strmm.fatbin
-cumultigpudtrmm: $(OBJDIR)/src/error.o $(MULTIGPU_OBJS) $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/src/blas/dtrmm.o $(OBJDIR)/test/cumultigpudtrmm.o | dgemm.fatbin dtrmm.fatbin
-cumultigpuctrmm: $(OBJDIR)/src/error.o $(MULTIGPU_OBJS) $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/src/blas/ctrmm.o $(OBJDIR)/test/cumultigpuctrmm.o | cgemm.fatbin ctrmm.fatbin
-cumultigpuztrmm: $(OBJDIR)/src/error.o $(MULTIGPU_OBJS) $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/blas/ztrmm.o $(OBJDIR)/test/cumultigpuztrmm.o | zgemm.fatbin ztrmm.fatbin
-cumultigpustrsm: $(OBJDIR)/src/error.o $(MULTIGPU_OBJS) $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/src/blas/strsm.o $(OBJDIR)/test/cumultigpustrsm.o | sgemm.fatbin strsm.fatbin
-cumultigpudtrsm: $(OBJDIR)/src/error.o $(MULTIGPU_OBJS) $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/src/blas/dtrsm.o $(OBJDIR)/test/cumultigpudtrsm.o | dgemm.fatbin dtrsm.fatbin
-cumultigpuctrsm: $(OBJDIR)/src/error.o $(MULTIGPU_OBJS) $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/src/blas/ctrsm.o $(OBJDIR)/test/cumultigpuctrsm.o | cgemm.fatbin ctrsm.fatbin
-cumultigpuztrsm: $(OBJDIR)/src/error.o $(MULTIGPU_OBJS) $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/blas/ztrsm.o $(OBJDIR)/test/cumultigpuztrsm.o | zgemm.fatbin ztrsm.fatbin
+cumultigpussyrk: $(OBJDIR)/src/error.o $(MULTIGPU_OBJS) $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/src/blas/ssyrk.o $(OBJDIR)/test/cumultigpussyrk.o | sgemm.fatbin
+cumultigpudsyrk: $(OBJDIR)/src/error.o $(MULTIGPU_OBJS) $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/src/blas/dsyrk.o $(OBJDIR)/test/cumultigpudsyrk.o | dgemm.fatbin
+cumultigpucherk: $(OBJDIR)/src/error.o $(MULTIGPU_OBJS) $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/src/blas/cherk.o $(OBJDIR)/test/cumultigpucherk.o | cgemm.fatbin
+cumultigpuzherk: $(OBJDIR)/src/error.o $(MULTIGPU_OBJS) $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/blas/zherk.o $(OBJDIR)/test/cumultigpuzherk.o | zgemm.fatbin
+cumultigpustrmm: $(OBJDIR)/src/error.o $(MULTIGPU_OBJS) $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/src/blas/strmm.o $(OBJDIR)/test/cumultigpustrmm.o | sgemm.fatbin
+cumultigpudtrmm: $(OBJDIR)/src/error.o $(MULTIGPU_OBJS) $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/src/blas/dtrmm.o $(OBJDIR)/test/cumultigpudtrmm.o | dgemm.fatbin
+cumultigpuctrmm: $(OBJDIR)/src/error.o $(MULTIGPU_OBJS) $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/src/blas/ctrmm.o $(OBJDIR)/test/cumultigpuctrmm.o | cgemm.fatbin
+cumultigpuztrmm: $(OBJDIR)/src/error.o $(MULTIGPU_OBJS) $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/blas/ztrmm.o $(OBJDIR)/test/cumultigpuztrmm.o | zgemm.fatbin
+cumultigpustrsm: $(OBJDIR)/src/error.o $(MULTIGPU_OBJS) $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/src/blas/strsm.o $(OBJDIR)/test/cumultigpustrsm.o | sgemm.fatbin
+cumultigpudtrsm: $(OBJDIR)/src/error.o $(MULTIGPU_OBJS) $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/src/blas/dtrsm.o $(OBJDIR)/test/cumultigpudtrsm.o | dgemm.fatbin
+cumultigpuctrsm: $(OBJDIR)/src/error.o $(MULTIGPU_OBJS) $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/src/blas/ctrsm.o $(OBJDIR)/test/cumultigpuctrsm.o | cgemm.fatbin
+cumultigpuztrsm: $(OBJDIR)/src/error.o $(MULTIGPU_OBJS) $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/blas/ztrsm.o $(OBJDIR)/test/cumultigpuztrsm.o | zgemm.fatbin
 
-cumultigpuspotrf: $(OBJDIR)/src/error.o $(OBJDIR)/src/task.o $(OBJDIR)/src/taskqueue.o $(OBJDIR)/src/thread.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/src/blas/ssyrk.o $(OBJDIR)/src/blas/strsm.o $(OBJDIR)/src/lapack/spotrf.o $(OBJDIR)/test/cumultigpuspotrf.o | sgemm.fatbin ssyrk.fatbin strsm.fatbin
-cumultigpudpotrf: $(OBJDIR)/src/error.o $(OBJDIR)/src/task.o $(OBJDIR)/src/taskqueue.o $(OBJDIR)/src/thread.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/src/blas/dsyrk.o $(OBJDIR)/src/blas/dtrsm.o $(OBJDIR)/src/lapack/dpotrf.o $(OBJDIR)/test/cumultigpudpotrf.o | dgemm.fatbin dsyrk.fatbin dtrsm.fatbin
-cumultigpucpotrf: $(OBJDIR)/src/error.o $(OBJDIR)/src/task.o $(OBJDIR)/src/taskqueue.o $(OBJDIR)/src/thread.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/src/blas/cherk.o $(OBJDIR)/src/blas/ctrsm.o $(OBJDIR)/src/lapack/cpotrf.o $(OBJDIR)/test/cumultigpucpotrf.o | cgemm.fatbin cherk.fatbin ctrsm.fatbin
-cumultigpuzpotrf: $(OBJDIR)/src/error.o $(OBJDIR)/src/task.o $(OBJDIR)/src/taskqueue.o $(OBJDIR)/src/thread.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/blas/zherk.o $(OBJDIR)/src/blas/ztrsm.o $(OBJDIR)/src/lapack/zpotrf.o $(OBJDIR)/test/cumultigpuzpotrf.o | zgemm.fatbin zherk.fatbin ztrsm.fatbin
+cumultigpuspotrf: $(OBJDIR)/src/error.o $(OBJDIR)/src/task.o $(OBJDIR)/src/taskqueue.o $(OBJDIR)/src/thread.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/src/blas/ssyrk.o $(OBJDIR)/src/blas/strsm.o $(OBJDIR)/src/lapack/spotrf.o $(OBJDIR)/test/cumultigpuspotrf.o | sgemm.fatbin
+cumultigpudpotrf: $(OBJDIR)/src/error.o $(OBJDIR)/src/task.o $(OBJDIR)/src/taskqueue.o $(OBJDIR)/src/thread.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/src/blas/dsyrk.o $(OBJDIR)/src/blas/dtrsm.o $(OBJDIR)/src/lapack/dpotrf.o $(OBJDIR)/test/cumultigpudpotrf.o | dgemm.fatbin
+cumultigpucpotrf: $(OBJDIR)/src/error.o $(OBJDIR)/src/task.o $(OBJDIR)/src/taskqueue.o $(OBJDIR)/src/thread.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/src/blas/cherk.o $(OBJDIR)/src/blas/ctrsm.o $(OBJDIR)/src/lapack/cpotrf.o $(OBJDIR)/test/cumultigpucpotrf.o | cgemm.fatbin
+cumultigpuzpotrf: $(OBJDIR)/src/error.o $(OBJDIR)/src/task.o $(OBJDIR)/src/taskqueue.o $(OBJDIR)/src/thread.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/blas/zherk.o $(OBJDIR)/src/blas/ztrsm.o $(OBJDIR)/src/lapack/zpotrf.o $(OBJDIR)/test/cumultigpuzpotrf.o | zgemm.fatbin
 
 $(OBJDIR):
 	$(MKDIR) $(@)

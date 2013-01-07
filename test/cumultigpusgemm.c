@@ -142,9 +142,9 @@ int main(int argc, char * argv[]) {
 
   CUmultiGPUSBlasConfig config;
   CU_ERROR_CHECK(cuMultiGPUSBlasConfigCreate(&config, mGPU, transA, transB,
-                                             (transA == CBlasNoTrans) ? 640 : 288,
-                                             (transA == CBlasNoTrans) ? 384 : 640,
-                                             (transA == CBlasNoTrans) ? 512 : 288));
+                                             (transA == CBlasNoTrans) ? 2 : 2,//640 : 288,
+                                             (transA == CBlasNoTrans) ? 2 : 2,//384 : 640,
+                                             (transA == CBlasNoTrans) ? 2 : 2));//512 : 288));
 
   sgemm_ref(transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, refC, ldc);
   CU_ERROR_CHECK(cuMultiGPUSgemm(config, transA, transB, m, n, k,

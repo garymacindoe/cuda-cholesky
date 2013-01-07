@@ -1,9 +1,9 @@
 #include "blas.h"
 #include "error.h"
-#include "cuhandle.h"
 #include <stdio.h>
-#include <sys/time.h>
+#include <math.h>
 #include <float.h>
+#include <sys/time.h>
 #include "strsm_ref.c"
 
 int main(int argc, char * argv[]) {
@@ -89,12 +89,12 @@ int main(int argc, char * argv[]) {
   int deviceCount;
   CU_ERROR_CHECK(cuDeviceGetCount(&deviceCount));
 
-  CUhandle handles[deviceCount];
-  for (int i = 0; i < deviceCount; i++) {
-    CUdevice device;
-    CU_ERROR_CHECK(cuDeviceGet(&device, i));
-    CU_ERROR_CHECK(cuHandleCreate(&handles[i], CU_CTX_SCHED_YIELD, device));
-  }
+  CUdevice devices[deviceCount];
+  for (int i = 0; i < deviceCount; i++)
+    CU_ERROR_CHECK(cuDeviceGet(&devices[i], i));
+
+  CUmultiGPU mGPU;
+  CU_ERROR_CHECK(cuMultiGPUCreate(&mGPU, devices, deviceCount));
 
   alpha = gaussian();
 
@@ -178,8 +178,14 @@ int main(int argc, char * argv[]) {
       refB[j * ldb + i] = B[j * ldb + i] = gaussian();
   }
 
+  CUmultiGPUSBlasConfig config;
+  CU_ERROR_CHECK(cuMultiGPUSBlasConfigCreate(&config, mGPU, trans, (trans == CBlasNoTrans) ? CBlasTrans : CBlasNoTrans,
+                                             (trans == CBlasNoTrans) ? 2 : 2,//640 : 288,
+                                             (trans == CBlasNoTrans) ? 2 : 2,//384 : 640,
+                                             (trans == CBlasNoTrans) ? 2 : 2));//512 : 288));
+
   strsm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb, F);
-  CU_ERROR_CHECK(cuMultiGPUStrsm(handles, deviceCount, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb));
+  CU_ERROR_CHECK(cuMultiGPUStrsm(config, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb));
 
   bool passed = true;
   float diff = 0.0f;
@@ -203,7 +209,7 @@ int main(int argc, char * argv[]) {
     return -6;
   }
   for (size_t i = 0; i < 20; i++)
-    CU_ERROR_CHECK(cuMultiGPUStrsm(handles, deviceCount, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb));
+    CU_ERROR_CHECK(cuMultiGPUStrsm(config, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb));
   if (gettimeofday(&stop, NULL) != 0) {
     fputs("gettimeofday failed\n", stderr);
     return -7;
@@ -225,8 +231,8 @@ int main(int argc, char * argv[]) {
   free(B);
   free(refB);
 
-  for (int i = 0; i < deviceCount; i++)
-    CU_ERROR_CHECK(cuHandleDestroy(handles[i]));
+  CU_ERROR_CHECK(cuMultiGPUSBlasConfigDestroy(config));
+  CU_ERROR_CHECK(cuMultiGPUDestroy(mGPU));
 
   return (int)!passed;
 }
