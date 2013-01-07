@@ -270,7 +270,7 @@ static CUresult cleanup(const void * args) {
 struct __cumultigpusblasconfig_st {
   CUmultiGPU mGPU;
   struct sgemm_plan * plans;
-  size_t mb, nb;
+  size_t mb, nb, kb;
 };
 
 CUresult cuMultiGPUSBlasConfigCreate(CUmultiGPUSBlasConfig * config, CUmultiGPU mGPU,
@@ -282,6 +282,7 @@ CUresult cuMultiGPUSBlasConfigCreate(CUmultiGPUSBlasConfig * config, CUmultiGPU 
   (*config)->mGPU = mGPU;
   (*config)->mb = mb;
   (*config)->nb = nb;
+  (*config)->kb = kb;
 
   int n = cuMultiGPUGetContextCount(mGPU);
   if (((*config)->plans = malloc((size_t)n * sizeof(struct sgemm_plan))) == NULL)
@@ -322,6 +323,10 @@ CUresult cuMultiGPUSBlasConfigDestroy(CUmultiGPUSBlasConfig config) {
   }
   return CUDA_SUCCESS;
 }
+
+size_t cuMultiGPUSBlasConfigRows(CUmultiGPUSBlasConfig config) { return config->mb; }
+size_t cuMultiGPUSBlasConfigColumns(CUmultiGPUSBlasConfig config) { return config->nb; }
+size_t cuMultiGPUSBlasConfigInner(CUmultiGPUSBlasConfig config) { return config->kb; }
 
 struct sgemm_args {
   struct sgemm_plan * plan;

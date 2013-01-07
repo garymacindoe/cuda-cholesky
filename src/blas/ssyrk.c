@@ -1,6 +1,5 @@
 #include "blas.h"
 #include "error.h"
-#include "cutaskqueue.h"
 #include <stdio.h>
 
 static inline size_t min(size_t a, size_t b) { return (a < b) ? a : b; }
@@ -250,18 +249,18 @@ CUresult cuSsyrk(CUmodule module, CBlasUplo uplo, CBlasTranspose trans,
   * (300 * 10^9) / (6 * 1024^3 / sizeof(float)) = 186.26
   *
   */
-#define MB ((transA == CBlasNoTrans) ? 512 : 384)
-#define NB ((transA == CBlasNoTrans) ? 480 : 480)
-#define KB ((transA == CBlasNoTrans) ? 192 : 128)
+// #define MB ((transA == CBlasNoTrans) ? 512 : 384)
+// #define NB ((transA == CBlasNoTrans) ? 480 : 480)
+// #define KB ((transA == CBlasNoTrans) ? 192 : 128)
+//
+// #include "multigpusgemm.c"
 
-#include "multigpusgemm.c"
-
-CUresult cuMultiGPUSsyrk(CUthread * threads, int nThreads,
-                         CBlasUplo uplo, CBlasTranspose transA,
+CUresult cuMultiGPUSsyrk(CUmultiGPUSBlasConfig config,
+                         CBlasUplo uplo, CBlasTranspose trans,
                          size_t n, size_t k,
                          float alpha, const float * restrict A, size_t lda,
                          float beta, float * restrict C, size_t ldc) {
-  size_t nRowA = (transA == CBlasNoTrans) ? n : k;
+  size_t nRowA = (trans == CBlasNoTrans) ? n : k;
 
   int info = 0;
   if (lda < nRowA)
@@ -312,102 +311,45 @@ CUresult cuMultiGPUSsyrk(CUthread * threads, int nThreads,
     return CUDA_SUCCESS;
   }
 
-  const size_t nb = NB;
+  const size_t nb = cuMultiGPUSBlasConfigColumns(config);
 
   if (n < nb) {
-    ssyrk(uplo, transA, n, k, alpha, A, lda, beta, C, ldc);
+    ssyrk(uplo, trans, n, k, alpha, A, lda, beta, C, ldc);
     return CUDA_SUCCESS;
   }
 
-  CUtask task;
-  CUtaskqueue queue;
-  CU_ERROR_CHECK(cuTaskQueueCreate(&queue, (((n + nb - 1) / nb) * ((n + nb - 1) / nb)) / 2));
-  int t = 0;
-
-  struct sgemm_args args = { .transA = transA, .transB = (transA == CBlasNoTrans) ? CBlasTrans : CBlasNoTrans,
-                             .k = k,
-                             .alpha = alpha, .lda = lda, .ldb = lda,
-                             .beta = beta, .ldc = ldc };
-
-  if (transA == CBlasNoTrans) {
+  if (trans == CBlasNoTrans) {
     if (uplo == CBlasUpper) {
-      for (size_t j = nb; j < n; j += nb) {
-        args.n = min(n - j, nb);
-        for (size_t i = 0; i < j; i += nb) {
-          args.m = min(n - i, nb);
-          args.A = &A[i];
-          args.B = &A[j * lda];
-          args.C = &C[j * ldc + i];
-          CU_ERROR_CHECK(cuTaskCreate(&task, background_sgemm, &args, sizeof(struct sgemm_args)));
-          CU_ERROR_CHECK(cuTaskQueuePush(queue, task));
-          CU_ERROR_CHECK(cuThreadRunTask(threads[t++], task));
-          if (t == nThreads)
-            t = 0;
-        }
-      }
+      for (size_t j = nb; j < n; j += nb)
+        CU_ERROR_CHECK(cuMultiGPUSgemm(config, CBlasNoTrans, CBlasTrans, j, min(n - j, nb), k, alpha, A, lda, &A[j], lda, beta, &C[j * ldc], ldc));
     }
     else {
-      for (size_t j = 0; j < n; j += nb) {
-        args.n = min(n - j, nb);
-        for (size_t i = nb; i < n; i += nb) {
-          args.m = min(n - i, nb);
-          args.A = &A[i];
-          args.B = &A[j * lda];
-          args.C = &C[j * ldc + i];
-          CU_ERROR_CHECK(cuTaskCreate(&task, background_sgemm, &args, sizeof(struct sgemm_args)));
-          CU_ERROR_CHECK(cuTaskQueuePush(queue, task));
-          CU_ERROR_CHECK(cuThreadRunTask(threads[t++], task));
-          if (t == nThreads)
-            t = 0;
-        }
+      const size_t m = n - nb;
+      for (size_t j = 0; j < m; j += nb) {
+        const size_t jb = min(n - j, nb);
+        CU_ERROR_CHECK(cuMultiGPUSgemm(config, CBlasNoTrans, CBlasTrans, n - j - jb, jb, k, alpha, &A[j + jb], lda, &A[j], lda, beta, &C[j * ldc + j + jb], ldc));
       }
     }
+
+    for (size_t j = 0; j < n; j += nb)
+      ssyrk(uplo, trans, min(n - j, nb), k, alpha, &A[j], lda, beta, &C[j * ldc + j], ldc);
   }
   else {
     if (uplo == CBlasUpper) {
-      for (size_t j = nb; j < n; j += nb) {
-        args.n = min(n - j, nb);
-        for (size_t i = 0; i < j; i += nb) {
-          args.m = min(n - i, nb);
-          args.A = &A[i * lda];
-          args.B = &A[j];
-          args.C = &C[j * ldc + i];
-          CU_ERROR_CHECK(cuTaskCreate(&task, background_sgemm, &args, sizeof(struct sgemm_args)));
-          CU_ERROR_CHECK(cuTaskQueuePush(queue, task));
-          CU_ERROR_CHECK(cuThreadRunTask(threads[t++], task));
-          if (t == nThreads)
-            t = 0;
-        }
-      }
+      for (size_t j = nb; j < n; j += nb)
+        CU_ERROR_CHECK(cuMultiGPUSgemm(config, CBlasTrans, CBlasNoTrans, j, min(n - j, nb), k, alpha, A, lda, &A[j * lda], lda, beta, &C[j * ldc], ldc));
     }
     else {
-      for (size_t j = 0; j < n; j += nb) {
-        args.n = min(n - j, nb);
-        for (size_t i = nb; i < n; i += nb) {
-          args.m = min(n - i, nb);
-          args.A = &A[i * lda];
-          args.B = &A[j];
-          args.C = &C[j * ldc + i];
-          CU_ERROR_CHECK(cuTaskCreate(&task, background_sgemm, &args, sizeof(struct sgemm_args)));
-          CU_ERROR_CHECK(cuTaskQueuePush(queue, task));
-          CU_ERROR_CHECK(cuThreadRunTask(threads[t++], task));
-          if (t == nThreads)
-            t = 0;
-        }
+      const size_t m = n - nb;
+      for (size_t j = 0; j < m; j += nb) {
+        const size_t jb = min(n - j, nb);
+        CU_ERROR_CHECK(cuMultiGPUSgemm(config, CBlasTrans, CBlasNoTrans, n - j - jb, jb, k, alpha, &A[(j + jb) * lda], lda, &A[j * lda], lda, beta, &C[j * ldc + j + jb], ldc));
       }
     }
+
+    for (size_t j = 0; j < n; j += nb)
+      ssyrk(uplo, trans, min(n - j, nb), k, alpha, &A[j * lda], lda, beta, &C[j * ldc + j], ldc);
   }
 
-  for (size_t j = 0; j < n; j += nb)
-    ssyrk(uplo, transA, min(n - j, nb), k,
-          alpha, &A[(transA == CBlasNoTrans) ? j : j * lda], lda,
-          beta, &C[j * ldc + j], ldc);
-
-  CUresult result;
-  while (cuTaskQueuePop(queue, &task) == CUDA_SUCCESS)
-    CU_ERROR_CHECK(cuTaskDestroy(task, &result));
-
-  cuTaskQueueDestroy(queue);
-
-  return result;
+  return CUDA_SUCCESS;
 }

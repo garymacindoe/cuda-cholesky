@@ -247,24 +247,36 @@ CUresult cuMultiGPUSBlasConfigCreate(CUmultiGPUSBlasConfig *, CUmultiGPU,
                                      CBlasTranspose, CBlasTranspose,
                                      size_t, size_t, size_t);
 CUresult cuMultiGPUSBlasConfigDestroy(CUmultiGPUSBlasConfig);
+size_t cuMultiGPUSBlasConfigRows(CUmultiGPUSBlasConfig);
+size_t cuMultiGPUSBlasConfigColumns(CUmultiGPUSBlasConfig);
+size_t cuMultiGPUSBlasConfigInner(CUmultiGPUSBlasConfig);
 
 typedef struct __cumultigpudblasconfig_st * CUmultiGPUDBlasConfig;
 CUresult cuMultiGPUDBlasConfigCreate(CUmultiGPUDBlasConfig *, CUmultiGPU,
                                      CBlasTranspose, CBlasTranspose,
                                      size_t, size_t, size_t);
 CUresult cuMultiGPUDBlasConfigDestroy(CUmultiGPUDBlasConfig);
+size_t cuMultiGPUDBlasConfigRows(CUmultiGPUDBlasConfig);
+size_t cuMultiGPUDBlasConfigColumns(CUmultiGPUDBlasConfig);
+size_t cuMultiGPUDBlasConfigInner(CUmultiGPUDBlasConfig);
 
 typedef struct __cumultigpucblasconfig_st * CUmultiGPUCBlasConfig;
 CUresult cuMultiGPUCBlasConfigCreate(CUmultiGPUCBlasConfig *, CUmultiGPU,
                                      CBlasTranspose, CBlasTranspose,
                                      size_t, size_t, size_t);
 CUresult cuMultiGPUCBlasConfigDestroy(CUmultiGPUCBlasConfig);
+size_t cuMultiGPUCBlasConfigRows(CUmultiGPUCBlasConfig);
+size_t cuMultiGPUCBlasConfigColumns(CUmultiGPUCBlasConfig);
+size_t cuMultiGPUCBlasConfigInner(CUmultiGPUCBlasConfig);
 
 typedef struct __cumultigpuzblasconfig_st * CUmultiGPUZBlasConfig;
 CUresult cuMultiGPUZBlasConfigCreate(CUmultiGPUZBlasConfig *, CUmultiGPU,
                                      CBlasTranspose, CBlasTranspose,
                                      size_t, size_t, size_t);
 CUresult cuMultiGPUZBlasConfigDestroy(CUmultiGPUZBlasConfig);
+size_t cuMultiGPUZBlasConfigRows(CUmultiGPUZBlasConfig);
+size_t cuMultiGPUZBlasConfigColumns(CUmultiGPUZBlasConfig);
+size_t cuMultiGPUZBlasConfigInner(CUmultiGPUZBlasConfig);
 
 // Single precision rank-K update
 CUresult cuMultiGPUSsyrk(CUmultiGPUSBlasConfig,

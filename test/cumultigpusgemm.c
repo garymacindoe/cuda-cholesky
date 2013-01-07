@@ -146,18 +146,18 @@ int main(int argc, char * argv[]) {
                                              (transA == CBlasNoTrans) ? 384 : 640,
                                              (transA == CBlasNoTrans) ? 512 : 288));
 
-//   sgemm_ref(transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, refC, ldc);
-//   CU_ERROR_CHECK(cuMultiGPUSgemm(config, transA, transB, m, n, k,
-//                                  alpha, A, lda, B, ldb, beta, C, ldc));
+  sgemm_ref(transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, refC, ldc);
+  CU_ERROR_CHECK(cuMultiGPUSgemm(config, transA, transB, m, n, k,
+                                 alpha, A, lda, B, ldb, beta, C, ldc));
 
   float diff = 0.0f;
-//   for (size_t j = 0; j < n; j++) {
-//     for (size_t i = 0; i < m; i++) {
-//       float d = fabsf(C[j * ldc + i] - refC[j * ldc + i]);
-//       if (d > diff)
-//         diff = d;
-//     }
-//   }
+  for (size_t j = 0; j < n; j++) {
+    for (size_t i = 0; i < m; i++) {
+      float d = fabsf(C[j * ldc + i] - refC[j * ldc + i]);
+      if (d > diff)
+        diff = d;
+    }
+  }
 
   struct timeval start, stop;
   if (gettimeofday(&start, NULL) != 0) {
