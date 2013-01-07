@@ -65,12 +65,12 @@ int main(int argc, char * argv[]) {
   int deviceCount;
   CU_ERROR_CHECK(cuDeviceGetCount(&deviceCount));
 
-  CUcontext contexts[deviceCount];
-  for (int i = 0; i < deviceCount; i++) {
-    CUdevice device;
-    CU_ERROR_CHECK(cuDeviceGet(&device, i));
-    CU_ERROR_CHECK(cuCtxCreate(&contexts[i], CU_CTX_SCHED_AUTO, device));
-  }
+  CUdevice devices[deviceCount];
+  for (int i = 0; i < deviceCount; i++)
+    CU_ERROR_CHECK(cuDeviceGet(&devices[i], i));
+
+  CUmultiGPU mGPU;
+  CU_ERROR_CHECK(cuMultiGPUCreate(&mGPU, devices, deviceCount));
 
   alpha = (float)rand() / (float)RAND_MAX;
   beta = (float)rand() / (float)RAND_MAX;
@@ -140,8 +140,14 @@ int main(int argc, char * argv[]) {
       refC[j * ldc + i] = C[j * ldc + i] = (float)rand() / (float)RAND_MAX;
   }
 
+  CUmultiGPUSConfig config;
+  CU_ERROR_CHECK(cuMultiGPUSConfigCreate(&config, mGPU, transA, transB,
+                                         (transA == CBlasNoTrans) ? 640 : 288,
+                                         (transA == CBlasNoTrans) ? 384 : 640,
+                                         (transA == CBlasNoTrans) ? 512 : 288));
+
   sgemm_ref(transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, refC, ldc);
-  CU_ERROR_CHECK(cuMultiGPUSgemm(contexts, deviceCount, transA, transB, m, n, k,
+  CU_ERROR_CHECK(cuMultiGPUSgemm(config, transA, transB, m, n, k,
                                  alpha, A, lda, B, ldb, beta, C, ldc));
 
   float diff = 0.0f;
@@ -159,13 +165,9 @@ int main(int argc, char * argv[]) {
     return -5;
   }
   for (size_t i = 0; i < 20; i++)
-  CU_ERROR_CHECK(cuMultiGPUSgemm(contexts, deviceCount, transA, transB, m, n, k,
+  CU_ERROR_CHECK(cuMultiGPUSgemm(config, transA, transB, m, n, k,
                                  alpha, A, lda, B, ldb, beta, C, ldc));
-  for (int i = 0; i < deviceCount; i++) {
-    CU_ERROR_CHECK(cuCtxPushCurrent(contexts[i]));
-    CU_ERROR_CHECK(cuCtxSynchronize());
-    CU_ERROR_CHECK(cuCtxPopCurrent(&contexts[i]));
-  }
+  CU_ERROR_CHECK(cuMultiGPUSynchronize(mGPU));
   if (gettimeofday(&stop, NULL) != 0) {
     fputs("gettimeofday failed\n", stderr);
     return -6;
@@ -191,8 +193,8 @@ int main(int argc, char * argv[]) {
   free(C);
   free(refC);
 
-  for (int i = 0; i < deviceCount; i++)
-    CU_ERROR_CHECK(cuCtxDestroy(contexts[i]));
+  CU_ERROR_CHECK(cuMultiGPUSConfigDestroy(config));
+  CU_ERROR_CHECK(cuMultiGPUDestroy(mGPU));
 
   return (int)!passed;
 }
