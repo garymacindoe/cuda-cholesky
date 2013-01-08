@@ -43,7 +43,10 @@ int main() {
     fprintf(stdout, "Device %d (%s, CC %d.%d, %zuMB):\n", i, name, major, minor, bytes >> 20);
 
     CUcontext context;
-    CU_ERROR_CHECK(cuCtxCreate(&context, 0, device));
+    CU_ERROR_CHECK(cuCtxCreate(&context, CU_CTX_SCHED_AUTO, device));
+
+    CUstream stream;
+    CU_ERROR_CHECK(cuStreamCreate(&stream, 0));
 
     CUdeviceptr dPointer;
     CU_ERROR_CHECK(cuMemAlloc(&dPointer, SIZE));
@@ -63,7 +66,8 @@ int main() {
         return error;
       }
       for (size_t k = 0; k < ITERATIONS; k++)
-        CU_ERROR_CHECK(cuMemcpyHtoD(dPointer, hPointer, size));
+        CU_ERROR_CHECK(cuMemcpyHtoDAsync(dPointer, hPointer, size, stream));
+      CU_ERROR_CHECK(cuStreamSynchronize(stream));
       if ((error = gettimeofday(&stop, NULL)) != 0) {
         fprintf(stderr, "Unable to get stop time: %s\n", strerror(error));
         return error;
@@ -93,7 +97,8 @@ int main() {
         return error;
       }
       for (size_t k = 0; k < ITERATIONS; k++)
-        CU_ERROR_CHECK(cuMemcpyDtoH(hPointer, dPointer, size));
+        CU_ERROR_CHECK(cuMemcpyDtoHAsync(hPointer, dPointer, size, stream));
+      CU_ERROR_CHECK(cuStreamSynchronize(stream));
       if ((error = gettimeofday(&stop, NULL)) != 0) {
         fprintf(stderr, "Unable to get stop time: %s\n", strerror(error));
         return error;
@@ -113,6 +118,8 @@ int main() {
     CU_ERROR_CHECK(cuMemFreeHost(hPointer));
 
     CU_ERROR_CHECK(cuMemFree(dPointer));
+
+    CU_ERROR_CHECK(cuStreamDestroy(stream));
 
     CU_ERROR_CHECK(cuCtxDestroy(context));
   }

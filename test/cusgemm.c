@@ -187,7 +187,7 @@ int main(int argc, char * argv[]) {
 
 //   sgemm_ref(transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, refC, ldc);
 //   CU_ERROR_CHECK(cuSgemm(module, transA, transB, m, n, k, alpha, dA, dlda, dB, dldb, beta, dC, dldc, NULL));
-//
+
 //   copy = (CUDA_MEMCPY2D){ 0, 0, CU_MEMORYTYPE_DEVICE, NULL, dC, NULL, dldc * sizeof(float),
 //            0, 0, CU_MEMORYTYPE_HOST, C, 0, NULL, ldc * sizeof(float),
 //            m * sizeof(float), n };
@@ -201,7 +201,7 @@ int main(int argc, char * argv[]) {
 //         diff = d;
 //     }
 //   }
-//   free(refC);
+  free(refC);
 
   CUevent start, stop;
   CU_ERROR_CHECK(cuEventCreate(&start, CU_EVENT_BLOCKING_SYNC));

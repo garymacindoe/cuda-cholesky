@@ -17,7 +17,7 @@ ARFLAGS = crs
 CPPFLAGS = -Iinclude -I$(CUDA_HOME)/include
 NVCPPFLAGS = -Iinclude
 LDFLAGS = -rdynamic -L$(CUDA_HOME)/lib64
-LDLIBS = -lcuda -lrt -ldl
+LDLIBS = -lcuda -lrt
 
 # TODO:  separate no-opt CFLAGS for testing code.
 # TODO:  implement hacks in C codes to vectorise all possible loops.
@@ -26,7 +26,7 @@ ifeq ($(notdir $(CC)), icc)
   LDFLAGS += -L$(INTEL_HOME)
   LDLIBS += -liomp5
 else
-  CFLAGS = -march=native -ggdb -pipe -std=c99 -pedantic -Wall -Wextra -Wconversion -ftree-vectorize -ffast-math -fopenmp
+  CFLAGS = -march=native -O2 -pipe -std=c99 -pedantic -Wall -Wextra -Wconversion -ftree-vectorize -ffast-math -fopenmp
   LDLIBS += -lgomp
 endif
 
