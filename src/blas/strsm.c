@@ -277,11 +277,11 @@ CUresult cuMultiGPUStrsm(CUmultiGPUSBlasConfig config,
     return CUDA_SUCCESS;
   }
 
+  const size_t mb = cuMultiGPUSBlasConfigRows(config);
+  const size_t nb = cuMultiGPUSBlasConfigColumns(config);
+
   if (side == CBlasLeft) {
     if (transA == CBlasNoTrans) {
-      const size_t mb = 576;
-      const size_t nb = 320;
-
       if (uplo == CBlasUpper) {
         size_t r = m % mb;
         size_t i = (r == 0) ? m : m + mb - r;
@@ -309,9 +309,6 @@ CUresult cuMultiGPUStrsm(CUmultiGPUSBlasConfig config,
 
     }
     else {
-      const size_t mb = 192;
-      const size_t nb = 480;
-
       if (uplo == CBlasUpper) {
         for (size_t i = 0; i < m; i += mb) {
           const size_t ib = min(mb, m - i);
@@ -341,9 +338,6 @@ CUresult cuMultiGPUStrsm(CUmultiGPUSBlasConfig config,
   }
   else {
     if (transA == CBlasNoTrans) {
-      const size_t mb = 576;
-      const size_t nb = 320;
-
       if (uplo == CBlasUpper) {
         for (size_t j = 0; j < n; j += nb) {
           const size_t jb = min(nb, n - j);
@@ -371,9 +365,6 @@ CUresult cuMultiGPUStrsm(CUmultiGPUSBlasConfig config,
 
     }
     else {
-      const size_t mb = 576;
-      const size_t nb = 320;
-
       if (uplo == CBlasUpper) {
         size_t r = n % nb;
         size_t j = (r == 0) ? n : n + nb - r;

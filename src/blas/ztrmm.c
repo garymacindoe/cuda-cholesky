@@ -281,8 +281,8 @@ CUresult cuZtrmm2(CUmodule module,
   return CUDA_SUCCESS;
 }
 
-CUresult cuMultiGPUZtrmm(CUmultiGPU multiGPU,
-                         CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag,
+CUresult cuMultiGPUZtrmm(CUmultiGPUZBlasConfig config,
+                         CBlasSide side, CBlasUplo uplo, CBlasTranspose trans, CBlasDiag diag,
                          size_t m, size_t n,
                          double complex alpha, const double complex * restrict A, size_t lda,
                          double complex * restrict B, size_t ldb) {
@@ -301,22 +301,21 @@ CUresult cuMultiGPUZtrmm(CUmultiGPU multiGPU,
   if (m == 0 || n == 0)
     return CUDA_SUCCESS;
 
-#if 0
   if (alpha == zero) {
     zgemm(CBlasNoTrans, CBlasNoTrans, m, n, 0, zero, A, lda, B, ldb, zero, B, ldb);
     return CUDA_SUCCESS;
   }
 
-  const size_t mb = (side == CBlasLeft) ?  8 : 16;
-  const size_t nb = (side == CBlasLeft) ? 16 :  8;
+  const size_t mb = cuMultiGPUZBlasConfigRows(config);
+  const size_t nb = cuMultiGPUZBlasConfigColumns(config);
 
   if (m <= mb || n <= nb) {
-    ztrmm(side, uplo, transA, diag, m, n, alpha, A, lda, B, ldb);
+    ztrmm(side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb);
     return CUDA_SUCCESS;
   }
 
   if (side == CBlasLeft) {
-    if (transA == CBlasNoTrans) {
+    if (trans == CBlasNoTrans) {
       if (uplo == CBlasUpper) {
         size_t i = (m + mb - 1) & ~(mb - 1);
         do {
@@ -326,7 +325,7 @@ CUresult cuMultiGPUZtrmm(CUmultiGPU multiGPU,
           for (size_t j = 0; j < n; j += nb) {
             const size_t jb = min(nb, n - j);
 
-            CU_ERROR_CHECK(cuMultiGPUZgemm(handles, deviceCount, CBlasNoTrans, CBlasNoTrans, ib, jb, m - i - ib, -one, &A[(i + ib) * lda + i], lda, &B[j * ldb + i + ib], ldb, alpha, &B[j * ldb + i], ldb));
+            CU_ERROR_CHECK(cuMultiGPUZgemm(config, CBlasNoTrans, CBlasNoTrans, ib, jb, m - i - ib, -one, &A[(i + ib) * lda + i], lda, &B[j * ldb + i + ib], ldb, alpha, &B[j * ldb + i], ldb));
 
             ztrmm(CBlasLeft, CBlasUpper, CBlasNoTrans, diag, ib, jb, one, &A[i * lda + i], lda, &B[j * ldb + i], ldb);
           }
@@ -339,7 +338,7 @@ CUresult cuMultiGPUZtrmm(CUmultiGPU multiGPU,
           for (size_t j = 0; j < n; j += nb) {
             const size_t jb = min(nb, n - j);
 
-            CU_ERROR_CHECK(cuMultiGPUZgemm(handles, deviceCount, CBlasNoTrans, CBlasNoTrans, ib, jb, i, -one, &A[i], lda, &B[j * ldb], ldb, alpha, &B[j * ldb + i], ldb));
+            CU_ERROR_CHECK(cuMultiGPUZgemm(config, CBlasNoTrans, CBlasNoTrans, ib, jb, i, -one, &A[i], lda, &B[j * ldb], ldb, alpha, &B[j * ldb + i], ldb));
 
             ztrmm(CBlasLeft, CBlasLower, CBlasNoTrans, diag, ib, jb, one, &A[i * lda + i], lda, &B[j * ldb + i], ldb);
           }
@@ -354,9 +353,9 @@ CUresult cuMultiGPUZtrmm(CUmultiGPU multiGPU,
           for (size_t j = 0; j < n; j += nb) {
             const size_t jb = min(nb, n - j);
 
-            CU_ERROR_CHECK(cuMultiGPUZgemm(handles, deviceCount, transA, CBlasNoTrans, ib, jb, i, -one, &A[i * lda], lda, &B[j * ldb], ldb, alpha, &B[j * ldb + i], ldb));
+            CU_ERROR_CHECK(cuMultiGPUZgemm(config, trans, CBlasNoTrans, ib, jb, i, -one, &A[i * lda], lda, &B[j * ldb], ldb, alpha, &B[j * ldb + i], ldb));
 
-            ztrmm(CBlasLeft, CBlasUpper, transA, diag, ib, jb, one, &A[i * lda + i], lda, &B[j * ldb + i], ldb);
+            ztrmm(CBlasLeft, CBlasUpper, trans, diag, ib, jb, one, &A[i * lda + i], lda, &B[j * ldb + i], ldb);
           }
         }
       }
@@ -369,16 +368,16 @@ CUresult cuMultiGPUZtrmm(CUmultiGPU multiGPU,
           for (size_t j = 0; j < n; j += nb) {
             const size_t jb = min(nb, n - j);
 
-            CU_ERROR_CHECK(cuMultiGPUZgemm(handles, deviceCount, transA, CBlasNoTrans, ib, jb, m - i - ib, -one, &A[i * lda + i + ib], lda, &B[j * ldb + i + ib], ldb, alpha, &B[j * ldb + i], ldb));
+            CU_ERROR_CHECK(cuMultiGPUZgemm(config, trans, CBlasNoTrans, ib, jb, m - i - ib, -one, &A[i * lda + i + ib], lda, &B[j * ldb + i + ib], ldb, alpha, &B[j * ldb + i], ldb));
 
-            ztrmm(CBlasLeft, CBlasLower, transA, diag, ib, jb, one, &A[i * lda + i], lda, &B[j * ldb + i], ldb);
+            ztrmm(CBlasLeft, CBlasLower, trans, diag, ib, jb, one, &A[i * lda + i], lda, &B[j * ldb + i], ldb);
           }
         } while (i > 0);
       }
     }
   }
   else {
-    if (transA == CBlasNoTrans) {
+    if (trans == CBlasNoTrans) {
       if (uplo == CBlasUpper) {
         for (size_t j = 0; j < n; j += nb) {
           const size_t jb = min(nb, n - j);
@@ -386,7 +385,7 @@ CUresult cuMultiGPUZtrmm(CUmultiGPU multiGPU,
           for (size_t i = 0; i < m; i += mb) {
             const size_t ib = min(mb, m - i);
 
-            CU_ERROR_CHECK(cuMultiGPUZgemm(handles, deviceCount, CBlasNoTrans, CBlasNoTrans, ib, jb, j, -one, &B[i], ldb, &A[j * lda], lda, alpha, &B[j * ldb + i], ldb));
+            CU_ERROR_CHECK(cuMultiGPUZgemm(config, CBlasNoTrans, CBlasNoTrans, ib, jb, j, -one, &B[i], ldb, &A[j * lda], lda, alpha, &B[j * ldb + i], ldb));
 
             ztrmm(CBlasRight, CBlasUpper, CBlasNoTrans, diag, ib, jb, one, &A[j * lda + j], lda, &B[j * ldb + i], ldb);
           }
@@ -401,7 +400,7 @@ CUresult cuMultiGPUZtrmm(CUmultiGPU multiGPU,
           for (size_t i = 0; i < m; i += mb) {
             const size_t ib = min(mb, m - i);
 
-            CU_ERROR_CHECK(cuMultiGPUZgemm(handles, deviceCount, CBlasNoTrans, CBlasNoTrans, ib, jb, n - j - jb, -one, &B[(j + jb) * ldb + i], ldb, &A[j * lda + j + jb], lda, alpha, &B[j * ldb + i], ldb));
+            CU_ERROR_CHECK(cuMultiGPUZgemm(config, CBlasNoTrans, CBlasNoTrans, ib, jb, n - j - jb, -one, &B[(j + jb) * ldb + i], ldb, &A[j * lda + j + jb], lda, alpha, &B[j * ldb + i], ldb));
 
             ztrmm(CBlasRight, CBlasLower, CBlasNoTrans, diag, ib, jb, one, &A[j * lda + j], lda, &B[j * ldb + i], ldb);
           }
@@ -418,9 +417,9 @@ CUresult cuMultiGPUZtrmm(CUmultiGPU multiGPU,
           for (size_t i = 0; i < m; i += mb) {
             const size_t ib = min(mb, m - i);
 
-            CU_ERROR_CHECK(cuMultiGPUZgemm(handles, deviceCount, CBlasNoTrans, transA, ib, jb, n - j - jb, -one, &B[(j + jb) * ldb + i], ldb, &A[(j + jb) * lda + j], lda, alpha, &B[j * ldb + i], ldb));
+            CU_ERROR_CHECK(cuMultiGPUZgemm(config, CBlasNoTrans, trans, ib, jb, n - j - jb, -one, &B[(j + jb) * ldb + i], ldb, &A[(j + jb) * lda + j], lda, alpha, &B[j * ldb + i], ldb));
 
-            ztrmm(CBlasRight, CBlasUpper, transA, diag, ib, jb, one, &A[j * lda + j], lda, &B[j * ldb + i], ldb);
+            ztrmm(CBlasRight, CBlasUpper, trans, diag, ib, jb, one, &A[j * lda + j], lda, &B[j * ldb + i], ldb);
           }
         } while (j > 0);
       }
@@ -431,15 +430,14 @@ CUresult cuMultiGPUZtrmm(CUmultiGPU multiGPU,
           for (size_t i = 0; i < m; i += mb) {
             const size_t ib = min(mb, m - i);
 
-            CU_ERROR_CHECK(cuMultiGPUZgemm(handles, deviceCount, CBlasNoTrans, transA, ib, jb, j, -one, &B[i], ldb, &A[j], lda, alpha, &B[j * ldb + i], ldb));
+            CU_ERROR_CHECK(cuMultiGPUZgemm(config, CBlasNoTrans, trans, ib, jb, j, -one, &B[i], ldb, &A[j], lda, alpha, &B[j * ldb + i], ldb));
 
-            ztrmm(CBlasRight, CBlasLower, transA, diag, ib, jb, one, &A[j * lda + j], lda, &B[j * ldb + i], ldb);
+            ztrmm(CBlasRight, CBlasLower, trans, diag, ib, jb, one, &A[j * lda + j], lda, &B[j * ldb + i], ldb);
           }
         }
       }
     }
   }
-#endif
 
   return CUDA_SUCCESS;
 }

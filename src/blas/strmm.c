@@ -267,8 +267,8 @@ CUresult cuMultiGPUStrmm(CUmultiGPUSBlasConfig config,
     return CUDA_SUCCESS;
   }
 
-  const size_t mb = (side == CBlasLeft) ?  8 : 16;
-  const size_t nb = (side == CBlasLeft) ? 16 :  8;
+  const size_t mb = cuMultiGPUSBlasConfigRows(config);
+  const size_t nb = cuMultiGPUSBlasConfigColumns(config);
 
   if (m <= mb || n <= nb) {
     strmm(side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb);

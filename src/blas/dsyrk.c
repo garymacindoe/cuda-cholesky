@@ -198,7 +198,7 @@ CUresult cuDsyrk(CUmodule module, CBlasUplo uplo, CBlasTranspose trans,
   return CUDA_SUCCESS;
 }
 
-CUresult cuMultiGPUDsyrk(CUmultiGPU multiGPU,
+CUresult cuMultiGPUDsyrk(CUmultiGPUDBlasConfig config,
                          CBlasUplo uplo, CBlasTranspose trans,
                          size_t n, size_t k,
                          double alpha, const double * restrict A, size_t lda,
@@ -218,48 +218,81 @@ CUresult cuMultiGPUDsyrk(CUmultiGPU multiGPU,
   if (n == 0 || ((alpha == zero || k == 0) && beta == one))
     return CUDA_SUCCESS;
 
-#if 0
-  if (trans == CBlasNoTrans) {
-    const size_t nb = 576;
-
-    if (uplo == CBlasLower) {
-      for (size_t j = 0; j < n; j += nb) {
-        const size_t jb = min(nb, n - j);
-        dsyrk(uplo, trans, jb, k, alpha, &A[j], lda, beta, &C[j * ldc + j], ldc);
-        if (j + jb < n)
-          CU_ERROR_CHECK(cuMultiGPUDgemm(handles, deviceCount, trans, CBlasTrans, n - j - jb, jb, k, alpha, &A[j + jb], lda, &A[j], lda, beta, &C[j * ldc + j + jb], ldc));
+  if (alpha == zero) {
+    if (uplo == CBlasUpper) {
+      if (beta == zero) {
+#pragma omp parallel for
+        for (size_t j = 0; j < n; j++) {
+          for (size_t i = 0; i <= j; i++)
+            C[j * ldc + i] = zero;
+        }
+      }
+      else {
+#pragma omp parallel for
+        for (size_t j = 0; j < n; j++) {
+          for (size_t i = 0; i <= j; i++)
+            C[j * ldc + i] *= beta;
+        }
       }
     }
     else {
-      for (size_t j = 0; j < n; j += nb) {
-        const size_t jb = min(nb, n - j);
-        dsyrk(uplo, trans, jb, k, alpha, &A[j], lda, beta, &C[j * ldc + j], ldc);
-        if (j + jb < n)
-          CU_ERROR_CHECK(cuMultiGPUDgemm(handles, deviceCount, trans, CBlasTrans, jb, n - j - jb, k, alpha, &A[j], lda, &A[j + jb], lda, beta, &C[(j + jb) * ldc + j], ldc));
+      if (beta == zero) {
+#pragma omp parallel for
+        for (size_t j = 0; j < n; j++) {
+          for (size_t i = j; i < n; i++)
+            C[j * ldc + i] = zero;
+        }
+      }
+      else {
+#pragma omp parallel for
+        for (size_t j = 0; j < n; j++) {
+          for (size_t i = j; i < n; i++)
+            C[j * ldc + i] *= beta;
+        }
       }
     }
+    return CUDA_SUCCESS;
+  }
+
+  const size_t nb = cuMultiGPUDBlasConfigColumns(config);
+
+  if (n < nb) {
+    dsyrk(uplo, trans, n, k, alpha, A, lda, beta, C, ldc);
+    return CUDA_SUCCESS;
+  }
+
+  if (trans == CBlasNoTrans) {
+    if (uplo == CBlasUpper) {
+      for (size_t j = nb; j < n; j += nb)
+        CU_ERROR_CHECK(cuMultiGPUDgemm(config, CBlasNoTrans, CBlasTrans, j, min(n - j, nb), k, alpha, A, lda, &A[j], lda, beta, &C[j * ldc], ldc));
+    }
+    else {
+      const size_t m = n - nb;
+      for (size_t j = 0; j < m; j += nb) {
+        const size_t jb = min(n - j, nb);
+        CU_ERROR_CHECK(cuMultiGPUDgemm(config, CBlasNoTrans, CBlasTrans, n - j - jb, jb, k, alpha, &A[j + jb], lda, &A[j], lda, beta, &C[j * ldc + j + jb], ldc));
+      }
+    }
+
+    for (size_t j = 0; j < n; j += nb)
+      dsyrk(uplo, trans, min(n - j, nb), k, alpha, &A[j], lda, beta, &C[j * ldc + j], ldc);
   }
   else {
-    const size_t nb = 192;
-
-    if (uplo == CBlasLower) {
-      for (size_t j = 0; j < n; j += nb) {
-        const size_t jb = min(nb, n - j);
-        dsyrk(uplo, trans, jb, k, alpha, &A[j * lda], lda, beta, &C[j * ldc + j], ldc);
-        if (j + jb < n)
-          CU_ERROR_CHECK(cuMultiGPUDgemm(handles, deviceCount, trans, CBlasNoTrans, n - j - jb, jb, k, alpha, &A[(j + jb) * lda], lda, &A[j * lda], lda, beta, &C[j * ldc + j + jb], ldc));
-      }
+    if (uplo == CBlasUpper) {
+      for (size_t j = nb; j < n; j += nb)
+        CU_ERROR_CHECK(cuMultiGPUDgemm(config, CBlasTrans, CBlasNoTrans, j, min(n - j, nb), k, alpha, A, lda, &A[j * lda], lda, beta, &C[j * ldc], ldc));
     }
     else {
-      for (size_t j = 0; j < n; j += nb) {
-        const size_t jb = min(nb, n - j);
-        dsyrk(uplo, trans, jb, k, alpha, &A[j * lda], lda, beta, &C[j * ldc + j], ldc);
-        if (j + jb < n)
-          CU_ERROR_CHECK(cuMultiGPUDgemm(handles, deviceCount, CBlasTrans, CBlasNoTrans, jb, n - j - jb, k, alpha, &A[j * lda], lda, &A[(j + jb) * lda], lda, beta, &C[(j + jb) * ldc + j], ldc));
+      const size_t m = n - nb;
+      for (size_t j = 0; j < m; j += nb) {
+        const size_t jb = min(n - j, nb);
+        CU_ERROR_CHECK(cuMultiGPUDgemm(config, CBlasTrans, CBlasNoTrans, n - j - jb, jb, k, alpha, &A[(j + jb) * lda], lda, &A[j * lda], lda, beta, &C[j * ldc + j + jb], ldc));
       }
     }
+
+    for (size_t j = 0; j < n; j += nb)
+      dsyrk(uplo, trans, min(n - j, nb), k, alpha, &A[j * lda], lda, beta, &C[j * ldc + j], ldc);
   }
-#endif
 
   return CUDA_SUCCESS;
 }

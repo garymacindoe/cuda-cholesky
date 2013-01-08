@@ -551,58 +551,6 @@ CUresult cuMultiGPUSgemm(CUmultiGPUSBlasConfig config,
     return CUDA_SUCCESS;
   }
 
-/**
-  * When transA == CBlasNoTrans each GPU MP processes blocks of 64x16 using 64
-  * threads per block.
-  * There are 30 MPs on the GTX 280 and each requires a minimum of 3 blocks
-  * to mask memory latency (64 * 3 = 192 threads/6 warps).
-  * A maximum of 8 blocks will fit on each MP concurrently due to shared memory
-  * and register requirements.  Best performance should therefore occur when we
-  * have 30 * 8 = 240 blocks sent to the GPU.  This requires a 10x24, 12x20,
-  * 15x16, etc. block size here.
-  * 10x24 is chosen to retain the m >> n behaviour needed for SPOTRF('L',..).
-  * mb = 10 * 64 = 640
-  * nb = 24 * 16 = 384
-  * kb defines the amount of work done by each thread and the memory (and
-  * bandwidth) needed for A and B so needs to be tuned to give maximum
-  * performance.  kb >= 512 gives ~400GFlops/s.  This requires (640 * 384 + 2 *
-  * 512 * (640 + 384)) * 4 = 5056kB of graphics memory.
-  *
-  * These block sizes give a bandwidth reduction of 2 / (1/640 + 1/384) = 480
-  *
-  * Bandwidth between host and device is 6 GB/s each way
-  *
-  * FLOP:word ratio for transA == CBlasNoTrans is
-  * (400 * 10^9) / (6 * 1024^3 / sizeof(float)) = 248.35
-  *
-  * When transA != CBlasNoTrans each GPU MP processes blocks of 32x32 using 64
-  * threads per block.
-  * There are 30 MPs on the GTX 280 and each requires a minimum of 3 blocks
-  * to mask memory latency (64 * 3 = 192 threads/6 warps).
-  * A maximum of 6 blocks will fit on each MP concurrently due to shared memory
-  * and register requirements.  Best performance should therefore occur when we
-  * have 30 * 6 = 180 blocks sent to the GPU.  This requires a 9x20, 12x15,
-  * 6x30, etc. block size here.
-  * 9x20 is chosen to retain the m << n behaviour needed for SPOTRF('U',..).
-  * mb =  9 * 32 = 288
-  * nb = 20 * 32 = 640
-  * kb defines the amount of work done by each thread and the memory (and
-  * bandwidth) needed for A and B so needs to be tuned to give maximum
-  * performance.  288 <= kb <= 448 gives 330-345GFlops/s.  This requires (288 *
-  * 640 + 2 * 288 * (288 + 640) * 4 = 1764kB of graphics memory.
-  *
-  * These block sizes give a bandwidth reduction of 2 / (1/288 + 1/640) = 397.24
-  *
-  * Bandwidth between host and device is 6 GB/s each way
-  *
-  * FLOP:word ratio for transA != CBlasNoTrans is
-  * (330 * 10^9) / (6 * 1024^3 / sizeof(float)) = 214.20
-  *
-  */
-//   const size_t mb = (transA == CBlasNoTrans) ? 640 : 288;
-//   const size_t nb = (transA == CBlasNoTrans) ? 384 : 640;
-//   const size_t kb = (transA == CBlasNoTrans) ? 512 : 288;
-
   if (m < config->mb && n < config->nb) {
     sgemm(transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc);
     return CUDA_SUCCESS;
