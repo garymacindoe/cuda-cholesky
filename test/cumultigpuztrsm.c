@@ -1,7 +1,7 @@
 #include "blas.h"
 #include "error.h"
-#include "cuhandle.h"
 #include <stdio.h>
+#include <math.h>
 #include <sys/time.h>
 #include <float.h>
 #include <complex.h>
@@ -90,12 +90,12 @@ int main(int argc, char * argv[]) {
   int deviceCount;
   CU_ERROR_CHECK(cuDeviceGetCount(&deviceCount));
 
-  CUhandle handles[deviceCount];
-  for (int i = 0; i < deviceCount; i++) {
-    CUdevice device;
-    CU_ERROR_CHECK(cuDeviceGet(&device, i));
-    CU_ERROR_CHECK(cuHandleCreate(&handles[i], CU_CTX_BLOCKING_SYNC, device));
-  }
+  CUdevice devices[deviceCount];
+  for (int i = 0; i < deviceCount; i++)
+    CU_ERROR_CHECK(cuDeviceGet(&devices[i], i));
+
+  CUmultiGPU mGPU;
+  CU_ERROR_CHECK(cuMultiGPUCreate(&mGPU, devices, deviceCount));
 
   alpha = gaussian();
 
@@ -175,8 +175,14 @@ int main(int argc, char * argv[]) {
       refB[j * ldb + i] = B[j * ldb + i] = gaussian();
   }
 
+  CUmultiGPUZBlasConfig config;
+  CU_ERROR_CHECK(cuMultiGPUZBlasConfigCreate(&config, mGPU, trans, CBlasNoTrans,
+                                             (trans == CBlasNoTrans) ? 640 : 384,
+                                             (trans == CBlasNoTrans) ? 384 : 480,
+                                             (trans == CBlasNoTrans) ? 192 : 448));
+
   ztrsm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb);
-  CU_ERROR_CHECK(cuMultiGPUZtrsm(handles, deviceCount, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb));
+  CU_ERROR_CHECK(cuMultiGPUZtrsm(config, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb));
 
   bool passed = true;
   double rdiff = 0.0, idiff = 0.0;
@@ -221,7 +227,7 @@ int main(int argc, char * argv[]) {
     return -5;
   }
   for (size_t i = 0; i < 20; i++)
-    CU_ERROR_CHECK(cuMultiGPUZtrsm(handles, deviceCount, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb));
+    CU_ERROR_CHECK(cuMultiGPUZtrsm(config, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb));
   if (gettimeofday(&stop, NULL) != 0) {
     fputs("gettimeofday failed\n", stderr);
     return -6;
@@ -243,8 +249,8 @@ int main(int argc, char * argv[]) {
   free(B);
   free(refB);
 
-  for (int i = 0; i < deviceCount; i++)
-    CU_ERROR_CHECK(cuHandleDestroy(handles[i]));
+  CU_ERROR_CHECK(cuMultiGPUZBlasConfigDestroy(config));
+  CU_ERROR_CHECK(cuMultiGPUDestroy(mGPU));
 
   return (int)!passed;
 }

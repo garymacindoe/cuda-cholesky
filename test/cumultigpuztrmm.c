@@ -99,8 +99,8 @@ int main(int argc, char * argv[]) {
   for (int i = 0; i < deviceCount; i++)
     CU_ERROR_CHECK(cuDeviceGet(&devices[i], i));
 
-  CUmultiGPU multiGPU;
-  CU_ERROR_CHECK(cuMultiGPUCreate(&multiGPU, devices, deviceCount));
+  CUmultiGPU mGPU;
+  CU_ERROR_CHECK(cuMultiGPUCreate(&mGPU, devices, deviceCount));
 
   alpha = (double)rand() / (double)RAND_MAX + ((double)rand() / (double)RAND_MAX) * I;
 
@@ -144,8 +144,14 @@ int main(int argc, char * argv[]) {
       refB[j * ldb + i] = B[j * ldb + i] = (double)rand() / (double)RAND_MAX + ((double)rand() / (double)RAND_MAX) * I;
   }
 
+  CUmultiGPUZBlasConfig config;
+  CU_ERROR_CHECK(cuMultiGPUZBlasConfigCreate(&config, mGPU, trans, CBlasNoTrans,
+                                             (trans == CBlasNoTrans) ? 640 : 384,
+                                             (trans == CBlasNoTrans) ? 384 : 480,
+                                             (trans == CBlasNoTrans) ? 192 : 448));
+
   ztrmm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb);
-  CU_ERROR_CHECK(cuMultiGPUZtrmm(multiGPU, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb));
+  CU_ERROR_CHECK(cuMultiGPUZtrmm(config, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb));
 
   bool passed = true;
   double rdiff = 0.0, idiff = 0.0;
@@ -180,7 +186,7 @@ int main(int argc, char * argv[]) {
     return -5;
   }
   for (size_t i = 0; i < 20; i++)
-    CU_ERROR_CHECK(cuMultiGPUZtrmm(multiGPU, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb));
+    CU_ERROR_CHECK(cuMultiGPUZtrmm(config, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb));
   if (gettimeofday(&stop, NULL) != 0) {
     fputs("gettimeofday failed\n", stderr);
     return -6;
@@ -202,7 +208,8 @@ int main(int argc, char * argv[]) {
   free(B);
   free(refB);
 
-  CU_ERROR_CHECK(cuMultiGPUDestroy(multiGPU));
+  CU_ERROR_CHECK(cuMultiGPUZBlasConfigDestroy(config));
+  CU_ERROR_CHECK(cuMultiGPUDestroy(mGPU));
 
   return (int)!passed;
 }
