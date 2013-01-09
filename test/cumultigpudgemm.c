@@ -7,7 +7,7 @@
 #include "dgemm_ref.c"
 
 /**
- * Test program for multiGPU SGEMM.
+ * Test program for multiGPU DGEMM.
  *
  * Block Sizes:
  *
@@ -17,16 +17,15 @@
  * among future GPUs with more multiprocessors.
  *
  * These calculations give the minimum block sizes to use for maximum
- * performance when executing GPU SGEMM on one or more GTX 280s or NVS 140Ms
- * with arguments in host memory.
+ * performance when executing GPU DGEMM on one or more GTX 280s with arguments
+ * in host memory.
  *
- * When transA == CBlasNoTrans each GPU multiprocessor processes 64x16 blocks of
+ * When transA == CBlasNoTrans each GPU multiprocessor processes 64x8 blocks of
  * C using 64 threads.  A minimum of 3 blocks is required to mask global memory
  * latency.  Due to register and shared memory requirements a maximum of 8
  * blocks can fit concurrently on each multiprocessor.  This is enough to hide
- * global memory latency and is the minimum number of blocks needed to give
- * maximum performance.  It goes without saying that the block size should be a
- * multiple of the block size used by the GPU kernel.
+ * global memory latency and is the minimum number of blocks needed to fully
+ * utilise the GPU and give maximum performance.
  *
  * Since there are 30 multiprocessors on a GTX 280 GPU 240 blocks need to be
  * scheduled to give each the 8 blocks required to get maximum performance.
@@ -38,26 +37,26 @@
  * | Factors |   Overall  | Bandwidth |  k   |
  * | of 240  | Block Size | Reduction |      |
  * -------------------------------------------
- * |   1x240 |    64x3840 |   125.90  |   16 |
- * |   2x120 |   128x1920 |   240.00  |  112 |
- * |   3x 80 |   192x1280 |   333.91  |  192*|
- * |   4x 60 |   256x 960 |   404.21  |  192*|
- * |   5x 48 |   320x 768 |   451.76  |  192*|
- * |   6x 40 |   384x 640 |   480.00  |  192*|
- * |   8x 30 |   448x 480 |   463.45  |  192*|
- * |  10x 24 |   640x 384 |   480.00  |  192*|
- * |  12x 20 |   768x 320 |   451.76  |  192*|
- * |  15x 16 |   960x 256 |   404.21  |  192*|
- * |  16x 15 |  1024x 240 |   388.86  |  192*|
- * |  20x 12 |  1280x 192 |   333.91  |  192*|
- * |  24x 10 |  1536x 160 |   289.81  |  192*|
- * |  30x  8 |  1920x 128 |   240.00  |  112 |
- * |  40x  6 |  2560x  96 |   185.06  |   32 |
- * |  48x  5 |  3072x  80 |   155.94  |   16 |
- * |  60x  4 |  3840x  64 |   125.90  |   16 |
- * |  80x  3 |  5120x  48 |    95.11  |   16 |
- * | 120x  2 |  7680x  32 |    63.73  |   16 |
- * | 240x  1 | 15360x  16 |    31.97  |   16 |
+ * |   1x240 |    64x1920 |   123.87  |  32* |
+ * |   2x120 |   128x 960 |   225.88  |  32* |
+ * |   3x 80 |   192x 640 |   295.38  |  32* |
+ * |   4x 60 |   256x 480 |   333.91  |  32* |
+ * |   5x 48 |   320x 384 |   349.09  |  32* |
+ * |   6x 40 |   384x 320 |   349.09  |  32* |
+ * |   8x 30 |   448x 240 |   312.56  |  32* |
+ * |  10x 24 |   640x 192 |   295.38  |  32* |
+ * |  12x 20 |   768x 160 |   264.83  |  32* |
+ * |  15x 16 |   960x 128 |   225.88  |  32* |
+ * |  16x 15 |  1024x 120 |   227.56  |  32* |
+ * |  20x 12 |  1280x  96 |   178.60  |  32* |
+ * |  24x 10 |  1536x  80 |   152.08  |  32* |
+ * |  30x  8 |  1920x  64 |   123.87  |  32* |
+ * |  40x  6 |  2560x  48 |    94.23  |  32  |
+ * |  48x  5 |  3072x  40 |    78.97  |  16  |
+ * |  60x  4 |  3840x  32 |    63.47  |   8  |
+ * |  80x  3 |  5120x  24 |    47.78  |   8  |
+ * | 120x  2 |  7680x  16 |    31.93  |   8  |
+ * | 240x  1 | 15360x   8 |    15.99  |   8  |
  * -------------------------------------------
  * (*minimum value to be compute bound - throughput cannot outperform bandwidth)
  *
@@ -69,9 +68,9 @@
  * in excess of the PCI bandwidth and the latency of a memory copy is greater
  * than the latency of a kernel launch it is not possible to choose a kb > 0
  * such that the time taken to transfer a block of A and B matches the time
- * taken to process them.  A single tuning run using a block size of 640x384 was
- * used to measure performance for all block sizes when kb varies from 16-2048
- * in steps of 16 (the amount of unrolling applied to the inner loop of the
+ * taken to process them.  A single tuning run using a block size of 384x320 was
+ * used to measure performance for all block sizes when kb varies from 8-512
+ * in steps of 8 (the amount of unrolling applied to the inner loop of the
  * kernel). As performance increases with k (up to a point), kb is chosen to be
  * the maximum value such that the algorithm remains compute bound (unless
  * performance levels off, then it is taken to be the minimum value that gives
@@ -79,16 +78,15 @@
  * transfers).
  *
  *
- * When transA != CBlasNoTrans each GPU multiprocessor processes 32x32 blocks of
+ * When transA != CBlasNoTrans each GPU multiprocessor processes 32x16 blocks of
  * C using 64 threads.  A minimum of 3 blocks is required to mask global memory
- * latency.  Due to register and shared memory requirements a maximum of 6
+ * latency.  Due to register and shared memory requirements a maximum of 4
  * blocks can fit concurrently on each multiprocessor.  This is enough to hide
  * global memory latency and is the minimum number of blocks needed to give
- * maximum performance.  It goes without saying that the block size should be a
- * multiple of the block size used by the GPU kernel.
+ * maximum performance.
  *
- * Since there are 30 multiprocessors on a GTX 280 GPU 180 blocks need to be
- * scheduled to give each the 6 blocks required to get maximum performance.
+ * Since there are 30 multiprocessors on a GTX 280 GPU 120 blocks need to be
+ * scheduled to give each the 4 blocks required to get maximum performance.
  * Valid block sizes are listed in the table below along with the bandwidth
  * reduction provided by the block size.  The performance across all block sizes
  * is constant for a given k.
@@ -97,24 +95,22 @@
  * | Factors |   Overall  | Bandwidth |  k   |
  * | of 180  | Block Size | Reduction |      |
  * -------------------------------------------
- * |   1x180 |    32x5760 |    63.65  |   16 |
- * |   2x 90 |    64x2880 |   125.22  |   32 |
- * |   3x 60 |    96x1920 |   182.86  |   80 |
- * |   4x 45 |   128x1440 |   235.10  |  448*|
- * |   5x 36 |   160x1152 |   280.98  |  448*|
- * |   6x 30 |   192x 960 |   320.00  |  448*|
- * |   9x 20 |   288x 640 |   397.24  |  448*|
- * |  10x 18 |   320x 576 |   411.43  |  448*|
- * |  12x 15 |   384x 480 |   426.66  |  448*|
- * |  15x 12 |   480x 384 |   426.66  |  448*|
- * |  18x 10 |   576x 320 |   411.43  |  448*|
- * |  20x  9 |   640x 288 |   397.24  |  448*|
- * |  30x  6 |   960x 192 |   320.00  |  448*|
- * |  36x  5 |  1152x 160 |   280.98  |  448*|
- * |  45x  4 |  1440x 128 |   235.10  |  448*|
- * |  60x  3 |  1920x  96 |   182.86  |   80 |
- * |  90x  2 |  2880x  64 |   125.22  |   32 |
- * | 180x  1 |  5760x  32 |    63.65  |   16 |
+ * |   1x120 |    32x3840 |   63.47   |   8  |
+ * |   2x60  |    64x1920 |  123.87   |  24* |
+ * |   3x40  |    96x1280 |  178.60   |  24* |
+ * |   4x30  |   128x960  |  225.88   |  24* |
+ * |   5x24  |   160x768  |  264.83   |  24* |
+ * |   6x20  |   192x640  |  295.38   |  24* |
+ * |   8x15  |   256x480  |  333.91   |  24* |
+ * |  10x12  |   320x384  |  349.09   |  24* |
+ * |  12x10  |   384x320  |  349.09   |  24* |
+ * |  15x8   |   480x256  |  333.91   |  24* |
+ * |  20x6   |   640x192  |  295.38   |  24* |
+ * |  24x5   |   768x160  |  264.83   |  24* |
+ * |  30x4   |   960x128  |  225.88   |  24* |
+ * |  40x3   |  1280x96   |  178.60   |  24* |
+ * |  60x2   |  1920x64   |  123.87   |  24* |
+ * | 120x1   |  3840x32   |   63.47   |   8  |
  * -------------------------------------------
  * (*minimum value to be compute bound - throughput cannot outperform bandwidth)
  *
@@ -126,9 +122,9 @@
  * in excess of the PCI bandwidth and the latency of a memory copy is greater
  * than the latency of a kernel launch it is not possible to choose a kb > 0
  * such that the time taken to transfer a block of A and B matches the time
- * taken to process them.  A single tuning run using a block size of 480x384 was
- * used to measure performance for all block sizes when kb varies from 16-2048
- * in steps of 16 (the amount of unrolling applied to the inner loop of the
+ * taken to process them.  A single tuning run using a block size of 384x320 was
+ * used to measure performance for all block sizes when kb varies from 8-512
+ * in steps of 8 (the amount of unrolling applied to the inner loop of the
  * kernel). As performance increases with k (up to a point), kb is chosen to be
  * the maximum value such that the algorithm remains compute bound (unless
  * performance levels off, then it is taken to be the minimum value that gives
@@ -272,10 +268,8 @@ int main(int argc, char * argv[]) {
   }
 
   CUmultiGPUDBlasConfig config;
-  CU_ERROR_CHECK(cuMultiGPUDBlasConfigCreate(&config, mGPU, transA, transB,
-                                             (transA == CBlasNoTrans) ? 640 : 384,
-                                             (transA == CBlasNoTrans) ? 384 : 480,
-                                             (transA == CBlasNoTrans) ? 192 : 448));
+  CU_ERROR_CHECK(cuMultiGPUDBlasConfigCreate(&config, mGPU, transA, transB, 384, 320,
+                                             (transA == CBlasNoTrans) ?  32 : 24));
 
   dgemm_ref(transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, refC, ldc);
   CU_ERROR_CHECK(cuMultiGPUDgemm(config, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc));

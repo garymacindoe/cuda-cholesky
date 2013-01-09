@@ -115,9 +115,7 @@ int main(int argc, char * argv[]) {
 
   CUmultiGPUDBlasConfig config;
   CU_ERROR_CHECK(cuMultiGPUDBlasConfigCreate(&config, mGPU, trans, (trans == CBlasNoTrans) ? CBlasTrans : CBlasNoTrans,
-                                             (trans == CBlasNoTrans) ? 640 : 384,
-                                             (trans == CBlasNoTrans) ? 384 : 480,
-                                             (trans == CBlasNoTrans) ? 192 : 448));
+                                             384, 320, (transA == CBlasNoTrans) ?  32 : 24));
 
   dsyrk_ref(uplo, trans, n, k, alpha, A, lda, beta, refC, ldc);
   CU_ERROR_CHECK(cuMultiGPUDsyrk(config, uplo, trans, n, k, alpha, A, lda, beta, C, ldc));

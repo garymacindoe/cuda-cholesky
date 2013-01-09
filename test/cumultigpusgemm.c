@@ -17,16 +17,15 @@
  * among future GPUs with more multiprocessors.
  *
  * These calculations give the minimum block sizes to use for maximum
- * performance when executing GPU SGEMM on one or more GTX 280s or NVS 140Ms
- * with arguments in host memory.
+ * performance when executing GPU SGEMM on one or more GTX 280s with arguments
+ * in host memory.
  *
  * When transA == CBlasNoTrans each GPU multiprocessor processes 64x16 blocks of
  * C using 64 threads.  A minimum of 3 blocks is required to mask global memory
  * latency.  Due to register and shared memory requirements a maximum of 8
  * blocks can fit concurrently on each multiprocessor.  This is enough to hide
- * global memory latency and is the minimum number of blocks needed to give
- * maximum performance.  It goes without saying that the block size should be a
- * multiple of the block size used by the GPU kernel.
+ * global memory latency and is the minimum number of blocks needed to fully
+ * utilise the GPU and give maximum performance.
  *
  * Since there are 30 multiprocessors on a GTX 280 GPU 240 blocks need to be
  * scheduled to give each the 8 blocks required to get maximum performance.
@@ -84,8 +83,7 @@
  * latency.  Due to register and shared memory requirements a maximum of 6
  * blocks can fit concurrently on each multiprocessor.  This is enough to hide
  * global memory latency and is the minimum number of blocks needed to give
- * maximum performance.  It goes without saying that the block size should be a
- * multiple of the block size used by the GPU kernel.
+ * maximum performance.
  *
  * Since there are 30 multiprocessors on a GTX 280 GPU 180 blocks need to be
  * scheduled to give each the 6 blocks required to get maximum performance.
@@ -127,8 +125,8 @@
  * than the latency of a kernel launch it is not possible to choose a kb > 0
  * such that the time taken to transfer a block of A and B matches the time
  * taken to process them.  A single tuning run using a block size of 480x384 was
- * used to measure performance for all block sizes when kb varies from 16-2048
- * in steps of 16 (the amount of unrolling applied to the inner loop of the
+ * used to measure performance for all block sizes when kb varies from 8-2048
+ * in steps of 8 (the amount of unrolling applied to the inner loop of the
  * kernel). As performance increases with k (up to a point), kb is chosen to be
  * the maximum value such that the algorithm remains compute bound (unless
  * performance levels off, then it is taken to be the minimum value that gives
