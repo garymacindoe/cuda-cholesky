@@ -16,7 +16,7 @@ int main(int argc, char * argv[]) {
     fprintf(stderr, "Usage: %s <uplo> <trans> <n> <k>\n"
                     "where:\n"
                     "  uplo               is 'u' or 'U' for CBlasUpper or 'l' or 'L' for CBlasLower\n"
-                    "  transA and transB  are 'n' or 'N' for CBlasNoTrans or 'c' or 'C' for CBlasConjTrans\n"
+                    "  trans              is 'n' or 'N' for CBlasNoTrans or 'c' or 'C' for CBlasConjTrans\n"
                     "  n and k            are the sizes of the matrices\n", argv[0]);
     return 1;
   }

@@ -15,7 +15,7 @@ int main(int argc, char * argv[]) {
     fprintf(stderr, "Usage: %s <uplo> <trans> <n> <k>\n"
                     "where:\n"
                     "  uplo               is 'u' or 'U' for CBlasUpper or 'l' or 'L' for CBlasLower\n"
-                    "  transA and transB  are 'n' or 'N' for CBlasNoTrans, 't' or 'T' for CBlasTrans or 'c' or 'C' for CBlasConjTrans\n"
+                    "  trans              is 'n' or 'N' for CBlasNoTrans, 't' or 'T' for CBlasTrans or 'c' or 'C' for CBlasConjTrans\n"
                     "  n and k            are the sizes of the matrices\n", argv[0]);
     return 1;
   }
@@ -115,7 +115,7 @@ int main(int argc, char * argv[]) {
 
   CUmultiGPUDBlasConfig config;
   CU_ERROR_CHECK(cuMultiGPUDBlasConfigCreate(&config, mGPU, trans, (trans == CBlasNoTrans) ? CBlasTrans : CBlasNoTrans,
-                                             384, 320, (transA == CBlasNoTrans) ?  32 : 24));
+                                             384, 320, (trans == CBlasNoTrans) ?  32 : 24));
 
   dsyrk_ref(uplo, trans, n, k, alpha, A, lda, beta, refC, ldc);
   CU_ERROR_CHECK(cuMultiGPUDsyrk(config, uplo, trans, n, k, alpha, A, lda, beta, C, ldc));
