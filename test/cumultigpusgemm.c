@@ -37,28 +37,28 @@
  * | Factors |   Overall  | Bandwidth |  k   |
  * | of 240  | Block Size | Reduction |      |
  * -------------------------------------------
- * |   1x240 |    64x3840 |   125.90  |   16 |
- * |   2x120 |   128x1920 |   240.00  |  112 |
- * |   3x 80 |   192x1280 |   333.91  |  192*|
- * |   4x 60 |   256x 960 |   404.21  |  192*|
- * |   5x 48 |   320x 768 |   451.76  |  192*|
- * |   6x 40 |   384x 640 |   480.00  |  192*|
- * |   8x 30 |   448x 480 |   463.45  |  192*|
- * |  10x 24 |   640x 384 |   480.00  |  192*|
- * |  12x 20 |   768x 320 |   451.76  |  192*|
- * |  15x 16 |   960x 256 |   404.21  |  192*|
- * |  16x 15 |  1024x 240 |   388.86  |  192*|
- * |  20x 12 |  1280x 192 |   333.91  |  192*|
- * |  24x 10 |  1536x 160 |   289.81  |  192*|
- * |  30x  8 |  1920x 128 |   240.00  |  112 |
- * |  40x  6 |  2560x  96 |   185.06  |   32 |
- * |  48x  5 |  3072x  80 |   155.94  |   16 |
- * |  60x  4 |  3840x  64 |   125.90  |   16 |
- * |  80x  3 |  5120x  48 |    95.11  |   16 |
- * | 120x  2 |  7680x  32 |    63.73  |   16 |
- * | 240x  1 | 15360x  16 |    31.97  |   16 |
+ * |   1x240 |    64x3840 |   125.90  |  16  | 185.8
+ * |   2x120 |   128x1920 |   240.00  | 112  | 354.3
+ * |   3x80  |   192x1280 |   333.91  | 192* | 492.9
+ * |   4x60  |   256x960  |   404.21  | 192* | 596.7
+ * |   5x48  |   320x768  |   451.76  | 192* | 666.9
+ * |   6x40  |   384x640  |   480.00  | 192* | 708.6
+ * |   8x30  |   512x480  |   495.48  | 192* | 731.5
+ * |  10x24  |   640x384  |   480.00  | 192* | 708.6
+ * |  12x20  |   768x320  |   451.76  | 192* | 666.9
+ * |  15x16  |   960x256  |   404.21  | 192* | 596.7
+ * |  16x15  |  1024x240  |   388.86  | 192* | 574.1
+ * |  20x12  |  1280x192  |   333.91  | 192* | 492.9
+ * |  24x10  |  1536x160  |   289.81  | 192* | 427.8
+ * |  30x8   |  1920x128  |   240.00  | 112  | 354.3
+ * |  40x6   |  2560x96   |   185.06  |  32  | 273.2
+ * |  48x5   |  3072x80   |   155.94  |  16  | 230.2
+ * |  60x4   |  3840x64   |   125.90  |  16  | 185.8
+ * |  80x3   |  5120x48   |    95.11  |  16  | 140.4
+ * | 120x2   |  7680x32   |    63.73  |  16  |  94.0
+ * | 240x1   | 15360x16   |    31.97  |  16  |  47.1
  * -------------------------------------------
- * (*minimum value to be compute bound - throughput cannot outperform bandwidth)
+ * (*throughput cannot outperform bandwidth so algorithm is bandwidth bound)
  *
  * The GPU is connected to main memory by a PCI Express 2.0 x16 bus.  Using the
  * bandwidth-test benchmark in the minibench directory it is found that this
@@ -68,7 +68,7 @@
  * in excess of the PCI bandwidth and the latency of a memory copy is greater
  * than the latency of a kernel launch it is not possible to choose a kb > 0
  * such that the time taken to transfer a block of A and B matches the time
- * taken to process them.  A single tuning run using a block size of 640x384 was
+ * taken to process them.  A single tuning run using a block size of 512x480 was
  * used to measure performance for all block sizes when kb varies from 16-2048
  * in steps of 16 (the amount of unrolling applied to the inner loop of the
  * kernel). As performance increases with k (up to a point), kb is chosen to be
@@ -95,26 +95,26 @@
  * | Factors |   Overall  | Bandwidth |  k   |
  * | of 180  | Block Size | Reduction |      |
  * -------------------------------------------
- * |   1x180 |    32x5760 |    63.65  |   16 |
- * |   2x 90 |    64x2880 |   125.22  |   32 |
- * |   3x 60 |    96x1920 |   182.86  |   80 |
- * |   4x 45 |   128x1440 |   235.10  |  448*|
- * |   5x 36 |   160x1152 |   280.98  |  448*|
- * |   6x 30 |   192x 960 |   320.00  |  448*|
- * |   9x 20 |   288x 640 |   397.24  |  448*|
- * |  10x 18 |   320x 576 |   411.43  |  448*|
- * |  12x 15 |   384x 480 |   426.66  |  448*|
- * |  15x 12 |   480x 384 |   426.66  |  448*|
- * |  18x 10 |   576x 320 |   411.43  |  448*|
- * |  20x  9 |   640x 288 |   397.24  |  448*|
- * |  30x  6 |   960x 192 |   320.00  |  448*|
- * |  36x  5 |  1152x 160 |   280.98  |  448*|
- * |  45x  4 |  1440x 128 |   235.10  |  448*|
- * |  60x  3 |  1920x  96 |   182.86  |   80 |
- * |  90x  2 |  2880x  64 |   125.22  |   32 |
- * | 180x  1 |  5760x  32 |    63.65  |   16 |
+ * |   1x180 |    32x5760 |    63.65  |   8  |  93.9
+ * |   2x90  |    64x2880 |   125.22  |  24  | 184.8
+ * |   3x60  |    96x1920 |   182.86  |  80  | 269.9
+ * |   4x45  |   128x1440 |   235.10  | 136* | 347.1
+ * |   5x36  |   160x1152 |   280.98  | 136* | 414.8
+ * |   6x30  |   192x960  |   320.00  | 136* | 472.4
+ * |   9x20  |   288x640  |   397.24  | 136* | 586.4
+ * |  10x18  |   320x576  |   411.43  | 136* | 607.4
+ * |  12x15  |   384x480  |   426.67  | 136* | 629.9
+ * |  15x12  |   480x384  |   426.67  | 136* | 629.9
+ * |  18x10  |   576x320  |   411.43  | 136* | 607.4
+ * |  20x9   |   640x288  |   397.24  | 136* | 586.4
+ * |  30x6   |   960x192  |   320.00  | 136* | 472.4
+ * |  36x5   |  1152x160  |   280.98  | 136* | 414.8
+ * |  45x4   |  1440x128  |   235.10  | 136* | 347.1
+ * |  60x3   |  1920x96   |   182.86  |  80  | 269.9
+ * |  90x2   |  2880x64   |   125.22  |  24  | 184.8
+ * | 180x1   |  5760x32   |    63.65  |   8  |  93.9
  * -------------------------------------------
- * (*minimum value to be compute bound - throughput cannot outperform bandwidth)
+ * (*throughput cannot outperform bandwidth so algorithm is bandwidth bound)
  *
  * The GPU is connected to main memory by a PCI Express 2.0 x16 bus.  Using the
  * bandwidth-test benchmark in the minibench directory it is found that this
@@ -271,9 +271,9 @@ int main(int argc, char * argv[]) {
 
   CUmultiGPUSBlasConfig config;
   CU_ERROR_CHECK(cuMultiGPUSBlasConfigCreate(&config, mGPU, transA, transB,
-                                             (transA == CBlasNoTrans) ? 640 : 384,
-                                             (transA == CBlasNoTrans) ? 384 : 480,
-                                             (transA == CBlasNoTrans) ? 192 : 448));
+                                             (transA == CBlasNoTrans) ? 512 : 480,
+                                             (transA == CBlasNoTrans) ? 480 : 384,
+                                             (transA == CBlasNoTrans) ? 192 : 136));
 
   sgemm_ref(transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, refC, ldc);
   CU_ERROR_CHECK(cuMultiGPUSgemm(config, transA, transB, m, n, k,

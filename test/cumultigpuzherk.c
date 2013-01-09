@@ -117,9 +117,9 @@ int main(int argc, char * argv[]) {
 
   CUmultiGPUZBlasConfig config;
   CU_ERROR_CHECK(cuMultiGPUZBlasConfigCreate(&config, mGPU, trans, (trans == CBlasNoTrans) ? CBlasConjTrans : CBlasNoTrans,
-                                             (trans == CBlasNoTrans) ? 256 : 120,
-                                             (trans == CBlasNoTrans) ? 240 : 128,
-                                             (trans == CBlasNoTrans) ?  32 :  16));
+                                             (trans == CBlasNoTrans) ? 256 : 128,
+                                             (trans == CBlasNoTrans) ? 240 : 120,
+                                             (trans == CBlasNoTrans) ?  64 :  44));
 
   zherk_ref(uplo, trans, n, k, alpha, A, lda, beta, refC, ldc);
   CU_ERROR_CHECK(cuMultiGPUZherk(config, uplo, trans, n, k, alpha, A, lda, beta, C, ldc));

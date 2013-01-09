@@ -139,10 +139,12 @@ int main(int argc, char * argv[]) {
   }
 
   CUmultiGPUDBlasConfig config;
-  CU_ERROR_CHECK(cuMultiGPUDBlasConfigCreate(&config, mGPU, trans, CBlasNoTrans,
-                                             (trans == CBlasNoTrans) ? 640 : 384,
-                                             (trans == CBlasNoTrans) ? 384 : 480,
-                                             (trans == CBlasNoTrans) ? 192 : 448));
+  CU_ERROR_CHECK(cuMultiGPUDBlasConfigCreate(&config, mGPU, trans,
+                                             (side == CBlasLeft) ? trans : CBlasNoTrans,
+                                             (side == CBlasLeft) ? CBlasNoTrans : trans,
+                                             ((side == CBlasLeft && trans == CBlasNoTrans) || side == CBlasRight) ? 384 : 256,
+                                             ((side == CBlasLeft && trans == CBlasNoTrans) || side == CBlasRight) ? 320 : 240,
+                                             ((side == CBlasLeft && trans == CBlasNoTrans) || side == CBlasRight) ? 128 : 32));
 
   dtrmm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb);
   CU_ERROR_CHECK(cuMultiGPUDtrmm(config, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb));

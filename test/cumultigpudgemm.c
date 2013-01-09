@@ -37,26 +37,26 @@
  * | Factors |   Overall  | Bandwidth |  k   |
  * | of 240  | Block Size | Reduction |      |
  * -------------------------------------------
- * |   1x240 |    64x1920 |   123.87  |  32* |
- * |   2x120 |   128x 960 |   225.88  |  32* |
- * |   3x 80 |   192x 640 |   295.38  |  32* |
- * |   4x 60 |   256x 480 |   333.91  |  32* |
- * |   5x 48 |   320x 384 |   349.09  |  32* |
- * |   6x 40 |   384x 320 |   349.09  |  32* |
- * |   8x 30 |   448x 240 |   312.56  |  32* |
- * |  10x 24 |   640x 192 |   295.38  |  32* |
- * |  12x 20 |   768x 160 |   264.83  |  32* |
- * |  15x 16 |   960x 128 |   225.88  |  32* |
- * |  16x 15 |  1024x 120 |   227.56  |  32* |
- * |  20x 12 |  1280x  96 |   178.60  |  32* |
- * |  24x 10 |  1536x  80 |   152.08  |  32* |
- * |  30x  8 |  1920x  64 |   123.87  |  32* |
- * |  40x  6 |  2560x  48 |    94.23  |  32  |
- * |  48x  5 |  3072x  40 |    78.97  |  16  |
- * |  60x  4 |  3840x  32 |    63.47  |   8  |
- * |  80x  3 |  5120x  24 |    47.78  |   8  |
- * | 120x  2 |  7680x  16 |    31.93  |   8  |
- * | 240x  1 | 15360x   8 |    15.99  |   8  |
+ * |   1x240 |    64x1920 |   123.87  | 128* |  91.4
+ * |   2x120 |   128x960  |   225.88  | 128* | 166.7
+ * |   3x80  |   192x640  |   295.38  | 128* | 218.0
+ * |   4x60  |   256x480  |   333.91  | 128* | 246.4
+ * |   5x48  |   320x384  |   349.09  | 128* | 257.6
+ * |   6x40  |   384x320  |   349.09  | 128* | 257.6
+ * |   8x30  |   512x240  |   326.81  | 128* | 241.2
+ * |  10x24  |   640x192  |   295.38  | 128* | 218.0
+ * |  12x20  |   768x160  |   264.83  | 128* | 195.4
+ * |  15x16  |   960x128  |   225.88  | 128* | 166.7
+ * |  16x15  |  1024x120  |   214.83  | 128* | 158.5
+ * |  20x12  |  1280x96   |   178.60  | 128* | 131.8
+ * |  24x10  |  1536x80   |   152.08  | 128* | 112.2
+ * |  30x8   |  1920x64   |   123.87  | 128* |  91.4
+ * |  40x6   |  2560x48   |    94.23  |  32  |  69.5
+ * |  48x5   |  3072x40   |    78.97  |  16  |  58.2
+ * |  60x4   |  3840x32   |    63.47  |  16  |  46.8
+ * |  80x3   |  5120x24   |    47.78  |  16  |  35.2
+ * | 120x2   |  7680x16   |    31.93  |  16  |  23.5
+ * | 240x1   | 15360x8    |    15.99  |  16  |  11.8
  * -------------------------------------------
  * (*minimum value to be compute bound - throughput cannot outperform bandwidth)
  *
@@ -69,8 +69,8 @@
  * than the latency of a kernel launch it is not possible to choose a kb > 0
  * such that the time taken to transfer a block of A and B matches the time
  * taken to process them.  A single tuning run using a block size of 384x320 was
- * used to measure performance for all block sizes when kb varies from 8-512
- * in steps of 8 (the amount of unrolling applied to the inner loop of the
+ * used to measure performance for all block sizes when kb varies from 16-512
+ * in steps of 16 (the amount of unrolling applied to the inner loop of the
  * kernel). As performance increases with k (up to a point), kb is chosen to be
  * the maximum value such that the algorithm remains compute bound (unless
  * performance levels off, then it is taken to be the minimum value that gives
@@ -93,24 +93,24 @@
  *
  * -------------------------------------------
  * | Factors |   Overall  | Bandwidth |  k   |
- * | of 180  | Block Size | Reduction |      |
+ * | of 120  | Block Size | Reduction |      |
  * -------------------------------------------
- * |   1x120 |    32x3840 |   63.47   |   8  |
- * |   2x60  |    64x1920 |  123.87   |  24* |
- * |   3x40  |    96x1280 |  178.60   |  24* |
- * |   4x30  |   128x960  |  225.88   |  24* |
- * |   5x24  |   160x768  |  264.83   |  24* |
- * |   6x20  |   192x640  |  295.38   |  24* |
- * |   8x15  |   256x480  |  333.91   |  24* |
- * |  10x12  |   320x384  |  349.09   |  24* |
- * |  12x10  |   384x320  |  349.09   |  24* |
- * |  15x8   |   480x256  |  333.91   |  24* |
- * |  20x6   |   640x192  |  295.38   |  24* |
- * |  24x5   |   768x160  |  264.83   |  24* |
- * |  30x4   |   960x128  |  225.88   |  24* |
- * |  40x3   |  1280x96   |  178.60   |  24* |
- * |  60x2   |  1920x64   |  123.87   |  24* |
- * | 120x1   |  3840x32   |   63.47   |   8  |
+ * |   1x120 |    32x1920 |    62.95  |  16  |  46.4
+ * |   2x60  |    64x960  |   120.00  |  32* |  88.5
+ * |   3x40  |    96x640  |   166.96  |  32* | 123.2
+ * |   4x30  |   128x480  |   202.11  |  32* | 149.1
+ * |   5x24  |   160x384  |   225.88  |  32* | 166.7
+ * |   6x20  |   192x320  |   240.00  |  32* | 177.1
+ * |   8x15  |   256x240  |   247.74  |  32* | 182.8
+ * |  10x12  |   320x192  |   240.00  |  32* | 177.1
+ * |  12x10  |   384x160  |   225.88  |  32* | 166.7
+ * |  15x8   |   480x128  |   202.11  |  32* | 149.1
+ * |  20x6   |   640x96   |   166.96  |  32* | 123.2
+ * |  24x5   |   768x80   |   144.91  |  32* | 106.9
+ * |  30x4   |   960x64   |   120.00  |  32* |  88.5
+ * |  40x3   |  1280x48   |    92.53  | 144  |  68.3
+ * |  60x2   |  1920x32   |    62.95  |  16  |  46.4
+ * | 120x1   |  3840x16   |    31.87  |   8  |  23.5
  * -------------------------------------------
  * (*minimum value to be compute bound - throughput cannot outperform bandwidth)
  *
@@ -122,7 +122,7 @@
  * in excess of the PCI bandwidth and the latency of a memory copy is greater
  * than the latency of a kernel launch it is not possible to choose a kb > 0
  * such that the time taken to transfer a block of A and B matches the time
- * taken to process them.  A single tuning run using a block size of 384x320 was
+ * taken to process them.  A single tuning run using a block size of 256x240 was
  * used to measure performance for all block sizes when kb varies from 8-512
  * in steps of 8 (the amount of unrolling applied to the inner loop of the
  * kernel). As performance increases with k (up to a point), kb is chosen to be
@@ -268,8 +268,10 @@ int main(int argc, char * argv[]) {
   }
 
   CUmultiGPUDBlasConfig config;
-  CU_ERROR_CHECK(cuMultiGPUDBlasConfigCreate(&config, mGPU, transA, transB, 384, 320,
-                                             (transA == CBlasNoTrans) ?  32 : 24));
+  CU_ERROR_CHECK(cuMultiGPUDBlasConfigCreate(&config, mGPU, transA, transB,
+                                             (transA == CBlasNoTrans) ? 384 : 256,
+                                             (transA == CBlasNoTrans) ? 320 : 240,
+                                             (transA == CBlasNoTrans) ? 128 : 32));
 
   dgemm_ref(transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, refC, ldc);
   CU_ERROR_CHECK(cuMultiGPUDgemm(config, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc));

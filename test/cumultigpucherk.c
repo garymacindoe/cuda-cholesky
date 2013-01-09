@@ -116,8 +116,10 @@ int main(int argc, char * argv[]) {
   }
 
   CUmultiGPUCBlasConfig config;
-  CU_ERROR_CHECK(cuMultiGPUCBlasConfigCreate(&config, mGPU, trans, (trans == CBlasNoTrans) ? CBlasConjTrans : CBlasNoTrans, 384, 320,
-                                             (trans == CBlasNoTrans) ?  8 : 32));
+  CU_ERROR_CHECK(cuMultiGPUCBlasConfigCreate(&config, mGPU, trans, (trans == CBlasNoTrans) ? CBlasConjTrans : CBlasNoTrans,
+                                             (trans == CBlasNoTrans) ? 384 : 256,
+                                             (trans == CBlasNoTrans) ? 320 : 240,
+                                             16));
 
   cherk_ref(uplo, trans, n, k, alpha, A, lda, beta, refC, ldc);
   CU_ERROR_CHECK(cuMultiGPUCherk(config, uplo, trans, n, k, alpha, A, lda, beta, C, ldc));
