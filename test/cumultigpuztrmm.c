@@ -145,7 +145,7 @@ int main(int argc, char * argv[]) {
   }
 
   CUmultiGPUZBlasConfig config;
-  CU_ERROR_CHECK(cuMultiGPUZBlasConfigCreate(&config, mGPU, trans,
+  CU_ERROR_CHECK(cuMultiGPUZBlasConfigCreate(&config, mGPU,
                                              (side == CBlasLeft) ? trans : CBlasNoTrans,
                                              (side == CBlasLeft) ? CBlasNoTrans : trans,
                                              ((side == CBlasLeft && trans == CBlasNoTrans) || side == CBlasRight) ? 128 : 120,
