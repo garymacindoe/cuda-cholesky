@@ -36,8 +36,10 @@ CUresult cuMultiGPUCreate(CUmultiGPU * mGPU, CUdevice * devices, int n) {
     return CUDA_ERROR_OUT_OF_MEMORY;
 
   (*mGPU)->n = n;
-  for (int i = 0; i < n; i++)
+  for (int i = 0; i < n; i++) {
     CU_ERROR_CHECK(cuCtxCreate(&(*mGPU)->contexts[i], CU_CTX_SCHED_AUTO, devices[i]));
+    CU_ERROR_CHECK(cuCtxPopCurrent(&(*mGPU)->contexts[i]));
+  }
 
   return CUDA_SUCCESS;
 }
