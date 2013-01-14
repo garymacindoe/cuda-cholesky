@@ -366,7 +366,7 @@ __global__ void dgemm(const double * __restrict__ A, const double * __restrict__
  * kb is chosen to be the largest multiple of 16 such that the number of blocks
  * per multiprocessor is limited by the register usage.
  */
-template void dgemm<CBlasNoTrans, CBlasNoTrans, 64,  8, 16, 16,  4>(const double * __restrict__, const double * __restrict__, const double * __restrict__, double * __restrict__, double, double, int, int, int, int, int, int, int);
-template void dgemm<CBlasNoTrans, CBlasTrans,   64,  8, 16,  8,  8>(const double * __restrict__, const double * __restrict__, const double * __restrict__, double * __restrict__, double, double, int, int, int, int, int, int, int);
-template void dgemm<CBlasTrans,   CBlasNoTrans, 32, 16,  8,  8,  8>(const double * __restrict__, const double * __restrict__, const double * __restrict__, double * __restrict__, double, double, int, int, int, int, int, int, int);
-template void dgemm<CBlasTrans,   CBlasTrans,   32, 16,  8,  8,  8>(const double * __restrict__, const double * __restrict__, const double * __restrict__, double * __restrict__, double, double, int, int, int, int, int, int, int);
+template __global__ void dgemm<CBlasNoTrans, CBlasNoTrans, 64,  8, 16, 16,  4>(const double * __restrict__, const double * __restrict__, const double * __restrict__, double * __restrict__, double, double, int, int, int, int, int, int, int);
+template __global__ void dgemm<CBlasNoTrans, CBlasTrans,   64,  8, 16,  8,  8>(const double * __restrict__, const double * __restrict__, const double * __restrict__, double * __restrict__, double, double, int, int, int, int, int, int, int);
+template __global__ void dgemm<CBlasTrans,   CBlasNoTrans, 32, 16,  8,  8,  8>(const double * __restrict__, const double * __restrict__, const double * __restrict__, double * __restrict__, double, double, int, int, int, int, int, int, int);
+template __global__ void dgemm<CBlasTrans,   CBlasTrans,   32, 16,  8,  8,  8>(const double * __restrict__, const double * __restrict__, const double * __restrict__, double * __restrict__, double, double, int, int, int, int, int, int, int);

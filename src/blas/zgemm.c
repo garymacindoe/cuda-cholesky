@@ -1,8 +1,7 @@
 #include "blas.h"
 #include "error.h"
-#include "../multigpu.h"
-#include "../taskqueue.h"
 #include <stdio.h>
+#include "handle.h"
 
 static inline size_t min(size_t a, size_t b) { return (a < b) ? a : b; }
 static inline size_t max(size_t a, size_t b) { return (a > b) ? a : b; }
@@ -277,145 +276,8 @@ CUresult cuZgemm2(CUmodule module,
   return CUDA_SUCCESS;
 }
 
-struct zgemm_plan {
-  CBlasTranspose transA, transB;
-  CUmodule module;
-  CUstream compute, copy;
-  CUdeviceptr A0, A1, B0, B1, C;
-  size_t lda, ldb, ldc, mb, nb, kb;
-};
-
-static CUresult init(const void * args) {
-  struct zgemm_plan * plan = *(struct zgemm_plan **)args;
-
-  // Load the module
-  CU_ERROR_CHECK(cuModuleLoad(&plan->module, "zgemm.fatbin"));
-
-  // Create two streams - one for compute, the other for copy
-  CU_ERROR_CHECK(cuStreamCreate(&plan->compute, 0));
-  CU_ERROR_CHECK(cuStreamCreate(&plan->copy, 0));
-
-  // Allocate temporary memory for C,...
-  CU_ERROR_CHECK(cuMemAllocPitch(&plan->C, &plan->ldc, plan->mb * sizeof(double complex),
-                                 plan->nb, sizeof(double complex)));
-  plan->ldc /= sizeof(double complex);
-
-  // ...A...
-  if (plan->transA == CBlasNoTrans) {
-    CU_ERROR_CHECK(cuMemAllocPitch(&plan->A0, &plan->lda, plan->mb * sizeof(double complex),
-                                   plan->kb, sizeof(double complex)));
-    CU_ERROR_CHECK(cuMemAllocPitch(&plan->A1, &plan->lda, plan->mb * sizeof(double complex),
-                                   plan->kb, sizeof(double complex)));
-  }
-  else {
-    CU_ERROR_CHECK(cuMemAllocPitch(&plan->A0, &plan->lda, plan->kb * sizeof(double complex),
-                                   plan->mb, sizeof(double complex)));
-    CU_ERROR_CHECK(cuMemAllocPitch(&plan->A1, &plan->lda, plan->kb * sizeof(double complex),
-                                   plan->mb, sizeof(double complex)));
-  }
-  plan->lda /= sizeof(double complex);
-
-  // ...and B
-  if (plan->transB == CBlasNoTrans) {
-    CU_ERROR_CHECK(cuMemAllocPitch(&plan->B0, &plan->ldb, plan->kb * sizeof(double complex),
-                                   plan->nb, sizeof(double complex)));
-    CU_ERROR_CHECK(cuMemAllocPitch(&plan->B1, &plan->ldb, plan->kb * sizeof(double complex),
-                                   plan->nb, sizeof(double complex)));
-  }
-  else {
-    CU_ERROR_CHECK(cuMemAllocPitch(&plan->B0, &plan->ldb, plan->nb * sizeof(double complex),
-                                   plan->kb, sizeof(double complex)));
-    CU_ERROR_CHECK(cuMemAllocPitch(&plan->B1, &plan->ldb, plan->nb * sizeof(double complex),
-                                   plan->kb, sizeof(double complex)));
-  }
-  plan->ldb /= sizeof(double complex);
-
-  return CUDA_SUCCESS;
-}
-
-static CUresult cleanup(const void * args) {
-  struct zgemm_plan * plan = (struct zgemm_plan *)args;
-
-  // Free temporary memory
-  CU_ERROR_CHECK(cuMemFree(plan->C));
-  CU_ERROR_CHECK(cuMemFree(plan->B0));
-  CU_ERROR_CHECK(cuMemFree(plan->B1));
-  CU_ERROR_CHECK(cuMemFree(plan->A0));
-  CU_ERROR_CHECK(cuMemFree(plan->A1));
-
-  // Destroy the streams (this is asynchronous)
-  CU_ERROR_CHECK(cuStreamDestroy(plan->copy));
-  CU_ERROR_CHECK(cuStreamDestroy(plan->compute));
-
-  // Unload the module
-  CU_ERROR_CHECK(cuModuleUnload(plan->module));
-
-  return CUDA_SUCCESS;
-}
-
-struct __cumultigpuzblasconfig_st {
-  CUmultiGPU mGPU;
-  struct zgemm_plan * plans;
-  size_t mb, nb, kb;
-};
-
-CUresult cuMultiGPUZBlasConfigCreate(CUmultiGPUZBlasConfig * config, CUmultiGPU mGPU,
-                                     CBlasTranspose transA, CBlasTranspose transB,
-                                     size_t mb, size_t nb, size_t kb) {
-  if ((*config = malloc(sizeof(struct __cumultigpuzblasconfig_st))) == NULL)
-    return CUDA_ERROR_OUT_OF_MEMORY;
-
-  (*config)->mGPU = mGPU;
-  (*config)->mb = mb;
-  (*config)->nb = nb;
-  (*config)->kb = kb;
-
-  int n = cuMultiGPUGetContextCount(mGPU);
-  if (((*config)->plans = malloc((size_t)n * sizeof(struct zgemm_plan))) == NULL)
-    return CUDA_ERROR_OUT_OF_MEMORY;
-
-  for (int i = 0; i < n; i++) {
-    struct zgemm_plan * plan = &(*config)->plans[i];
-    plan->transA = transA;
-    plan->transB = transB;
-    plan->mb = mb;
-    plan->nb = nb;
-    plan->kb = kb;
-
-    CUtask task;
-    CU_ERROR_CHECK(cuTaskCreate(&task, init, &plan, sizeof(struct zgemm_plan *)));
-    CU_ERROR_CHECK(cuMultiGPURunTask(mGPU, i, task));
-
-    CUresult result;
-    CU_ERROR_CHECK(cuTaskDestroy(task, &result));
-    if (result != CUDA_SUCCESS)
-      return result;
-  }
-
-  return CUDA_SUCCESS;
-}
-
-CUresult cuMultiGPUZBlasConfigDestroy(CUmultiGPUZBlasConfig config) {
-  int n = cuMultiGPUGetContextCount(config->mGPU);
-  for (int i = 0; i < n; i++) {
-    CUtask task;
-    CU_ERROR_CHECK(cuTaskCreate(&task, cleanup, &config->plans[i], sizeof(struct zgemm_plan)));
-    CU_ERROR_CHECK(cuMultiGPURunTask(config->mGPU, i, task));
-
-    CUresult result;
-    CU_ERROR_CHECK(cuTaskDestroy(task, &result));
-    if (result != CUDA_SUCCESS)
-      return result;
-  }
-  return CUDA_SUCCESS;
-}
-
-size_t cuMultiGPUZBlasConfigRows(CUmultiGPUZBlasConfig config) { return config->mb; }
-size_t cuMultiGPUZBlasConfigColumns(CUmultiGPUZBlasConfig config) { return config->nb; }
-size_t cuMultiGPUZBlasConfigInner(CUmultiGPUZBlasConfig config) { return config->kb; }
-
 struct zgemm_args {
-  struct zgemm_plan * plan;
+  struct multigpu_blas_plan * plan;
   const double complex * A, * B;
   double complex * C;
   size_t m, n, k, lda, ldb, ldc;
@@ -425,18 +287,31 @@ struct zgemm_args {
 
 static CUresult background_zgemm(const void * a) {
   struct zgemm_args * args = (struct zgemm_args *)a;
-  struct zgemm_plan * plan = args->plan;
+  struct multigpu_blas_plan * plan = args->plan;
+
+  const size_t mb = (args->transA == CBlasNoTrans) ? ZGEMM_N_MB : ((args->transB == CBlasNoTrans) ? ZGEMM_CN_MB : ZGEMM_CC_MB);
+  const size_t nb = (args->transA == CBlasNoTrans) ? ZGEMM_N_NB : ((args->transB == CBlasNoTrans) ? ZGEMM_CN_NB : ZGEMM_CC_NB);
+  const size_t kb = (args->transA == CBlasNoTrans) ? ZGEMM_N_KB : ((args->transB == CBlasNoTrans) ? ZGEMM_CN_KB : ZGEMM_CC_KB);
+
+  CUdeviceptr A0 = plan->A;
+  CUdeviceptr A1 = plan->A + plan->lda * mb;
+  const size_t lda = plan->lda / sizeof(double complex);
+  CUdeviceptr B0 = plan->B;
+  CUdeviceptr B1 = plan->B + plan->ldb * ((args->transB == CBlasNoTrans) ? nb : kb);
+  const size_t ldb = plan->ldb / sizeof(double complex);
+  CUdeviceptr C = plan->C;
+  const size_t ldc = plan->ldc / sizeof(double complex);
 
   // Copy C onto the device using the compute stream
-  CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(plan->C, plan->ldc, 0, 0,
+  CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(C, ldc, 0, 0,
                                      args->C, args->ldc, 0, 0,
                                      args->m, args->n, sizeof(double complex), plan->compute));
 
   // Perform C *= beta on the compute stream to ensure C has finished copying
-  CU_ERROR_CHECK(cuZgemm(plan->module, CBlasNoTrans, CBlasNoTrans,
+  CU_ERROR_CHECK(cuZgemm(plan->zgemm, CBlasNoTrans, CBlasNoTrans,
                          args->m, args->n, 0,
-                         zero, 0, plan->ldc, 0, 0,
-                         args->beta, plan->C, plan->ldc, plan->compute));
+                         zero, 0, ldc, 0, 0,
+                         args->beta, C, ldc, plan->compute));
 
   // Can exit early if alpha * op(A) * op(B) will evaluate to zero
   if (args->alpha != zero && args->k > 0) {
@@ -445,71 +320,71 @@ static CUresult background_zgemm(const void * a) {
     if (args->transB == CBlasNoTrans) {
       if (args->transA == CBlasNoTrans) {
         // Copy A and B onto the device asynchronously on the same stream as C
-        const size_t lb = min(args->k, plan->kb);
-        CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(plan->A0, plan->lda, 0, 0,
+        const size_t lb = min(args->k, kb);
+        CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A0, lda, 0, 0,
                                            args->A, args->lda, 0, 0,
                                            args->m, lb, sizeof(double complex), plan->compute));
-        CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(plan->B0, plan->ldb, 0, 0,
+        CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(B0, ldb, 0, 0,
                                            args->B, args->ldb, 0, 0,
                                            lb, args->n, sizeof(double complex), plan->compute));
 
-        for (size_t l = 0; l < args->k; l += plan->kb) {
+        for (size_t l = 0; l < args->k; l += kb) {
           // Compute C on the same stream as the copies to ensure they have finished first
-          CU_ERROR_CHECK(cuZgemm(plan->module, args->transA, args->transB,
-                                 args->m, args->n, min(args->k - l, plan->kb),
-                                 args->alpha, plan->A0, plan->lda, plan->B0, plan->ldb,
-                                 one, plan->C, plan->ldc, plan->compute));
+          CU_ERROR_CHECK(cuZgemm(plan->zgemm, args->transA, args->transB,
+                                 args->m, args->n, min(args->k - l, kb),
+                                 args->alpha, A0, lda, B0, ldb,
+                                 one, C, ldc, plan->compute));
 
           // If there is more work to do
-          if (l + plan->kb < args->k) {
-            const size_t lb = min(args->k - l - plan->kb, plan->kb);
+          if (l + kb < args->k) {
+            const size_t lb = min(args->k - l - kb, kb);
             // Copy the next blocks of A and B on the opposite stream from the zgemm
-            CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(plan->A1, plan->lda, 0, 0,
-                                               args->A, args->lda, 0, l + plan->kb,
+            CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A1, lda, 0, 0,
+                                               args->A, args->lda, 0, l + kb,
                                                args->m, lb, sizeof(double complex), plan->copy));
-            CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(plan->B1, plan->ldb, 0, 0,
-                                               args->B, args->ldb, l + plan->kb, 0,
+            CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(B1, ldb, 0, 0,
+                                               args->B, args->ldb, l + kb, 0,
                                                lb, args->n, sizeof(double complex), plan->copy));
 
             // Swap the streams and pointers so that the compute starts after the copy
             CUstream stream = plan->compute; plan->compute = plan->copy; plan->copy = stream;
-            CUdeviceptr ptr = plan->A0; plan->A0 = plan->A1; plan->A1 = ptr;
-            ptr = plan->B0; plan->B0 = plan->B1; plan->B1 = ptr;
+            CUdeviceptr ptr = A0; A0 = A1; A1 = ptr;
+            ptr = B0; B0 = B1; B1 = ptr;
           }
         }
       }
       else {
         // Copy A and B onto the device asynchronously on the same stream as C
-        const size_t lb = min(args->k, plan->kb);
-        CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(plan->A0, plan->lda, 0, 0,
+        const size_t lb = min(args->k, kb);
+        CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A0, lda, 0, 0,
                                            args->A, args->lda, 0, 0,
                                            lb, args->m, sizeof(double complex), plan->compute));
-        CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(plan->B0, plan->ldb, 0, 0,
+        CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(B0, ldb, 0, 0,
                                            args->B, args->ldb, 0, 0,
                                            lb, args->n, sizeof(double complex), plan->compute));
 
-        for (size_t l = 0; l < args->k; l += plan->kb) {
+        for (size_t l = 0; l < args->k; l += kb) {
           // Compute C on the same stream as the copies to ensure they have finished first
-          CU_ERROR_CHECK(cuZgemm(plan->module, args->transA, args->transB,
-                                 args->m, args->n, min(args->k - l, plan->kb),
-                                 args->alpha, plan->A0, plan->lda, plan->B0, plan->ldb,
-                                 one, plan->C, plan->ldc, plan->compute));
+          CU_ERROR_CHECK(cuZgemm(plan->zgemm, args->transA, args->transB,
+                                 args->m, args->n, min(args->k - l, kb),
+                                 args->alpha, A0, lda, B0, ldb,
+                                 one, C, ldc, plan->compute));
 
           // If there is more work to do
-          if (l + plan->kb < args->k) {
-            const size_t lb = min(args->k - l - plan->kb, plan->kb);
+          if (l + kb < args->k) {
+            const size_t lb = min(args->k - l - kb, kb);
             // Copy the next blocks of A and B on the opposite stream from the zgemm
-            CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(plan->A1, plan->lda, 0, 0,
-                                               args->A, args->lda, l + plan->kb, 0,
+            CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A1, lda, 0, 0,
+                                               args->A, args->lda, l + kb, 0,
                                                lb, args->m, sizeof(double complex), plan->copy));
-            CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(plan->B1, plan->ldb, 0, 0,
-                                               args->B, args->ldb, l + plan->kb, 0,
+            CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(B1, ldb, 0, 0,
+                                               args->B, args->ldb, l + kb, 0,
                                                lb, args->n, sizeof(double complex), plan->copy));
 
             // Swap the streams and pointers so that the compute starts after the copy
             CUstream stream = plan->compute; plan->compute = plan->copy; plan->copy = stream;
-            CUdeviceptr ptr = plan->A0; plan->A0 = plan->A1; plan->A1 = ptr;
-            ptr = plan->B0; plan->B0 = plan->B1; plan->B1 = ptr;
+            CUdeviceptr ptr = A0; A0 = A1; A1 = ptr;
+            ptr = B0; B0 = B1; B1 = ptr;
           }
         }
       }
@@ -517,71 +392,71 @@ static CUresult background_zgemm(const void * a) {
     else {
       if (args->transA == CBlasNoTrans) {
         // Copy A and B onto the device asynchronously on the same stream as C
-        const size_t lb = min(args->k, plan->kb);
-        CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(plan->A0, plan->lda, 0, 0,
+        const size_t lb = min(args->k, kb);
+        CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A0, lda, 0, 0,
                                            args->A, args->lda, 0, 0,
                                            args->m, lb, sizeof(double complex), plan->compute));
-        CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(plan->B0, plan->ldb, 0, 0,
+        CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(B0, ldb, 0, 0,
                                            args->B, args->ldb, 0, 0,
                                            args->n, lb, sizeof(double complex), plan->compute));
 
-        for (size_t l = 0; l < args->k; l += plan->kb) {
+        for (size_t l = 0; l < args->k; l += kb) {
           // Compute C on the same stream as the copies to ensure they have finished first
-          CU_ERROR_CHECK(cuZgemm(plan->module, args->transA, args->transB,
-                                 args->m, args->n, min(args->k - l, plan->kb),
-                                 args->alpha, plan->A0, plan->lda, plan->B0, plan->ldb,
-                                 one, plan->C, plan->ldc, plan->compute));
+          CU_ERROR_CHECK(cuZgemm(plan->zgemm, args->transA, args->transB,
+                                 args->m, args->n, min(args->k - l, kb),
+                                 args->alpha, A0, lda, B0, ldb,
+                                 one, C, ldc, plan->compute));
 
           // If there is more work to do
-          if (l + plan->kb < args->k) {
-            const size_t lb = min(args->k - l - plan->kb, plan->kb);
+          if (l + kb < args->k) {
+            const size_t lb = min(args->k - l - kb, kb);
             // Copy the next blocks of A and B on the opposite stream from the zgemm
-            CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(plan->A1, plan->lda, 0, 0,
-                                               args->A, args->lda, 0, l + plan->kb,
+            CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A1, lda, 0, 0,
+                                               args->A, args->lda, 0, l + kb,
                                                args->m, lb, sizeof(double complex), plan->copy));
-            CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(plan->B1, plan->ldb, 0, 0,
-                                               args->B, args->ldb, 0, l + plan->kb,
+            CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(B1, ldb, 0, 0,
+                                               args->B, args->ldb, 0, l + kb,
                                                args->n, lb, sizeof(double complex), plan->copy));
 
             // Swap the streams and pointers so that the compute starts after the copy
             CUstream stream = plan->compute; plan->compute = plan->copy; plan->copy = stream;
-            CUdeviceptr ptr = plan->A0; plan->A0 = plan->A1; plan->A1 = ptr;
-            ptr = plan->B0; plan->B0 = plan->B1; plan->B1 = ptr;
+            CUdeviceptr ptr = A0; A0 = A1; A1 = ptr;
+            ptr = B0; B0 = B1; B1 = ptr;
           }
         }
       }
       else {
         // Copy A and B onto the device asynchronously on the same stream as C
-        const size_t lb = min(args->k, plan->kb);
-        CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(plan->A0, plan->lda, 0, 0,
+        const size_t lb = min(args->k, kb);
+        CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A0, lda, 0, 0,
                                            args->A, args->lda, 0, 0,
                                            lb, args->m, sizeof(double complex), plan->compute));
-        CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(plan->B0, plan->ldb, 0, 0,
+        CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(B0, ldb, 0, 0,
                                            args->B, args->ldb, 0, 0,
                                            args->n, lb, sizeof(double complex), plan->compute));
 
-        for (size_t l = 0; l < args->k; l += plan->kb) {
+        for (size_t l = 0; l < args->k; l += kb) {
           // Compute C on the same stream as the copies to ensure they have finished first
-          CU_ERROR_CHECK(cuZgemm(plan->module, args->transA, args->transB,
-                                 args->m, args->n, min(args->k - l, plan->kb),
-                                 args->alpha, plan->A0, plan->lda, plan->B0, plan->ldb,
-                                 one, plan->C, plan->ldc, plan->compute));
+          CU_ERROR_CHECK(cuZgemm(plan->zgemm, args->transA, args->transB,
+                                 args->m, args->n, min(args->k - l, kb),
+                                 args->alpha, A0, lda, B0, ldb,
+                                 one, C, ldc, plan->compute));
 
           // If there is more work to do
-          if (l + plan->kb < args->k) {
-            const size_t lb = min(args->k - l - plan->kb, plan->kb);
+          if (l + kb < args->k) {
+            const size_t lb = min(args->k - l - kb, kb);
             // Copy the next blocks of A and B on the opposite stream from the zgemm
-            CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(plan->A1, plan->lda, 0, 0,
-                                               args->A, args->lda, l + plan->kb, 0,
+            CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A1, lda, 0, 0,
+                                               args->A, args->lda, l + kb, 0,
                                                lb, args->m, sizeof(double complex), plan->copy));
-            CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(plan->B1, plan->ldb, 0, 0,
-                                               args->B, args->ldb, 0, l + plan->kb,
+            CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(B1, ldb, 0, 0,
+                                               args->B, args->ldb, 0, l + kb,
                                                args->n, lb, sizeof(double complex), plan->copy));
 
             // Swap the streams and pointers so that the compute starts after the copy
             CUstream stream = plan->compute; plan->compute = plan->copy; plan->copy = stream;
-            CUdeviceptr ptr = plan->A0; plan->A0 = plan->A1; plan->A1 = ptr;
-            ptr = plan->B0; plan->B0 = plan->B1; plan->B1 = ptr;
+            CUdeviceptr ptr = A0; A0 = A1; A1 = ptr;
+            ptr = B0; B0 = B1; B1 = ptr;
           }
         }
       }
@@ -589,13 +464,13 @@ static CUresult background_zgemm(const void * a) {
   }
 
   // Copy C back onto the host on the compute stream
-  CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(args->C, args->ldc, 0, 0, plan->C, plan->ldc, 0, 0,
+  CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(args->C, args->ldc, 0, 0, C, ldc, 0, 0,
                                      args->m, args->n, sizeof(double complex), plan->compute));
 
   return CUDA_SUCCESS;
 }
 
-CUresult cuMultiGPUZgemm(CUmultiGPUZBlasConfig config,
+CUresult cuMultiGPUZgemm(CUmultiGPUBlasHandle handle,
                          CBlasTranspose transA, CBlasTranspose transB,
                          size_t m, size_t n, size_t k,
                          double complex alpha, const double complex * restrict A, size_t lda,
@@ -637,18 +512,19 @@ CUresult cuMultiGPUZgemm(CUmultiGPUZBlasConfig config,
     return CUDA_SUCCESS;
   }
 
-  if (m < config->mb && n < config->nb) {
+  const size_t mb = (transA == CBlasNoTrans) ? ZGEMM_N_MB : ((transB == CBlasNoTrans) ? ZGEMM_CN_MB : ZGEMM_CC_MB);
+  const size_t nb = (transA == CBlasNoTrans) ? ZGEMM_N_NB : ((transB == CBlasNoTrans) ? ZGEMM_CN_NB : ZGEMM_CC_NB);
+
+  if (m < mb && n < nb) {
     zgemm(transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc);
     return CUDA_SUCCESS;
   }
 
-  CUtask task;
-  CUtaskqueue queue;
-  CU_ERROR_CHECK(cuTaskQueueCreate(&queue, ((m + config->mb - 1) / config->mb) *
-                                           ((n + config->nb - 1) / config->nb)));
+  int task = 0, nTasks = (int)(((m + mb - 1) / mb) * ((n + nb - 1) / nb));
+  CUtask tasks[nTasks];
 
-  int t = 0;
-  int nThreads = cuMultiGPUGetContextCount(config->mGPU);
+  int ctx = 0;
+  int nCtxs = cuMultiGPUGetContextCount(handle->mGPU);
 
   struct zgemm_args args = { .transA = transA, .transB = transB,
                              .k = k,
@@ -657,82 +533,76 @@ CUresult cuMultiGPUZgemm(CUmultiGPUZBlasConfig config,
 
   if (transB == CBlasNoTrans) {
     if (transA == CBlasNoTrans) {
-      for (size_t j = 0; j < n; j += config->nb) {
-        args.n = min(n - j, config->nb);
-        for (size_t i = 0; i < m; i += config->mb) {
-          args.m = min(m - i, config->mb);
+      for (size_t j = 0; j < n; j += nb) {
+        args.n = min(n - j, nb);
+        for (size_t i = 0; i < m; i += mb) {
+          args.m = min(m - i, mb);
           args.A = &A[i];
           args.B = &B[j * ldb];
           args.C = &C[j * ldc + i];
-          args.plan = &config->plans[t];
-          CU_ERROR_CHECK(cuTaskCreate(&task, background_zgemm, &args, sizeof(struct zgemm_args)));
-          CU_ERROR_CHECK(cuTaskQueuePush(queue, task));
-          CU_ERROR_CHECK(cuMultiGPURunTask(config->mGPU, t++, task));
-          if (t == nThreads)
-            t = 0;
+          args.plan = &handle->plans[ctx];
+          CU_ERROR_CHECK(cuTaskCreate(&tasks[task], background_zgemm, &args, sizeof(struct zgemm_args)));
+          CU_ERROR_CHECK(cuMultiGPURunTask(handle->mGPU, ctx++, tasks[task++]));
+          if (ctx == nCtxs)
+            ctx = 0;
         }
       }
     }
     else {
-      for (size_t j = 0; j < n; j += config->nb) {
-        args.n = min(n - j, config->nb);
-        for (size_t i = 0; i < m; i += config->mb) {
-          args.m = min(m - i, config->mb);
+      for (size_t j = 0; j < n; j += nb) {
+        args.n = min(n - j, nb);
+        for (size_t i = 0; i < m; i += mb) {
+          args.m = min(m - i, mb);
           args.A = &A[i * lda];
           args.B = &B[j * ldb];
           args.C = &C[j * ldc + i];
-          args.plan = &config->plans[t];
-          CU_ERROR_CHECK(cuTaskCreate(&task, background_zgemm, &args, sizeof(struct zgemm_args)));
-          CU_ERROR_CHECK(cuTaskQueuePush(queue, task));
-          CU_ERROR_CHECK(cuMultiGPURunTask(config->mGPU, t++, task));
-          if (t == nThreads)
-            t = 0;
+          args.plan = &handle->plans[ctx];
+          CU_ERROR_CHECK(cuTaskCreate(&tasks[task], background_zgemm, &args, sizeof(struct zgemm_args)));
+          CU_ERROR_CHECK(cuMultiGPURunTask(handle->mGPU, ctx++, tasks[task++]));
+          if (ctx == nCtxs)
+            ctx = 0;
         }
       }
     }
   }
   else {
     if (transA == CBlasNoTrans) {
-      for (size_t j = 0; j < n; j += config->nb) {
-        args.n = min(n - j, config->nb);
-        for (size_t i = 0; i < m; i += config->mb) {
-          args.m = min(m - i, config->mb);
+      for (size_t j = 0; j < n; j += nb) {
+        args.n = min(n - j, nb);
+        for (size_t i = 0; i < m; i += mb) {
+          args.m = min(m - i, mb);
           args.A = &A[i];
           args.B = &B[j];
           args.C = &C[j * ldc + i];
-          args.plan = &config->plans[t];
-          CU_ERROR_CHECK(cuTaskCreate(&task, background_zgemm, &args, sizeof(struct zgemm_args)));
-          CU_ERROR_CHECK(cuTaskQueuePush(queue, task));
-          CU_ERROR_CHECK(cuMultiGPURunTask(config->mGPU, t++, task));
-          if (t == nThreads)
-            t = 0;
+          args.plan = &handle->plans[ctx];
+          CU_ERROR_CHECK(cuTaskCreate(&tasks[task], background_zgemm, &args, sizeof(struct zgemm_args)));
+          CU_ERROR_CHECK(cuMultiGPURunTask(handle->mGPU, ctx++, tasks[task++]));
+          if (ctx == nCtxs)
+            ctx = 0;
         }
       }
     }
     else {
-      for (size_t j = 0; j < n; j += config->nb) {
-        args.n = min(n - j, config->nb);
-        for (size_t i = 0; i < m; i += config->mb) {
-          args.m = min(m - i, config->mb);
+      for (size_t j = 0; j < n; j += nb) {
+        args.n = min(n - j, nb);
+        for (size_t i = 0; i < m; i += mb) {
+          args.m = min(m - i, mb);
           args.A = &A[i * lda];
           args.B = &B[j];
           args.C = &C[j * ldc + i];
-          args.plan = &config->plans[t];
-          CU_ERROR_CHECK(cuTaskCreate(&task, background_zgemm, &args, sizeof(struct zgemm_args)));
-          CU_ERROR_CHECK(cuTaskQueuePush(queue, task));
-          CU_ERROR_CHECK(cuMultiGPURunTask(config->mGPU, t++, task));
-          if (t == nThreads)
-            t = 0;
+          args.plan = &handle->plans[ctx];
+          CU_ERROR_CHECK(cuTaskCreate(&tasks[task], background_zgemm, &args, sizeof(struct zgemm_args)));
+          CU_ERROR_CHECK(cuMultiGPURunTask(handle->mGPU, ctx++, tasks[task++]));
+          if (ctx == nCtxs)
+            ctx = 0;
         }
       }
     }
   }
 
   CUresult result;
-  while (cuTaskQueuePop(queue, &task) == CUDA_SUCCESS)
-    CU_ERROR_CHECK(cuTaskDestroy(task, &result));
-
-  cuTaskQueueDestroy(queue);
+  for (task = 0; task < nTasks; task++)
+    CU_ERROR_CHECK(cuTaskDestroy(tasks[task], &result));
 
   return result;
 }

@@ -1,5 +1,4 @@
-#include "../src/task.h"
-#include <stddef.h>
+#include "cumultigpu.h"
 #include <assert.h>
 
 struct args_st {

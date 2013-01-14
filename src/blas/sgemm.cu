@@ -213,7 +213,7 @@ __global__ void sgemm(const float * __restrict__ A, const float * __restrict__ B
  * kb is chosen to be the largest multiple of 16 such that the number of blocks
  * per multiprocessor is limited by the register usage.
  */
-template void sgemm<CBlasNoTrans, CBlasNoTrans, 64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, const float * __restrict__, float * __restrict__, float, float, int, int, int, int, int, int, int);
-template void sgemm<CBlasNoTrans, CBlasTrans,   64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, const float * __restrict__, float * __restrict__, float, float, int, int, int, int, int, int, int);
-template void sgemm<CBlasTrans,   CBlasNoTrans, 32, 32,  8,  8,  8>(const float * __restrict__, const float * __restrict__, const float * __restrict__, float * __restrict__, float, float, int, int, int, int, int, int, int);
-template void sgemm<CBlasTrans,   CBlasTrans,   32, 32,  8,  8,  8>(const float * __restrict__, const float * __restrict__, const float * __restrict__, float * __restrict__, float, float, int, int, int, int, int, int, int);
+template __global__ void sgemm<CBlasNoTrans, CBlasNoTrans, 64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, const float * __restrict__, float * __restrict__, float, float, int, int, int, int, int, int, int);
+template __global__ void sgemm<CBlasNoTrans, CBlasTrans,   64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, const float * __restrict__, float * __restrict__, float, float, int, int, int, int, int, int, int);
+template __global__ void sgemm<CBlasTrans,   CBlasNoTrans, 32, 32,  8,  8,  8>(const float * __restrict__, const float * __restrict__, const float * __restrict__, float * __restrict__, float, float, int, int, int, int, int, int, int);
+template __global__ void sgemm<CBlasTrans,   CBlasTrans,   32, 32,  8,  8,  8>(const float * __restrict__, const float * __restrict__, const float * __restrict__, float * __restrict__, float, float, int, int, int, int, int, int, int);
