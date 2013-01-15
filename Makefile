@@ -179,18 +179,18 @@ cumultigpusgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/bl
 cumultigpudgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/handle.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/test/cumultigpudgemm.o | sgemm.fatbin dgemm.fatbin cgemm.fatbin zgemm.fatbin
 cumultigpucgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/handle.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/test/cumultigpucgemm.o | sgemm.fatbin dgemm.fatbin cgemm.fatbin zgemm.fatbin
 cumultigpuzgemm: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/handle.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/test/cumultigpuzgemm.o | sgemm.fatbin dgemm.fatbin cgemm.fatbin zgemm.fatbin
-cumultigpussyrk: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/src/blas/ssyrk.o $(OBJDIR)/test/cumultigpussyrk.o | sgemm.fatbin
-cumultigpudsyrk: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/src/blas/dsyrk.o $(OBJDIR)/test/cumultigpudsyrk.o | dgemm.fatbin
-cumultigpucherk: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/src/blas/cherk.o $(OBJDIR)/test/cumultigpucherk.o | cgemm.fatbin
-cumultigpuzherk: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/blas/zherk.o $(OBJDIR)/test/cumultigpuzherk.o | zgemm.fatbin
-cumultigpustrmm: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/src/blas/strmm.o $(OBJDIR)/test/cumultigpustrmm.o | sgemm.fatbin
-cumultigpudtrmm: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/src/blas/dtrmm.o $(OBJDIR)/test/cumultigpudtrmm.o | dgemm.fatbin
-cumultigpuctrmm: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/src/blas/ctrmm.o $(OBJDIR)/test/cumultigpuctrmm.o | cgemm.fatbin
-cumultigpuztrmm: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/blas/ztrmm.o $(OBJDIR)/test/cumultigpuztrmm.o | zgemm.fatbin
-cumultigpustrsm: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/src/blas/strsm.o $(OBJDIR)/test/cumultigpustrsm.o | sgemm.fatbin
-cumultigpudtrsm: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/src/blas/dtrsm.o $(OBJDIR)/test/cumultigpudtrsm.o | dgemm.fatbin
-cumultigpuctrsm: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/src/blas/ctrsm.o $(OBJDIR)/test/cumultigpuctrsm.o | cgemm.fatbin
-cumultigpuztrsm: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/blas/ztrsm.o $(OBJDIR)/test/cumultigpuztrsm.o | zgemm.fatbin
+cumultigpussyrk: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/handle.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/src/blas/ssyrk.o $(OBJDIR)/test/cumultigpussyrk.o | sgemm.fatbin
+cumultigpudsyrk: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/handle.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/src/blas/dsyrk.o $(OBJDIR)/test/cumultigpudsyrk.o | dgemm.fatbin
+cumultigpucherk: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/handle.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/src/blas/cherk.o $(OBJDIR)/test/cumultigpucherk.o | cgemm.fatbin
+cumultigpuzherk: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/handle.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/blas/zherk.o $(OBJDIR)/test/cumultigpuzherk.o | zgemm.fatbin
+cumultigpustrmm: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/handle.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/src/blas/strmm.o $(OBJDIR)/test/cumultigpustrmm.o | sgemm.fatbin
+cumultigpudtrmm: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/handle.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/src/blas/dtrmm.o $(OBJDIR)/test/cumultigpudtrmm.o | dgemm.fatbin
+cumultigpuctrmm: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/handle.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/src/blas/ctrmm.o $(OBJDIR)/test/cumultigpuctrmm.o | cgemm.fatbin
+cumultigpuztrmm: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/handle.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/blas/ztrmm.o $(OBJDIR)/test/cumultigpuztrmm.o | zgemm.fatbin
+cumultigpustrsm: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/handle.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/src/blas/strsm.o $(OBJDIR)/test/cumultigpustrsm.o | sgemm.fatbin
+cumultigpudtrsm: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/handle.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/src/blas/dtrsm.o $(OBJDIR)/test/cumultigpudtrsm.o | dgemm.fatbin
+cumultigpuctrsm: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/handle.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/src/blas/ctrsm.o $(OBJDIR)/test/cumultigpuctrsm.o | cgemm.fatbin
+cumultigpuztrsm: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/handle.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/blas/ztrsm.o $(OBJDIR)/test/cumultigpuztrsm.o | zgemm.fatbin
 
 cumultigpuspotrf: $(OBJDIR)/src/error.o $(OBJDIR)/src/task.o $(OBJDIR)/src/taskqueue.o $(OBJDIR)/src/thread.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/src/blas/ssyrk.o $(OBJDIR)/src/blas/strsm.o $(OBJDIR)/src/lapack/spotrf.o $(OBJDIR)/test/cumultigpuspotrf.o | sgemm.fatbin
 cumultigpudpotrf: $(OBJDIR)/src/error.o $(OBJDIR)/src/task.o $(OBJDIR)/src/taskqueue.o $(OBJDIR)/src/thread.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/src/blas/dsyrk.o $(OBJDIR)/src/blas/dtrsm.o $(OBJDIR)/src/lapack/dpotrf.o $(OBJDIR)/test/cumultigpudpotrf.o | dgemm.fatbin
@@ -211,22 +211,22 @@ $(OBJDIR)/src/blas: | $(OBJDIR)/src
 
 $(OBJDIR)/src/blas/handle.o: handle.h blas.h error.h | $(OBJDIR)/src/blas
 $(OBJDIR)/src/blas/xerbla.o: blas.h | $(OBJDIR)/src/blas
-$(OBJDIR)/src/blas/sgemm.o: cumultigpu.h blas.h error.h | $(OBJDIR)/src/blas
-$(OBJDIR)/src/blas/dgemm.o: cumultigpu.h blas.h error.h | $(OBJDIR)/src/blas
-$(OBJDIR)/src/blas/cgemm.o: cumultigpu.h blas.h error.h | $(OBJDIR)/src/blas
-$(OBJDIR)/src/blas/zgemm.o: cumultigpu.h blas.h error.h | $(OBJDIR)/src/blas
-$(OBJDIR)/src/blas/ssyrk.o: cumultigpu.h blas.h error.h | $(OBJDIR)/src/blas
-$(OBJDIR)/src/blas/dsyrk.o: cumultigpu.h blas.h error.h | $(OBJDIR)/src/blas
-$(OBJDIR)/src/blas/cherk.o: cumultigpu.h blas.h error.h | $(OBJDIR)/src/blas
-$(OBJDIR)/src/blas/zherk.o: cumultigpu.h blas.h error.h | $(OBJDIR)/src/blas
-$(OBJDIR)/src/blas/strsm.o: cumultigpu.h blas.h error.h | $(OBJDIR)/src/blas
-$(OBJDIR)/src/blas/dtrsm.o: cumultigpu.h blas.h error.h | $(OBJDIR)/src/blas
-$(OBJDIR)/src/blas/ctrsm.o: cumultigpu.h blas.h error.h | $(OBJDIR)/src/blas
-$(OBJDIR)/src/blas/ztrsm.o: cumultigpu.h blas.h error.h | $(OBJDIR)/src/blas
-$(OBJDIR)/src/blas/strmm.o: cumultigpu.h blas.h error.h | $(OBJDIR)/src/blas
-$(OBJDIR)/src/blas/dtrmm.o: cumultigpu.h blas.h error.h | $(OBJDIR)/src/blas
-$(OBJDIR)/src/blas/ctrmm.o: cumultigpu.h blas.h error.h | $(OBJDIR)/src/blas
-$(OBJDIR)/src/blas/ztrmm.o: cumultigpu.h blas.h error.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/sgemm.o: cumultigpu.h handle.h blas.h error.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/dgemm.o: cumultigpu.h handle.h blas.h error.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/cgemm.o: cumultigpu.h handle.h blas.h error.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/zgemm.o: cumultigpu.h handle.h blas.h error.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/ssyrk.o: cumultigpu.h handle.h blas.h error.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/dsyrk.o: cumultigpu.h handle.h blas.h error.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/cherk.o: cumultigpu.h handle.h blas.h error.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/zherk.o: cumultigpu.h handle.h blas.h error.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/strsm.o: cumultigpu.h handle.h blas.h error.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/dtrsm.o: cumultigpu.h handle.h blas.h error.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/ctrsm.o: cumultigpu.h handle.h blas.h error.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/ztrsm.o: cumultigpu.h handle.h blas.h error.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/strmm.o: cumultigpu.h handle.h blas.h error.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/dtrmm.o: cumultigpu.h handle.h blas.h error.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/ctrmm.o: cumultigpu.h handle.h blas.h error.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/ztrmm.o: cumultigpu.h handle.h blas.h error.h | $(OBJDIR)/src/blas
 
 $(OBJDIR)/src/lapack: | $(OBJDIR)/src
 	$(MKDIR) $(@)

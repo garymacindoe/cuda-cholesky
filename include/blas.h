@@ -245,6 +245,7 @@ CUresult cuZtrsm(CUmodule, CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
 typedef struct __cumultigpublashandle_st * CUmultiGPUBlasHandle;
 CUresult cuMultiGPUBlasCreate(CUmultiGPUBlasHandle *, CUmultiGPU);
 CUresult cuMultiGPUBlasDestroy(CUmultiGPUBlasHandle);
+CUresult cuMultiGPUBlasSynchronize(CUmultiGPUBlasHandle);
 
 // Single precision rank-K update
 CUresult cuMultiGPUSsyrk(CUmultiGPUBlasHandle,

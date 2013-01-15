@@ -148,3 +148,8 @@ CUresult cuMultiGPUBlasDestroy(CUmultiGPUBlasHandle handle) {
   }
   return CUDA_SUCCESS;
 }
+
+CUresult cuMultiGPUBlasSynchronize(CUmultiGPUBlasHandle handle) {
+  CU_ERROR_CHECK(cuMultiGPUSynchronize(handle->mGPU));
+  return CUDA_SUCCESS;
+}

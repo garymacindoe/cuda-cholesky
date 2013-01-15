@@ -1,6 +1,7 @@
 #include "blas.h"
 #include "error.h"
 #include <stdio.h>
+#include "handle.h"
 
 static inline size_t min(size_t a, size_t b) { return (a < b) ? a : b; }
 static inline size_t max(size_t a, size_t b) { return (a > b) ? a : b; }
@@ -228,7 +229,7 @@ CUresult cuZherk(CUmodule module,
   return CUDA_SUCCESS;
 }
 
-CUresult cuMultiGPUZherk(CUmultiGPUZBlasConfig config,
+CUresult cuMultiGPUZherk(CUmultiGPUBlasHandle handle,
                          CBlasUplo uplo, CBlasTranspose trans,
                          size_t n, size_t k,
                          double alpha, const double complex * restrict A, size_t lda,
@@ -286,7 +287,7 @@ CUresult cuMultiGPUZherk(CUmultiGPUZBlasConfig config,
     return CUDA_SUCCESS;
   }
 
-  const size_t nb = cuMultiGPUZBlasConfigColumns(config);
+  const size_t nb = (trans == CBlasNoTrans) ZGEMM_N_MB : ZGEMM_CN_NB;
 
   if (n < nb) {
     zherk(uplo, trans, n, k, alpha, A, lda, beta, C, ldc);
@@ -296,13 +297,13 @@ CUresult cuMultiGPUZherk(CUmultiGPUZBlasConfig config,
   if (trans == CBlasNoTrans) {
     if (uplo == CBlasUpper) {
       for (size_t j = nb; j < n; j += nb)
-        CU_ERROR_CHECK(cuMultiGPUZgemm(config, CBlasNoTrans, CBlasConjTrans, j, min(n - j, nb), k, alpha, A, lda, &A[j], lda, beta, &C[j * ldc], ldc));
+        CU_ERROR_CHECK(cuMultiGPUZgemm(handle, CBlasNoTrans, CBlasConjTrans, j, min(n - j, nb), k, alpha, A, lda, &A[j], lda, beta, &C[j * ldc], ldc));
     }
     else {
       const size_t m = n - nb;
       for (size_t j = 0; j < m; j += nb) {
         const size_t jb = min(n - j, nb);
-        CU_ERROR_CHECK(cuMultiGPUZgemm(config, CBlasNoTrans, CBlasConjTrans, n - j - jb, jb, k, alpha, &A[j + jb], lda, &A[j], lda, beta, &C[j * ldc + j + jb], ldc));
+        CU_ERROR_CHECK(cuMultiGPUZgemm(handle, CBlasNoTrans, CBlasConjTrans, n - j - jb, jb, k, alpha, &A[j + jb], lda, &A[j], lda, beta, &C[j * ldc + j + jb], ldc));
       }
     }
 
@@ -312,13 +313,13 @@ CUresult cuMultiGPUZherk(CUmultiGPUZBlasConfig config,
   else {
     if (uplo == CBlasUpper) {
       for (size_t j = nb; j < n; j += nb)
-        CU_ERROR_CHECK(cuMultiGPUZgemm(config, CBlasConjTrans, CBlasNoTrans, j, min(n - j, nb), k, alpha, A, lda, &A[j * lda], lda, beta, &C[j * ldc], ldc));
+        CU_ERROR_CHECK(cuMultiGPUZgemm(handle, CBlasConjTrans, CBlasNoTrans, j, min(n - j, nb), k, alpha, A, lda, &A[j * lda], lda, beta, &C[j * ldc], ldc));
     }
     else {
       const size_t m = n - nb;
       for (size_t j = 0; j < m; j += nb) {
         const size_t jb = min(n - j, nb);
-        CU_ERROR_CHECK(cuMultiGPUZgemm(config, CBlasConjTrans, CBlasNoTrans, n - j - jb, jb, k, alpha, &A[(j + jb) * lda], lda, &A[j * lda], lda, beta, &C[j * ldc + j + jb], ldc));
+        CU_ERROR_CHECK(cuMultiGPUZgemm(handle, CBlasConjTrans, CBlasNoTrans, n - j - jb, jb, k, alpha, &A[(j + jb) * lda], lda, &A[j * lda], lda, beta, &C[j * ldc + j + jb], ldc));
       }
     }
 

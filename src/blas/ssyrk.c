@@ -1,6 +1,7 @@
 #include "blas.h"
 #include "error.h"
 #include <stdio.h>
+#include "handle.h"
 
 static inline size_t min(size_t a, size_t b) { return (a < b) ? a : b; }
 static inline size_t max(size_t a, size_t b) { return (a > b) ? a : b; }
@@ -201,7 +202,7 @@ CUresult cuSsyrk(CUmodule module, CBlasUplo uplo, CBlasTranspose trans,
   return CUDA_SUCCESS;
 }
 
-CUresult cuMultiGPUSsyrk(CUmultiGPUSBlasConfig config,
+CUresult cuMultiGPUSsyrk(CUmultiGPUBlasHandle handle,
                          CBlasUplo uplo, CBlasTranspose trans,
                          size_t n, size_t k,
                          float alpha, const float * restrict A, size_t lda,
@@ -257,7 +258,7 @@ CUresult cuMultiGPUSsyrk(CUmultiGPUSBlasConfig config,
     return CUDA_SUCCESS;
   }
 
-  const size_t nb = cuMultiGPUSBlasConfigColumns(config);
+  const size_t nb = (trans == CBlasNoTrans) ? SGEMM_N_MB : SGEMM_T_NB;
 
   if (n < nb) {
     ssyrk(uplo, trans, n, k, alpha, A, lda, beta, C, ldc);
@@ -267,13 +268,13 @@ CUresult cuMultiGPUSsyrk(CUmultiGPUSBlasConfig config,
   if (trans == CBlasNoTrans) {
     if (uplo == CBlasUpper) {
       for (size_t j = nb; j < n; j += nb)
-        CU_ERROR_CHECK(cuMultiGPUSgemm(config, CBlasNoTrans, CBlasTrans, j, min(n - j, nb), k, alpha, A, lda, &A[j], lda, beta, &C[j * ldc], ldc));
+        CU_ERROR_CHECK(cuMultiGPUSgemm(handle, CBlasNoTrans, CBlasTrans, j, min(n - j, nb), k, alpha, A, lda, &A[j], lda, beta, &C[j * ldc], ldc));
     }
     else {
       const size_t m = n - nb;
       for (size_t j = 0; j < m; j += nb) {
         const size_t jb = min(n - j, nb);
-        CU_ERROR_CHECK(cuMultiGPUSgemm(config, CBlasNoTrans, CBlasTrans, n - j - jb, jb, k, alpha, &A[j + jb], lda, &A[j], lda, beta, &C[j * ldc + j + jb], ldc));
+        CU_ERROR_CHECK(cuMultiGPUSgemm(handle, CBlasNoTrans, CBlasTrans, n - j - jb, jb, k, alpha, &A[j + jb], lda, &A[j], lda, beta, &C[j * ldc + j + jb], ldc));
       }
     }
 
@@ -283,13 +284,13 @@ CUresult cuMultiGPUSsyrk(CUmultiGPUSBlasConfig config,
   else {
     if (uplo == CBlasUpper) {
       for (size_t j = nb; j < n; j += nb)
-        CU_ERROR_CHECK(cuMultiGPUSgemm(config, CBlasTrans, CBlasNoTrans, j, min(n - j, nb), k, alpha, A, lda, &A[j * lda], lda, beta, &C[j * ldc], ldc));
+        CU_ERROR_CHECK(cuMultiGPUSgemm(handle, CBlasTrans, CBlasNoTrans, j, min(n - j, nb), k, alpha, A, lda, &A[j * lda], lda, beta, &C[j * ldc], ldc));
     }
     else {
       const size_t m = n - nb;
       for (size_t j = 0; j < m; j += nb) {
         const size_t jb = min(n - j, nb);
-        CU_ERROR_CHECK(cuMultiGPUSgemm(config, CBlasTrans, CBlasNoTrans, n - j - jb, jb, k, alpha, &A[(j + jb) * lda], lda, &A[j * lda], lda, beta, &C[j * ldc + j + jb], ldc));
+        CU_ERROR_CHECK(cuMultiGPUSgemm(handle, CBlasTrans, CBlasNoTrans, n - j - jb, jb, k, alpha, &A[(j + jb) * lda], lda, &A[j * lda], lda, beta, &C[j * ldc + j + jb], ldc));
       }
     }
 
