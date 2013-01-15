@@ -583,19 +583,19 @@ __global__ void strsm(int m, int n,
   }
 }
 
-template void strsm<CBlasLeft,  CBlasUpper, CBlasNoTrans, CBlasNonUnit,  8, 64, 8, 8>(int, int, float, const float * __restrict__, int, float * __restrict__, int);
-template void strsm<CBlasLeft,  CBlasUpper, CBlasNoTrans, CBlasUnit,     8, 64, 8, 8>(int, int, float, const float * __restrict__, int, float * __restrict__, int);
-template void strsm<CBlasLeft,  CBlasUpper, CBlasTrans,   CBlasNonUnit,  8, 64, 8, 8>(int, int, float, const float * __restrict__, int, float * __restrict__, int);
-template void strsm<CBlasLeft,  CBlasUpper, CBlasTrans,   CBlasUnit,     8, 64, 8, 8>(int, int, float, const float * __restrict__, int, float * __restrict__, int);
-template void strsm<CBlasLeft,  CBlasLower, CBlasNoTrans, CBlasNonUnit,  8, 64, 8, 8>(int, int, float, const float * __restrict__, int, float * __restrict__, int);
-template void strsm<CBlasLeft,  CBlasLower, CBlasNoTrans, CBlasUnit,     8, 64, 8, 8>(int, int, float, const float * __restrict__, int, float * __restrict__, int);
-template void strsm<CBlasLeft,  CBlasLower, CBlasTrans,   CBlasNonUnit,  8, 64, 8, 8>(int, int, float, const float * __restrict__, int, float * __restrict__, int);
-template void strsm<CBlasLeft,  CBlasLower, CBlasTrans,   CBlasUnit,     8, 64, 8, 8>(int, int, float, const float * __restrict__, int, float * __restrict__, int);
-template void strsm<CBlasRight, CBlasUpper, CBlasNoTrans, CBlasNonUnit, 64,  8, 8, 8>(int, int, float, const float * __restrict__, int, float * __restrict__, int);
-template void strsm<CBlasRight, CBlasUpper, CBlasNoTrans, CBlasUnit,    64,  8, 8, 8>(int, int, float, const float * __restrict__, int, float * __restrict__, int);
-template void strsm<CBlasRight, CBlasUpper, CBlasTrans,   CBlasNonUnit, 64,  8, 8, 8>(int, int, float, const float * __restrict__, int, float * __restrict__, int);
-template void strsm<CBlasRight, CBlasUpper, CBlasTrans,   CBlasUnit,    64,  8, 8, 8>(int, int, float, const float * __restrict__, int, float * __restrict__, int);
-template void strsm<CBlasRight, CBlasLower, CBlasNoTrans, CBlasNonUnit, 64,  8, 8, 8>(int, int, float, const float * __restrict__, int, float * __restrict__, int);
-template void strsm<CBlasRight, CBlasLower, CBlasNoTrans, CBlasUnit,    64,  8, 8, 8>(int, int, float, const float * __restrict__, int, float * __restrict__, int);
-template void strsm<CBlasRight, CBlasLower, CBlasTrans,   CBlasNonUnit, 64,  8, 8, 8>(int, int, float, const float * __restrict__, int, float * __restrict__, int);
-template void strsm<CBlasRight, CBlasLower, CBlasTrans,   CBlasUnit,    64,  8, 8, 8>(int, int, float, const float * __restrict__, int, float * __restrict__, int);
+template __global__ void strsm<CBlasLeft,  CBlasUpper, CBlasNoTrans, CBlasNonUnit,  8, 64, 8, 8>(int, int, float, const float * __restrict__, int, float * __restrict__, int);
+template __global__ void strsm<CBlasLeft,  CBlasUpper, CBlasNoTrans, CBlasUnit,     8, 64, 8, 8>(int, int, float, const float * __restrict__, int, float * __restrict__, int);
+template __global__ void strsm<CBlasLeft,  CBlasUpper, CBlasTrans,   CBlasNonUnit,  8, 64, 8, 8>(int, int, float, const float * __restrict__, int, float * __restrict__, int);
+template __global__ void strsm<CBlasLeft,  CBlasUpper, CBlasTrans,   CBlasUnit,     8, 64, 8, 8>(int, int, float, const float * __restrict__, int, float * __restrict__, int);
+template __global__ void strsm<CBlasLeft,  CBlasLower, CBlasNoTrans, CBlasNonUnit,  8, 64, 8, 8>(int, int, float, const float * __restrict__, int, float * __restrict__, int);
+template __global__ void strsm<CBlasLeft,  CBlasLower, CBlasNoTrans, CBlasUnit,     8, 64, 8, 8>(int, int, float, const float * __restrict__, int, float * __restrict__, int);
+template __global__ void strsm<CBlasLeft,  CBlasLower, CBlasTrans,   CBlasNonUnit,  8, 64, 8, 8>(int, int, float, const float * __restrict__, int, float * __restrict__, int);
+template __global__ void strsm<CBlasLeft,  CBlasLower, CBlasTrans,   CBlasUnit,     8, 64, 8, 8>(int, int, float, const float * __restrict__, int, float * __restrict__, int);
+template __global__ void strsm<CBlasRight, CBlasUpper, CBlasNoTrans, CBlasNonUnit, 64,  8, 8, 8>(int, int, float, const float * __restrict__, int, float * __restrict__, int);
+template __global__ void strsm<CBlasRight, CBlasUpper, CBlasNoTrans, CBlasUnit,    64,  8, 8, 8>(int, int, float, const float * __restrict__, int, float * __restrict__, int);
+template __global__ void strsm<CBlasRight, CBlasUpper, CBlasTrans,   CBlasNonUnit, 64,  8, 8, 8>(int, int, float, const float * __restrict__, int, float * __restrict__, int);
+template __global__ void strsm<CBlasRight, CBlasUpper, CBlasTrans,   CBlasUnit,    64,  8, 8, 8>(int, int, float, const float * __restrict__, int, float * __restrict__, int);
+template __global__ void strsm<CBlasRight, CBlasLower, CBlasNoTrans, CBlasNonUnit, 64,  8, 8, 8>(int, int, float, const float * __restrict__, int, float * __restrict__, int);
+template __global__ void strsm<CBlasRight, CBlasLower, CBlasNoTrans, CBlasUnit,    64,  8, 8, 8>(int, int, float, const float * __restrict__, int, float * __restrict__, int);
+template __global__ void strsm<CBlasRight, CBlasLower, CBlasTrans,   CBlasNonUnit, 64,  8, 8, 8>(int, int, float, const float * __restrict__, int, float * __restrict__, int);
+template __global__ void strsm<CBlasRight, CBlasLower, CBlasTrans,   CBlasUnit,    64,  8, 8, 8>(int, int, float, const float * __restrict__, int, float * __restrict__, int);

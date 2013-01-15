@@ -280,7 +280,7 @@ CUresult cuMultiGPUDtrsm(CUmultiGPUBlasHandle handle,
     return CUDA_SUCCESS;
   }
 
-  const size_t mb = (transA == CBlasNoTrans) DGEMM_N_MB : DGEMM_T_MB;
+  const size_t mb = (transA == CBlasNoTrans) ? DGEMM_N_MB : DGEMM_T_MB;
   const size_t nb = DGEMM_N_NB;
 
   if (side == CBlasLeft) {

@@ -290,7 +290,7 @@ __global__ void ssyrk(const float * __restrict__ A, float * __restrict__ C,
  * kb is chosen to be the largest multiple of 16 such that the number of blocks
  * per multiprocessor is limited by the register usage.
  */
-template void ssyrk<CBlasUpper, CBlasNoTrans, 64, 16, 16, 16,  4>(const float * __restrict__, float * __restrict__, float, float, int, int, int, int);
-template void ssyrk<CBlasLower, CBlasNoTrans, 64, 16, 16, 16,  4>(const float * __restrict__, float * __restrict__, float, float, int, int, int, int);
-template void ssyrk<CBlasUpper, CBlasTrans,   32, 32,  8,  8,  8>(const float * __restrict__, float * __restrict__, float, float, int, int, int, int);
-template void ssyrk<CBlasLower, CBlasTrans,   32, 32,  8,  8,  8>(const float * __restrict__, float * __restrict__, float, float, int, int, int, int);
+template __global__ void ssyrk<CBlasUpper, CBlasNoTrans, 64, 16, 16, 16,  4>(const float * __restrict__, float * __restrict__, float, float, int, int, int, int);
+template __global__ void ssyrk<CBlasLower, CBlasNoTrans, 64, 16, 16, 16,  4>(const float * __restrict__, float * __restrict__, float, float, int, int, int, int);
+template __global__ void ssyrk<CBlasUpper, CBlasTrans,   32, 32,  8,  8,  8>(const float * __restrict__, float * __restrict__, float, float, int, int, int, int);
+template __global__ void ssyrk<CBlasLower, CBlasTrans,   32, 32,  8,  8,  8>(const float * __restrict__, float * __restrict__, float, float, int, int, int, int);

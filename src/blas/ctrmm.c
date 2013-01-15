@@ -340,7 +340,7 @@ CUresult cuMultiGPUCtrmm(CUmultiGPUBlasHandle handle,
       if (uplo == CBlasUpper) {
         for (size_t i = 0; i < m; i += mb) {
           const size_t ib = min(mb, m - i);
-          CU_ERROR_CHECK(cuMultiGPUCgemm(config, trans, CBlasNoTrans, ib, n, i, -one, &A[i * lda], lda, B, ldb, alpha, &B[i], ldb));
+          CU_ERROR_CHECK(cuMultiGPUCgemm(handle, trans, CBlasNoTrans, ib, n, i, -one, &A[i * lda], lda, B, ldb, alpha, &B[i], ldb));
           CU_ERROR_CHECK(cuMultiGPUBlasSynchronize(handle));
           ctrmm(CBlasLeft, CBlasUpper, trans, diag, ib, n, one, &A[i * lda + i], lda, &B[i], ldb);
         }

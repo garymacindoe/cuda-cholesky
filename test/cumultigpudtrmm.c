@@ -96,6 +96,9 @@ int main(int argc, char * argv[]) {
   CUmultiGPU mGPU;
   CU_ERROR_CHECK(cuMultiGPUCreate(&mGPU, devices, deviceCount));
 
+  CUmultiGPUBlasHandle handle;
+  CU_ERROR_CHECK(cuMultiGPUBlasCreate(&handle, mGPU));
+
   alpha = (double)rand() / (double)RAND_MAX;
 
   if (side == CBlasLeft) {
@@ -138,16 +141,8 @@ int main(int argc, char * argv[]) {
       refB[j * ldb + i] = B[j * ldb + i] = (double)rand() / (double)RAND_MAX;
   }
 
-  CUmultiGPUDBlasConfig config;
-  CU_ERROR_CHECK(cuMultiGPUDBlasConfigCreate(&config, mGPU,
-                                             (side == CBlasLeft) ? trans : CBlasNoTrans,
-                                             (side == CBlasLeft) ? CBlasNoTrans : trans,
-                                             ((side == CBlasLeft && trans == CBlasNoTrans) || side == CBlasRight) ? 384 : 256,
-                                             ((side == CBlasLeft && trans == CBlasNoTrans) || side == CBlasRight) ? 320 : 240,
-                                             ((side == CBlasLeft && trans == CBlasNoTrans) || side == CBlasRight) ? 128 : 32));
-
   dtrmm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb);
-  CU_ERROR_CHECK(cuMultiGPUDtrmm(config, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb));
+  CU_ERROR_CHECK(cuMultiGPUDtrmm(handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb));
 
   bool passed = true;
   double diff = 0.0;
@@ -176,7 +171,7 @@ int main(int argc, char * argv[]) {
     return -6;
   }
   for (size_t i = 0; i < 20; i++)
-    CU_ERROR_CHECK(cuMultiGPUDtrmm(config, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb));
+    CU_ERROR_CHECK(cuMultiGPUDtrmm(handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb));
   if (gettimeofday(&stop, NULL) != 0) {
     fputs("gettimeofday failed\n", stderr);
     return -7;
@@ -198,7 +193,7 @@ int main(int argc, char * argv[]) {
   free(B);
   free(refB);
 
-  CU_ERROR_CHECK(cuMultiGPUDBlasConfigDestroy(config));
+  CU_ERROR_CHECK(cuMultiGPUBlasDestroy(handle));
   CU_ERROR_CHECK(cuMultiGPUDestroy(mGPU));
 
   return (int)!passed;

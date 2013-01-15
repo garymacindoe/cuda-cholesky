@@ -341,7 +341,7 @@ CUresult cuMultiGPUCtrsm(CUmultiGPUBlasHandle handle,
           const size_t ib = min(mb, m - i);
           CU_ERROR_CHECK(cuMultiGPUCgemm(handle, transA, CBlasNoTrans, ib, n, i, -one, &A[i * lda], lda, B, ldb, alpha, &B[i], ldb));
           CU_ERROR_CHECK(cuMultiGPUBlasSynchronize(handle));
-          ctrsm(CBlasLeft, CBlasUpper, transA, diag, ib, jb, one, &A[i * lda + i], lda, &B[i], ldb);
+          ctrsm(CBlasLeft, CBlasUpper, transA, diag, ib, n, one, &A[i * lda + i], lda, &B[i], ldb);
         }
       }
       else {

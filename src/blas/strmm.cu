@@ -899,20 +899,20 @@ __global__ void strmmRLT(const float * __restrict__ A,
     sscal(n - bj, alpha, x, X, ldx);
 }
 
-template void strmmLUN<CBlasUnit,    64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
-template void strmmLUN<CBlasNonUnit, 64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
-template void strmmLUT<CBlasUnit,    32, 32,  8,  8,  8>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
-template void strmmLUT<CBlasNonUnit, 32, 32,  8,  8,  8>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
-template void strmmLLN<CBlasUnit,    64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
-template void strmmLLN<CBlasNonUnit, 64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
-template void strmmLLT<CBlasUnit,    32, 32,  8,  8,  8>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
-template void strmmLLT<CBlasNonUnit, 32, 32,  8,  8,  8>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
+template __global__ void strmmLUN<CBlasUnit,    64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
+template __global__ void strmmLUN<CBlasNonUnit, 64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
+template __global__ void strmmLUT<CBlasUnit,    32, 32,  8,  8,  8>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
+template __global__ void strmmLUT<CBlasNonUnit, 32, 32,  8,  8,  8>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
+template __global__ void strmmLLN<CBlasUnit,    64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
+template __global__ void strmmLLN<CBlasNonUnit, 64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
+template __global__ void strmmLLT<CBlasUnit,    32, 32,  8,  8,  8>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
+template __global__ void strmmLLT<CBlasNonUnit, 32, 32,  8,  8,  8>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
 
-template void strmmRUN<CBlasUnit,    64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
-template void strmmRUN<CBlasNonUnit, 64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
-template void strmmRUT<CBlasUnit,    64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
-template void strmmRUT<CBlasNonUnit, 64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
-template void strmmRLN<CBlasUnit,    64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
-template void strmmRLN<CBlasNonUnit, 64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
-template void strmmRLT<CBlasUnit,    64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
-template void strmmRLT<CBlasNonUnit, 64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
+template __global__ void strmmRUN<CBlasUnit,    64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
+template __global__ void strmmRUN<CBlasNonUnit, 64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
+template __global__ void strmmRUT<CBlasUnit,    64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
+template __global__ void strmmRUT<CBlasNonUnit, 64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
+template __global__ void strmmRLN<CBlasUnit,    64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
+template __global__ void strmmRLN<CBlasNonUnit, 64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
+template __global__ void strmmRLT<CBlasUnit,    64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
+template __global__ void strmmRLT<CBlasNonUnit, 64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);

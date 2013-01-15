@@ -72,6 +72,9 @@ int main(int argc, char * argv[]) {
   CUmultiGPU mGPU;
   CU_ERROR_CHECK(cuMultiGPUCreate(&mGPU, devices, deviceCount));
 
+  CUmultiGPUBlasHandle handle;
+  CU_ERROR_CHECK(cuMultiGPUBlasCreate(&handle, mGPU));
+
   alpha = (float)rand() / (float)RAND_MAX;
   beta = (float)rand() / (float)RAND_MAX;
 
@@ -115,14 +118,8 @@ int main(int argc, char * argv[]) {
       refC[j * ldc + i] = C[j * ldc + i] = ((float)rand() / (float)RAND_MAX) + ((float)rand() / (float)RAND_MAX) * I;
   }
 
-  CUmultiGPUCBlasConfig config;
-  CU_ERROR_CHECK(cuMultiGPUCBlasConfigCreate(&config, mGPU, trans, (trans == CBlasNoTrans) ? CBlasConjTrans : CBlasNoTrans,
-                                             (trans == CBlasNoTrans) ? 384 : 256,
-                                             (trans == CBlasNoTrans) ? 320 : 240,
-                                             16));
-
   cherk_ref(uplo, trans, n, k, alpha, A, lda, beta, refC, ldc);
-  CU_ERROR_CHECK(cuMultiGPUCherk(config, uplo, trans, n, k, alpha, A, lda, beta, C, ldc));
+  CU_ERROR_CHECK(cuMultiGPUCherk(handle, uplo, trans, n, k, alpha, A, lda, beta, C, ldc));
 
   float rdiff = 0.0f, idiff = 0.0f;
   for (size_t j = 0; j < n; j++) {
@@ -142,7 +139,7 @@ int main(int argc, char * argv[]) {
     return -5;
   }
   for (size_t i = 0; i < 20; i++)
-    CU_ERROR_CHECK(cuMultiGPUCherk(config, uplo, trans, n, k, alpha, A, lda, beta, C, ldc));
+    CU_ERROR_CHECK(cuMultiGPUCherk(handle, uplo, trans, n, k, alpha, A, lda, beta, C, ldc));
   if (gettimeofday(&stop, NULL) != 0) {
     fputs("gettimeofday failed\n", stderr);
     return -6;
@@ -167,7 +164,7 @@ int main(int argc, char * argv[]) {
   free(C);
   free(refC);
 
-  CU_ERROR_CHECK(cuMultiGPUCBlasConfigDestroy(config));
+  CU_ERROR_CHECK(cuMultiGPUBlasDestroy(handle));
   CU_ERROR_CHECK(cuMultiGPUDestroy(mGPU));
 
   return (int)!passed;

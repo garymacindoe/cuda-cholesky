@@ -1039,7 +1039,7 @@ __global__ void zherkC(const cuDoubleComplex * __restrict__ A,
  * kb is chosen to be the largest multiple of 16 such that the number of blocks
  * per multiprocessor is limited by the register usage.
  */
-template void zherkN<CBlasUpper, 64,  4, 16,  4, 16>(const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, double, double, int, int, int, int);
-template void zherkN<CBlasLower, 64,  4, 16,  4, 16>(const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, double, double, int, int, int, int);
-template void zherkC<CBlasUpper,  8,  8,  4,  4,  8>(const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, double, double, int, int, int, int);
-template void zherkC<CBlasLower,  8,  8,  4,  4,  8>(const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, double, double, int, int, int, int);
+template __global__ void zherkN<CBlasUpper, 64,  4, 16,  4, 16>(const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, double, double, int, int, int, int);
+template __global__ void zherkN<CBlasLower, 64,  4, 16,  4, 16>(const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, double, double, int, int, int, int);
+template __global__ void zherkC<CBlasUpper,  8,  8,  4,  4,  8>(const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, double, double, int, int, int, int);
+template __global__ void zherkC<CBlasLower,  8,  8,  4,  4,  8>(const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, double, double, int, int, int, int);

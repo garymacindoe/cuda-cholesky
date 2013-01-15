@@ -1762,28 +1762,28 @@ __global__ void ctrmmRLT(const cuComplex * __restrict__ A,
 
 #endif
 
-template void ctrmmLUN<CBlasUnit,    64,  8, 16, 16,  4>(const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int, int);
-template void ctrmmLUN<CBlasNonUnit, 64,  8, 16, 16,  4>(const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int, int);
-template void ctrmmLUT<CBlasTrans,     CBlasUnit,    32, 16,  8,  8,  8>(const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int, int);
-template void ctrmmLUT<CBlasTrans,     CBlasNonUnit, 32, 16,  8,  8,  8>(const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int, int);
-template void ctrmmLUT<CBlasConjTrans, CBlasUnit,    32, 16,  8,  8,  8>(const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int, int);
-template void ctrmmLUT<CBlasConjTrans, CBlasNonUnit, 32, 16,  8,  8,  8>(const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int, int);
-template void ctrmmLLN<CBlasUnit,    64,  8, 16, 16,  4>(const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int, int);
-template void ctrmmLLN<CBlasNonUnit, 64,  8, 16, 16,  4>(const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int, int);
-template void ctrmmLLT<CBlasTrans,     CBlasUnit,    32, 16,  8,  8,  8>(const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int, int);
-template void ctrmmLLT<CBlasTrans,     CBlasNonUnit, 32, 16,  8,  8,  8>(const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int, int);
-template void ctrmmLLT<CBlasConjTrans, CBlasUnit,    32, 16,  8,  8,  8>(const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int, int);
-template void ctrmmLLT<CBlasConjTrans, CBlasNonUnit, 32, 16,  8,  8,  8>(const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int, int);
+template __global__ void ctrmmLUN<CBlasUnit,    64,  8, 16, 16,  4>(const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int, int);
+template __global__ void ctrmmLUN<CBlasNonUnit, 64,  8, 16, 16,  4>(const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int, int);
+template __global__ void ctrmmLUT<CBlasTrans,     CBlasUnit,    32, 16,  8,  8,  8>(const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int, int);
+template __global__ void ctrmmLUT<CBlasTrans,     CBlasNonUnit, 32, 16,  8,  8,  8>(const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int, int);
+template __global__ void ctrmmLUT<CBlasConjTrans, CBlasUnit,    32, 16,  8,  8,  8>(const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int, int);
+template __global__ void ctrmmLUT<CBlasConjTrans, CBlasNonUnit, 32, 16,  8,  8,  8>(const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int, int);
+template __global__ void ctrmmLLN<CBlasUnit,    64,  8, 16, 16,  4>(const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int, int);
+template __global__ void ctrmmLLN<CBlasNonUnit, 64,  8, 16, 16,  4>(const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int, int);
+template __global__ void ctrmmLLT<CBlasTrans,     CBlasUnit,    32, 16,  8,  8,  8>(const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int, int);
+template __global__ void ctrmmLLT<CBlasTrans,     CBlasNonUnit, 32, 16,  8,  8,  8>(const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int, int);
+template __global__ void ctrmmLLT<CBlasConjTrans, CBlasUnit,    32, 16,  8,  8,  8>(const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int, int);
+template __global__ void ctrmmLLT<CBlasConjTrans, CBlasNonUnit, 32, 16,  8,  8,  8>(const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int, int);
 
-template void ctrmmRUN<CBlasUnit,    64,  8,  8,  8,  8>(const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int, int);
-template void ctrmmRUN<CBlasNonUnit, 64,  8,  8,  8,  8>(const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int, int);
-template void ctrmmRUT<CBlasTrans,     CBlasUnit,    64,  8,  8,  8,  8>(const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int, int);
-template void ctrmmRUT<CBlasTrans,     CBlasNonUnit, 64,  8,  8,  8,  8>(const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int, int);
-template void ctrmmRUT<CBlasConjTrans, CBlasUnit,    64,  8,  8,  8,  8>(const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int, int);
-template void ctrmmRUT<CBlasConjTrans, CBlasNonUnit, 64,  8,  8,  8,  8>(const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int, int);
-template void ctrmmRLN<CBlasUnit,    64,  8,  8,  8,  8>(const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int, int);
-template void ctrmmRLN<CBlasNonUnit, 64,  8,  8,  8,  8>(const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int, int);
-template void ctrmmRLT<CBlasTrans,     CBlasUnit,    64,  8,  8,  8,  8>(const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int, int);
-template void ctrmmRLT<CBlasTrans,     CBlasNonUnit, 64,  8,  8,  8,  8>(const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int, int);
-template void ctrmmRLT<CBlasConjTrans, CBlasUnit,    64,  8,  8,  8,  8>(const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int, int);
-template void ctrmmRLT<CBlasConjTrans, CBlasNonUnit, 64,  8,  8,  8,  8>(const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int, int);
+template __global__ void ctrmmRUN<CBlasUnit,    64,  8,  8,  8,  8>(const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int, int);
+template __global__ void ctrmmRUN<CBlasNonUnit, 64,  8,  8,  8,  8>(const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int, int);
+template __global__ void ctrmmRUT<CBlasTrans,     CBlasUnit,    64,  8,  8,  8,  8>(const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int, int);
+template __global__ void ctrmmRUT<CBlasTrans,     CBlasNonUnit, 64,  8,  8,  8,  8>(const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int, int);
+template __global__ void ctrmmRUT<CBlasConjTrans, CBlasUnit,    64,  8,  8,  8,  8>(const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int, int);
+template __global__ void ctrmmRUT<CBlasConjTrans, CBlasNonUnit, 64,  8,  8,  8,  8>(const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int, int);
+template __global__ void ctrmmRLN<CBlasUnit,    64,  8,  8,  8,  8>(const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int, int);
+template __global__ void ctrmmRLN<CBlasNonUnit, 64,  8,  8,  8,  8>(const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int, int);
+template __global__ void ctrmmRLT<CBlasTrans,     CBlasUnit,    64,  8,  8,  8,  8>(const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int, int);
+template __global__ void ctrmmRLT<CBlasTrans,     CBlasNonUnit, 64,  8,  8,  8,  8>(const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int, int);
+template __global__ void ctrmmRLT<CBlasConjTrans, CBlasUnit,    64,  8,  8,  8,  8>(const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int, int);
+template __global__ void ctrmmRLT<CBlasConjTrans, CBlasNonUnit, 64,  8,  8,  8,  8>(const cuComplex * __restrict__, const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int, int);

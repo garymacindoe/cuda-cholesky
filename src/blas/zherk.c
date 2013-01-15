@@ -287,7 +287,7 @@ CUresult cuMultiGPUZherk(CUmultiGPUBlasHandle handle,
     return CUDA_SUCCESS;
   }
 
-  const size_t nb = (trans == CBlasNoTrans) ZGEMM_N_MB : ZGEMM_CN_NB;
+  const size_t nb = (trans == CBlasNoTrans) ? ZGEMM_N_MB : ZGEMM_CN_NB;
 
   if (n < nb) {
     zherk(uplo, trans, n, k, alpha, A, lda, beta, C, ldc);

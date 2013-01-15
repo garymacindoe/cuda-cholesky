@@ -96,6 +96,9 @@ int main(int argc, char * argv[]) {
   CUmultiGPU mGPU;
   CU_ERROR_CHECK(cuMultiGPUCreate(&mGPU, devices, deviceCount));
 
+  CUmultiGPUBlasHandle handle;
+  CU_ERROR_CHECK(cuMultiGPUBlasCreate(&handle, mGPU));
+
   alpha = gaussian();
 
   if (side == CBlasLeft) {
@@ -178,16 +181,8 @@ int main(int argc, char * argv[]) {
       refB[j * ldb + i] = B[j * ldb + i] = gaussian();
   }
 
-  CUmultiGPUSBlasConfig config;
-  CU_ERROR_CHECK(cuMultiGPUSBlasConfigCreate(&config, mGPU,
-                                             (side == CBlasLeft) ? trans : CBlasNoTrans,
-                                             (side == CBlasLeft) ? CBlasNoTrans : trans,
-                                             ((side == CBlasLeft && trans == CBlasNoTrans) || side == CBlasRight) ? 512 : 480,
-                                             ((side == CBlasLeft && trans == CBlasNoTrans) || side == CBlasRight) ? 480 : 384,
-                                             ((side == CBlasLeft && trans == CBlasNoTrans) || side == CBlasRight) ? 192 : 136));
-
   strsm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb, F);
-  CU_ERROR_CHECK(cuMultiGPUStrsm(config, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb));
+  CU_ERROR_CHECK(cuMultiGPUStrsm(handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb));
 
   bool passed = true;
   float diff = 0.0f;
@@ -211,7 +206,7 @@ int main(int argc, char * argv[]) {
     return -6;
   }
   for (size_t i = 0; i < 20; i++)
-    CU_ERROR_CHECK(cuMultiGPUStrsm(config, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb));
+    CU_ERROR_CHECK(cuMultiGPUStrsm(handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb));
   if (gettimeofday(&stop, NULL) != 0) {
     fputs("gettimeofday failed\n", stderr);
     return -7;
@@ -233,7 +228,7 @@ int main(int argc, char * argv[]) {
   free(B);
   free(refB);
 
-  CU_ERROR_CHECK(cuMultiGPUSBlasConfigDestroy(config));
+  CU_ERROR_CHECK(cuMultiGPUBlasDestroy(handle));
   CU_ERROR_CHECK(cuMultiGPUDestroy(mGPU));
 
   return (int)!passed;

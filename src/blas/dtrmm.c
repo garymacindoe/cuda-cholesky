@@ -243,7 +243,7 @@ CUresult cuDtrmm2(CUmodule module,
   return CUDA_SUCCESS;
 }
 
-CUresult cuMultiGPUDtrmm(CUmultiGPUDBlasHandle handle,
+CUresult cuMultiGPUDtrmm(CUmultiGPUBlasHandle handle,
                          CBlasSide side, CBlasUplo uplo, CBlasTranspose trans, CBlasDiag diag,
                          size_t m, size_t n,
                          double alpha, const double * restrict A, size_t lda,
@@ -311,7 +311,7 @@ CUresult cuMultiGPUDtrmm(CUmultiGPUDBlasHandle handle,
         do {
           i -= mb;
           const size_t ib = min(mb, m - i);
-          CU_ERROR_CHECK(cuMultiGPUDgemm(config, CBlasTrans, CBlasNoTrans, ib, n, m - i - ib, -one, &A[i * lda + i + ib], lda, &B[i + ib], ldb, alpha, &B[i], ldb));
+          CU_ERROR_CHECK(cuMultiGPUDgemm(handle, CBlasTrans, CBlasNoTrans, ib, n, m - i - ib, -one, &A[i * lda + i + ib], lda, &B[i + ib], ldb, alpha, &B[i], ldb));
           CU_ERROR_CHECK(cuMultiGPUBlasSynchronize(handle));
           dtrmm(CBlasLeft, CBlasLower, CBlasTrans, diag, ib, n, one, &A[i * lda + i], lda, &B[i], ldb);
         } while (i > 0);
