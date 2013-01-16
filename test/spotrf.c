@@ -1,8 +1,9 @@
 #include "lapack.h"
 #include "error.h"
 #include <stdio.h>
-#include <sys/time.h>
 #include <float.h>
+#include <math.h>
+#include <sys/time.h>
 #include "spotrf_ref.c"
 
 int main(int argc, char * argv[]) {

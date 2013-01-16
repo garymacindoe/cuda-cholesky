@@ -175,5 +175,5 @@ __global__ void cpotf2(int n, cuComplex * A, int lda, int * info) {
   }
 }
 
-template void cpotf2<CBlasUpper, 32>(int, cuComplex *, int, int *);
-template void cpotf2<CBlasLower, 32>(int, cuComplex *, int, int *);
+template __global__ void cpotf2<CBlasUpper, 32>(int, cuComplex *, int, int *);
+template __global__ void cpotf2<CBlasLower, 32>(int, cuComplex *, int, int *);

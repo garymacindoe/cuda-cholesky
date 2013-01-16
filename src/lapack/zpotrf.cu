@@ -176,5 +176,5 @@ __global__ void zpotf2(int n, cuDoubleComplex * A, int lda, int * info) {
   }
 }
 
-template void zpotf2<CBlasUpper, 32>(int, cuDoubleComplex *, int, int *);
-template void zpotf2<CBlasLower, 32>(int, cuDoubleComplex *, int, int *);
+template __global__ void zpotf2<CBlasUpper, 32>(int, cuDoubleComplex *, int, int *);
+template __global__ void zpotf2<CBlasLower, 32>(int, cuDoubleComplex *, int, int *);

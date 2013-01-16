@@ -5,7 +5,11 @@ static size_t min(size_t a, size_t b) { return (a < b) ? a : b; }
 static const float complex zero = 0.0f + 0.0f * I;
 static const float complex one = 1.0f + 0.0f * I;
 
-static inline void ctrti2(CBlasUplo uplo, CBlasDiag diag, size_t n, const float complex * restrict A, size_t lda, float complex * restrict B, size_t ldb, long * restrict info) {
+static inline void ctrti2(CBlasUplo uplo, CBlasDiag diag,
+                          size_t n,
+                          const float complex * restrict A, size_t lda,
+                          float complex * restrict B, size_t ldb,
+                          long * restrict info) {
   if (uplo == CBlasUpper) {
     for (size_t j = 0; j < n; j++) {
       register float complex bjj;
@@ -66,10 +70,16 @@ static inline void ctrti2(CBlasUplo uplo, CBlasDiag diag, size_t n, const float 
   }
 }
 
-void ctrtri2(CBlasUplo uplo, CBlasDiag diag, size_t n, const float complex * restrict A, size_t lda, float complex * restrict B, size_t ldb, long * restrict info) {
+void ctrtri2(CBlasUplo uplo, CBlasDiag diag,
+             size_t n,
+             const float complex * restrict A, size_t lda,
+             float complex * restrict B, size_t ldb,
+             long * restrict info) {
   *info = 0;
   if (lda < n)
     *info = -5;
+  if (ldb < n)
+    *info = -7;
   if (*info != 0) {
     XERBLA(-(*info));
     return;
@@ -78,7 +88,7 @@ void ctrtri2(CBlasUplo uplo, CBlasDiag diag, size_t n, const float complex * res
   if (n == 0)
     return;
 
-  const size_t nb = 64;
+  const size_t nb = 32;
 
   if (n < nb) {
     ctrti2(uplo, diag, n, A, lda, B, ldb, info);
@@ -88,9 +98,19 @@ void ctrtri2(CBlasUplo uplo, CBlasDiag diag, size_t n, const float complex * res
   if (uplo == CBlasUpper) {
     for (size_t j = 0; j < n; j += nb) {
       const size_t jb = min(nb, n - j);
-      ctrmm2(CBlasLeft, CBlasUpper, CBlasNoTrans, diag, j, jb, one, B, ldb, &A[j * lda], lda, &B[j * ldb], ldb);
-      ctrsm(CBlasRight, CBlasUpper, CBlasNoTrans, diag, j, jb, -one, &A[j * lda + j], lda, &B[j * ldb], ldb);
-      ctrti2(CBlasUpper, diag, jb, &A[j * lda + j], lda, &B[j * ldb + j], ldb, info);
+      ctrmm2(CBlasLeft, CBlasUpper, CBlasNoTrans, diag,
+             j, jb,
+             one, B, ldb, &A[j * lda], lda,
+             &B[j * ldb], ldb);
+      ctrsm(CBlasRight, CBlasUpper, CBlasNoTrans, diag,
+            j, jb,
+            -one, &A[j * lda + j], lda,
+            &B[j * ldb], ldb);
+      ctrti2(CBlasUpper, diag,
+             jb,
+             &A[j * lda + j], lda,
+             &B[j * ldb + j], ldb,
+             info);
       if (*info != 0) {
         *info += (long)j;
         return;
@@ -103,10 +123,20 @@ void ctrtri2(CBlasUplo uplo, CBlasDiag diag, size_t n, const float complex * res
       j -= nb;
       const size_t jb = min(nb, n - j);
       if (j + jb < n) {
-        ctrmm2(CBlasLeft, CBlasLower, CBlasNoTrans, diag, n - j - jb, jb, one, &B[(j + jb) * ldb + j + jb], ldb, &A[j * lda + j + jb], lda, &B[j * ldb + j + jb], ldb);
-        ctrsm(CBlasRight, CBlasLower, CBlasNoTrans, diag, n - j - jb, jb, -one, &A[j * lda + j], lda, &B[j * ldb + j + jb], ldb);
+        ctrmm2(CBlasLeft, CBlasLower, CBlasNoTrans, diag,
+               n - j - jb, jb,
+               one, &B[(j + jb) * ldb + j + jb], ldb, &A[j * lda + j + jb], lda,
+               &B[j * ldb + j + jb], ldb);
+        ctrsm(CBlasRight, CBlasLower, CBlasNoTrans, diag,
+              n - j - jb, jb,
+              -one, &A[j * lda + j], lda,
+              &B[j * ldb + j + jb], ldb);
       }
-      ctrti2(CBlasLower, diag, jb, &A[j * lda + j], lda, &B[j * ldb + j], ldb, info);
+      ctrti2(CBlasLower, diag,
+             jb,
+             &A[j * lda + j], lda,
+             &B[j * ldb + j], ldb,
+             info);
       if (*info != 0) {
         *info += (long)j;
         return;

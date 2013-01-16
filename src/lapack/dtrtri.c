@@ -98,9 +98,19 @@ void dtrtri2(CBlasUplo uplo, CBlasDiag diag,
   if (uplo == CBlasUpper) {
     for (size_t j = 0; j < n; j += nb) {
       const size_t jb = min(nb, n - j);
-      dtrmm2(CBlasLeft, CBlasUpper, CBlasNoTrans, diag, j, jb, one, B, ldb, &A[j * lda], lda, &B[j * ldb], lda);
-      dtrsm(CBlasRight, CBlasUpper, CBlasNoTrans, diag, j, jb, -one, &A[j * lda + j], lda, &B[j * ldb], ldb);
-      dtrti2(CBlasUpper, diag, jb, &A[j * lda + j], lda, &B[j * ldb + j], ldb, info);
+      dtrmm2(CBlasLeft, CBlasUpper, CBlasNoTrans, diag,
+             j, jb,
+             one, B, ldb, &A[j * lda], lda,
+             &B[j * ldb], lda);
+      dtrsm(CBlasRight, CBlasUpper, CBlasNoTrans, diag,
+            j, jb,
+            -one, &A[j * lda + j], lda,
+            &B[j * ldb], ldb);
+      dtrti2(CBlasUpper, diag,
+             jb,
+             &A[j * lda + j], lda,
+             &B[j * ldb + j], ldb,
+             info);
       if (*info != 0) {
         *info += (long)j;
         return;
@@ -113,10 +123,20 @@ void dtrtri2(CBlasUplo uplo, CBlasDiag diag,
       j -= nb;
       const size_t jb = min(nb, n - j);
       if (j + jb < n) {
-        dtrmm2(CBlasLeft, CBlasLower, CBlasNoTrans, diag, n - j - jb, jb, one, &B[(j + jb) * ldb + j + jb], ldb, &A[j * lda + j + jb], lda, &B[j * ldb + j + jb], ldb);
-        dtrsm(CBlasRight, CBlasLower, CBlasNoTrans, diag, n - j - jb, jb, -one, &A[j * lda + j], lda, &B[j * ldb + j + jb], ldb);
+        dtrmm2(CBlasLeft, CBlasLower, CBlasNoTrans, diag,
+               n - j - jb, jb,
+               one, &B[(j + jb) * ldb + j + jb], ldb, &A[j * lda + j + jb], lda,
+               &B[j * ldb + j + jb], ldb);
+        dtrsm(CBlasRight, CBlasLower, CBlasNoTrans, diag,
+              n - j - jb, jb,
+              -one, &A[j * lda + j], lda,
+              &B[j * ldb + j + jb], ldb);
       }
-      dtrti2(CBlasLower, diag, jb, &A[j * lda + j], lda, &B[j * ldb + j], ldb, info);
+      dtrti2(CBlasLower, diag,
+             jb,
+             &A[j * lda + j], lda,
+             &B[j * ldb + j], ldb,
+             info);
       if (*info != 0) {
         *info += (long)j;
         return;

@@ -147,5 +147,5 @@ __global__ void dpotf2(int n, double * A, int lda, int * info) {
   }
 }
 
-template void dpotf2<CBlasUpper, 32>(int, double *, int, int *);
-template void dpotf2<CBlasLower, 32>(int, double *, int, int *);
+template __global__ void dpotf2<CBlasUpper, 32>(int, double *, int, int *);
+template __global__ void dpotf2<CBlasLower, 32>(int, double *, int, int *);

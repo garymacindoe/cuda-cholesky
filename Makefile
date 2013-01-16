@@ -44,7 +44,7 @@ RM = rm -f
 RMDIR = rm -rf
 MKDIR = mkdir
 
-VPATH = include src/blas
+VPATH = include src/blas src/lapack
 
 OBJDIR = obj
 
@@ -81,10 +81,18 @@ distclean: clean
 	      cumultigpudgemm cumultigpudsyrk cumultigpudtrmm cumultigpudtrsm \
 	      cumultigpusgemm cumultigpussyrk cumultigpustrmm cumultigpustrsm \
 	      cumultigpuzgemm cumultigpuzherk cumultigpuztrmm cumultigpuztrsm
+	$(RM) cpotrf ctrtri \
+	      dpotrf dtrtri \
+	      spotrf strtri \
+	      zpotrf ztrtri
 	$(RM) cgemm.fatbin cherk.fatbin ctrmm.fatbin ctrsm.fatbin \
 	      dgemm.fatbin dsyrk.fatbin dtrmm.fatbin dtrsm.fatbin \
 	      sgemm.fatbin ssyrk.fatbin strmm.fatbin strsm.fatbin \
 	      zgemm.fatbin zherk.fatbin ztrmm.fatbin ztrsm.fatbin
+	$(RM) cpotrf.fatbin \
+	      dpotrf.fatbin \
+	      spotrf.fatbin \
+	      zpotrf.fatbin
 
 cgemm:  $(OBJDIR)/test/cgemm.o  $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/handle.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/error.o
 	$(CC) $(^) -o $(@) $(LDFLAGS) $(LOADLIBES) $(LDLIBS)
@@ -210,6 +218,18 @@ cumultigpuztrmm: $(OBJDIR)/test/cumultigpuztrmm.o $(OBJDIR)/src/blas/ztrmm.o $(O
 cumultigpuztrsm: $(OBJDIR)/test/cumultigpuztrsm.o $(OBJDIR)/src/blas/ztrsm.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/handle.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/error.o | sgemm.fatbin dgemm.fatbin cgemm.fatbin zgemm.fatbin
 	$(CC) $(^) -o $(@) $(LDFLAGS) $(LOADLIBES) $(LDLIBS)
 
+cpotrf: $(OBJDIR)/test/cpotrf.o $(OBJDIR)/src/lapack/cpotrf.o $(OBJDIR)/src/blas/cherk.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/src/blas/ctrsm.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/handle.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/error.o
+	$(CC) $(^) -o $(@) $(LDFLAGS) $(LOADLIBES) $(LDLIBS)
+
+dpotrf: $(OBJDIR)/test/dpotrf.o $(OBJDIR)/src/lapack/dpotrf.o $(OBJDIR)/src/blas/dsyrk.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/src/blas/dtrsm.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/handle.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/error.o
+	$(CC) $(^) -o $(@) $(LDFLAGS) $(LOADLIBES) $(LDLIBS)
+
+spotrf: $(OBJDIR)/test/spotrf.o $(OBJDIR)/src/lapack/spotrf.o $(OBJDIR)/src/blas/ssyrk.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/src/blas/strsm.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/handle.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/error.o
+	$(CC) $(^) -o $(@) $(LDFLAGS) $(LOADLIBES) $(LDLIBS)
+
+zpotrf: $(OBJDIR)/test/zpotrf.o $(OBJDIR)/src/lapack/zpotrf.o $(OBJDIR)/src/blas/zherk.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/blas/ztrsm.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/handle.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/error.o
+	$(CC) $(^) -o $(@) $(LDFLAGS) $(LOADLIBES) $(LDLIBS)
+
 $(OBJDIR):
 	$(MKDIR) $(@)
 
@@ -220,24 +240,35 @@ $(OBJDIR)/src/multigpu.o: cumultigpu.h error.h | $(OBJDIR)/src
 
 $(OBJDIR)/src/blas: | $(OBJDIR)/src
 	$(MKDIR) $(@)
-$(OBJDIR)/src/blas/handle.o: blas.h cumultigpu.h src/blas/handle.h error.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/handle.o: blas.h cumultigpu.h handle.h error.h | $(OBJDIR)/src/blas
 $(OBJDIR)/src/blas/xerbla.o: blas.h cumultigpu.h | $(OBJDIR)/src/blas
-$(OBJDIR)/src/blas/cgemm.o: blas.h cumultigpu.h error.h src/blas/handle.h | $(OBJDIR)/src/blas
-$(OBJDIR)/src/blas/cherk.o: blas.h cumultigpu.h error.h src/blas/handle.h | $(OBJDIR)/src/blas
-$(OBJDIR)/src/blas/ctrmm.o: blas.h cumultigpu.h error.h src/blas/handle.h | $(OBJDIR)/src/blas
-$(OBJDIR)/src/blas/ctrsm.o: blas.h cumultigpu.h error.h src/blas/handle.h | $(OBJDIR)/src/blas
-$(OBJDIR)/src/blas/dgemm.o: blas.h cumultigpu.h error.h src/blas/handle.h | $(OBJDIR)/src/blas
-$(OBJDIR)/src/blas/dsyrk.o: blas.h cumultigpu.h error.h src/blas/handle.h | $(OBJDIR)/src/blas
-$(OBJDIR)/src/blas/dtrmm.o: blas.h cumultigpu.h error.h src/blas/handle.h | $(OBJDIR)/src/blas
-$(OBJDIR)/src/blas/dtrsm.o: blas.h cumultigpu.h error.h src/blas/handle.h | $(OBJDIR)/src/blas
-$(OBJDIR)/src/blas/sgemm.o: blas.h cumultigpu.h error.h src/blas/handle.h | $(OBJDIR)/src/blas
-$(OBJDIR)/src/blas/ssyrk.o: blas.h cumultigpu.h error.h src/blas/handle.h | $(OBJDIR)/src/blas
-$(OBJDIR)/src/blas/strmm.o: blas.h cumultigpu.h error.h src/blas/handle.h | $(OBJDIR)/src/blas
-$(OBJDIR)/src/blas/strsm.o: blas.h cumultigpu.h error.h src/blas/handle.h | $(OBJDIR)/src/blas
-$(OBJDIR)/src/blas/zgemm.o: blas.h cumultigpu.h error.h src/blas/handle.h | $(OBJDIR)/src/blas
-$(OBJDIR)/src/blas/zherk.o: blas.h cumultigpu.h error.h src/blas/handle.h | $(OBJDIR)/src/blas
-$(OBJDIR)/src/blas/ztrmm.o: blas.h cumultigpu.h error.h src/blas/handle.h | $(OBJDIR)/src/blas
-$(OBJDIR)/src/blas/ztrsm.o: blas.h cumultigpu.h error.h src/blas/handle.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/cgemm.o: blas.h cumultigpu.h error.h handle.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/cherk.o: blas.h cumultigpu.h error.h handle.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/ctrmm.o: blas.h cumultigpu.h error.h handle.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/ctrsm.o: blas.h cumultigpu.h error.h handle.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/dgemm.o: blas.h cumultigpu.h error.h handle.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/dsyrk.o: blas.h cumultigpu.h error.h handle.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/dtrmm.o: blas.h cumultigpu.h error.h handle.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/dtrsm.o: blas.h cumultigpu.h error.h handle.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/sgemm.o: blas.h cumultigpu.h error.h handle.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/ssyrk.o: blas.h cumultigpu.h error.h handle.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/strmm.o: blas.h cumultigpu.h error.h handle.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/strsm.o: blas.h cumultigpu.h error.h handle.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/zgemm.o: blas.h cumultigpu.h error.h handle.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/zherk.o: blas.h cumultigpu.h error.h handle.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/ztrmm.o: blas.h cumultigpu.h error.h handle.h | $(OBJDIR)/src/blas
+$(OBJDIR)/src/blas/ztrsm.o: blas.h cumultigpu.h error.h handle.h | $(OBJDIR)/src/blas
+
+$(OBJDIR)/src/lapack: | $(OBJDIR)/src
+	$(MKDIR) $(@)
+$(OBJDIR)/src/lapack/cpotrf.o: lapack.h blas.h cumultigpu.h error.h handle.h | $(OBJDIR)/src/lapack
+$(OBJDIR)/src/lapack/ctrtri.o: lapack.h blas.h cumultigpu.h | $(OBJDIR)/src/lapack
+$(OBJDIR)/src/lapack/dpotrf.o: lapack.h blas.h cumultigpu.h error.h handle.h | $(OBJDIR)/src/lapack
+$(OBJDIR)/src/lapack/dtrtri.o: lapack.h blas.h cumultigpu.h | $(OBJDIR)/src/lapack
+$(OBJDIR)/src/lapack/spotrf.o: lapack.h blas.h cumultigpu.h error.h handle.h | $(OBJDIR)/src/lapack
+$(OBJDIR)/src/lapack/strtri.o: lapack.h blas.h cumultigpu.h | $(OBJDIR)/src/lapack
+$(OBJDIR)/src/lapack/zpotrf.o: lapack.h blas.h cumultigpu.h error.h handle.h | $(OBJDIR)/src/lapack
+$(OBJDIR)/src/lapack/ztrtri.o: lapack.h blas.h cumultigpu.h | $(OBJDIR)/src/lapack
 
 cgemm.fatbin cherk.fatbin ctrmm.fatbin ctrsm.fatbin: FATBINFLAGS = -code=sm_11,sm_13 -arch=compute_11
 dgemm.fatbin dsyrk.fatbin dtrmm.fatbin dtrsm.fatbin: FATBINFLAGS = -code=sm_13 -arch=compute_13
@@ -259,6 +290,15 @@ zgemm.fatbin: blas.h cumultigpu.h
 zherk.fatbin: blas.h cumultigpu.h
 ztrmm.fatbin: blas.h cumultigpu.h
 ztrsm.fatbin: blas.h cumultigpu.h
+
+cpotrf.fatbin: FATBINFLAGS = -code=sm_11,sm_13 -arch=compute_11
+dpotrf.fatbin: FATBINFLAGS = -code=sm_13 -arch=compute_13
+spotrf.fatbin: FATBINFLAGS = -code=sm_11,sm_13 -arch=compute_11
+zpotrf.fatbin: FATBINFLAGS = -code=sm_13 -arch=compute_13
+cpotrf.fatbin: blas.h cumultigpu.h
+dpotrf.fatbin: blas.h cumultigpu.h
+spotrf.fatbin: blas.h cumultigpu.h
+zpotrf.fatbin: blas.h cumultigpu.h
 
 $(OBJDIR)/test: | $(OBJDIR)
 	$(MKDIR) $(@)
@@ -321,6 +361,8 @@ $(OBJDIR)/test/cumultigpuzgemm.o: blas.h cumultigpu.h error.h test/zgemm_ref.c |
 $(OBJDIR)/test/cumultigpuzherk.o: blas.h cumultigpu.h error.h test/zherk_ref.c | $(OBJDIR)/test
 $(OBJDIR)/test/cumultigpuztrmm.o: blas.h cumultigpu.h error.h test/ztrmm_ref.c | $(OBJDIR)/test
 $(OBJDIR)/test/cumultigpuztrsm.o: blas.h cumultigpu.h error.h test/ztrsm_ref.c | $(OBJDIR)/test
+
+$(OBJDIR)/test/spotrf.o: lapack.h blas.h cumultigpu.h error.h test/spotrf_ref.c | $(OBJDIR)/test
 
 # $(PTXDIR):
 # 	$(MKDIR) $(@)

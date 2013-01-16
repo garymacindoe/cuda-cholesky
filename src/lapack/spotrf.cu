@@ -147,5 +147,5 @@ __global__ void spotf2(int n, float * A, int lda, int * info) {
   }
 }
 
-template void spotf2<CBlasUpper, 64>(int, float *, int, int *);
-template void spotf2<CBlasLower, 64>(int, float *, int, int *);
+template __global__ void spotf2<CBlasUpper, 64>(int, float *, int, int *);
+template __global__ void spotf2<CBlasLower, 64>(int, float *, int, int *);

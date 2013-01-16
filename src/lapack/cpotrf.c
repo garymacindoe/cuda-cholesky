@@ -1,7 +1,8 @@
 #include "lapack.h"
 #include "error.h"
-#include <stdio.h>
-#include "../handle.h"
+// #include <stdio.h>
+#include <math.h>
+#include "../blas/handle.h"
 
 static inline size_t min(size_t a, size_t b) { return (a < b) ? a : b; }
 
@@ -30,12 +31,18 @@ static const float one = 1.0f;
 static const float complex complex_zero = 0.0f + 0.0f * I;
 static const float complex complex_one = 1.0f + 0.0f * I;
 
-static inline void cpotf2(CBlasUplo uplo, size_t n, float complex * restrict A, size_t lda, long * restrict info) {
+static inline void cpotf2(CBlasUplo uplo,
+                          size_t n,
+                          float complex * restrict A, size_t lda,
+                          long * restrict info) {
   if (uplo == CBlasUpper) {
     for (size_t i = 0; i < n; i++) {
-      register float aii = crealf(A[i * lda + i]);
+      register float temp = zero;
+      const float complex * restrict B = A;
       for (size_t k = 0; k < i; k++)
-        aii -= A[i * lda + k] * conjf(A[i * lda + k]);
+        temp += A[i * lda + k] * conjf(B[i * lda + k]);
+
+      register float aii = crealf(A[i * lda + i]) - temp;
       if (aii <= zero || isnan(aii)) {
         A[i * lda + i] = aii;
         *info = (long)i + 1;
@@ -45,38 +52,38 @@ static inline void cpotf2(CBlasUplo uplo, size_t n, float complex * restrict A, 
       A[i * lda + i] = aii;
 
       for (size_t j = i + 1; j < n; j++) {
-        register float complex temp = A[j * lda + i];;
+        register float complex temp = complex_zero;
         for (size_t k = 0; k < i; k++)
           temp -= A[j * lda + k] * conjf(A[i * lda + k]);
-        A[j * lda + i] = temp / aii;
+        A[j * lda + i] = (A[j * lda + i] - temp) / aii;
       }
     }
   }
   else {
     for (size_t j = 0; j < n; j++) {
+      for (size_t k = 0; k < j; k++) {
+        register float complex temp = conjf(A[k * lda + j]);
+        for (size_t i = j; i < n; i++)
+          A[j * lda + i] -= temp * A[k * lda + i];
+      }
+
       register float ajj = crealf(A[j * lda + j]);
-      for (size_t k = 0; k < j; k++)
-        ajj -= A[k * lda + j] * conjf(A[k * lda + j]);
       if (ajj <= zero || isnan(ajj)) {
-        A[j * lda + j] = ajj;
         *info = (long)j + 1;
         return;
       }
       ajj = sqrtf(ajj);
       A[j * lda + j] = ajj;
-
-      for (size_t k = 0; k < j; k++) {
-        register float complex temp = conjf(A[k * lda + j]);
-        for (size_t i = j + 1; i < n; i++)
-          A[j * lda + i] -= temp * A[k * lda + i];
-      }
       for (size_t i = j + 1; i < n; i++)
         A[j * lda + i] /= ajj;
     }
   }
 }
 
-void cpotrf(CBlasUplo uplo, size_t n, float complex * restrict A, size_t lda, long * restrict info) {
+void cpotrf(CBlasUplo uplo,
+            size_t n,
+            float complex * restrict A, size_t lda,
+            long * restrict info) {
   *info = 0;
   if (lda < n)
     *info = -4;
@@ -98,7 +105,8 @@ void cpotrf(CBlasUplo uplo, size_t n, float complex * restrict A, size_t lda, lo
     for (size_t j = 0; j < n; j += nb) {
       const size_t jb = min(nb, n - j);
 
-      cherk(CBlasUpper, CBlasConjTrans, jb, j, -one, &A[j * lda], lda, one, &A[j * lda + j], lda);
+      cherk(CBlasUpper, CBlasConjTrans, jb, j,
+            -one, &A[j * lda], lda, one, &A[j * lda + j], lda);
       cpotf2(CBlasUpper, jb, &A[j * lda + j], lda, info);
       if (*info != 0) {
         (*info) += (long)j;
@@ -106,8 +114,11 @@ void cpotrf(CBlasUplo uplo, size_t n, float complex * restrict A, size_t lda, lo
       }
 
       if (j + jb < n) {
-        cgemm(CBlasConjTrans, CBlasNoTrans, jb, n - j - jb, j, -one, &A[j * lda], lda, &A[(j + jb) * lda], lda, one, &A[(j + jb) * lda + j], lda);
-        ctrsm(CBlasLeft, CBlasUpper, CBlasConjTrans, CBlasNonUnit, jb, n - j - jb, one, &A[j * lda + j], lda, &A[(j + jb) * lda + j], lda);
+        cgemm(CBlasConjTrans, CBlasNoTrans, jb, n - j - jb, j,
+              -one, &A[j * lda], lda, &A[(j + jb) * lda], lda,
+              one, &A[(j + jb) * lda + j], lda);
+        ctrsm(CBlasLeft, CBlasUpper, CBlasConjTrans, CBlasNonUnit, jb, n - j - jb,
+              one, &A[j * lda + j], lda, &A[(j + jb) * lda + j], lda);
       }
     }
   }
@@ -115,7 +126,8 @@ void cpotrf(CBlasUplo uplo, size_t n, float complex * restrict A, size_t lda, lo
     for (size_t j = 0; j < n; j += nb) {
       const size_t jb = min(nb, n - j);
 
-      cherk(CBlasLower, CBlasNoTrans, jb, j, -one, &A[j], lda, one, &A[j * lda + j], lda);
+      cherk(CBlasLower, CBlasNoTrans, jb, j,
+            -one, &A[j], lda, one, &A[j * lda + j], lda);
       cpotf2(CBlasLower, jb, &A[j * lda + j], lda, info);
       if (*info != 0) {
         (*info) += (long)j;
@@ -123,33 +135,36 @@ void cpotrf(CBlasUplo uplo, size_t n, float complex * restrict A, size_t lda, lo
       }
 
       if (j + jb < n) {
-        cgemm(CBlasNoTrans, CBlasConjTrans, n - j - jb, jb, j, -one, &A[j + jb], lda, &A[j], lda, one, &A[j * lda + j + jb], lda);
-        ctrsm(CBlasRight, CBlasLower, CBlasConjTrans, CBlasNonUnit, n - j - jb, jb, one, &A[j * lda + j], lda, &A[j * lda + j + jb], lda);
+        cgemm(CBlasNoTrans, CBlasConjTrans, n - j - jb, jb, j,
+              -one, &A[j + jb], lda, &A[j], lda,
+              one, &A[j * lda + j + jb], lda);
+        ctrsm(CBlasRight, CBlasLower, CBlasConjTrans, CBlasNonUnit, n - j - jb, jb,
+              one, &A[j * lda + j], lda, &A[j * lda + j + jb], lda);
       }
     }
   }
 }
 
-static inline CUresult cuCpotf2(CUhandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, CUdeviceptr info, CUstream stream) {
-  const unsigned int bx = 32;
+// static inline CUresult cuCpotf2(CUmodule module, CBlasUplo uplo,
+//                                 size_t n,
+//                                 CUdeviceptr A, size_t lda,
+//                                 CUdeviceptr info, CUstream stream) {
+//   const unsigned int bx = 32;
+//
+//   char name[45];
+//   snprintf(name, 45, "_Z6cpotf2IL9CBlasUplo%dELj%uEEviP6float2iPi", uplo, bx);
+//
+//   CUfunction function;
+//   CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
+//
+//   void * params[] = { &n, &A, &lda, &info };
+//
+//   CU_ERROR_CHECK(cuLaunchKernel(function, 1, 1, 1, bx, 1, 1, 0, stream, params, NULL));
+//
+//   return CUDA_SUCCESS;
+// }
 
-  char name[45];
-  snprintf(name, 45, "_Z6cpotf2IL9CBlasUplo%dELj%uEEviP6float2iPi", uplo, bx);
-
-  CUmodule module;
-  CU_ERROR_CHECK(cuHandleGetModule(handle, &module, CU_HANDLE_COMPLEX, CU_HANDLE_POTRF));
-
-  CUfunction function;
-  CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
-
-  void * params[] = { &n, &A, &lda, &info };
-
-  CU_ERROR_CHECK(cuLaunchKernel(function, 1, 1, 1, bx, 1, 1, 0, stream, params, NULL));
-
-  return CUDA_SUCCESS;
-}
-
-CUresult cuCpotrf(CUhandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, long * info) {
+CUresult cuCpotrf(CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, long * info) {
   *info = 0;
   if (lda < n)
     *info = -4;
@@ -158,71 +173,139 @@ CUresult cuCpotrf(CUhandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A, size
     return CUDA_ERROR_INVALID_VALUE;
   }
 
-  if (n == 0) return CUDA_SUCCESS;
+  if (n == 0)
+    return CUDA_SUCCESS;
+
+  /**
+   * The CGEMM consumes most of the FLOPs in the Cholesky decomposition so the
+   * block sizes are chosen to favour it.  In the upper triangular case it is
+   * the row matrix to the right of the diagonal block that is updated via
+   * D = -A^T * C + D (i.e. the A argument to CGEMM is transposed) therefore the
+   * block size is CGEMM_C_MB.  For the lower triangular case it is the column
+   * matrix below the diagonal block that is updated via D = -C * A^T + D so the
+   * block size is CGEMM_N_NB.
+   */
+  const size_t nb = (uplo == CBlasUpper) ? CGEMM_C_MB : CGEMM_N_NB;
 
   float complex * B;
   size_t ldb;
-  CUdeviceptr dInfo;
+  CUmodule cherk, cgemm, ctrsm;
   CUstream stream0, stream1;
-  CUmodule /*cpotf2,*/ cherk, cgemm, ctrsm;
 
-  const size_t nb = (uplo == CBlasUpper) ? 192 : 576;
+  // Allocate page-locked host memory for diagonal block
+  CU_ERROR_CHECK(cuMemAllocHost((void **)&B, (ldb = (nb + 1u) & ~1u) * sizeof(float complex)));
 
-  CU_ERROR_CHECK(cuMemAlloc(&dInfo, sizeof(long)));
-  CU_ERROR_CHECK(cuMemcpyHtoD(dInfo, info, sizeof(long)));
+  // Load the GPU BLAS modules
+  CU_ERROR_CHECK(cuModuleLoad(&cherk, "cherk.fatbin"));
+  CU_ERROR_CHECK(cuModuleLoad(&cgemm, "cgemm.fatbin"));
+  CU_ERROR_CHECK(cuModuleLoad(&ctrsm, "ctrsm.fatbin"));
 
-//   if (n < nb) {
-//     CU_ERROR_CHECK(cuModuleLoad(&cpotf2, "cpotrf.fatbin"));
-//     CU_ERROR_CHECK(cuSpotf2(cpotf2, uplo, n, A, lda, dInfo, NULL));
-//     CU_ERROR_CHECK(cuModuleUnload(cpotf2));
-//     return CUDA_SUCCESS;
-//   }
-
-  CU_ERROR_CHECK(cuMemAllocHost((void **)&B, (ldb = (nb + 1u) & ~1u) * nb * sizeof(float complex)));
+  // Create two streams for asynchronous copy and compute
+  CU_ERROR_CHECK(cuStreamCreate(&stream0, 0));
+  CU_ERROR_CHECK(cuStreamCreate(&stream1, 0));
 
   if (uplo == CBlasUpper) {
     for (size_t j = 0; j < n; j += nb) {
       const size_t jb = min(nb, n - j);
 
-      CU_ERROR_CHECK(cuCherk(handle, CBlasUpper, CBlasConjTrans, jb, j, -one, A + j * lda * sizeof(float complex), lda, one, A + (j * lda + j) * sizeof(float complex), lda, stream0));
-      CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(B, ldb, 0, 0, A, lda, j, j, jb, jb, sizeof(float complex), stream0));
-      CU_ERROR_CHECK(cuCgemm(handle, CBlasConjTrans, CBlasNoTrans, jb, n - j - jb, j, -complex_one, A + j * lda * sizeof(float complex), lda, A + (j + jb) * lda * sizeof(float complex), lda, complex_one, A + ((j + jb) * lda + j) * sizeof(float complex), lda, stream1));
+      /* Rank-K update of diagonal block using column matrix above */
+      CU_ERROR_CHECK(cuCherk(cherk, CBlasUpper, CBlasConjTrans, jb, j,
+                             -one, A + j * lda * sizeof(float complex), lda,
+                             one, A + (j * lda + j) * sizeof(float complex), lda, stream0));
+      /* Start copying diagonal block onto host asynchronously on the same
+       * stream as the CHERK above to ensure it has finised updating the block
+       * before it is copied */
+      CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(B, ldb, 0, 0, A, lda, j, j,
+                                         jb, jb, sizeof(float complex), stream0));
+      /* Overlap the CHERK and copy of the diagonal block with an CGEMM (on a
+       * different stream) */
+      CU_ERROR_CHECK(cuCgemm(cgemm, CBlasConjTrans, CBlasNoTrans, jb, n - j - jb, j,
+                             -complex_one, A + j * lda * sizeof(float complex), lda,
+                             A + (j + jb) * lda * sizeof(float complex), lda,
+                             complex_one, A + ((j + jb) * lda + j) * sizeof(float complex), lda, stream1));
+      /* Wait until the diagonal block has been copied */
       CU_ERROR_CHECK(cuStreamSynchronize(stream0));
+      /* Perform the diagonal block decomposition using the CPU */
       cpotrf(CBlasUpper, jb, B, ldb, info);
+      /* Check for positive definite matrix */
       if (*info != 0) {
         *info += (long)j;
-        return CUDA_ERROR_INVALID_VALUE;
+        break;
       }
-      CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A, lda, j, j, B, ldb, 0, 0, jb, jb, sizeof(float complex), stream0));
-      CU_ERROR_CHECK(cuStreamSynchronize(stream1));
-      CU_ERROR_CHECK(cuCtrsm(handle, CBlasLeft, CBlasUpper, CBlasConjTrans, CBlasNonUnit, jb, n - j - jb, complex_one, A + (j * lda + j) * sizeof(float complex), lda, A + ((j + jb) * lda + j) * sizeof(float complex), lda, stream0));
+      /* Copy the diagonal block back onto the device */
+      CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A, lda, j, j, B, ldb, 0, 0,
+                                         jb, jb, sizeof(float complex), stream0));
+      /* Wait until the CGEMM has finished updating the row to the right (this
+       * is unnecessary on devices that cannot execute multiple kernels
+       * simultaneously */
+//       CU_ERROR_CHECK(cuStreamSynchronize(stream1));
+      /* Triangular solve of the diagonal block using the row matrix to the
+       * right on the same stream as the copy to ensure it has completed first */
+      CU_ERROR_CHECK(cuCtrsm(ctrsm, CBlasLeft, CBlasUpper, CBlasConjTrans, CBlasNonUnit,
+                             jb, n - j - jb, complex_one, A + (j * lda + j) * sizeof(float complex), lda,
+                             A + ((j + jb) * lda + j) * sizeof(float complex), lda, stream0));
     }
   }
   else {
     for (size_t j = 0; j < n; j += nb) {
       const size_t jb = min(nb, n - j);
 
-      CU_ERROR_CHECK(cuCherk(handle, CBlasLower, CBlasNoTrans, jb, j, -one, A + j * sizeof(float complex), lda, one, A + (j * lda + j) * sizeof(float complex), lda, stream0));
-      CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(B, ldb, 0, 0, A, lda, j, j, jb, jb, sizeof(float complex), stream0));
-      CU_ERROR_CHECK(cuCgemm(handle, CBlasNoTrans, CBlasConjTrans, n - j - jb, jb, j, -complex_one, A + (j + jb) * sizeof(float complex), lda, A + j * sizeof(float complex), lda, complex_one, A + (j * lda + j + jb) * sizeof(float complex), lda, stream1));
+      /* Rank-K update of diagonal block using row matrix to the left */
+      CU_ERROR_CHECK(cuCherk(cherk, CBlasLower, CBlasNoTrans, jb, j,
+                             -one, A + j * sizeof(float complex), lda,
+                             one, A + (j * lda + j) * sizeof(float complex), lda, stream0));
+      /* Start copying diagonal block onto host asynchronously on the same
+       * stream as the SSYRK above to ensure it has finised updating the block
+       * before it is copied */
+      CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(B, ldb, 0, 0, A, lda, j, j,
+                                         jb, jb, sizeof(float complex), stream0));
+      /* Overlap the CHERK and copy of the diagonal block with an CGEMM (on a
+       * different stream) */
+      CU_ERROR_CHECK(cuCgemm(cgemm, CBlasNoTrans, CBlasConjTrans, n - j - jb, jb, j,
+                             -complex_one, A + (j + jb) * sizeof(float complex), lda,
+                             A + j * sizeof(float complex), lda,
+                             complex_one, A + (j * lda + j + jb) * sizeof(float complex), lda, stream1));
+      /* Wait until the diagonal block has been copied */
       CU_ERROR_CHECK(cuStreamSynchronize(stream0));
+      /* Perform the diagonal block decomposition using the CPU */
       cpotrf(CBlasLower, jb, B, ldb, info);
+      /* Check for positive definite matrix */
       if (*info != 0) {
         *info += (long)j;
-        return CUDA_ERROR_INVALID_VALUE;
+        break;
       }
-      CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A, lda, j, j, B, ldb, 0, 0, jb, jb, sizeof(float complex), stream0));
-      CU_ERROR_CHECK(cuStreamSynchronize(stream1));
-      CU_ERROR_CHECK(cuCtrsm(handle, CBlasRight, CBlasLower, CBlasConjTrans, CBlasNonUnit, n - j - jb, jb, complex_one, A + (j * lda + j) * sizeof(float complex), lda, A + (j * lda + j + jb) * sizeof(float complex), lda, stream0));
+      /* Copy the diagonal block back onto the device */
+      CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A, lda, j, j, B, ldb, 0, 0,
+                                         jb, jb, sizeof(float complex), stream0));
+      /* Wait until the CGEMM has finished updating the row to the right (this
+       * is unnecessary on devices that cannot execute multiple kernels
+       * simultaneously */
+//       CU_ERROR_CHECK(cuStreamSynchronize(stream1));
+      /* Triangular solve of the diagonal block using the column matrix below
+       * on the same stream as the copy to ensure it has completed first */
+      CU_ERROR_CHECK(cuCtrsm(ctrsm, CBlasRight, CBlasLower, CBlasConjTrans, CBlasNonUnit,
+                             n - j - jb, jb, complex_one, A + (j * lda + j) * sizeof(float complex), lda,
+                             A + (j * lda + j + jb) * sizeof(float complex), lda, stream0));
     }
   }
 
+  // Clean up resources
   CU_ERROR_CHECK(cuMemFreeHost(B));
 
-  return CUDA_SUCCESS;
+  CU_ERROR_CHECK(cuModuleUnload(cherk));
+  CU_ERROR_CHECK(cuModuleUnload(cgemm));
+  CU_ERROR_CHECK(cuModuleUnload(ctrsm));
+
+  CU_ERROR_CHECK(cuStreamDestroy(stream0));
+  CU_ERROR_CHECK(cuStreamDestroy(stream1));
+
+  return (*info == 0) ? CUDA_SUCCESS : CUDA_ERROR_INVALID_VALUE;
 }
 
-CUresult cuMultiGPUCpotrf(CUhandle * handles, int deviceCount, CBlasUplo uplo, size_t n, float complex * restrict A, size_t lda, long * restrict info) {
+CUresult cuMultiGPUCpotrf(CUmultiGPUBlasHandle handle, CBlasUplo uplo,
+                          size_t n,
+                          float complex * restrict A, size_t lda,
+                          long * restrict info) {
   *info = 0;
   if (lda < n)
     *info = -4;
@@ -231,9 +314,10 @@ CUresult cuMultiGPUCpotrf(CUhandle * handles, int deviceCount, CBlasUplo uplo, s
     return CUDA_ERROR_INVALID_VALUE;
   }
 
-  if (n == 0) return CUDA_SUCCESS;
+  if (n == 0)
+    return CUDA_SUCCESS;
 
-  const size_t nb = 1024;
+  const size_t nb = (uplo == CBlasUpper) ? CGEMM_C_MB : CGEMM_N_NB;
 
   if (n < nb) {
     cpotrf(uplo, n, A, lda, info);
@@ -244,16 +328,21 @@ CUresult cuMultiGPUCpotrf(CUhandle * handles, int deviceCount, CBlasUplo uplo, s
     for (size_t j = 0; j < n; j += nb) {
       const size_t jb = min(nb, n - j);
 
-      CU_ERROR_CHECK(cuMultiGPUCherk(handles, deviceCount, CBlasUpper, CBlasConjTrans, jb, j, -one, &A[j * lda], lda, one, &A[j * lda + j], lda));
-      cpotf2(CBlasUpper, jb, &A[j * lda + j], lda, info);
+      CU_ERROR_CHECK(cuMultiGPUCherk(handle, CBlasUpper, CBlasConjTrans, jb, j,
+                                     -one, &A[j * lda], lda, one, &A[j * lda + j], lda));
+      CU_ERROR_CHECK(cuMultiGPUBlasSynchronize(handle));
+      cpotrf(CBlasUpper, jb, &A[j * lda + j], lda, info);
       if (*info != 0) {
         (*info) += (long)j;
         return CUDA_ERROR_INVALID_VALUE;
       }
 
       if (j + jb < n) {
-        CU_ERROR_CHECK(cuMultiGPUCgemm(handles, deviceCount, CBlasConjTrans, CBlasNoTrans, jb, n - j - jb, j, -complex_one, &A[j * lda], lda, &A[(j + jb) * lda], lda, complex_one, &A[(j + jb) * lda + j], lda));
-        CU_ERROR_CHECK(cuMultiGPUCtrsm(handles, deviceCount, CBlasLeft, CBlasUpper, CBlasConjTrans, CBlasNonUnit, jb, n - j - jb, complex_one, &A[j * lda + j], lda, &A[(j + jb) * lda + j], lda));
+        CU_ERROR_CHECK(cuMultiGPUCgemm(handle, CBlasConjTrans, CBlasNoTrans, jb, n - j - jb, j,
+                                       -complex_one, &A[j * lda], lda, &A[(j + jb) * lda], lda,
+                                       complex_one, &A[(j + jb) * lda + j], lda));
+        CU_ERROR_CHECK(cuMultiGPUCtrsm(handle, CBlasLeft, CBlasUpper, CBlasConjTrans, CBlasNonUnit, jb, n - j - jb,
+                                       complex_one, &A[j * lda + j], lda, &A[(j + jb) * lda + j], lda));
       }
     }
   }
@@ -261,16 +350,21 @@ CUresult cuMultiGPUCpotrf(CUhandle * handles, int deviceCount, CBlasUplo uplo, s
     for (size_t j = 0; j < n; j += nb) {
       const size_t jb = min(nb, n - j);
 
-      CU_ERROR_CHECK(cuMultiGPUCherk(handles, deviceCount, CBlasLower, CBlasNoTrans, jb, j, -one, &A[j], lda, one, &A[j * lda + j], lda));
-      cpotf2(CBlasLower, jb, &A[j * lda + j], lda, info);
+      CU_ERROR_CHECK(cuMultiGPUCherk(handle, CBlasLower, CBlasNoTrans, jb, j,
+                                     -one, &A[j], lda, one, &A[j * lda + j], lda));
+      CU_ERROR_CHECK(cuMultiGPUBlasSynchronize(handle));
+      cpotrf(CBlasLower, jb, &A[j * lda + j], lda, info);
       if (*info != 0) {
         (*info) += (long)j;
         return CUDA_ERROR_INVALID_VALUE;
       }
 
       if (j + jb < n) {
-        CU_ERROR_CHECK(cuMultiGPUCgemm(handles, deviceCount, CBlasNoTrans, CBlasConjTrans, n - j - jb, jb, j, -complex_one, &A[j + jb], lda, &A[j], lda, complex_one, &A[j * lda + j + jb], lda));
-        CU_ERROR_CHECK(cuMultiGPUCtrsm(handles, deviceCount, CBlasRight, CBlasLower, CBlasConjTrans, CBlasNonUnit, n - j - jb, jb, complex_one, &A[j * lda + j], lda, &A[j * lda + j + jb], lda));
+        CU_ERROR_CHECK(cuMultiGPUCgemm(handle, CBlasNoTrans, CBlasConjTrans, n - j - jb, jb, j,
+                                       -complex_one, &A[j + jb], lda, &A[j], lda,
+                                       complex_one, &A[j * lda + j + jb], lda));
+        CU_ERROR_CHECK(cuMultiGPUCtrsm(handle, CBlasRight, CBlasLower, CBlasConjTrans, CBlasNonUnit, n - j - jb, jb,
+                                       complex_one, &A[j * lda + j], lda, &A[j * lda + j + jb], lda));
       }
     }
   }
