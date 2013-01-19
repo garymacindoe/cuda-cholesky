@@ -1,15 +1,12 @@
 #include "blas.h"
 #include <stdio.h>
-#include <math.h>
+#include <stdlib.h>
+#include <stdbool.h>
 #include <float.h>
+#include <math.h>
 #include <complex.h>
 #include <sys/time.h>
 #include "ctrsm_ref.c"
-
-// extern void ctrsm_(const char *, const char *, const char *, const char *,
-//                    const size_t *, const size_t *,
-//                    const float complex *, const float complex *, const size_t *,
-//                    const float complex *, const size_t *);
 
 int main(int argc, char * argv[]) {
   CBlasSide side;

@@ -1,10 +1,12 @@
 #include "lapack.h"
-#include "error.h"
 #include <stdio.h>
+#include <stdlib.h>
+#include <stdbool.h>
 #include <string.h>
-#include <sys/time.h>
 #include <float.h>
+#include <math.h>
 #include <complex.h>
+#include <sys/time.h>
 
 static void ztrtri_ref(CBlasUplo, CBlasDiag, size_t, double complex * restrict, size_t, long * restrict);
 static double complex gaussian();
@@ -131,7 +133,7 @@ int main(int argc, char * argv[]) {
     return -4;
   }
   for (size_t i = 0; i < 20; i++)
-    ztrtri(uplo, diag, n, A, lda, B, ldb, &info);
+    ztrtri2(uplo, diag, n, A, lda, B, ldb, &info);
   if (gettimeofday(&stop, NULL) != 0) {
     fprintf(stderr, "gettimeofday failed at %s:%d\n", __FILE__, __LINE__);
     return -5;

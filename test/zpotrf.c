@@ -1,9 +1,11 @@
 #include "lapack.h"
-#include "error.h"
 #include <stdio.h>
-#include <sys/time.h>
+#include <stdlib.h>
+#include <stdbool.h>
 #include <float.h>
+#include <math.h>
 #include <complex.h>
+#include <sys/time.h>
 #include "zpotrf_ref.c"
 
 int main(int argc, char * argv[]) {
@@ -62,9 +64,9 @@ int main(int argc, char * argv[]) {
   }
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < n; i++) {
-      double complex temp = 0.0;
+      double complex temp = 0.0 + 0.0 * I;
       for (size_t l = 0; l < k; l++)
-        temp += conj(C[i * ldc + l]) * C[j * ldc + l];
+        temp += C[i * ldc + l] * C[j * ldc + l];
       refA[j * lda + i] = A[j * lda + i] = temp;
     }
   }
@@ -80,10 +82,9 @@ int main(int argc, char * argv[]) {
       double d = fabs(creal(A[j * lda + i]) - creal(refA[j * lda + i]));
       if (d > rdiff)
         rdiff = d;
-
-      double c = fabs(cimag(A[j * lda + i]) - cimag(refA[j * lda + i]));
-      if (c > idiff)
-        idiff = c;
+      d = fabs(cimag(A[j * lda + i]) - cimag(refA[j * lda + i]));
+      if (d > idiff)
+        idiff = d;
     }
   }
 
@@ -92,7 +93,7 @@ int main(int argc, char * argv[]) {
   // non-positive-definite-ness.
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < n; i++)
-      A[j * lda + i] = (i == j) ? 1.0 : 0.0;
+      A[j * lda + i] = (i == j) ? (1.0 + 0.0 * I) : (0.0 + 0.0 * I);
   }
 
   struct timeval start, stop;

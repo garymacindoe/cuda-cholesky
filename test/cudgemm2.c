@@ -3,7 +3,6 @@
 #include <stdio.h>
 #include <math.h>
 #include <float.h>
-#include <sys/time.h>
 #include "dgemm_ref.c"
 
 int main(int argc, char * argv[]) {

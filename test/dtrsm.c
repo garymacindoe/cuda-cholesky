@@ -1,14 +1,11 @@
 #include "blas.h"
 #include <stdio.h>
-#include <math.h>
+#include <stdlib.h>
+#include <stdbool.h>
 #include <float.h>
+#include <math.h>
 #include <sys/time.h>
 #include "dtrsm_ref.c"
-
-// extern void dtrsm_(const char *, const char *, const char *, const char *,
-//                    const size_t *, const size_t *,
-//                    const double *, const double *, const size_t *,
-//                    const double *, const size_t *);
 
 int main(int argc, char * argv[]) {
   CBlasSide side;

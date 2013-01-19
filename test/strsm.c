@@ -1,14 +1,11 @@
 #include "blas.h"
 #include <stdio.h>
-#include <math.h>
+#include <stdlib.h>
+#include <stdbool.h>
 #include <float.h>
+#include <math.h>
 #include <sys/time.h>
 #include "strsm_ref.c"
-
-// extern void strsm_(const char *, const char *, const char *, const char *,
-//                    const size_t *, const size_t *,
-//                    const float *, const float *, const size_t *,
-//                    const float *, const size_t *);
 
 int main(int argc, char * argv[]) {
   CBlasSide side;

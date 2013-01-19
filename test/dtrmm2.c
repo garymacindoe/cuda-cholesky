@@ -1,7 +1,9 @@
 #include "blas.h"
 #include <stdio.h>
-#include <math.h>
+#include <stdlib.h>
+#include <stdbool.h>
 #include <float.h>
+#include <math.h>
 #include <sys/time.h>
 #include "dtrmm_ref.c"
 

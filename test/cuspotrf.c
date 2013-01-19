@@ -1,10 +1,9 @@
 #include "lapack.h"
 #include "error.h"
 #include <stdio.h>
-#include <sys/time.h>
+#include <math.h>
 #include <float.h>
 #include "spotrf_ref.c"
-#include "cuhandle.h"
 
 int main(int argc, char * argv[]) {
   CBlasUplo uplo;
@@ -59,8 +58,8 @@ int main(int argc, char * argv[]) {
   CUdevice device;
   CU_ERROR_CHECK(cuDeviceGet(&device, d));
 
-  CUhandle handle;
-  CU_ERROR_CHECK(cuHandleCreate(&handle, CU_CTX_SCHED_BLOCKING_SYNC, device));
+  CUcontext context;
+  CU_ERROR_CHECK(cuCtxCreate(&context, CU_CTX_SCHED_BLOCKING_SYNC, device));
 
   lda = (n + 3u) & ~3u;
   if ((A = malloc(lda *  n * sizeof(float))) == NULL) {
@@ -108,7 +107,7 @@ int main(int argc, char * argv[]) {
   CU_ERROR_CHECK(cuMemcpy2D(&copy));
 
   spotrf_ref(uplo, n, refA, lda, &rInfo);
-  CU_ERROR_CHECK(cuSpotrf(handle, uplo, n, dA, dlda, &info));
+  CU_ERROR_CHECK(cuSpotrf(uplo, n, dA, dlda, &info));
 
   copy = (CUDA_MEMCPY2D){ 0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(float),
                           0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(float),
@@ -144,7 +143,7 @@ int main(int argc, char * argv[]) {
 
   CU_ERROR_CHECK(cuEventRecord(start, NULL));
   for (size_t i = 0; i < 20; i++)
-    CU_ERROR_CHECK(cuSpotrf(handle, uplo, n, dA, dlda, &info));
+    CU_ERROR_CHECK(cuSpotrf(uplo, n, dA, dlda, &info));
   CU_ERROR_CHECK(cuEventRecord(stop, NULL));
   CU_ERROR_CHECK(cuEventSynchronize(stop));
 
@@ -165,7 +164,7 @@ int main(int argc, char * argv[]) {
   if (dA != 0)
     CU_ERROR_CHECK(cuMemFree(dA));
 
-  CU_ERROR_CHECK(cuHandleDestroy(handle));
+  CU_ERROR_CHECK(cuCtxDestroy(context));
 
   return (int)!passed;
 }

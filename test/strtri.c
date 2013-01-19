@@ -1,9 +1,11 @@
 #include "lapack.h"
-#include "error.h"
 #include <stdio.h>
+#include <stdlib.h>
+#include <stdbool.h>
 #include <string.h>
-#include <sys/time.h>
 #include <float.h>
+#include <math.h>
+#include <sys/time.h>
 
 static void strtri_ref(CBlasUplo, CBlasDiag, size_t, float * restrict, size_t, long * restrict);
 static float gaussian();

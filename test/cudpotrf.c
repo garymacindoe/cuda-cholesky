@@ -1,7 +1,7 @@
 #include "lapack.h"
 #include "error.h"
 #include <stdio.h>
-#include <sys/time.h>
+#include <math.h>
 #include <float.h>
 #include "dpotrf_ref.c"
 

@@ -1,18 +1,12 @@
 #include "blas.h"
 #include <stdio.h>
+#include <stdlib.h>
+#include <stdbool.h>
 #include <float.h>
 #include <math.h>
 #include <complex.h>
 #include <sys/time.h>
 #include "zgemm_ref.c"
-
-// extern void zgemm_(const char *, const char *,
-//                    const size_t *, const size_t *, const size_t *,
-//                    const float complex *,
-//                    const float complex *, const size_t *,
-//                    const float complex *, const size_t *,
-//                    const float complex *,
-//                    float complex *, const size_t *);
 
 int main(int argc, char * argv[]) {
   CBlasTranspose transA, transB;

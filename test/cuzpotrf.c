@@ -1,7 +1,7 @@
 #include "lapack.h"
 #include "error.h"
 #include <stdio.h>
-#include <sys/time.h>
+#include <math.h>
 #include <float.h>
 #include <complex.h>
 #include "zpotrf_ref.c"
@@ -94,25 +94,25 @@ int main(int argc, char * argv[]) {
   }
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < n; i++) {
-      double complex temp = 0.0;
+      double complex temp = 0.0 + 0.0 * I;
       for (size_t l = 0; l < k; l++)
-        temp += conj(C[i * ldc + l]) * C[j * ldc + l];
+        temp += C[i * ldc + l] * C[j * ldc + l];
       refA[j * lda + i] = A[j * lda + i] = temp;
     }
   }
   free(C);
 
   copy = (CUDA_MEMCPY2D){ 0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(double complex),
-  0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(double complex),
-  n * sizeof(double complex), n };
+                          0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(double complex),
+                          n * sizeof(double complex), n };
   CU_ERROR_CHECK(cuMemcpy2D(&copy));
 
   zpotrf_ref(uplo, n, refA, lda, &rInfo);
   CU_ERROR_CHECK(cuZpotrf(uplo, n, dA, dlda, &info));
 
   copy = (CUDA_MEMCPY2D){ 0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(double complex),
-  0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(double complex),
-  n * sizeof(double complex), n };
+                          0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(double complex),
+                          n * sizeof(double complex), n };
   CU_ERROR_CHECK(cuMemcpy2D(&copy));
 
   bool passed = (info == rInfo);
@@ -122,10 +122,9 @@ int main(int argc, char * argv[]) {
       double d = fabs(creal(A[j * lda + i]) - creal(refA[j * lda + i]));
       if (d > rdiff)
         rdiff = d;
-
-      double c = fabs(cimag(A[j * lda + i]) - cimag(refA[j * lda + i]));
-      if (c > idiff)
-        idiff = c;
+      d = fabs(cimag(A[j * lda + i]) - cimag(refA[j * lda + i]));
+      if (d > idiff)
+        idiff = d;
     }
   }
 
@@ -134,12 +133,12 @@ int main(int argc, char * argv[]) {
   // non-positive-definite-ness.
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < n; i++)
-      A[j * lda + i] = (i == j) ? 1.0 : 0.0;
+      A[j * lda + i] = (i == j) ? (1.0 + 0.0 * I) : (0.0 + 0.0 * I);
   }
 
   copy = (CUDA_MEMCPY2D){ 0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(double complex),
-  0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(double complex),
-  n * sizeof(double complex), n };
+                          0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(double complex),
+                          n * sizeof(double complex), n };
   CU_ERROR_CHECK(cuMemcpy2D(&copy));
 
   CUevent start, stop;
@@ -159,10 +158,11 @@ int main(int argc, char * argv[]) {
   CU_ERROR_CHECK(cuEventDestroy(start));
   CU_ERROR_CHECK(cuEventDestroy(stop));
 
-  size_t flops = (((n * n * n) / 6) + ((n * n) / 2) + (n / 3)) * 6
-               + (((n * n * n) / 6) - (n / 6)) * 2;
-  fprintf(stdout, "%.3es %.3gGFlops/s Error: %.3e + %.3ei\n%sED!\n", time * 1.e-3f,
-          ((float)flops * 1.e-6f) / time, rdiff, idiff, (passed) ? "PASS" : "FAIL");
+  size_t flops = (((n * n * n) / 6) + ((n * n) / 2) + (n / 3)) * 6 +
+                 (((n * n * n) / 6) - (n / 6)) * 2;
+
+  fprintf(stdout, "%.3es %.3gGFlops/s Error: %.3e + %.3ei\n%sED!\n", time,
+          ((double)flops * 1.e-9) / time, rdiff, idiff, (passed) ? "PASS" : "FAIL");
 
   free(A);
   free(refA);

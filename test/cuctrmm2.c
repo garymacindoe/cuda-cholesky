@@ -4,7 +4,6 @@
 #include <math.h>
 #include <float.h>
 #include <complex.h>
-#include <sys/time.h>
 #include "ctrmm_ref.c"
 
 int main(int argc, char * argv[]) {
