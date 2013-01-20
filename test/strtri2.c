@@ -105,11 +105,32 @@ int main(int argc, char * argv[]) {
 
   bool passed = (info == rInfo);
   float diff = 0.0f;
-  for (size_t j = 0; j < n; j++) {
-    for (size_t i = 0; i < n; i++) {
-      float d = fabsf(B[j * ldb + i] - refB[j * ldb + i]);
-      if (d > diff)
-        diff = d;
+  if (uplo == CBlasUpper) {
+    for (size_t j = 0; j < n; j++) {
+      for (size_t i = 0; i < j; i++) {
+        float d = fabsf(B[j * ldb + i] - refB[j * ldb + i]);
+        if (d > diff)
+          diff = d;
+      }
+      if (diag == CBlasNonUnit) {
+        float d = fabsf(B[j * ldb + j] - refB[j * ldb + j]);
+        if (d > diff)
+          diff = d;
+      }
+    }
+  }
+  else {
+    for (size_t j = 0; j < n; j++) {
+      if (diag == CBlasNonUnit) {
+        float d = fabsf(B[j * ldb + j] - refB[j * ldb + j]);
+        if (d > diff)
+          diff = d;
+      }
+      for (size_t i = j + 1; i < n; i++) {
+        float d = fabsf(B[j * ldb + i] - refB[j * ldb + i]);
+        if (d > diff)
+          diff = d;
+      }
     }
   }
 

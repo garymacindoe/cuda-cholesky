@@ -12,7 +12,7 @@ static void strtri_ref(CBlasUplo uplo, CBlasDiag diag, size_t n, float * restric
 
   if (uplo == CBlasUpper) {
     for (size_t j = 0; j < n; j++) {
-      register float ajj;
+      float ajj;
       if (diag == CBlasNonUnit) {
         if (A[j * lda + j] == 0.0f) {
           *info = (long)j + 1;
@@ -25,21 +25,18 @@ static void strtri_ref(CBlasUplo uplo, CBlasDiag diag, size_t n, float * restric
         ajj = -1.0f;
 
       for (size_t i = 0; i < j; i++) {
-        if (A[j * lda + i] != 0.0f) {
-          register float temp = A[j * lda + i];
-          for (size_t k = 0; k < i; k++)
-            A[j * lda + k] += temp * A[i * lda + k];
-          if (diag == CBlasNonUnit) A[j * lda + i] *= A[i * lda + i];
-        }
+        float temp = A[j * lda + i];
+        if (diag == CBlasNonUnit) temp *= A[i * lda + i];
+        for (size_t k = i + 1; k < j; k++)
+          temp += A[k * lda + i] * A[j * lda + k];
+        A[j * lda + i] = temp * ajj;
       }
-      for (size_t i = 0; i < j; i++)
-        A[j * lda + i] *= ajj;
     }
   }
   else {
     size_t j = n - 1;
     do {
-      register float ajj;
+      float ajj;
       if (diag == CBlasNonUnit) {
         if (A[j * lda + j] == 0.0f) {
           *info = (long)j + 1;
@@ -51,19 +48,14 @@ static void strtri_ref(CBlasUplo uplo, CBlasDiag diag, size_t n, float * restric
       else
         ajj = -1.0f;
 
-      if (j < n - 1) {
-        size_t i = n - 1;
-        do {
-          if (A[j * lda + i] != 0.0f) {
-            register float temp = A[j * lda + i];
-            if (diag == CBlasNonUnit) A[j * lda + i] *= A[i * lda + i];
-            for (size_t k = i + 1; k < n; k++)
-              A[j * lda + k] += temp * A[i * lda + k];
-          }
-        } while (i-- > j + 1);
-        for (size_t i = j + 1; i < n; i++)
-          A[j * lda + i] *= ajj;
-      }
+      size_t i = n - 1;
+      do {
+        float temp = A[j * lda + i];
+        if (diag == CBlasNonUnit) temp *= A[i * lda + i];
+        for (size_t k = j + 1; k < i; k++)
+          temp += A[k * lda + i] * A[j * lda + k];
+        A[j * lda + i] = temp * ajj;
+      } while (i-- > j);
     } while (j-- > 0);
   }
 }

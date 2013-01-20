@@ -12,68 +12,55 @@ static void spotri_ref(CBlasUplo uplo, size_t n, float * restrict A, size_t lda,
 
   if (uplo == CBlasUpper) {
     for (size_t j = 0; j < n; j++) {
-      register float ajj = -1.0f;
+      if (A[j * lda + j] == 0.0f) {
+        *info = (long)j + 1;
+        return;
+      }
+      A[j * lda + j] = 1.0f / A[j * lda + j];
+      float ajj = -A[j * lda + j];
 
       for (size_t i = 0; i < j; i++) {
-        if (A[j * lda + i] != 0.0f) {
-          register float temp = A[j * lda + i];
-          for (size_t k = 0; k < i; k++)
-            A[j * lda + k] += temp * A[i * lda + k];
-          A[j * lda + i] *= A[i * lda + i];
-        }
+        float temp = A[j * lda + i] * A[i * lda + i];
+        for (size_t k = i + 1; k < j; k++)
+          temp += A[k * lda + i] * A[j * lda + k];
+        A[j * lda + i] = temp * ajj;
       }
-      for (size_t i = 0; i < j; i++)
-        A[j * lda + i] *= ajj;
     }
-    for (size_t i = 0; i < n; i++) {
-      register float aii = A[i * lda + i];
-      register float temp = 0.0f;
-      for (size_t k = i; k < n; k++)
-        temp += A[k * lda + i] * A[k * lda + i];
-      A[i * lda + i] = temp;
 
-      for (size_t k = 0; k < i; k++)
-        A[i * lda + k] *= aii;
-      for (size_t j = i + 1; j < n; j++) {
-        register float temp = A[j * lda + i];
-        for (size_t k = 0; k < i; k++)
-          A[i * lda + k] += temp * A[j * lda + k];
+    for (size_t j = 0; j < n; j++) {
+      float ajj = A[j * lda + j];
+      for (size_t i = 0; i <= j; i++) {
+        A[j * lda + i] *= ajj;
+        for (size_t k = j + 1; k < n; k++)
+          A[j * lda + i] += A[k * lda + i] * A[k * lda + j];
       }
     }
   }
   else {
     size_t j = n - 1;
     do {
-      register float ajj = -1.0f;
-
-      if (j < n - 1) {
-        size_t i = n - 1;
-        do {
-          if (A[j * lda + i] != 0.0f) {
-            register float temp = A[j * lda + i];
-            A[j * lda + i] *= A[i * lda + i];
-            for (size_t k = i + 1; k < n; k++)
-              A[j * lda + k] += temp * A[i * lda + k];
-          }
-        } while (i-- > j + 1);
-        for (size_t i = j + 1; i < n; i++)
-          A[j * lda + i] *= ajj;
+      if (A[j * lda + j] == 0.0f) {
+        *info = (long)j + 1;
+        return;
       }
-    } while (j-- > 0);
-    for (size_t i = 0; i < n; i++) {
-      register float aii = A[i * lda + i];
-      register float temp = 0.0f;
-      for (size_t k = i; k < n; k++)
-        temp += A[i * lda + k] * A[i * lda + k];
-      A[i * lda + i] = temp;
+      A[j * lda + j] = 1.0f / A[j * lda + j];
+      float ajj = -A[j * lda + j];
 
-      for (size_t k = 0; k < i; k++)
-        A[k * lda + i] *= aii;
-      for (size_t k = 0; k < i; k++) {
-        register float temp = 0.0f;
-        for (size_t j = i + 1; j < n; j++)
-          temp += A[k * lda + j] * A[i * lda + j];
-        A[k * lda + i] += temp;
+      size_t i = n - 1;
+      do {
+        float temp = A[j * lda + i] * A[i * lda + i];
+        for (size_t k = j + 1; k < i; k++)
+          temp += A[k * lda + i] * A[j * lda + k];
+        A[j * lda + i] = temp * ajj;
+      } while (i-- > j);
+    } while (j-- > 0);
+
+    for (size_t i = 0; i < n; i++) {
+      float aii = A[i * lda + i];
+      for (size_t j = 0; j <= i; j++) {
+        A[j * lda + i] *= aii;
+        for (size_t k = i + 1; k < n; k++)
+          A[j * lda + i] += A[i * lda + k] * A[j * lda + k];
       }
     }
   }

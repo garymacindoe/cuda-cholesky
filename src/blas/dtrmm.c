@@ -29,6 +29,168 @@ static inline CUresult cuMemcpyDtoH2DAsync(void * A, size_t lda, size_t ai, size
 static const double zero = 0.0;
 static const double one = 1.0;
 
+void dtrmm(CBlasSide side, CBlasUplo uplo, CBlasTranspose trans, CBlasDiag diag,
+           size_t m, size_t n,
+           double alpha, const double * restrict A, size_t lda,
+           double * restrict B, size_t ldb) {
+  const size_t nRowA = (side == CBlasLeft) ? m : n;
+
+  int info = 0;
+  if (lda < nRowA)
+    info = 9;
+  else if (ldb < m)
+    info = 11;
+  if (info != 0) {
+    XERBLA(info);
+    return;
+  }
+
+  if (m == 0 || n == 0)
+    return;
+
+  if (alpha == zero) {
+#pragma omp parallel for
+    for (size_t j = 0; j < n; j++) {
+      for (size_t i = 0; i < m; i++)
+        B[j * ldb + i] = zero;
+    }
+    return;
+  }
+
+  if (side == CBlasLeft) {
+    if (trans == CBlasNoTrans) {
+      if (uplo == CBlasUpper) {
+#pragma omp parallel for
+        for (size_t j = 0; j < n; j++) {
+          for (size_t k = 0; k < m; k++) {
+            if (B[j * ldb + k] != zero) {
+              register double temp = alpha * B[j * ldb + k];
+              for (size_t i = 0; i < k; i++)
+                B[j * ldb + i] += temp * A[k * lda + i];
+              if (diag == CBlasNonUnit) temp *= A[k * lda + k];
+              B[j * ldb + k] = temp;
+            }
+          }
+        }
+      }
+      else {
+#pragma omp parallel for
+        for (size_t j = 0; j < n; j++) {
+          size_t k = m - 1;
+          do {
+            if (B[j * ldb + k] != zero) {
+              register double temp = alpha * B[j * ldb + k];
+              B[j * ldb + k] = temp;
+              if (diag == CBlasNonUnit) B[j * ldb + k] *= A[k * lda + k];
+              for (size_t i = k + 1; i < m; i++)
+                B[j * ldb + i] += temp * A[k * lda + i];
+            }
+          } while (k-- > 0);
+        }
+      }
+    }
+    else {
+      if (uplo == CBlasUpper) {
+#pragma omp parallel for
+        for (size_t j = 0; j < n; j++) {
+          size_t i = m - 1;
+          do {
+            register double temp = B[j * ldb + i];
+            if (diag == CBlasNonUnit) temp *= A[i * lda + i];
+            for (size_t k = 0; k < i; k++)
+              temp += A[i * lda + k] * B[j * ldb + k];
+            B[j * ldb + i] = alpha * temp;
+          } while (i-- > 0);
+        }
+      }
+      else {
+#pragma omp parallel for
+        for (size_t j = 0; j < n; j++) {
+          for (size_t i = 0; i < m; i++) {
+            register double temp = B[j * ldb + i];
+            if (diag == CBlasNonUnit) temp *= A[i * lda + i];
+            for (size_t k = i + 1; k < m; k++)
+              temp += A[i * lda + k] * B[j * ldb + k];
+            B[j * ldb + i] = alpha * temp;
+          }
+        }
+      }
+    }
+  }
+  else {
+    if (trans == CBlasNoTrans) {
+      if (uplo == CBlasUpper) {
+        size_t j = n - 1;
+        do {
+          register double temp = alpha;
+          if (diag == CBlasNonUnit) temp *= A[j * lda + j];
+          for (size_t i = 0; i < m; i++)
+            B[j * ldb + i] *= temp;
+          for (size_t k = 0; k < j; k++) {
+            if (A[j * lda + k] != zero) {
+              register double temp = alpha * A[j * lda + k];
+              for (size_t i = 0; i < m; i++)
+                B[j * ldb + i] += temp * B[k * ldb + i];
+            }
+          }
+        } while (j-- > 0);
+      }
+      else {
+        for (size_t j = 0; j < n; j++) {
+          register double temp = alpha;
+          if (diag == CBlasNonUnit) temp *= A[j * lda + j];
+          for (size_t i = 0; i < m; i++)
+            B[j * ldb + i] *= temp;
+          for (size_t k = j + 1; k < n; k++) {
+            if (A[j * lda + k] != zero) {
+              register double temp = alpha * A[j * lda + k];
+              for (size_t i = 0; i < m; i++)
+                B[j * ldb + i] += temp * B[k * ldb + i];
+            }
+          }
+        }
+      }
+    }
+    else {
+      if (uplo == CBlasUpper) {
+        for (size_t k = 0; k < n; k++) {
+          for (size_t j = 0; j < k; j++) {
+            if (A[k * lda + j] != zero) {
+              register double temp = alpha * A[k * lda + j];
+              for (size_t i = 0; i < m; i++)
+                B[j * ldb + i] += temp * B[k * ldb + i];
+            }
+          }
+          register double temp = alpha;
+          if (diag == CBlasNonUnit) temp *= A[k * lda + k];
+          if (temp != one) {
+            for (size_t i = 0; i < m; i++)
+              B[k * ldb + i] = temp * B[k * ldb + i];
+          }
+        }
+      }
+      else {
+        size_t k = n - 1;
+        do {
+          for (size_t j = k + 1; j < n; j++) {
+            if (A[k * lda + j] != zero) {
+              register double temp = alpha * A[k * lda + j];
+              for (size_t i = 0; i < m; i++)
+                B[j * ldb + i] += temp * B[k * ldb + i];
+            }
+          }
+          register double temp = alpha;
+          if (diag == CBlasNonUnit) temp *= A[k * lda + k];
+          if (temp != one) {
+            for (size_t i = 0; i < m; i++)
+              B[k * ldb + i] = temp * B[k * ldb + i];
+          }
+        } while (k-- > 0);
+      }
+    }
+  }
+}
+
 void dtrmm2(CBlasSide side, CBlasUplo uplo, CBlasTranspose trans, CBlasDiag diag,
             size_t m, size_t n,
             double alpha, const double * restrict A, size_t lda,

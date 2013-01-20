@@ -87,17 +87,25 @@ void zgemm(CBlasTranspose, CBlasTranspose,
            double complex, double complex * restrict, size_t);
 
 // In-place single precision triangular matrix multiply
-#define strmm(side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb) \
-        strmm2(side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb, B, ldb)
+void strmm(CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
+           size_t, size_t,
+           float, const float * restrict, size_t,
+           float * restrict, size_t);
 // In-place double precision triangular matrix multiply
-#define dtrmm(side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb) \
-        dtrmm2(side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb, B, ldb)
+void dtrmm(CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
+           size_t, size_t,
+           double, const double * restrict, size_t,
+           double * restrict, size_t);
 // In-place single precision complex triangular matrix multiply
-#define ctrmm(side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb) \
-        ctrmm2(side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb, B, ldb)
+void ctrmm(CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
+           size_t, size_t,
+           float complex, const float complex * restrict, size_t,
+           float complex * restrict, size_t);
 // In-place double precision complex triangular matrix multiply
-#define ztrmm(side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb) \
-       ztrmm2(side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb, B, ldb)
+void ztrmm(CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
+           size_t, size_t,
+           double complex, const double complex * restrict, size_t,
+           double complex * restrict, size_t);
 
 // Out of place single precision triangular matrix multiply
 void strmm2(CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,

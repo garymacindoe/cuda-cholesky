@@ -8,8 +8,6 @@
 #include <sys/time.h>
 #include "spotri_ref.c"
 
-extern void spotri_(const char *, const int *, float *, const int *, int *);
-
 int main(int argc, char * argv[]) {
   CBlasUplo uplo;
   size_t n;
@@ -84,8 +82,7 @@ int main(int argc, char * argv[]) {
     memcpy(&refA[j * lda], &A[j * lda], n * sizeof(float));
 
   spotri_ref(uplo, n, refA, lda, &rInfo);
-  spotri_((const char *)&uplo, (const int *)&n, A, (const int *)&lda, (int *)&info);
-//   spotri(uplo, n, A, lda, &info);
+  spotri(uplo, n, A, lda, &info);
 
   bool passed = (info == rInfo);
   float diff = 0.0f;
@@ -110,8 +107,7 @@ int main(int argc, char * argv[]) {
     return -4;
   }
   for (size_t i = 0; i < 20; i++)
-    spotri_((const char *)&uplo, (const int *)&n, A, (const int *)&lda, (int *)&info);
-//     spotri(uplo, n, A, lda, &info);
+    spotri(uplo, n, A, lda, &info);
   if (gettimeofday(&stop, NULL) != 0) {
     fprintf(stderr, "gettimeofday failed at %s:%d\n", __FILE__, __LINE__);
     return -5;

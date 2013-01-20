@@ -24,13 +24,13 @@ void cpotrf(CBlasUplo, size_t,  float complex * restrict, size_t, long * restric
 void zpotrf(CBlasUplo, size_t, double complex * restrict, size_t, long * restrict);
 
 // In-place single precision triangular inverse from Cholesky decomposition
-#define strtri(uplo, diag, n, A, lda, info) strtri2(uplo, diag, n, A, lda, A, lda, info)
+void strtri(CBlasUplo, CBlasDiag, size_t,  float * restrict, size_t, long * restrict);
 // In-place double precision triangular inverse from Cholesky decomposition
-#define dtrtri(uplo, diag, n, A, lda, info) dtrtri2(uplo, diag, n, A, lda, A, lda, info)
+void dtrtri(CBlasUplo, CBlasDiag, size_t, double * restrict, size_t, long * restrict);
 // In-place single precision complex triangular inverse from Cholesky decomposition
-#define ctrtri(uplo, diag, n, A, lda, info) ctrtri2(uplo, diag, n, A, lda, A, lda, info)
+void ctrtri(CBlasUplo, CBlasDiag, size_t,  float complex * restrict, size_t, long * restrict);
 // In-place double precision complex triangular inverse from Cholesky decomposition
-#define ztrtri(uplo, diag, n, A, lda, info) ztrtri2(uplo, diag, n, A, lda, A, lda, info)
+void ztrtri(CBlasUplo, CBlasDiag, size_t, double complex * restrict, size_t, long * restrict);
 
 // Out of place single precision triangular inverse from Cholesky decomposition
 void strtri2(CBlasUplo, CBlasDiag, size_t, const  float * restrict, size_t,  float * restrict, size_t, long * restrict);

@@ -29,46 +29,6 @@ static inline CUresult cuMemcpyDtoH2DAsync(void * A, size_t lda, size_t ai, size
 static const float zero = 0.0f;
 static const float one = 1.0f;
 
-static inline void slauu2(CBlasUplo uplo,
-                          size_t n,
-                          float * restrict A, size_t lda) {
-  if (uplo == CBlasUpper) {
-    for (size_t i = 0; i < n; i++) {
-      register float aii = A[i * lda + i];
-      register float temp = zero;
-      for (size_t k = i; k < n; k++)
-        temp += A[k * lda + i] * A[k * lda + i];
-      A[i * lda + i] = temp;
-
-      for (size_t k = 0; k < i; k++)
-        A[i * lda + k] *= aii;
-      for (size_t j = i + 1; j < n; j++) {
-        register float temp = A[j * lda + i];
-        for (size_t k = 0; k < i; k++)
-          A[i * lda + k] += temp * A[j * lda + k];
-      }
-    }
-  }
-  else {
-    for (size_t i = 0; i < n; i++) {
-      register float aii = A[i * lda + i];
-      register float temp = zero;
-      for (size_t k = i; k < n; k++)
-        temp += A[i * lda + k] * A[i * lda + k];
-      A[i * lda + i] = temp;
-
-      for (size_t k = 0; k < i; k++)
-        A[k * lda + i] *= aii;
-      for (size_t k = 0; k < i; k++) {
-        register float temp = zero;
-        for (size_t j = i + 1; j < n; j++)
-          temp += A[k * lda + j] * A[i * lda + j];
-        A[k * lda + i] += temp;
-      }
-    }
-  }
-}
-
 void spotri(CBlasUplo uplo,
             size_t n,
             float * restrict A, size_t lda,
@@ -84,49 +44,62 @@ void spotri(CBlasUplo uplo,
   if (n == 0)
     return;
 
-  strtri(uplo, CBlasNonUnit, n, A, lda, info);
-
-  if (*info > 0)
-    return;
-
-  const size_t nb = 64;
-
-  if (n < nb) {
-    slauu2(uplo, n, A, lda);
-    return;
-  }
-
   if (uplo == CBlasUpper) {
-    for (size_t i = 0; i < n; i += nb) {
-      const size_t ib = min(nb, n - i);
+    for (size_t j = 0; j < n; j++) {
+      if (A[j * lda + j] == 0.0f) {
+        *info = (long)j + 1;
+        return;
+      }
+      A[j * lda + j] = 1.0f / A[j * lda + j];
+      register float ajj = -A[j * lda + j];
 
-      strmm(CBlasRight, CBlasUpper, CBlasTrans, CBlasNonUnit, i, ib,
-            one, &A[i * lda + i], lda, &A[i * lda], lda);
-      slauu2(CBlasUpper, ib, &A[i * lda + i], lda);
+      for (size_t k = 0; k < j; k++) {
+        register float temp = A[j * lda + k];
+        A[j * lda + k] *= A[k * lda + k];
+        for (size_t i = 0; i < k; i++)
+          A[j * lda + i] += temp * A[k * lda + i];
+      }
+      for (size_t i = 0; i < j; i++)
+        A[j * lda + i] *= ajj;
+    }
 
-      if (i + ib < n) {
-        sgemm(CBlasNoTrans, CBlasTrans, i, ib, n - i - ib,
-              one, &A[(i + ib) * lda], lda, &A[(i + ib) * lda + i], lda,
-              one, &A[i * lda], lda);
-        ssyrk(CBlasUpper, CBlasNoTrans, ib, n - i - ib,
-              one, &A[(i + ib) * lda + i], lda, one, &A[i * lda + i], lda);
+    for (size_t j = 0; j < n; j++) {
+      register float ajj = A[j * lda + j];
+      for (size_t i = 0; i <= j; i++)
+        A[j * lda + i] *= ajj;
+      for (size_t k = j + 1; k < n; k++) {
+        register float temp = A[k * lda + j];
+        for (size_t i = 0; i <= j; i++)
+          A[j * lda + i] += temp * A[k * lda + i];
       }
     }
   }
   else {
-    for (size_t i = 0; i < n; i += nb) {
-      const size_t ib = min(nb, n - i);
+    size_t j = n - 1;
+    do {
+      if (A[j * lda + j] == 0.0f) {
+        *info = (long)j + 1;
+        return;
+      }
+      A[j * lda + j] = 1.0f / A[j * lda + j];
+      float ajj = -A[j * lda + j];
 
-      strmm(CBlasLeft, CBlasLower, CBlasTrans, CBlasNonUnit, ib, i,
-            one, &A[i * lda + i], lda, &A[i], lda);
-      slauu2(CBlasLower, ib, &A[i * lda + i], lda);
+      size_t i = n - 1;
+      do {
+        register float temp = A[j * lda + i];
+        A[j * lda + i] *= A[i * lda + i];
+        for (size_t k = i + 1; k < n; k++)
+          A[j * lda + k] += temp * A[i * lda + k];
+      } while (i-- > j);
+      for (size_t i = j + 1; i < n; i++)
+        A[j * lda + i] *= ajj;
+    } while (j-- > 0);
 
-      if (i + ib < n) {
-        sgemm(CBlasTrans, CBlasNoTrans, ib, i, n - i - ib,
-              one, &A[i * lda + i + ib], lda, &A[i + ib], lda,
-              one, &A[i], lda);
-        ssyrk(CBlasLower, CBlasTrans, ib, n - i - ib,
-              one, &A[i * lda + i + ib], lda, one, &A[i * lda + i], lda);
+    for (size_t j = 0; j < n; j++) {
+      for (size_t i = j; i < n; i++) {
+        A[j * lda + i] *= A[i * lda + i];
+        for (size_t k = i + 1; k < n; k++)
+          A[j * lda + i] += A[i * lda + k] * A[j * lda + k];
       }
     }
   }

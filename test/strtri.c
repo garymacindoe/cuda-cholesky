@@ -8,8 +8,6 @@
 #include <sys/time.h>
 #include "strtri_ref.c"
 
-extern void strtri_(const char *, const char *, const int *, float *, const int *, int *);
-
 int main(int argc, char * argv[]) {
   CBlasUplo uplo;
   CBlasDiag diag;
@@ -97,8 +95,7 @@ int main(int argc, char * argv[]) {
     memcpy(&refA[j * lda], &A[j * lda], n * sizeof(float));
 
   strtri_ref(uplo, diag, n, refA, lda, &rInfo);
-  strtri_((const char *)&uplo, (const char *)&diag, (const int *)&n, A, (const int *)&lda, (int *)&info);
-//   strtri(uplo, diag, n, A, lda, &info);
+  strtri(uplo, diag, n, A, lda, &info);
 
   bool passed = (info == rInfo);
   float diff = 0.0f;
@@ -123,8 +120,7 @@ int main(int argc, char * argv[]) {
     return -4;
   }
   for (size_t i = 0; i < 20; i++)
-    strtri_((const char *)&uplo, (const char *)&diag, (const int *)&n, A, (const int *)&lda, (int *)&info);
-//     strtri(uplo, diag, n, A, lda, &info);
+    strtri(uplo, diag, n, A, lda, &info);
   if (gettimeofday(&stop, NULL) != 0) {
     fprintf(stderr, "gettimeofday failed at %s:%d\n", __FILE__, __LINE__);
     return -5;
