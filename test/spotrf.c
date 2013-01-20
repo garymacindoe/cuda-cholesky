@@ -7,6 +7,8 @@
 #include <sys/time.h>
 #include "spotrf_ref.c"
 
+extern void spotrf_(const char *, const int *, float *, const int *, int *);
+
 int main(int argc, char * argv[]) {
   CBlasUplo uplo;
   size_t n;
@@ -14,8 +16,8 @@ int main(int argc, char * argv[]) {
   if (argc != 3) {
     fprintf(stderr, "Usage: %s <uplo> <n>\n"
                     "where:\n"
-                    "  uplo is 'u' or 'U' for CBlasUpper or 'l' or 'L' for CBlasLower\n"
-                    "  n                  is the size of the matrix\n", argv[0]);
+                    "  uplo  is 'u' or 'U' for CBlasUpper or 'l' or 'L' for CBlasLower\n"
+                    "  n     is the size of the matrix\n", argv[0]);
     return 1;
   }
 
@@ -72,7 +74,8 @@ int main(int argc, char * argv[]) {
   free(C);
 
   spotrf_ref(uplo, n, refA, lda, &rInfo);
-  spotrf(uplo, n, A, lda, &info);
+  spotrf_((const char *)&uplo, (const int *)&n, A, (const int *)&lda, (int *)&info);
+//   spotrf(uplo, n, A, lda, &info);
 
   bool passed = (info == rInfo);
   float diff = 0.0f;
@@ -98,7 +101,8 @@ int main(int argc, char * argv[]) {
     return -4;
   }
   for (size_t i = 0; i < 20; i++)
-    spotrf(uplo, n, A, lda, &info);
+    spotrf_((const char *)&uplo, (const int *)&n, A, (const int *)&lda, (int *)&info);
+//     spotrf(uplo, n, A, lda, &info);
   if (gettimeofday(&stop, NULL) != 0) {
     fprintf(stderr, "gettimeofday failed at %s:%d\n", __FILE__, __LINE__);
     return -5;

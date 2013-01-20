@@ -81,10 +81,10 @@ distclean: clean
 	      cumultigpudgemm cumultigpudsyrk cumultigpudtrmm cumultigpudtrsm \
 	      cumultigpusgemm cumultigpussyrk cumultigpustrmm cumultigpustrsm \
 	      cumultigpuzgemm cumultigpuzherk cumultigpuztrmm cumultigpuztrsm
-	$(RM) cpotrf ctrtri \
-	      dpotrf dtrtri \
-	      spotrf strtri \
-	      zpotrf ztrtri
+	$(RM) cpotrf cpotri ctrtri ctrtri2 \
+	      dpotrf dpotri dtrtri dtrtri2 \
+	      spotrf spotri strtri strtri2 \
+	      zpotrf zpotri ztrtri ztrtri2
 	$(RM) cgemm.fatbin cherk.fatbin ctrmm.fatbin ctrsm.fatbin \
 	      dgemm.fatbin dsyrk.fatbin dtrmm.fatbin dtrsm.fatbin \
 	      sgemm.fatbin ssyrk.fatbin strmm.fatbin strsm.fatbin \
@@ -218,40 +218,40 @@ cumultigpuztrmm: $(OBJDIR)/test/cumultigpuztrmm.o $(OBJDIR)/src/blas/ztrmm.o $(O
 cumultigpuztrsm: $(OBJDIR)/test/cumultigpuztrsm.o $(OBJDIR)/src/blas/ztrsm.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/handle.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/error.o | sgemm.fatbin dgemm.fatbin cgemm.fatbin zgemm.fatbin
 	$(CC) $(^) -o $(@) $(LDFLAGS) $(LOADLIBES) $(LDLIBS)
 
-cpotrf: $(OBJDIR)/test/cpotrf.o $(OBJDIR)/src/lapack/cpotrf.o $(OBJDIR)/src/blas/cherk.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/src/blas/ctrsm.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/handle.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/error.o
+cpotrf:  $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/handle.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/src/blas/cherk.o $(OBJDIR)/src/blas/ctrsm.o $(OBJDIR)/src/lapack/cpotrf.o $(OBJDIR)/test/cpotrf.o
+	$(CC) $(^) -o $(@) $(LDFLAGS) $(LOADLIBES) $(LDLIBS)
+cpotri:  $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/handle.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/src/blas/cherk.o $(OBJDIR)/src/blas/ctrmm.o $(OBJDIR)/src/blas/ctrsm.o $(OBJDIR)/src/lapack/cpotrf.o $(OBJDIR)/src/lapack/cpotri.o $(OBJDIR)/src/lapack/ctrtri.o $(OBJDIR)/test/cpotri.o
+	$(CC) $(^) -o $(@) $(LDFLAGS) $(LOADLIBES) $(LDLIBS)
+ctrtri:  $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/handle.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/src/blas/cherk.o $(OBJDIR)/src/blas/ctrmm.o $(OBJDIR)/src/blas/ctrsm.o $(OBJDIR)/src/lapack/cpotrf.o $(OBJDIR)/src/lapack/ctrtri.o $(OBJDIR)/test/ctrtri.o
+	$(CC) $(^) -o $(@) $(LDFLAGS) $(LOADLIBES) $(LDLIBS)
+ctrtri2: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/handle.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/src/blas/cherk.o $(OBJDIR)/src/blas/ctrmm.o $(OBJDIR)/src/blas/ctrsm.o $(OBJDIR)/src/lapack/cpotrf.o $(OBJDIR)/src/lapack/ctrtri.o $(OBJDIR)/test/ctrtri2.o
 	$(CC) $(^) -o $(@) $(LDFLAGS) $(LOADLIBES) $(LDLIBS)
 
-dpotrf: $(OBJDIR)/test/dpotrf.o $(OBJDIR)/src/lapack/dpotrf.o $(OBJDIR)/src/blas/dsyrk.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/src/blas/dtrsm.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/handle.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/error.o
+dpotrf:  $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/handle.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/src/blas/dsyrk.o $(OBJDIR)/src/blas/dtrsm.o $(OBJDIR)/src/lapack/dpotrf.o $(OBJDIR)/test/dpotrf.o
+	$(CC) $(^) -o $(@) $(LDFLAGS) $(LOADLIBES) $(LDLIBS)
+dpotri:  $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/handle.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/src/blas/dsyrk.o $(OBJDIR)/src/blas/dtrmm.o $(OBJDIR)/src/blas/dtrsm.o $(OBJDIR)/src/lapack/dpotrf.o $(OBJDIR)/src/lapack/dpotri.o $(OBJDIR)/src/lapack/dtrtri.o $(OBJDIR)/test/dpotri.o
+	$(CC) $(^) -o $(@) $(LDFLAGS) $(LOADLIBES) $(LDLIBS)
+dtrtri:  $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/handle.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/src/blas/dsyrk.o $(OBJDIR)/src/blas/dtrmm.o $(OBJDIR)/src/blas/dtrsm.o $(OBJDIR)/src/lapack/dpotrf.o $(OBJDIR)/src/lapack/dtrtri.o $(OBJDIR)/test/dtrtri.o
+	$(CC) $(^) -o $(@) $(LDFLAGS) $(LOADLIBES) $(LDLIBS)
+dtrtri2: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/handle.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/src/blas/dsyrk.o $(OBJDIR)/src/blas/dtrmm.o $(OBJDIR)/src/blas/dtrsm.o $(OBJDIR)/src/lapack/dpotrf.o $(OBJDIR)/src/lapack/dtrtri.o $(OBJDIR)/test/dtrtri2.o
 	$(CC) $(^) -o $(@) $(LDFLAGS) $(LOADLIBES) $(LDLIBS)
 
-spotrf: $(OBJDIR)/test/spotrf.o $(OBJDIR)/src/lapack/spotrf.o $(OBJDIR)/src/blas/ssyrk.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/src/blas/strsm.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/handle.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/error.o
+spotrf:  $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/handle.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/src/blas/ssyrk.o $(OBJDIR)/src/blas/strsm.o $(OBJDIR)/src/lapack/spotrf.o $(OBJDIR)/test/spotrf.o
+	$(CC) $(^) -o $(@) $(LDFLAGS) $(LOADLIBES) $(LDLIBS)
+spotri:  $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/handle.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/src/blas/ssyrk.o $(OBJDIR)/src/blas/strmm.o $(OBJDIR)/src/blas/strsm.o $(OBJDIR)/src/lapack/spotrf.o $(OBJDIR)/src/lapack/spotri.o $(OBJDIR)/src/lapack/strtri.o $(OBJDIR)/test/spotri.o
+	$(CC) $(^) -o $(@) $(LDFLAGS) $(LOADLIBES) $(LDLIBS)
+strtri:  $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/handle.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/src/blas/ssyrk.o $(OBJDIR)/src/blas/strmm.o $(OBJDIR)/src/blas/strsm.o $(OBJDIR)/src/lapack/spotrf.o $(OBJDIR)/src/lapack/strtri.o $(OBJDIR)/test/strtri.o
+	$(CC) $(^) -o $(@) $(LDFLAGS) $(LOADLIBES) $(LDLIBS)
+strtri2: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/handle.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/src/blas/ssyrk.o $(OBJDIR)/src/blas/strmm.o $(OBJDIR)/src/blas/strsm.o $(OBJDIR)/src/lapack/spotrf.o $(OBJDIR)/src/lapack/strtri.o $(OBJDIR)/test/strtri2.o
 	$(CC) $(^) -o $(@) $(LDFLAGS) $(LOADLIBES) $(LDLIBS)
 
-zpotrf: $(OBJDIR)/test/zpotrf.o $(OBJDIR)/src/lapack/zpotrf.o $(OBJDIR)/src/blas/zherk.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/blas/ztrsm.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/handle.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/error.o
+zpotrf:  $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/handle.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/blas/zherk.o $(OBJDIR)/src/blas/ztrsm.o $(OBJDIR)/src/lapack/zpotrf.o $(OBJDIR)/test/zpotrf.o
 	$(CC) $(^) -o $(@) $(LDFLAGS) $(LOADLIBES) $(LDLIBS)
-
-ctrtri: $(OBJDIR)/test/ctrtri.o $(OBJDIR)/src/lapack/ctrtri.o $(OBJDIR)/src/lapack/cpotrf.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/src/blas/cherk.o $(OBJDIR)/src/blas/ctrmm.o $(OBJDIR)/src/blas/ctrsm.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/handle.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/error.o
+zpotri:  $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/handle.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/blas/zherk.o $(OBJDIR)/src/blas/ztrmm.o $(OBJDIR)/src/blas/ztrsm.o $(OBJDIR)/src/lapack/zpotrf.o $(OBJDIR)/src/lapack/zpotri.o $(OBJDIR)/src/lapack/ztrtri.o $(OBJDIR)/test/zpotri.o
 	$(CC) $(^) -o $(@) $(LDFLAGS) $(LOADLIBES) $(LDLIBS)
-
-dtrtri: $(OBJDIR)/test/dtrtri.o $(OBJDIR)/src/lapack/dtrtri.o $(OBJDIR)/src/lapack/dpotrf.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/src/blas/dsyrk.o $(OBJDIR)/src/blas/dtrmm.o $(OBJDIR)/src/blas/dtrsm.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/handle.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/error.o
+ztrtri:  $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/handle.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/blas/zherk.o $(OBJDIR)/src/blas/ztrmm.o $(OBJDIR)/src/blas/ztrsm.o $(OBJDIR)/src/lapack/zpotrf.o $(OBJDIR)/src/lapack/ztrtri.o $(OBJDIR)/test/ztrtri.o
 	$(CC) $(^) -o $(@) $(LDFLAGS) $(LOADLIBES) $(LDLIBS)
-
-strtri: $(OBJDIR)/test/strtri.o $(OBJDIR)/src/lapack/strtri.o $(OBJDIR)/src/lapack/spotrf.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/src/blas/ssyrk.o $(OBJDIR)/src/blas/strmm.o $(OBJDIR)/src/blas/strsm.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/handle.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/error.o
-	$(CC) $(^) -o $(@) $(LDFLAGS) $(LOADLIBES) $(LDLIBS)
-
-ztrtri: $(OBJDIR)/test/ztrtri.o $(OBJDIR)/src/lapack/ztrtri.o $(OBJDIR)/src/lapack/zpotrf.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/blas/zherk.o $(OBJDIR)/src/blas/ztrmm.o $(OBJDIR)/src/blas/ztrsm.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/handle.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/error.o
-	$(CC) $(^) -o $(@) $(LDFLAGS) $(LOADLIBES) $(LDLIBS)
-
-ctrtri2: $(OBJDIR)/test/ctrtri2.o $(OBJDIR)/src/lapack/ctrtri.o $(OBJDIR)/src/lapack/cpotrf.o $(OBJDIR)/src/blas/cgemm.o $(OBJDIR)/src/blas/cherk.o $(OBJDIR)/src/blas/ctrmm.o $(OBJDIR)/src/blas/ctrsm.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/handle.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/error.o
-	$(CC) $(^) -o $(@) $(LDFLAGS) $(LOADLIBES) $(LDLIBS)
-
-dtrtri2: $(OBJDIR)/test/dtrtri2.o $(OBJDIR)/src/lapack/dtrtri.o $(OBJDIR)/src/lapack/dpotrf.o $(OBJDIR)/src/blas/dgemm.o $(OBJDIR)/src/blas/dsyrk.o $(OBJDIR)/src/blas/dtrmm.o $(OBJDIR)/src/blas/dtrsm.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/handle.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/error.o
-	$(CC) $(^) -o $(@) $(LDFLAGS) $(LOADLIBES) $(LDLIBS)
-
-strtri2: $(OBJDIR)/test/strtri2.o $(OBJDIR)/src/lapack/strtri.o $(OBJDIR)/src/lapack/spotrf.o $(OBJDIR)/src/blas/sgemm.o $(OBJDIR)/src/blas/ssyrk.o $(OBJDIR)/src/blas/strmm.o $(OBJDIR)/src/blas/strsm.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/handle.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/error.o
-	$(CC) $(^) -o $(@) $(LDFLAGS) $(LOADLIBES) $(LDLIBS)
-
-ztrtri2: $(OBJDIR)/test/ztrtri2.o $(OBJDIR)/src/lapack/ztrtri.o $(OBJDIR)/src/lapack/zpotrf.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/blas/zherk.o $(OBJDIR)/src/blas/ztrmm.o $(OBJDIR)/src/blas/ztrsm.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/handle.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/error.o
+ztrtri2: $(OBJDIR)/src/error.o $(OBJDIR)/src/multigpu.o $(OBJDIR)/src/blas/handle.o $(OBJDIR)/src/blas/xerbla.o $(OBJDIR)/src/blas/zgemm.o $(OBJDIR)/src/blas/zherk.o $(OBJDIR)/src/blas/ztrmm.o $(OBJDIR)/src/blas/ztrsm.o $(OBJDIR)/src/lapack/zpotrf.o $(OBJDIR)/src/lapack/ztrtri.o $(OBJDIR)/test/ztrtri2.o
 	$(CC) $(^) -o $(@) $(LDFLAGS) $(LOADLIBES) $(LDLIBS)
 
 $(OBJDIR):
@@ -286,12 +286,16 @@ $(OBJDIR)/src/blas/ztrsm.o: blas.h cumultigpu.h error.h handle.h | $(OBJDIR)/src
 $(OBJDIR)/src/lapack: | $(OBJDIR)/src
 	$(MKDIR) $(@)
 $(OBJDIR)/src/lapack/cpotrf.o: lapack.h blas.h cumultigpu.h error.h handle.h | $(OBJDIR)/src/lapack
+$(OBJDIR)/src/lapack/cpotri.o: lapack.h blas.h cumultigpu.h error.h handle.h | $(OBJDIR)/src/lapack
 $(OBJDIR)/src/lapack/ctrtri.o: lapack.h blas.h cumultigpu.h | $(OBJDIR)/src/lapack
 $(OBJDIR)/src/lapack/dpotrf.o: lapack.h blas.h cumultigpu.h error.h handle.h | $(OBJDIR)/src/lapack
+$(OBJDIR)/src/lapack/dpotri.o: lapack.h blas.h cumultigpu.h error.h handle.h | $(OBJDIR)/src/lapack
 $(OBJDIR)/src/lapack/dtrtri.o: lapack.h blas.h cumultigpu.h | $(OBJDIR)/src/lapack
 $(OBJDIR)/src/lapack/spotrf.o: lapack.h blas.h cumultigpu.h error.h handle.h | $(OBJDIR)/src/lapack
+$(OBJDIR)/src/lapack/spotri.o: lapack.h blas.h cumultigpu.h error.h handle.h | $(OBJDIR)/src/lapack
 $(OBJDIR)/src/lapack/strtri.o: lapack.h blas.h cumultigpu.h | $(OBJDIR)/src/lapack
 $(OBJDIR)/src/lapack/zpotrf.o: lapack.h blas.h cumultigpu.h error.h handle.h | $(OBJDIR)/src/lapack
+$(OBJDIR)/src/lapack/zpotri.o: lapack.h blas.h cumultigpu.h error.h handle.h | $(OBJDIR)/src/lapack
 $(OBJDIR)/src/lapack/ztrtri.o: lapack.h blas.h cumultigpu.h | $(OBJDIR)/src/lapack
 
 cgemm.fatbin cherk.fatbin ctrmm.fatbin ctrsm.fatbin: FATBINFLAGS = -code=sm_11,sm_13 -arch=compute_11
@@ -315,10 +319,8 @@ zherk.fatbin: blas.h cumultigpu.h
 ztrmm.fatbin: blas.h cumultigpu.h
 ztrsm.fatbin: blas.h cumultigpu.h
 
-cpotrf.fatbin: FATBINFLAGS = -code=sm_11,sm_13 -arch=compute_11
-dpotrf.fatbin: FATBINFLAGS = -code=sm_13 -arch=compute_13
-spotrf.fatbin: FATBINFLAGS = -code=sm_11,sm_13 -arch=compute_11
-zpotrf.fatbin: FATBINFLAGS = -code=sm_13 -arch=compute_13
+cpotrf.fatbin spotrf.fatbin: FATBINFLAGS = -code=sm_11,sm_13 -arch=compute_11
+dpotrf.fatbin zpotrf.fatbin: FATBINFLAGS = -code=sm_13 -arch=compute_13
 cpotrf.fatbin: blas.h cumultigpu.h
 dpotrf.fatbin: blas.h cumultigpu.h
 spotrf.fatbin: blas.h cumultigpu.h
@@ -386,23 +388,10 @@ $(OBJDIR)/test/cumultigpuzherk.o: blas.h cumultigpu.h error.h test/zherk_ref.c |
 $(OBJDIR)/test/cumultigpuztrmm.o: blas.h cumultigpu.h error.h test/ztrmm_ref.c | $(OBJDIR)/test
 $(OBJDIR)/test/cumultigpuztrsm.o: blas.h cumultigpu.h error.h test/ztrsm_ref.c | $(OBJDIR)/test
 
-$(OBJDIR)/test/cpotrf.o:  lapack.h blas.h cumultigpu.h error.h test/cpotrf_ref.c | $(OBJDIR)/test
-$(OBJDIR)/test/ctrtri.o:  lapack.h blas.h cumultigpu.h error.h | $(OBJDIR)/test
-$(OBJDIR)/test/ctrtri2.o: lapack.h blas.h cumultigpu.h error.h | $(OBJDIR)/test
-$(OBJDIR)/test/dpotrf.o:  lapack.h blas.h cumultigpu.h error.h test/dpotrf_ref.c | $(OBJDIR)/test
-$(OBJDIR)/test/dtrtri.o:  lapack.h blas.h cumultigpu.h error.h | $(OBJDIR)/test
-$(OBJDIR)/test/dtrtri2.o: lapack.h blas.h cumultigpu.h error.h | $(OBJDIR)/test
-$(OBJDIR)/test/spotrf.o:  lapack.h blas.h cumultigpu.h error.h test/spotrf_ref.c | $(OBJDIR)/test
-$(OBJDIR)/test/strtri.o:  lapack.h blas.h cumultigpu.h error.h | $(OBJDIR)/test
-$(OBJDIR)/test/strtri2.o: lapack.h blas.h cumultigpu.h error.h | $(OBJDIR)/test
-$(OBJDIR)/test/zpotrf.o:  lapack.h blas.h cumultigpu.h error.h test/zpotrf_ref.c | $(OBJDIR)/test
-$(OBJDIR)/test/ztrtri.o:  lapack.h blas.h cumultigpu.h error.h | $(OBJDIR)/test
-$(OBJDIR)/test/ztrtri2.o: lapack.h blas.h cumultigpu.h error.h | $(OBJDIR)/test
-
-$(OBJDIR)/test/cucpotrf.o: lapack.h blas.h cumultigpu.h error.h test/cpotrf_ref.c | $(OBJDIR)/test
-$(OBJDIR)/test/cudpotrf.o: lapack.h blas.h cumultigpu.h error.h test/dpotrf_ref.c | $(OBJDIR)/test
-$(OBJDIR)/test/cuspotrf.o: lapack.h blas.h cumultigpu.h error.h test/spotrf_ref.c | $(OBJDIR)/test
-$(OBJDIR)/test/cuzpotrf.o: lapack.h blas.h cumultigpu.h error.h test/zpotrf_ref.c | $(OBJDIR)/test
+$(OBJDIR)/test/spotrf.o:  lapack.h blas.h cumultigpu.h test/spotrf_ref.c | $(OBJDIR)/test
+$(OBJDIR)/test/spotri.o:  lapack.h blas.h cumultigpu.h test/spotri_ref.c | $(OBJDIR)/test
+$(OBJDIR)/test/strtri.o:  lapack.h blas.h cumultigpu.h test/strtri_ref.c | $(OBJDIR)/test
+$(OBJDIR)/test/strtri2.o: lapack.h blas.h cumultigpu.h test/strtri_ref.c | $(OBJDIR)/test
 
 # $(PTXDIR):
 # 	$(MKDIR) $(@)

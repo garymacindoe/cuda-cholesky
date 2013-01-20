@@ -6,19 +6,17 @@
 #include <float.h>
 #include <math.h>
 #include <sys/time.h>
-#include "strtri_ref.c"
+#include "spotri_ref.c"
 
-extern void strtri_(const char *, const char *, const int *, float *, const int *, int *);
+extern void spotri_(const char *, const int *, float *, const int *, int *);
 
 int main(int argc, char * argv[]) {
   CBlasUplo uplo;
-  CBlasDiag diag;
   size_t n;
 
-  if (argc != 4) {
+  if (argc != 3) {
     fprintf(stderr, "Usage: %s <uplo> <diag> <n>\nwhere:\n"
                     "  uplo  is 'u' or 'U' for CBlasUpper or 'l' or 'L' for CBlasLower\n"
-                    "  diag  is 'u' or 'U' for CBlasUnit or 'n' or 'N' for CBlasNonUnit\n"
                     "  n     is the size of the matrix\n", argv[0]);
     return 1;
   }
@@ -34,20 +32,9 @@ int main(int argc, char * argv[]) {
     default: fprintf(stderr, "Unknown uplo '%c'\n", u); return 1;
   }
 
-  char d;
-  if (sscanf(argv[2], "%c", &d) != 1) {
-    fprintf(stderr, "Unable to read character from '%s'\n", argv[2]);
+  if (sscanf(argv[2], "%zu", &n) != 1) {
+    fprintf(stderr, "Unable to parse number from '%s'\n", argv[2]);
     return 2;
-  }
-  switch (d) {
-    case 'U': case 'u': diag = CBlasUnit; break;
-    case 'N': case 'n': diag = CBlasNonUnit; break;
-    default: fprintf(stderr, "Unknown uplo '%c'\n", d); return 1;
-  }
-
-  if (sscanf(argv[3], "%zu", &n) != 1) {
-    fprintf(stderr, "Unable to parse number from '%s'\n", argv[3]);
-    return 3;
   }
 
   srand(0);
@@ -96,9 +83,9 @@ int main(int argc, char * argv[]) {
   for (size_t j = 0; j < n; j++)
     memcpy(&refA[j * lda], &A[j * lda], n * sizeof(float));
 
-  strtri_ref(uplo, diag, n, refA, lda, &rInfo);
-  strtri_((const char *)&uplo, (const char *)&diag, (const int *)&n, A, (const int *)&lda, (int *)&info);
-//   strtri(uplo, diag, n, A, lda, &info);
+  spotri_ref(uplo, n, refA, lda, &rInfo);
+  spotri_((const char *)&uplo, (const int *)&n, A, (const int *)&lda, (int *)&info);
+//   spotri(uplo, n, A, lda, &info);
 
   bool passed = (info == rInfo);
   float diff = 0.0f;
@@ -123,8 +110,8 @@ int main(int argc, char * argv[]) {
     return -4;
   }
   for (size_t i = 0; i < 20; i++)
-    strtri_((const char *)&uplo, (const char *)&diag, (const int *)&n, A, (const int *)&lda, (int *)&info);
-//     strtri(uplo, diag, n, A, lda, &info);
+    spotri_((const char *)&uplo, (const int *)&n, A, (const int *)&lda, (int *)&info);
+//     spotri(uplo, n, A, lda, &info);
   if (gettimeofday(&stop, NULL) != 0) {
     fprintf(stderr, "gettimeofday failed at %s:%d\n", __FILE__, __LINE__);
     return -5;
