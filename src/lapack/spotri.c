@@ -46,11 +46,11 @@ void spotri(CBlasUplo uplo,
 
   if (uplo == CBlasUpper) {
     for (size_t j = 0; j < n; j++) {
-      if (A[j * lda + j] == 0.0f) {
+      if (A[j * lda + j] == zero) {
         *info = (long)j + 1;
         return;
       }
-      A[j * lda + j] = 1.0f / A[j * lda + j];
+      A[j * lda + j] = one / A[j * lda + j];
       register float ajj = -A[j * lda + j];
 
       for (size_t k = 0; k < j; k++) {
@@ -77,12 +77,12 @@ void spotri(CBlasUplo uplo,
   else {
     size_t j = n - 1;
     do {
-      if (A[j * lda + j] == 0.0f) {
+      if (A[j * lda + j] == zero) {
         *info = (long)j + 1;
         return;
       }
-      A[j * lda + j] = 1.0f / A[j * lda + j];
-      float ajj = -A[j * lda + j];
+      A[j * lda + j] = one / A[j * lda + j];
+      register float ajj = -A[j * lda + j];
 
       size_t i = n - 1;
       do {

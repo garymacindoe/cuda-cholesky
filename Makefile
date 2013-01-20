@@ -388,6 +388,10 @@ $(OBJDIR)/test/cumultigpuzherk.o: blas.h cumultigpu.h error.h test/zherk_ref.c |
 $(OBJDIR)/test/cumultigpuztrmm.o: blas.h cumultigpu.h error.h test/ztrmm_ref.c | $(OBJDIR)/test
 $(OBJDIR)/test/cumultigpuztrsm.o: blas.h cumultigpu.h error.h test/ztrsm_ref.c | $(OBJDIR)/test
 
+$(OBJDIR)/test/dpotrf.o:  lapack.h blas.h cumultigpu.h test/dpotrf_ref.c | $(OBJDIR)/test
+$(OBJDIR)/test/dpotri.o:  lapack.h blas.h cumultigpu.h test/dpotri_ref.c | $(OBJDIR)/test
+$(OBJDIR)/test/dtrtri.o:  lapack.h blas.h cumultigpu.h test/dtrtri_ref.c | $(OBJDIR)/test
+$(OBJDIR)/test/dtrtri2.o: lapack.h blas.h cumultigpu.h test/dtrtri_ref.c | $(OBJDIR)/test
 $(OBJDIR)/test/spotrf.o:  lapack.h blas.h cumultigpu.h test/spotrf_ref.c | $(OBJDIR)/test
 $(OBJDIR)/test/spotri.o:  lapack.h blas.h cumultigpu.h test/spotri_ref.c | $(OBJDIR)/test
 $(OBJDIR)/test/strtri.o:  lapack.h blas.h cumultigpu.h test/strtri_ref.c | $(OBJDIR)/test

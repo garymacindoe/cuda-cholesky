@@ -94,7 +94,7 @@ void dpotrf(CBlasUplo uplo,
 
   const size_t nb = (uplo == CBlasUpper) ? 16 : 32;
 
-  if (n < nb) {
+  if (nb > n) {
     dpotf2(uplo, n, A, lda, info);
     return;
   }
@@ -125,7 +125,7 @@ void dpotrf(CBlasUplo uplo,
       const size_t jb = min(nb, n - j);
 
       dsyrk(CBlasLower, CBlasNoTrans, jb, j,
-            -one, &A[j], lda, one, &A[j * lda + j], lda);
+            -one, &A[j], lda,one, &A[j * lda + j], lda);
       dpotf2(CBlasLower, jb, &A[j * lda + j], lda, info);
       if (*info != 0) {
         (*info) += (long)j;

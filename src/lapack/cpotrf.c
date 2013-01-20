@@ -255,7 +255,7 @@ CUresult cuCpotrf(CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, long * in
                              -one, A + j * sizeof(float complex), lda,
                              one, A + (j * lda + j) * sizeof(float complex), lda, stream0));
       /* Start copying diagonal block onto host asynchronously on the same
-       * stream as the SSYRK above to ensure it has finised updating the block
+       * stream as the CHERK above to ensure it has finised updating the block
        * before it is copied */
       CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(B, ldb, 0, 0, A, lda, j, j,
                                          jb, jb, sizeof(float complex), stream0));

@@ -5,11 +5,8 @@
 #include <string.h>
 #include <float.h>
 #include <math.h>
-#include <complex.h>
 #include <sys/time.h>
-
-static void ztrtri_ref(CBlasUplo, CBlasDiag, size_t, double complex * restrict, size_t, long * restrict);
-static double complex gaussian();
+#include "ztrtri_ref.c"
 
 int main(int argc, char * argv[]) {
   CBlasUplo uplo;
@@ -17,11 +14,10 @@ int main(int argc, char * argv[]) {
   size_t n;
 
   if (argc != 4) {
-    fprintf(stderr, "Usage: %s <uplo> <diag> <n>\n"
-                    "where:\n"
-                    "  uplo is 'u' or 'U' for CBlasUpper or 'l' or 'L' for CBlasLower\n"
-                    "  diag is 'u' or 'U' for CBlasUnit or 'n' or 'N' for CBlasNonUnit\n"
-                    "  n                  is the size of the matrix\n", argv[0]);
+    fprintf(stderr, "Usage: %s <uplo> <diag> <n>\nwhere:\n"
+                    "  uplo  is 'u' or 'U' for CBlasUpper or 'l' or 'L' for CBlasLower\n"
+                    "  diag  is 'u' or 'U' for CBlasUnit or 'n' or 'N' for CBlasNonUnit\n"
+                    "  n     is the size of the matrix\n", argv[0]);
     return 1;
   }
 
@@ -54,19 +50,15 @@ int main(int argc, char * argv[]) {
 
   srand(0);
 
-  double complex * A;
-  size_t lda;
-  long info;
+  double complex * A, * refA, * C;
+  size_t lda, ldc, k = 5 * n;
+  long info, rInfo;
 
   lda = n;
   if ((A = malloc(lda *  n * sizeof(double complex))) == NULL) {
     fprintf(stderr, "Unable to allocate A\n");
     return -1;
   }
-
-  double complex * C, * refA;
-  size_t ldc, k = 5 * n;
-  long rInfo;
 
   if ((refA = malloc(lda * n * sizeof(double complex))) == NULL) {
     fprintf(stderr, "Unable to allocate refA\n");
@@ -85,10 +77,10 @@ int main(int argc, char * argv[]) {
   }
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < n; i++) {
-      double complex temp = 0.0;
+      double complex temp = 0.0 + 0.0 * I;
       for (size_t l = 0; l < k; l++)
-        temp += C[i * ldc + l] * C[j * ldc + l];
-      A[j * lda + i] = temp;
+        temp += conj(C[i * ldc + l]) * C[j * ldc + l];
+      A[j * lda + i] = (0.01 + 0.01 * I) * temp;
     }
   }
   free(C);
@@ -109,12 +101,12 @@ int main(int argc, char * argv[]) {
   double rdiff = 0.0, idiff = 0.0;
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < n; i++) {
-      double r = fabs(creal(A[j * lda + i]) - creal(refA[j * lda + i]));
-      if (r > rdiff)
-        rdiff = r;
-      double c = fabs(cimag(A[j * lda + i]) - cimag(refA[j * lda + i]));
-      if (c > idiff)
-        idiff = c;
+      double d = fabs(creal(A[j * lda + i]) - creal(refA[j * lda + i]));
+      if (d > rdiff)
+        rdiff = d;
+      d = fabs(cimag(A[j * lda + i]) - cimag(refA[j * lda + i]));
+      if (d > idiff)
+        idiff = d;
     }
   }
 
@@ -122,7 +114,7 @@ int main(int argc, char * argv[]) {
   // while benchmarking do not exit early due to singularity.
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < n; i++)
-      A[j * lda + i] = (i == j) ? 1.0 : 0.0;
+      A[j * lda + i] = (i == j) ? (1.0 + 0.0 * I) : (0.0 + 0.0 * I);
   }
 
   struct timeval start, stop;
@@ -139,8 +131,7 @@ int main(int argc, char * argv[]) {
 
   double time = ((double)(stop.tv_sec - start.tv_sec) +
                  (double)(stop.tv_usec - start.tv_usec) * 1.e-6) / 20.0;
-  size_t flops = (((n * n * n) / 6) + ((n * n) / 2) + (n / 3)) * 6 +
-                 (((n * n * n) / 6) - ((n * n) / 2) + (n / 3)) * 2;
+  size_t flops = ((n * n * n) / 3) + ((2 * n) / 3);
   fprintf(stdout, "%.3es %.3gGFlops/s Error: %.3e + %.3ei\n%sED!\n", time,
           ((double)flops * 1.e-9) / time, rdiff, idiff, (passed) ? "PASS" : "FAIL");
 
@@ -148,87 +139,4 @@ int main(int argc, char * argv[]) {
   free(refA);
 
   return (int)!passed;
-}
-
-static void ztrtri_ref(CBlasUplo uplo, CBlasDiag diag,
-                       size_t n,
-                       double complex * restrict A, size_t lda,
-                       long * restrict info) {
-  *info = 0;
-  if (lda < n)
-    *info = -5;
-  if (*info != 0) {
-    XERBLA(-(*info));
-    return;
-  }
-
-  if (n == 0)
-    return;
-
-  if (uplo == CBlasUpper) {
-    for (size_t j = 0; j < n; j++) {
-      register double complex ajj;
-      if (diag == CBlasNonUnit) {
-        if (A[j * lda + j] == 0.0) {
-          *info = (long)j + 1;
-          return;
-        }
-        A[j * lda + j] = 1.0 / A[j * lda + j];
-        ajj = -A[j * lda + j];
-      }
-      else
-        ajj = -1.0;
-
-      for (size_t i = 0; i < j; i++) {
-        if (A[j * lda + i] != 0.0) {
-          register double complex temp = A[j * lda + i];
-          for (size_t k = 0; k < i; k++)
-            A[j * lda + k] += temp * A[i * lda + k];
-          if (diag == CBlasNonUnit) A[j * lda + i] *= A[i * lda + i];
-        }
-      }
-      for (size_t i = 0; i < j; i++)
-        A[j * lda + i] *= ajj;
-    }
-  }
-  else {
-    size_t j = n - 1;
-    do {
-      register double complex ajj;
-      if (diag == CBlasNonUnit) {
-        if (A[j * lda + j] == 0.0) {
-          *info = (long)j + 1;
-          return;
-        }
-        A[j * lda + j] = 1.0 / A[j * lda + j];
-        ajj = -A[j * lda + j];
-      }
-      else
-        ajj = -1.0;
-
-      if (j < n - 1) {
-        size_t i = n - 1;
-        do {
-          if (A[j * lda + i] != 0.0) {
-            double complex temp = A[j * lda + i];
-            if (diag == CBlasNonUnit) A[j * lda + i] *= A[i * lda + i];
-            for (size_t k = i + 1; k < n; k++)
-              A[j * lda + k] += temp * A[i * lda + k];
-          }
-        } while (i-- > j + 1);
-        for (size_t i = j + 1; i < n; i++)
-          A[j * lda + i] *= ajj;
-      }
-    } while (j-- > 0);
-  }
-}
-
-static double complex gaussian() {
-  double u0 = ((double)rand() + 1) / (double)RAND_MAX;
-  double u1 = ((double)rand() + 1) / (double)RAND_MAX;
-  double r = sqrt(-2 * log(u0));
-  double phi = 2. * 3.1415926535897932384626433832795 * u1;
-  double real = r * sin(phi);
-  double imag = r * cos(phi);
-  return real + imag * I;
 }

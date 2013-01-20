@@ -1,4 +1,5 @@
-static void dpotrf_ref(CBlasUplo uplo, size_t n, double * restrict A, size_t lda, long * restrict info) {
+static void dpotrf_ref(CBlasUplo uplo, size_t n,
+                       double * restrict A, size_t lda, long * restrict info) {
   *info = 0;
   if (lda < n)
     *info = -4;

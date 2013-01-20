@@ -94,7 +94,7 @@ void zpotrf(CBlasUplo uplo,
 
   if (n == 0) return;
 
-  const size_t nb = (uplo == CBlasUpper) ?  8 : 16;
+  const size_t nb = (uplo == CBlasUpper) ? 16 : 32;
 
   if (n < nb) {
     zpotf2(uplo, n, A, lda, info);
@@ -152,7 +152,7 @@ void zpotrf(CBlasUplo uplo,
 //   const unsigned int bx = 32;
 //
 //   char name[45];
-//   snprintf(name, 45, "_Z6cpotf2IL9CBlasUplo%dELj%uEEviP6float2iPi", uplo, bx);
+//   snprintf(name, 45, "_Z6zpotf2IL9CBlasUplo%dELj%uEEviP6double2iPi", uplo, bx);
 //
 //   CUfunction function;
 //   CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
@@ -181,7 +181,7 @@ CUresult cuZpotrf(CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, long * in
    * block sizes are chosen to favour it.  In the upper triangular case it is
    * the row matrix to the right of the diagonal block that is updated via
    * D = -A^T * C + D (i.e. the A argument to ZGEMM is transposed) therefore the
-   * block size is ZGEMM_CN_MB.  For the lower triangular case it is the column
+   * block size is ZGEMM_C_MB.  For the lower triangular case it is the column
    * matrix below the diagonal block that is updated via D = -C * A^T + D so the
    * block size is ZGEMM_N_NB.
    */
@@ -255,7 +255,7 @@ CUresult cuZpotrf(CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, long * in
                              -one, A + j * sizeof(double complex), lda,
                              one, A + (j * lda + j) * sizeof(double complex), lda, stream0));
       /* Start copying diagonal block onto host asynchronously on the same
-       * stream as the SSYRK above to ensure it has finised updating the block
+       * stream as the ZHERK above to ensure it has finised updating the block
        * before it is copied */
       CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(B, ldb, 0, 0, A, lda, j, j,
                                          jb, jb, sizeof(double complex), stream0));

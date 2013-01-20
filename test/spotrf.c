@@ -7,8 +7,6 @@
 #include <sys/time.h>
 #include "spotrf_ref.c"
 
-extern void spotrf_(const char *, const int *, float *, const int *, int *);
-
 int main(int argc, char * argv[]) {
   CBlasUplo uplo;
   size_t n;
@@ -74,8 +72,7 @@ int main(int argc, char * argv[]) {
   free(C);
 
   spotrf_ref(uplo, n, refA, lda, &rInfo);
-  spotrf_((const char *)&uplo, (const int *)&n, A, (const int *)&lda, (int *)&info);
-//   spotrf(uplo, n, A, lda, &info);
+  spotrf(uplo, n, A, lda, &info);
 
   bool passed = (info == rInfo);
   float diff = 0.0f;
@@ -101,8 +98,7 @@ int main(int argc, char * argv[]) {
     return -4;
   }
   for (size_t i = 0; i < 20; i++)
-    spotrf_((const char *)&uplo, (const int *)&n, A, (const int *)&lda, (int *)&info);
-//     spotrf(uplo, n, A, lda, &info);
+    spotrf(uplo, n, A, lda, &info);
   if (gettimeofday(&stop, NULL) != 0) {
     fprintf(stderr, "gettimeofday failed at %s:%d\n", __FILE__, __LINE__);
     return -5;

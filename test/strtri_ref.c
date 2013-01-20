@@ -1,4 +1,5 @@
-static void strtri_ref(CBlasUplo uplo, CBlasDiag diag, size_t n, float * restrict A, size_t lda, long * restrict info) {
+static void strtri_ref(CBlasUplo uplo, CBlasDiag diag, size_t n,
+                       float * restrict A, size_t lda, long * restrict info) {
   *info = 0;
   if (lda < n)
     *info = -5;
