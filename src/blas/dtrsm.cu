@@ -38,9 +38,10 @@ __device__ void daxpy(int n, double alpha, const int * x_hi, const int * x_lo, d
  */
 template <CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int bx, unsigned int by>
-__global__ void dtrsm(int m, int n,
-                      double alpha, const double * __restrict__ A, int lda,
-                      double * __restrict__ B, int ldb) {
+__global__ void dtrsm(const double * __restrict__ A, double * __restrict__ B,
+                      double alpha,
+                      int lda, int ldb,
+                      int m, int n) {
 
  if (side == CBlasLeft) {
    // For CBlasLeft each thread updates a column.  This means that B needs to be
@@ -639,9 +640,10 @@ __device__ void daxpy(int n, double alpha, const double * x, double * y) {
  */
 template <CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int bx, unsigned int by>
-__global__ void dtrsm(int m, int n,
-                      double alpha, const double * __restrict__ A, int lda,
-                      double * __restrict__ B, int ldb) {
+__global__ void dtrsm(const double * __restrict__ A, double * __restrict__ B,
+                      double alpha,
+                      int lda, int ldb,
+                      int m, int n) {
 
  if (side == CBlasLeft) {
    // For CBlasLeft each thread updates a column.  This means that B needs to be
@@ -1132,19 +1134,19 @@ __global__ void dtrsm(int m, int n,
 }
 #endif
 
-template __global__ void dtrsm<CBlasLeft,  CBlasUpper, CBlasNoTrans, CBlasNonUnit,  4, 16, 4, 4>(int, int, double, const double * __restrict__, int, double * __restrict__, int);
-template __global__ void dtrsm<CBlasLeft,  CBlasUpper, CBlasNoTrans, CBlasUnit,     4, 16, 4, 4>(int, int, double, const double * __restrict__, int, double * __restrict__, int);
-template __global__ void dtrsm<CBlasLeft,  CBlasUpper, CBlasTrans,   CBlasNonUnit,  4, 16, 4, 4>(int, int, double, const double * __restrict__, int, double * __restrict__, int);
-template __global__ void dtrsm<CBlasLeft,  CBlasUpper, CBlasTrans,   CBlasUnit,     4, 16, 4, 4>(int, int, double, const double * __restrict__, int, double * __restrict__, int);
-template __global__ void dtrsm<CBlasLeft,  CBlasLower, CBlasNoTrans, CBlasNonUnit,  4, 16, 4, 4>(int, int, double, const double * __restrict__, int, double * __restrict__, int);
-template __global__ void dtrsm<CBlasLeft,  CBlasLower, CBlasNoTrans, CBlasUnit,     4, 16, 4, 4>(int, int, double, const double * __restrict__, int, double * __restrict__, int);
-template __global__ void dtrsm<CBlasLeft,  CBlasLower, CBlasTrans,   CBlasNonUnit,  4, 16, 4, 4>(int, int, double, const double * __restrict__, int, double * __restrict__, int);
-template __global__ void dtrsm<CBlasLeft,  CBlasLower, CBlasTrans,   CBlasUnit,     4, 16, 4, 4>(int, int, double, const double * __restrict__, int, double * __restrict__, int);
-template __global__ void dtrsm<CBlasRight, CBlasUpper, CBlasNoTrans, CBlasNonUnit, 16,  4, 4, 4>(int, int, double, const double * __restrict__, int, double * __restrict__, int);
-template __global__ void dtrsm<CBlasRight, CBlasUpper, CBlasNoTrans, CBlasUnit,    16,  4, 4, 4>(int, int, double, const double * __restrict__, int, double * __restrict__, int);
-template __global__ void dtrsm<CBlasRight, CBlasUpper, CBlasTrans,   CBlasNonUnit, 16,  4, 4, 4>(int, int, double, const double * __restrict__, int, double * __restrict__, int);
-template __global__ void dtrsm<CBlasRight, CBlasUpper, CBlasTrans,   CBlasUnit,    16,  4, 4, 4>(int, int, double, const double * __restrict__, int, double * __restrict__, int);
-template __global__ void dtrsm<CBlasRight, CBlasLower, CBlasNoTrans, CBlasNonUnit, 16,  4, 4, 4>(int, int, double, const double * __restrict__, int, double * __restrict__, int);
-template __global__ void dtrsm<CBlasRight, CBlasLower, CBlasNoTrans, CBlasUnit,    16,  4, 4, 4>(int, int, double, const double * __restrict__, int, double * __restrict__, int);
-template __global__ void dtrsm<CBlasRight, CBlasLower, CBlasTrans,   CBlasNonUnit, 16,  4, 4, 4>(int, int, double, const double * __restrict__, int, double * __restrict__, int);
-template __global__ void dtrsm<CBlasRight, CBlasLower, CBlasTrans,   CBlasUnit,    16,  4, 4, 4>(int, int, double, const double * __restrict__, int, double * __restrict__, int);
+template __global__ void dtrsm<CBlasLeft,  CBlasUpper, CBlasNoTrans, CBlasNonUnit,  4, 16, 4, 4>(const double * __restrict__, double * __restrict__, double, int, int, int, int);
+template __global__ void dtrsm<CBlasLeft,  CBlasUpper, CBlasNoTrans, CBlasUnit,     4, 16, 4, 4>(const double * __restrict__, double * __restrict__, double, int, int, int, int);
+template __global__ void dtrsm<CBlasLeft,  CBlasUpper, CBlasTrans,   CBlasNonUnit,  4, 16, 4, 4>(const double * __restrict__, double * __restrict__, double, int, int, int, int);
+template __global__ void dtrsm<CBlasLeft,  CBlasUpper, CBlasTrans,   CBlasUnit,     4, 16, 4, 4>(const double * __restrict__, double * __restrict__, double, int, int, int, int);
+template __global__ void dtrsm<CBlasLeft,  CBlasLower, CBlasNoTrans, CBlasNonUnit,  4, 16, 4, 4>(const double * __restrict__, double * __restrict__, double, int, int, int, int);
+template __global__ void dtrsm<CBlasLeft,  CBlasLower, CBlasNoTrans, CBlasUnit,     4, 16, 4, 4>(const double * __restrict__, double * __restrict__, double, int, int, int, int);
+template __global__ void dtrsm<CBlasLeft,  CBlasLower, CBlasTrans,   CBlasNonUnit,  4, 16, 4, 4>(const double * __restrict__, double * __restrict__, double, int, int, int, int);
+template __global__ void dtrsm<CBlasLeft,  CBlasLower, CBlasTrans,   CBlasUnit,     4, 16, 4, 4>(const double * __restrict__, double * __restrict__, double, int, int, int, int);
+template __global__ void dtrsm<CBlasRight, CBlasUpper, CBlasNoTrans, CBlasNonUnit, 16,  4, 4, 4>(const double * __restrict__, double * __restrict__, double, int, int, int, int);
+template __global__ void dtrsm<CBlasRight, CBlasUpper, CBlasNoTrans, CBlasUnit,    16,  4, 4, 4>(const double * __restrict__, double * __restrict__, double, int, int, int, int);
+template __global__ void dtrsm<CBlasRight, CBlasUpper, CBlasTrans,   CBlasNonUnit, 16,  4, 4, 4>(const double * __restrict__, double * __restrict__, double, int, int, int, int);
+template __global__ void dtrsm<CBlasRight, CBlasUpper, CBlasTrans,   CBlasUnit,    16,  4, 4, 4>(const double * __restrict__, double * __restrict__, double, int, int, int, int);
+template __global__ void dtrsm<CBlasRight, CBlasLower, CBlasNoTrans, CBlasNonUnit, 16,  4, 4, 4>(const double * __restrict__, double * __restrict__, double, int, int, int, int);
+template __global__ void dtrsm<CBlasRight, CBlasLower, CBlasNoTrans, CBlasUnit,    16,  4, 4, 4>(const double * __restrict__, double * __restrict__, double, int, int, int, int);
+template __global__ void dtrsm<CBlasRight, CBlasLower, CBlasTrans,   CBlasNonUnit, 16,  4, 4, 4>(const double * __restrict__, double * __restrict__, double, int, int, int, int);
+template __global__ void dtrsm<CBlasRight, CBlasLower, CBlasTrans,   CBlasUnit,    16,  4, 4, 4>(const double * __restrict__, double * __restrict__, double, int, int, int, int);

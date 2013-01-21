@@ -244,7 +244,7 @@ void ctrsm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag
 }
 
 CUresult cuCtrsm(CUmodule module,
-                 CBlasSide side, CBlasUplo uplo, CBlasTranspose trans, CBlasDiag diag,
+                 CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag,
                  size_t m, size_t n,
                  float complex alpha, CUdeviceptr A, size_t lda,
                  CUdeviceptr B, size_t ldb, CUstream stream) {
@@ -268,15 +268,15 @@ CUresult cuCtrsm(CUmodule module,
   const unsigned int mb = (side == CBlasLeft) ?  4 : 16;
   const unsigned int nb = (side == CBlasLeft) ? 16 :  4;
 
-  char name[116];
-  snprintf(name, 116,
-           "_Z5ctrsmIL9CBlasSide%dEL9CBlasUplo%dEL14CBlasTranspose%dEL9CBlasDiag%dELj%uELj%uELj%uELj%uEEvii6float2PKS4_iPS4_i",
-           side, uplo, trans, diag, mb, nb, bx, by);
+  char name[112];
+  snprintf(name, 112,
+           "_Z5ctrsmIL9CBlasSide%dEL9CBlasUplo%dEL14CBlasTranspose%dEL9CBlasDiag%dELj%uELj%uELj%uELj%uEEvPK6float2PS4_S4_iiii",
+           side, uplo, transA, diag, mb, nb, bx, by);
 
   CUfunction function;
   CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
 
-  void * params[] = { &m, &n, &alpha, &A, &lda, &B, &ldb };
+  void * params[] = { &A, &B, &alpha, &lda, &ldb, &m, &n };
 
   CU_ERROR_CHECK(cuLaunchKernel(function, (unsigned int)(m + mb - 1) / mb, (unsigned int)(n + nb - 1) / nb, 1,
                                 bx, by, 1, 0, stream, params, NULL));

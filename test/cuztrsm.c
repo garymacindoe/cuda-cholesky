@@ -92,7 +92,7 @@ int main(int argc, char * argv[]) {
 
   double complex alpha, * A, * B, * refB, * C;
   CUdeviceptr dA, dB;
-  size_t lda, ldb, ldc, dlda, dldb;
+  size_t lda, ldb, ldc, dlda, dldb, * F;
 
   CU_ERROR_CHECK(cuInit(0));
 
@@ -105,7 +105,7 @@ int main(int argc, char * argv[]) {
   CUmodule module;
   CU_ERROR_CHECK(cuModuleLoad(&module, "ztrsm.fatbin"));
 
-  alpha = gaussian();
+  alpha = (double)rand() / (double)RAND_MAX + ((double)rand() / (double)RAND_MAX) * I;
 
   if (side == CBlasLeft) {
     lda = m;
@@ -124,7 +124,7 @@ int main(int argc, char * argv[]) {
     }
     for (size_t j = 0; j < m; j++) {
       for (size_t i = 0; i < k; i++)
-        C[j * ldc + i] = gaussian();
+        C[j * ldc + i] = (double)rand() / (double)RAND_MAX + ((double)rand() / (double)RAND_MAX) * I;
     }
     for (size_t j = 0; j < m; j++) {
       for (size_t i = 0; i < m; i++) {
@@ -161,7 +161,7 @@ int main(int argc, char * argv[]) {
     }
     for (size_t j = 0; j < n; j++) {
       for (size_t i = 0; i < k; i++)
-        C[j * ldc + i] = gaussian();
+        C[j * ldc + i] = (double)rand() / (double)RAND_MAX + ((double)rand() / (double)RAND_MAX) * I;
     }
     for (size_t j = 0; j < n; j++) {
       for (size_t i = 0; i < n; i++) {
@@ -191,12 +191,16 @@ int main(int argc, char * argv[]) {
     fputs("Unable to allocate refB\n", stderr);
     return -4;
   }
+  if ((F = calloc(ldb * n, sizeof(size_t))) == NULL) {
+    fputs("Unable to allocate F\n", stderr);
+    return -5;
+  }
   CU_ERROR_CHECK(cuMemAllocPitch(&dB, &dldb, m * sizeof(double complex), n, sizeof(double complex)));
   dldb /= sizeof(double complex);
 
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < m; i++)
-      refB[j * ldb + i] = B[j * ldb + i] = gaussian();
+      refB[j * ldb + i] = B[j * ldb + i] = (double)rand() / (double)RAND_MAX + ((double)rand() / (double)RAND_MAX) * I;
   }
 
   CUDA_MEMCPY2D copy = { 0, 0, CU_MEMORYTYPE_HOST, B, 0, NULL, ldb * sizeof(double complex),
@@ -204,7 +208,7 @@ int main(int argc, char * argv[]) {
                          m * sizeof(double complex), n };
   CU_ERROR_CHECK(cuMemcpy2D(&copy));
 
-  ztrsm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb);
+  ztrsm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb, F);
   CU_ERROR_CHECK(cuZtrsm(module, side, uplo, trans, diag, m, n, alpha, dA, dlda, dB, dldb, NULL));
 
   copy = (CUDA_MEMCPY2D){ 0, 0, CU_MEMORYTYPE_DEVICE, NULL, dB, NULL, dldb * sizeof(double complex),
@@ -243,8 +247,11 @@ int main(int argc, char * argv[]) {
         if (alpha != 0.0 + 0.0 * I)
           k++;
 
-        if (d > (double)k * DBL_EPSILON || c > (double)DBL_EPSILON)
-          passed = false;
+        if (passed) {
+          if (d > (double)F[j * ldb + i] * 2.0 * DBL_EPSILON ||
+              c > (double)F[j * ldb + i] * 2.0 * DBL_EPSILON)
+            passed = false;
+        }
       }
     }
   }

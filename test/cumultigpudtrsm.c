@@ -99,7 +99,7 @@ int main(int argc, char * argv[]) {
   CUmultiGPUBlasHandle handle;
   CU_ERROR_CHECK(cuMultiGPUBlasCreate(&handle, mGPU));
 
-  alpha = gaussian();
+  alpha = (double)rand() / (double)RAND_MAX;
 
   if (side == CBlasLeft) {
     lda = (m + 1u) & ~1u;
@@ -116,20 +116,17 @@ int main(int argc, char * argv[]) {
     }
     for (size_t j = 0; j < m; j++) {
       for (size_t i = 0; i < k; i++)
-        C[j * ldc + i] = gaussian();
+        C[j * ldc + i] = (double)rand() / (double)RAND_MAX;
     }
     for (size_t j = 0; j < m; j++) {
       for (size_t i = 0; i < m; i++) {
         double temp = 0.0;
         for (size_t l = 0; l < k; l++)
           temp += C[i * ldc + l] * C[j * ldc + l];
-        A[j * lda + i] = 0.01 * temp;
+        A[j * lda + i] = temp;
       }
     }
     free(C);
-
-    for (size_t k = 0; k < m; k++)
-      A[k * lda + k] += 1.0;
   }
   else {
     lda = (n + 1u) & ~1u;
@@ -146,20 +143,17 @@ int main(int argc, char * argv[]) {
     }
     for (size_t j = 0; j < n; j++) {
       for (size_t i = 0; i < k; i++)
-        C[j * ldc + i] = gaussian();
+        C[j * ldc + i] = (double)rand() / (double)RAND_MAX;
     }
     for (size_t j = 0; j < n; j++) {
       for (size_t i = 0; i < n; i++) {
         double temp = 0.0;
         for (size_t l = 0; l < k; l++)
           temp += C[i * ldc + l] * C[j * ldc + l];
-        A[j * lda + i] = 0.01 * temp;
+        A[j * lda + i] = temp;
       }
     }
     free(C);
-
-    for (size_t k = 0; k < n; k++)
-      A[k * lda + k] += 1.0;
   }
 
   ldb = (m + 1u) & ~1u;
@@ -178,7 +172,7 @@ int main(int argc, char * argv[]) {
 
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < m; i++)
-      refB[j * ldb + i] = B[j * ldb + i] = gaussian();
+      refB[j * ldb + i] = B[j * ldb + i] = (double)rand() / (double)RAND_MAX;
   }
 
   dtrsm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb, F);

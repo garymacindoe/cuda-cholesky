@@ -7,11 +7,6 @@
 #include <sys/time.h>
 #include "ctrmm_ref.c"
 
-// extern void ctrmm_(const char *, const char *, const char *, const char *,
-//                    const size_t *, const size_t *,
-//                    const float complex *, const float complex *, const size_t *,
-//                    const float complex *, const size_t *);
-
 int main(int argc, char * argv[]) {
   CBlasSide side;
   CBlasUplo uplo;

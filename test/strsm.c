@@ -85,7 +85,7 @@ int main(int argc, char * argv[]) {
   float alpha, * A, * B, * refB, * C;
   size_t lda, ldb, ldc, * F;
 
-  alpha = gaussian();
+  alpha = (float)rand() / (float)RAND_MAX;
 
   if (side == CBlasLeft) {
     lda = (m + 3u) & ~3u;
@@ -102,20 +102,17 @@ int main(int argc, char * argv[]) {
     }
     for (size_t j = 0; j < m; j++) {
       for (size_t i = 0; i < k; i++)
-        C[j * ldc + i] = gaussian();
+        C[j * ldc + i] = (float)rand() / (float)RAND_MAX;
     }
     for (size_t j = 0; j < m; j++) {
       for (size_t i = 0; i < m; i++) {
         float temp = 0.0f;
         for (size_t l = 0; l < k; l++)
           temp += C[i * ldc + l] * C[j * ldc + l];
-        A[j * lda + i] = 0.01f * temp;
+        A[j * lda + i] = temp;
       }
     }
     free(C);
-
-    for (size_t k = 0; k < m; k++)
-      A[k * lda + k] += 1.0f;
   }
   else {
     lda = (n + 3u) & ~3u;
@@ -132,20 +129,17 @@ int main(int argc, char * argv[]) {
     }
     for (size_t j = 0; j < n; j++) {
       for (size_t i = 0; i < k; i++)
-        C[j * ldc + i] = gaussian();
+        C[j * ldc + i] = (float)rand() / (float)RAND_MAX;
     }
     for (size_t j = 0; j < n; j++) {
       for (size_t i = 0; i < n; i++) {
         float temp = 0.0f;
         for (size_t l = 0; l < k; l++)
           temp += C[i * ldc + l] * C[j * ldc + l];
-        A[j * lda + i] = 0.01f * temp;
+        A[j * lda + i] = temp;
       }
     }
     free(C);
-
-    for (size_t k = 0; k < n; k++)
-      A[k * lda + k] += 1.0f;
   }
 
   ldb = (m + 3u) & ~3u;
@@ -164,12 +158,11 @@ int main(int argc, char * argv[]) {
 
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < m; i++)
-      refB[j * ldb + i] = B[j * ldb + i] = gaussian();
+      refB[j * ldb + i] = B[j * ldb + i] = (float)rand() / (float)RAND_MAX;
   }
 
   strsm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb, F);
   strsm(side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb);
-//   strsm_(&s, &u, &t, &d, &m, &n, &alpha, A, &lda, B, &ldb);
 
   bool passed = true;
   float diff = 0.0f;
@@ -193,7 +186,6 @@ int main(int argc, char * argv[]) {
     return -6;
   }
   for (size_t i = 0; i < 20; i++)
-//     strsm_(&s, &u, &t, &d, &m, &n, &alpha, A, &lda, B, &ldb);
     strsm(side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb);
   if (gettimeofday(&stop, NULL) != 0) {
     fputs("gettimeofday failed\n", stderr);

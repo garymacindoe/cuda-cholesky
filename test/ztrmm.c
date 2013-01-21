@@ -130,7 +130,6 @@ int main(int argc, char * argv[]) {
 
   ztrmm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb);
   ztrmm(side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb);
-//   ztrmm_(&s, &u, &t, &d, &m, &n, &alpha, A, &lda, B, &ldb);
 
   bool passed = true;
   double rdiff = 0.0, idiff = 0.0;
@@ -165,7 +164,6 @@ int main(int argc, char * argv[]) {
     return -5;
   }
   for (size_t i = 0; i < 20; i++)
-//     ztrmm_(&s, &u, &t, &d, &m, &n, &alpha, A, &lda, B, &ldb);
     ztrmm(side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb);
   if (gettimeofday(&stop, NULL) != 0) {
     fputs("gettimeofday failed\n", stderr);

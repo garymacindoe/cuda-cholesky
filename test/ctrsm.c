@@ -84,9 +84,9 @@ int main(int argc, char * argv[]) {
   srand(0);
 
   float complex alpha, * A, * B, * refB, * C;
-  size_t lda, ldb, ldc;
+  size_t lda, ldb, ldc, * F;
 
-  alpha = gaussian();
+  alpha = ((float)rand() / (float)RAND_MAX) + ((float)rand() / (float)RAND_MAX) * I;
 
   if (side == CBlasLeft) {
     lda = (m + 1u) & ~1u;
@@ -103,20 +103,17 @@ int main(int argc, char * argv[]) {
     }
     for (size_t j = 0; j < m; j++) {
       for (size_t i = 0; i < k; i++)
-        C[j * ldc + i] = gaussian();
+        C[j * ldc + i] = ((float)rand() / (float)RAND_MAX) + ((float)rand() / (float)RAND_MAX) * I;
     }
     for (size_t j = 0; j < m; j++) {
       for (size_t i = 0; i < m; i++) {
         float complex temp = 0.0f;
         for (size_t l = 0; l < k; l++)
           temp += conjf(C[i * ldc + l]) * C[j * ldc + l];
-        A[j * lda + i] = 0.01f * temp;
+        A[j * lda + i] = temp;
       }
     }
     free(C);
-
-    for (size_t k = 0; k < m; k++)
-      A[k * lda + k] += 1.0f;
   }
   else {
     lda = (n + 1u) & ~1u;
@@ -133,20 +130,17 @@ int main(int argc, char * argv[]) {
     }
     for (size_t j = 0; j < n; j++) {
       for (size_t i = 0; i < k; i++)
-        C[j * ldc + i] = gaussian();
+        C[j * ldc + i] = ((float)rand() / (float)RAND_MAX) + ((float)rand() / (float)RAND_MAX) * I;
     }
     for (size_t j = 0; j < n; j++) {
       for (size_t i = 0; i < n; i++) {
         float complex temp = 0.0f;
         for (size_t l = 0; l < k; l++)
           temp += conjf(C[i * ldc + l]) * C[j * ldc + l];
-        A[j * lda + i] = 0.01f * temp;
+        A[j * lda + i] = temp;
       }
     }
     free(C);
-
-    for (size_t k = 0; k < n; k++)
-      A[k * lda + k] += 1.0f;
   }
 
   ldb = (m + 1u) & ~1u;
@@ -158,15 +152,18 @@ int main(int argc, char * argv[]) {
     fputs("Unable to allocate refB\n", stderr);
     return -4;
   }
+  if ((F = calloc(ldb * n, sizeof(size_t))) == NULL) {
+    fputs("Unable to allocate F\n", stderr);
+    return -5;
+  }
 
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < m; i++)
-      refB[j * ldb + i] = B[j * ldb + i] = gaussian();
+      refB[j * ldb + i] = B[j * ldb + i] = ((float)rand() / (float)RAND_MAX) + ((float)rand() / (float)RAND_MAX) * I;
   }
 
-  ctrsm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb);
+  ctrsm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb, F);
   ctrsm(side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb);
-//   ctrsm_(&s, &u, &t, &d, &m, &n, &alpha, A, &lda, B, &ldb);
 
   bool passed = true;
   float rdiff = 0.0f, idiff = 0.0f;
@@ -181,29 +178,13 @@ int main(int argc, char * argv[]) {
         idiff = c;
 
       if (passed) {
-        size_t k;
-        if (side == CBlasLeft) {
-          if (uplo == CBlasUpper)
-            k = (trans == CBlasNoTrans) ? m - i - 1 : i;
-          else
-            k = (trans == CBlasNoTrans) ? i : m - i - 1;
-        }
-        else {
-          if (uplo == CBlasUpper)
-            k = (trans == CBlasNoTrans) ? j : n - j - 1;
-          else
-            k = (trans == CBlasNoTrans) ? n - j - 1 : j;
-        }
-        if (diag == CBlasNonUnit)
-          k++;
-        if (alpha != 0.0f + 0.0f * I)
-          k++;
-
-        if (d > (float)k * FLT_EPSILON || c > (float)FLT_EPSILON)
+        if (d > (float)F[j * ldb + i] * 2.0f * FLT_EPSILON ||
+            c > (float)F[j * ldb + i] * 2.0f * FLT_EPSILON)
           passed = false;
       }
     }
   }
+  free(F);
 
   struct timeval start, stop;
   if (gettimeofday(&start, NULL) != 0) {
@@ -211,7 +192,6 @@ int main(int argc, char * argv[]) {
     return -5;
   }
   for (size_t i = 0; i < 20; i++)
-//     ctrsm_(&s, &u, &t, &d, &m, &n, &alpha, A, &lda, B, &ldb);
     ctrsm(side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb);
   if (gettimeofday(&stop, NULL) != 0) {
     fputs("gettimeofday failed\n", stderr);

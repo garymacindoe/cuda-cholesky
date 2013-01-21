@@ -65,7 +65,7 @@ int main(int argc, char * argv[]) {
   beta = (float)rand() / (float)RAND_MAX;
 
   if (trans == CBlasNoTrans) {
-    lda = (n + 3u) & ~3u;
+    lda = (n + 1u) & ~1u;
     if ((A = malloc(lda * k * sizeof(float complex))) == NULL) {
       fputs("Unable to allocate A\n", stderr);
       return -1;
@@ -77,7 +77,7 @@ int main(int argc, char * argv[]) {
     }
   }
   else {
-    lda = (k + 3u) & ~3u;
+    lda = (k + 1u) & ~1u;
     if ((A = malloc(lda * n * sizeof(float complex))) == NULL) {
       fputs("Unable to allocate A\n", stderr);
       return -1;
@@ -89,7 +89,7 @@ int main(int argc, char * argv[]) {
     }
   }
 
-  ldc = (n + 3u) & ~3u;
+  ldc = (n + 1u) & ~1u;
   if ((C = malloc(ldc * n * sizeof(float complex))) == NULL) {
     fputs("Unable to allocate C\n", stderr);
     return -3;

@@ -38,9 +38,9 @@ static inline void cpotf2(CBlasUplo uplo,
   if (uplo == CBlasUpper) {
     for (size_t i = 0; i < n; i++) {
       register float temp = zero;
-      const float complex * restrict B = A;
+      const float complex * B = &A[i * lda];
       for (size_t k = 0; k < i; k++)
-        temp += A[i * lda + k] * conjf(B[i * lda + k]);
+        temp += A[i * lda + k] * conjf(B[k]);
 
       register float aii = crealf(A[i * lda + i]) - temp;
       if (aii <= zero || isnan(aii)) {
@@ -54,7 +54,7 @@ static inline void cpotf2(CBlasUplo uplo,
       for (size_t j = i + 1; j < n; j++) {
         register float complex temp = complex_zero;
         for (size_t k = 0; k < i; k++)
-          temp -= A[j * lda + k] * conjf(A[i * lda + k]);
+          temp += A[j * lda + k] * conjf(A[i * lda + k]);
         A[j * lda + i] = (A[j * lda + i] - temp) / aii;
       }
     }

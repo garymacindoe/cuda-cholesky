@@ -214,7 +214,7 @@ void dtrsm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag
 }
 
 CUresult cuDtrsm(CUmodule module,
-                 CBlasSide side, CBlasUplo uplo, CBlasTranspose trans, CBlasDiag diag,
+                 CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag,
                  size_t m, size_t n,
                  double alpha, CUdeviceptr A, size_t lda,
                  CUdeviceptr B, size_t ldb, CUstream stream) {
@@ -240,13 +240,13 @@ CUresult cuDtrsm(CUmodule module,
 
   char name[102];
   snprintf(name, 102,
-           "_Z5dtrsmIL9CBlasSide%dEL9CBlasUplo%dEL14CBlasTranspose%dEL9CBlasDiag%dELj%uELj%uELj%uELj%uEEviidPKdiPdi",
-           side, uplo, trans, diag, mb, nb, bx, by);
+           "_Z5dtrsmIL9CBlasSide%dEL9CBlasUplo%dEL14CBlasTranspose%dEL9CBlasDiag%dELj%uELj%uELj%uELj%uEEvPKdPddiiii",
+           side, uplo, transA, diag, mb, nb, bx, by);
 
   CUfunction function;
   CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
 
-  void * params[] = { &m, &n, &alpha, &A, &lda, &B, &ldb };
+  void * params[] = { &A, &B, &alpha, &lda, &ldb, &m, &n };
 
   const unsigned int gx = (side == CBlasLeft) ? 1 : (unsigned int)(m + mb - 1) / mb;
   const unsigned int gy = (side == CBlasLeft) ? (unsigned int)(n + nb - 1) / nb : 1;

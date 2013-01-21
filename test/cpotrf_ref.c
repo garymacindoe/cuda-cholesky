@@ -15,7 +15,7 @@ static void cpotrf_ref(CBlasUplo uplo, size_t n, float complex * restrict A, siz
         float complex temp = A[j * lda + i];
         for (size_t k = 0; k < i; k++)
           temp -= A[j * lda + k] * conjf(A[i * lda + k]);
-        A[j * lda + i] = temp / A[i * lda + i];
+        A[j * lda + i] = temp / crealf(A[i * lda + i]);
       }
 
       float ajj = crealf(A[j * lda + j]);
@@ -26,19 +26,14 @@ static void cpotrf_ref(CBlasUplo uplo, size_t n, float complex * restrict A, siz
         *info = (long)j + 1;
         return;
       }
-      else
-        A[j * lda + j] = sqrtf(ajj);
+      A[j * lda + j] = sqrtf(ajj);
     }
   }
   else {
     for (size_t j = 0; j < n; j++) {
-      for (size_t k = 0; k < j; k++) {
-        float complex temp = conjf(A[k * lda + j]);
-        for (size_t i = j; i < n; i++)
-          A[j * lda + i] -= temp * A[k * lda + i];
-      }
-
       float ajj = crealf(A[j * lda + j]);
+      for (size_t k = 0; k < j; k++)
+        ajj -= A[k * lda + j] * conjf(A[k * lda + j]);
       if (ajj <= 0.0f || isnan(ajj)) {
         A[j * lda + j] = ajj;
         *info = (long)j + 1;
@@ -46,8 +41,13 @@ static void cpotrf_ref(CBlasUplo uplo, size_t n, float complex * restrict A, siz
       }
       ajj = sqrtf(ajj);
       A[j * lda + j] = ajj;
-      for (size_t i = j + 1; i < n; i++)
-        A[j * lda + i] /= ajj;
+
+      for (size_t i = j + 1; i < n; i++) {
+        float complex temp = A[j * lda + i];
+        for (size_t k = 0; k < j; k++)
+          temp -= conjf(A[k * lda + j]) * A[k * lda + i];
+        A[j * lda + i] = temp / ajj;
+      }
     }
   }
 }

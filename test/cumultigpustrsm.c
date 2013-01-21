@@ -123,13 +123,10 @@ int main(int argc, char * argv[]) {
         float temp = 0.0f;
         for (size_t l = 0; l < k; l++)
           temp += C[i * ldc + l] * C[j * ldc + l];
-        A[j * lda + i] = 0.01f * temp;
+        A[j * lda + i] = temp;
       }
     }
     free(C);
-
-    for (size_t k = 0; k < m; k++)
-      A[k * lda + k] += 1.0f;
   }
   else {
     lda = (n + 3u) & ~3u;
@@ -153,13 +150,10 @@ int main(int argc, char * argv[]) {
         float temp = 0.0f;
         for (size_t l = 0; l < k; l++)
           temp += C[i * ldc + l] * C[j * ldc + l];
-        A[j * lda + i] = 0.01f * temp;
+        A[j * lda + i] = temp;
       }
     }
     free(C);
-
-    for (size_t k = 0; k < n; k++)
-      A[k * lda + k] += 1.0f;
   }
 
   ldb = (m + 3u) & ~3u;

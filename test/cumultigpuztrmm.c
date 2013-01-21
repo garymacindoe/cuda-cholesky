@@ -7,11 +7,6 @@
 #include <sys/time.h>
 #include "ztrmm_ref.c"
 
-// extern void ztrmm_(const char *, const char *, const char *, const char *,
-//                    const size_t *, const size_t *,
-//                    const double complex *, const double complex *, const size_t *,
-//                    const double complex *, const size_t *);
-
 int main(int argc, char * argv[]) {
   CBlasSide side;
   CBlasUplo uplo;

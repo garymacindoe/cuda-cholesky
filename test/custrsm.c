@@ -104,7 +104,7 @@ int main(int argc, char * argv[]) {
   CUmodule module;
   CU_ERROR_CHECK(cuModuleLoad(&module, "strsm.fatbin"));
 
-  alpha = gaussian();
+  alpha = (float)rand() / (float)RAND_MAX;
 
   if (side == CBlasLeft) {
     lda = (m + 3u) & ~3u;
@@ -123,20 +123,17 @@ int main(int argc, char * argv[]) {
     }
     for (size_t j = 0; j < m; j++) {
       for (size_t i = 0; i < k; i++)
-        C[j * ldc + i] = gaussian();
+        C[j * ldc + i] = (float)rand() / (float)RAND_MAX;
     }
     for (size_t j = 0; j < m; j++) {
       for (size_t i = 0; i < m; i++) {
         float temp = 0.0f;
         for (size_t l = 0; l < k; l++)
           temp += C[i * ldc + l] * C[j * ldc + l];
-        A[j * lda + i] = 0.01f * temp;
+        A[j * lda + i] = temp;
       }
     }
     free(C);
-
-    for (size_t k = 0; k < m; k++)
-      A[k * lda + k] += 1.0f;
 
     CUDA_MEMCPY2D copy = { 0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(float),
                            0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(float),
@@ -160,20 +157,17 @@ int main(int argc, char * argv[]) {
     }
     for (size_t j = 0; j < n; j++) {
       for (size_t i = 0; i < k; i++)
-        C[j * ldc + i] = gaussian();
+        C[j * ldc + i] = (float)rand() / (float)RAND_MAX;
     }
     for (size_t j = 0; j < n; j++) {
       for (size_t i = 0; i < n; i++) {
         float temp = 0.0f;
         for (size_t l = 0; l < k; l++)
           temp += C[i * ldc + l] * C[j * ldc + l];
-        A[j * lda + i] = 0.01f * temp;
+        A[j * lda + i] = temp;
       }
     }
     free(C);
-
-    for (size_t k = 0; k < n; k++)
-      A[k * lda + k] += 1.0f;
 
     CUDA_MEMCPY2D copy = { 0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(float),
                            0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(float),
@@ -199,7 +193,7 @@ int main(int argc, char * argv[]) {
 
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < m; i++)
-      refB[j * ldb + i] = B[j * ldb + i] = gaussian();
+      refB[j * ldb + i] = B[j * ldb + i] = (float)rand() / (float)RAND_MAX;
   }
 
   CUDA_MEMCPY2D copy = { 0, 0, CU_MEMORYTYPE_HOST, B, 0, NULL, ldb * sizeof(float),

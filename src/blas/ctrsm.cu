@@ -39,9 +39,10 @@ __device__ void caxpy(int n, cuComplex alpha, const float * x_real, const float 
  */
 template <CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int bx, unsigned int by>
-__global__ void ctrsm(int m, int n,
-                      cuComplex alpha, const cuComplex * __restrict__ A, int lda,
-                      cuComplex * __restrict__ B, int ldb) {
+__global__ void ctrsm(const cuComplex * __restrict__ A, cuComplex * __restrict__ B,
+                      cuComplex alpha,
+                      int lda, int ldb,
+                      int m, int n) {
 
  if (side == CBlasLeft) {
    // For CBlasLeft each thread updates a column.  This means that B needs to be
@@ -647,9 +648,10 @@ __device__ void caxpy(int n, cuComplex alpha, const cuComplex * x, cuComplex * y
  */
 template <CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int bx, unsigned int by>
-__global__ void ctrsm(int m, int n,
-                      cuComplex alpha, const cuComplex * __restrict__ A, int lda,
-                      cuComplex * __restrict__ B, int ldb) {
+__global__ void ctrsm(const cuComplex * __restrict__ A, cuComplex * __restrict__ B,
+                      cuComplex alpha,
+                      int lda, int ldb,
+                      int m, int n) {
 
  if (side == CBlasLeft) {
    // For CBlasLeft each thread updates a column.  This means that B needs to be
@@ -1146,27 +1148,27 @@ __global__ void ctrsm(int m, int n,
 }
 #endif
 
-template __global__ void ctrsm<CBlasLeft,  CBlasUpper, CBlasNoTrans,   CBlasNonUnit,  4, 16, 4, 4>(int, int, cuComplex, const cuComplex * __restrict__, int, cuComplex * __restrict__, int);
-template __global__ void ctrsm<CBlasLeft,  CBlasUpper, CBlasNoTrans,   CBlasUnit,     4, 16, 4, 4>(int, int, cuComplex, const cuComplex * __restrict__, int, cuComplex * __restrict__, int);
-template __global__ void ctrsm<CBlasLeft,  CBlasUpper, CBlasTrans,     CBlasNonUnit,  4, 16, 4, 4>(int, int, cuComplex, const cuComplex * __restrict__, int, cuComplex * __restrict__, int);
-template __global__ void ctrsm<CBlasLeft,  CBlasUpper, CBlasTrans,     CBlasUnit,     4, 16, 4, 4>(int, int, cuComplex, const cuComplex * __restrict__, int, cuComplex * __restrict__, int);
-template __global__ void ctrsm<CBlasLeft,  CBlasUpper, CBlasConjTrans, CBlasNonUnit,  4, 16, 4, 4>(int, int, cuComplex, const cuComplex * __restrict__, int, cuComplex * __restrict__, int);
-template __global__ void ctrsm<CBlasLeft,  CBlasUpper, CBlasConjTrans, CBlasUnit,     4, 16, 4, 4>(int, int, cuComplex, const cuComplex * __restrict__, int, cuComplex * __restrict__, int);
-template __global__ void ctrsm<CBlasLeft,  CBlasLower, CBlasNoTrans,   CBlasNonUnit,  4, 16, 4, 4>(int, int, cuComplex, const cuComplex * __restrict__, int, cuComplex * __restrict__, int);
-template __global__ void ctrsm<CBlasLeft,  CBlasLower, CBlasNoTrans,   CBlasUnit,     4, 16, 4, 4>(int, int, cuComplex, const cuComplex * __restrict__, int, cuComplex * __restrict__, int);
-template __global__ void ctrsm<CBlasLeft,  CBlasLower, CBlasTrans,     CBlasNonUnit,  4, 16, 4, 4>(int, int, cuComplex, const cuComplex * __restrict__, int, cuComplex * __restrict__, int);
-template __global__ void ctrsm<CBlasLeft,  CBlasLower, CBlasTrans,     CBlasUnit,     4, 16, 4, 4>(int, int, cuComplex, const cuComplex * __restrict__, int, cuComplex * __restrict__, int);
-template __global__ void ctrsm<CBlasLeft,  CBlasLower, CBlasConjTrans, CBlasNonUnit,  4, 16, 4, 4>(int, int, cuComplex, const cuComplex * __restrict__, int, cuComplex * __restrict__, int);
-template __global__ void ctrsm<CBlasLeft,  CBlasLower, CBlasConjTrans, CBlasUnit,     4, 16, 4, 4>(int, int, cuComplex, const cuComplex * __restrict__, int, cuComplex * __restrict__, int);
-template __global__ void ctrsm<CBlasRight, CBlasUpper, CBlasNoTrans,   CBlasNonUnit, 16,  4, 4, 4>(int, int, cuComplex, const cuComplex * __restrict__, int, cuComplex * __restrict__, int);
-template __global__ void ctrsm<CBlasRight, CBlasUpper, CBlasNoTrans,   CBlasUnit,    16,  4, 4, 4>(int, int, cuComplex, const cuComplex * __restrict__, int, cuComplex * __restrict__, int);
-template __global__ void ctrsm<CBlasRight, CBlasUpper, CBlasTrans,     CBlasNonUnit, 16,  4, 4, 4>(int, int, cuComplex, const cuComplex * __restrict__, int, cuComplex * __restrict__, int);
-template __global__ void ctrsm<CBlasRight, CBlasUpper, CBlasTrans,     CBlasUnit,    16,  4, 4, 4>(int, int, cuComplex, const cuComplex * __restrict__, int, cuComplex * __restrict__, int);
-template __global__ void ctrsm<CBlasRight, CBlasUpper, CBlasConjTrans, CBlasNonUnit, 16,  4, 4, 4>(int, int, cuComplex, const cuComplex * __restrict__, int, cuComplex * __restrict__, int);
-template __global__ void ctrsm<CBlasRight, CBlasUpper, CBlasConjTrans, CBlasUnit,    16,  4, 4, 4>(int, int, cuComplex, const cuComplex * __restrict__, int, cuComplex * __restrict__, int);
-template __global__ void ctrsm<CBlasRight, CBlasLower, CBlasNoTrans,   CBlasNonUnit, 16,  4, 4, 4>(int, int, cuComplex, const cuComplex * __restrict__, int, cuComplex * __restrict__, int);
-template __global__ void ctrsm<CBlasRight, CBlasLower, CBlasNoTrans,   CBlasUnit,    16,  4, 4, 4>(int, int, cuComplex, const cuComplex * __restrict__, int, cuComplex * __restrict__, int);
-template __global__ void ctrsm<CBlasRight, CBlasLower, CBlasTrans,     CBlasNonUnit, 16,  4, 4, 4>(int, int, cuComplex, const cuComplex * __restrict__, int, cuComplex * __restrict__, int);
-template __global__ void ctrsm<CBlasRight, CBlasLower, CBlasTrans,     CBlasUnit,    16,  4, 4, 4>(int, int, cuComplex, const cuComplex * __restrict__, int, cuComplex * __restrict__, int);
-template __global__ void ctrsm<CBlasRight, CBlasLower, CBlasConjTrans, CBlasNonUnit, 16,  4, 4, 4>(int, int, cuComplex, const cuComplex * __restrict__, int, cuComplex * __restrict__, int);
-template __global__ void ctrsm<CBlasRight, CBlasLower, CBlasConjTrans, CBlasUnit,    16,  4, 4, 4>(int, int, cuComplex, const cuComplex * __restrict__, int, cuComplex * __restrict__, int);
+template __global__ void ctrsm<CBlasLeft,  CBlasUpper, CBlasNoTrans,   CBlasNonUnit,  4, 16, 4, 4>(const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int);
+template __global__ void ctrsm<CBlasLeft,  CBlasUpper, CBlasNoTrans,   CBlasUnit,     4, 16, 4, 4>(const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int);
+template __global__ void ctrsm<CBlasLeft,  CBlasUpper, CBlasTrans,     CBlasNonUnit,  4, 16, 4, 4>(const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int);
+template __global__ void ctrsm<CBlasLeft,  CBlasUpper, CBlasTrans,     CBlasUnit,     4, 16, 4, 4>(const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int);
+template __global__ void ctrsm<CBlasLeft,  CBlasUpper, CBlasConjTrans, CBlasNonUnit,  4, 16, 4, 4>(const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int);
+template __global__ void ctrsm<CBlasLeft,  CBlasUpper, CBlasConjTrans, CBlasUnit,     4, 16, 4, 4>(const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int);
+template __global__ void ctrsm<CBlasLeft,  CBlasLower, CBlasNoTrans,   CBlasNonUnit,  4, 16, 4, 4>(const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int);
+template __global__ void ctrsm<CBlasLeft,  CBlasLower, CBlasNoTrans,   CBlasUnit,     4, 16, 4, 4>(const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int);
+template __global__ void ctrsm<CBlasLeft,  CBlasLower, CBlasTrans,     CBlasNonUnit,  4, 16, 4, 4>(const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int);
+template __global__ void ctrsm<CBlasLeft,  CBlasLower, CBlasTrans,     CBlasUnit,     4, 16, 4, 4>(const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int);
+template __global__ void ctrsm<CBlasLeft,  CBlasLower, CBlasConjTrans, CBlasNonUnit,  4, 16, 4, 4>(const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int);
+template __global__ void ctrsm<CBlasLeft,  CBlasLower, CBlasConjTrans, CBlasUnit,     4, 16, 4, 4>(const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int);
+template __global__ void ctrsm<CBlasRight, CBlasUpper, CBlasNoTrans,   CBlasNonUnit, 16,  4, 4, 4>(const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int);
+template __global__ void ctrsm<CBlasRight, CBlasUpper, CBlasNoTrans,   CBlasUnit,    16,  4, 4, 4>(const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int);
+template __global__ void ctrsm<CBlasRight, CBlasUpper, CBlasTrans,     CBlasNonUnit, 16,  4, 4, 4>(const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int);
+template __global__ void ctrsm<CBlasRight, CBlasUpper, CBlasTrans,     CBlasUnit,    16,  4, 4, 4>(const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int);
+template __global__ void ctrsm<CBlasRight, CBlasUpper, CBlasConjTrans, CBlasNonUnit, 16,  4, 4, 4>(const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int);
+template __global__ void ctrsm<CBlasRight, CBlasUpper, CBlasConjTrans, CBlasUnit,    16,  4, 4, 4>(const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int);
+template __global__ void ctrsm<CBlasRight, CBlasLower, CBlasNoTrans,   CBlasNonUnit, 16,  4, 4, 4>(const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int);
+template __global__ void ctrsm<CBlasRight, CBlasLower, CBlasNoTrans,   CBlasUnit,    16,  4, 4, 4>(const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int);
+template __global__ void ctrsm<CBlasRight, CBlasLower, CBlasTrans,     CBlasNonUnit, 16,  4, 4, 4>(const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int);
+template __global__ void ctrsm<CBlasRight, CBlasLower, CBlasTrans,     CBlasUnit,    16,  4, 4, 4>(const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int);
+template __global__ void ctrsm<CBlasRight, CBlasLower, CBlasConjTrans, CBlasNonUnit, 16,  4, 4, 4>(const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int);
+template __global__ void ctrsm<CBlasRight, CBlasLower, CBlasConjTrans, CBlasUnit,    16,  4, 4, 4>(const cuComplex * __restrict__, cuComplex * __restrict__, cuComplex, int, int, int, int);

@@ -102,7 +102,7 @@ int main(int argc, char * argv[]) {
   alpha = (double)rand() / (double)RAND_MAX;
 
   if (side == CBlasLeft) {
-    lda = (m + 3u) & ~3u;
+    lda = (m + 1u) & ~1u;
     if ((A = malloc(lda * m * sizeof(double))) == NULL) {
       fputs("Unable to allocate A\n", stderr);
       return -1;
@@ -114,7 +114,7 @@ int main(int argc, char * argv[]) {
     }
   }
   else {
-    lda = (n + 3u) & ~3u;
+    lda = (n + 1u) & ~1u;
     if ((A = malloc(lda * n * sizeof(double))) == NULL) {
       fputs("Unable to allocate A\n", stderr);
       return -1;
@@ -126,7 +126,7 @@ int main(int argc, char * argv[]) {
     }
   }
 
-  ldb = (m + 3u) & ~3u;
+  ldb = (m + 1u) & ~1u;
   if ((B = malloc(ldb * n * sizeof(double))) == NULL) {
     fputs("Unable to allocate B\n", stderr);
     return -3;

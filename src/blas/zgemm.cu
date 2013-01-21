@@ -56,7 +56,7 @@ template <CBlasTranspose transB,
 __global__ void zgemmN(cuDoubleComplex alpha, cuDoubleComplex beta,
                        const cuDoubleComplex * __restrict__ A, const cuDoubleComplex * __restrict__ B,
                        const cuDoubleComplex * __restrict__ C, cuDoubleComplex * __restrict__ D,
-int lda, int ldb, int ldc, int ldd,
+                       int lda, int ldb, int ldc, int ldd,
                        int m, int n, int k) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of C/D

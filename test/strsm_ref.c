@@ -118,22 +118,3 @@ static void strsm_ref(CBlasSide side, CBlasUplo uplo, CBlasTranspose trans,
     }
   }
 }
-
-static float gaussian() {
-  static bool hasNext = false;
-  static float next;
-
-  if (hasNext) {
-    hasNext = false;
-    return next;
-  }
-
-  float u0 = ((float)rand() + 1) / (float)RAND_MAX;
-  float u1 = ((float)rand() + 1) / (float)RAND_MAX;
-  float r = sqrtf(-2 * logf(u0));
-  float phi = 2.f * 3.1415926535f * u1;
-  next = r * sinf(phi);
-  hasNext = true;
-
-  return r * cosf(phi);
-}

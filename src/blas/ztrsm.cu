@@ -42,9 +42,10 @@ __device__ void zaxpy(int n, cuDoubleComplex alpha, const int * x_real_hi, const
  */
 template <CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int bx, unsigned int by>
-__global__ void ztrsm(int m, int n,
-                      cuDoubleComplex alpha, const cuDoubleComplex * __restrict__ A, int lda,
-                      cuDoubleComplex * __restrict__ B, int ldb) {
+__global__ void ztrsm(cuDoubleComplex alpha,
+                      const cuDoubleComplex * __restrict__ A, cuDoubleComplex * __restrict__ B,
+                      int lda, int ldb,
+                      int m, int n) {
 
  if (side == CBlasLeft) {
    // For CBlasLeft each thread updates a column.  This means that B needs to be
@@ -746,9 +747,10 @@ __device__ void zaxpy(int n, cuDoubleComplex alpha, const cuDoubleComplex * x, c
  */
 template <CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int bx, unsigned int by>
-__global__ void ztrsm(int m, int n,
-                      cuDoubleComplex alpha, const cuDoubleComplex * __restrict__ A, int lda,
-                      cuDoubleComplex * __restrict__ B, int ldb) {
+__global__ void ztrsm(cuDoubleComplex alpha,
+                      const cuDoubleComplex * __restrict__ A, cuDoubleComplex * __restrict__ B,
+                      int lda, int ldb,
+                      int m, int n) {
 
  if (side == CBlasLeft) {
    // For CBlasLeft each thread updates a column.  This means that B needs to be
@@ -1215,27 +1217,27 @@ __global__ void ztrsm(int m, int n,
 }
 #endif
 
-template __global__ void ztrsm<CBlasLeft,  CBlasUpper, CBlasNoTrans,   CBlasNonUnit, 2, 8, 2, 2>(int, int, cuDoubleComplex, const cuDoubleComplex * __restrict__, int, cuDoubleComplex * __restrict__, int);
-template __global__ void ztrsm<CBlasLeft,  CBlasUpper, CBlasNoTrans,   CBlasUnit,    2, 8, 2, 2>(int, int, cuDoubleComplex, const cuDoubleComplex * __restrict__, int, cuDoubleComplex * __restrict__, int);
-template __global__ void ztrsm<CBlasLeft,  CBlasUpper, CBlasTrans,     CBlasNonUnit, 2, 8, 2, 2>(int, int, cuDoubleComplex, const cuDoubleComplex * __restrict__, int, cuDoubleComplex * __restrict__, int);
-template __global__ void ztrsm<CBlasLeft,  CBlasUpper, CBlasTrans,     CBlasUnit,    2, 8, 2, 2>(int, int, cuDoubleComplex, const cuDoubleComplex * __restrict__, int, cuDoubleComplex * __restrict__, int);
-template __global__ void ztrsm<CBlasLeft,  CBlasUpper, CBlasConjTrans, CBlasNonUnit, 2, 8, 2, 2>(int, int, cuDoubleComplex, const cuDoubleComplex * __restrict__, int, cuDoubleComplex * __restrict__, int);
-template __global__ void ztrsm<CBlasLeft,  CBlasUpper, CBlasConjTrans, CBlasUnit,    2, 8, 2, 2>(int, int, cuDoubleComplex, const cuDoubleComplex * __restrict__, int, cuDoubleComplex * __restrict__, int);
-template __global__ void ztrsm<CBlasLeft,  CBlasLower, CBlasNoTrans,   CBlasNonUnit, 2, 8, 2, 2>(int, int, cuDoubleComplex, const cuDoubleComplex * __restrict__, int, cuDoubleComplex * __restrict__, int);
-template __global__ void ztrsm<CBlasLeft,  CBlasLower, CBlasNoTrans,   CBlasUnit,    2, 8, 2, 2>(int, int, cuDoubleComplex, const cuDoubleComplex * __restrict__, int, cuDoubleComplex * __restrict__, int);
-template __global__ void ztrsm<CBlasLeft,  CBlasLower, CBlasTrans,     CBlasNonUnit, 2, 8, 2, 2>(int, int, cuDoubleComplex, const cuDoubleComplex * __restrict__, int, cuDoubleComplex * __restrict__, int);
-template __global__ void ztrsm<CBlasLeft,  CBlasLower, CBlasTrans,     CBlasUnit,    2, 8, 2, 2>(int, int, cuDoubleComplex, const cuDoubleComplex * __restrict__, int, cuDoubleComplex * __restrict__, int);
-template __global__ void ztrsm<CBlasLeft,  CBlasLower, CBlasConjTrans, CBlasNonUnit, 2, 8, 2, 2>(int, int, cuDoubleComplex, const cuDoubleComplex * __restrict__, int, cuDoubleComplex * __restrict__, int);
-template __global__ void ztrsm<CBlasLeft,  CBlasLower, CBlasConjTrans, CBlasUnit,    2, 8, 2, 2>(int, int, cuDoubleComplex, const cuDoubleComplex * __restrict__, int, cuDoubleComplex * __restrict__, int);
-template __global__ void ztrsm<CBlasRight, CBlasUpper, CBlasNoTrans,   CBlasNonUnit, 8, 2, 2, 2>(int, int, cuDoubleComplex, const cuDoubleComplex * __restrict__, int, cuDoubleComplex * __restrict__, int);
-template __global__ void ztrsm<CBlasRight, CBlasUpper, CBlasNoTrans,   CBlasUnit,    8, 2, 2, 2>(int, int, cuDoubleComplex, const cuDoubleComplex * __restrict__, int, cuDoubleComplex * __restrict__, int);
-template __global__ void ztrsm<CBlasRight, CBlasUpper, CBlasTrans,     CBlasNonUnit, 8, 2, 2, 2>(int, int, cuDoubleComplex, const cuDoubleComplex * __restrict__, int, cuDoubleComplex * __restrict__, int);
-template __global__ void ztrsm<CBlasRight, CBlasUpper, CBlasTrans,     CBlasUnit,    8, 2, 2, 2>(int, int, cuDoubleComplex, const cuDoubleComplex * __restrict__, int, cuDoubleComplex * __restrict__, int);
-template __global__ void ztrsm<CBlasRight, CBlasUpper, CBlasConjTrans, CBlasNonUnit, 8, 2, 2, 2>(int, int, cuDoubleComplex, const cuDoubleComplex * __restrict__, int, cuDoubleComplex * __restrict__, int);
-template __global__ void ztrsm<CBlasRight, CBlasUpper, CBlasConjTrans, CBlasUnit,    8, 2, 2, 2>(int, int, cuDoubleComplex, const cuDoubleComplex * __restrict__, int, cuDoubleComplex * __restrict__, int);
-template __global__ void ztrsm<CBlasRight, CBlasLower, CBlasNoTrans,   CBlasNonUnit, 8, 2, 2, 2>(int, int, cuDoubleComplex, const cuDoubleComplex * __restrict__, int, cuDoubleComplex * __restrict__, int);
-template __global__ void ztrsm<CBlasRight, CBlasLower, CBlasNoTrans,   CBlasUnit,    8, 2, 2, 2>(int, int, cuDoubleComplex, const cuDoubleComplex * __restrict__, int, cuDoubleComplex * __restrict__, int);
-template __global__ void ztrsm<CBlasRight, CBlasLower, CBlasTrans,     CBlasNonUnit, 8, 2, 2, 2>(int, int, cuDoubleComplex, const cuDoubleComplex * __restrict__, int, cuDoubleComplex * __restrict__, int);
-template __global__ void ztrsm<CBlasRight, CBlasLower, CBlasTrans,     CBlasUnit,    8, 2, 2, 2>(int, int, cuDoubleComplex, const cuDoubleComplex * __restrict__, int, cuDoubleComplex * __restrict__, int);
-template __global__ void ztrsm<CBlasRight, CBlasLower, CBlasConjTrans, CBlasNonUnit, 8, 2, 2, 2>(int, int, cuDoubleComplex, const cuDoubleComplex * __restrict__, int, cuDoubleComplex * __restrict__, int);
-template __global__ void ztrsm<CBlasRight, CBlasLower, CBlasConjTrans, CBlasUnit,    8, 2, 2, 2>(int, int, cuDoubleComplex, const cuDoubleComplex * __restrict__, int, cuDoubleComplex * __restrict__, int);
+template __global__ void ztrsm<CBlasLeft,  CBlasUpper, CBlasNoTrans,   CBlasNonUnit, 2, 8, 2, 2>(cuDoubleComplex, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int);
+template __global__ void ztrsm<CBlasLeft,  CBlasUpper, CBlasNoTrans,   CBlasUnit,    2, 8, 2, 2>(cuDoubleComplex, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int);
+template __global__ void ztrsm<CBlasLeft,  CBlasUpper, CBlasTrans,     CBlasNonUnit, 2, 8, 2, 2>(cuDoubleComplex, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int);
+template __global__ void ztrsm<CBlasLeft,  CBlasUpper, CBlasTrans,     CBlasUnit,    2, 8, 2, 2>(cuDoubleComplex, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int);
+template __global__ void ztrsm<CBlasLeft,  CBlasUpper, CBlasConjTrans, CBlasNonUnit, 2, 8, 2, 2>(cuDoubleComplex, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int);
+template __global__ void ztrsm<CBlasLeft,  CBlasUpper, CBlasConjTrans, CBlasUnit,    2, 8, 2, 2>(cuDoubleComplex, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int);
+template __global__ void ztrsm<CBlasLeft,  CBlasLower, CBlasNoTrans,   CBlasNonUnit, 2, 8, 2, 2>(cuDoubleComplex, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int);
+template __global__ void ztrsm<CBlasLeft,  CBlasLower, CBlasNoTrans,   CBlasUnit,    2, 8, 2, 2>(cuDoubleComplex, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int);
+template __global__ void ztrsm<CBlasLeft,  CBlasLower, CBlasTrans,     CBlasNonUnit, 2, 8, 2, 2>(cuDoubleComplex, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int);
+template __global__ void ztrsm<CBlasLeft,  CBlasLower, CBlasTrans,     CBlasUnit,    2, 8, 2, 2>(cuDoubleComplex, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int);
+template __global__ void ztrsm<CBlasLeft,  CBlasLower, CBlasConjTrans, CBlasNonUnit, 2, 8, 2, 2>(cuDoubleComplex, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int);
+template __global__ void ztrsm<CBlasLeft,  CBlasLower, CBlasConjTrans, CBlasUnit,    2, 8, 2, 2>(cuDoubleComplex, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int);
+template __global__ void ztrsm<CBlasRight, CBlasUpper, CBlasNoTrans,   CBlasNonUnit, 8, 2, 2, 2>(cuDoubleComplex, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int);
+template __global__ void ztrsm<CBlasRight, CBlasUpper, CBlasNoTrans,   CBlasUnit,    8, 2, 2, 2>(cuDoubleComplex, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int);
+template __global__ void ztrsm<CBlasRight, CBlasUpper, CBlasTrans,     CBlasNonUnit, 8, 2, 2, 2>(cuDoubleComplex, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int);
+template __global__ void ztrsm<CBlasRight, CBlasUpper, CBlasTrans,     CBlasUnit,    8, 2, 2, 2>(cuDoubleComplex, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int);
+template __global__ void ztrsm<CBlasRight, CBlasUpper, CBlasConjTrans, CBlasNonUnit, 8, 2, 2, 2>(cuDoubleComplex, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int);
+template __global__ void ztrsm<CBlasRight, CBlasUpper, CBlasConjTrans, CBlasUnit,    8, 2, 2, 2>(cuDoubleComplex, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int);
+template __global__ void ztrsm<CBlasRight, CBlasLower, CBlasNoTrans,   CBlasNonUnit, 8, 2, 2, 2>(cuDoubleComplex, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int);
+template __global__ void ztrsm<CBlasRight, CBlasLower, CBlasNoTrans,   CBlasUnit,    8, 2, 2, 2>(cuDoubleComplex, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int);
+template __global__ void ztrsm<CBlasRight, CBlasLower, CBlasTrans,     CBlasNonUnit, 8, 2, 2, 2>(cuDoubleComplex, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int);
+template __global__ void ztrsm<CBlasRight, CBlasLower, CBlasTrans,     CBlasUnit,    8, 2, 2, 2>(cuDoubleComplex, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int);
+template __global__ void ztrsm<CBlasRight, CBlasLower, CBlasConjTrans, CBlasNonUnit, 8, 2, 2, 2>(cuDoubleComplex, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int);
+template __global__ void ztrsm<CBlasRight, CBlasLower, CBlasConjTrans, CBlasUnit,    8, 2, 2, 2>(cuDoubleComplex, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int);

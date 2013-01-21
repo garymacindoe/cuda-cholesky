@@ -17,7 +17,7 @@ ifeq ($(notdir $(CC)), icc)
   LDFLAGS += -L$(INTEL_HOME)/compiler/lib/intel64
   LDLIBS += -liomp5
 else
-  CFLAGS = -march=native -O2 -pipe -std=c99 -pedantic -Wall -Wextra -Wconversion -ftree-vectorize -ffast-math -fopenmp
+  CFLAGS = -march=native -ggdb -pipe -std=c99 -pedantic -Wall -Wextra -Wconversion -ftree-vectorize -ffast-math -fopenmp
   LDLIBS += -lgomp
 endif
 

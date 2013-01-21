@@ -100,7 +100,7 @@ int main(int argc, char * argv[]) {
   CUmultiGPUBlasHandle handle;
   CU_ERROR_CHECK(cuMultiGPUBlasCreate(&handle, mGPU));
 
-  alpha = gaussian();
+  alpha = ((float)rand() / (float)RAND_MAX) + ((float)rand() / (float)RAND_MAX) * I;
 
   if (side == CBlasLeft) {
     lda = (m + 1u) & ~1u;
@@ -117,20 +117,17 @@ int main(int argc, char * argv[]) {
     }
     for (size_t j = 0; j < m; j++) {
       for (size_t i = 0; i < k; i++)
-        C[j * ldc + i] = gaussian();
+        C[j * ldc + i] = ((float)rand() / (float)RAND_MAX) + ((float)rand() / (float)RAND_MAX) * I;
     }
     for (size_t j = 0; j < m; j++) {
       for (size_t i = 0; i < m; i++) {
         float complex temp = 0.0f;
         for (size_t l = 0; l < k; l++)
           temp += conjf(C[i * ldc + l]) * C[j * ldc + l];
-        A[j * lda + i] = 0.01f * temp;
+        A[j * lda + i] = temp;
       }
     }
     free(C);
-
-    for (size_t k = 0; k < m; k++)
-      A[k * lda + k] += 1.0f;
   }
   else {
     lda = (n + 1u) & ~1u;
@@ -147,20 +144,17 @@ int main(int argc, char * argv[]) {
     }
     for (size_t j = 0; j < n; j++) {
       for (size_t i = 0; i < k; i++)
-        C[j * ldc + i] = gaussian();
+        C[j * ldc + i] = ((float)rand() / (float)RAND_MAX) + ((float)rand() / (float)RAND_MAX) * I;
     }
     for (size_t j = 0; j < n; j++) {
       for (size_t i = 0; i < n; i++) {
         float complex temp = 0.0f;
         for (size_t l = 0; l < k; l++)
           temp += conjf(C[i * ldc + l]) * C[j * ldc + l];
-        A[j * lda + i] = 0.01f * temp;
+        A[j * lda + i] = temp;
       }
     }
     free(C);
-
-    for (size_t k = 0; k < n; k++)
-      A[k * lda + k] += 1.0f;
   }
 
   ldb = (m + 1u) & ~1u;
@@ -175,7 +169,7 @@ int main(int argc, char * argv[]) {
 
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < m; i++)
-      refB[j * ldb + i] = B[j * ldb + i] = gaussian();
+      refB[j * ldb + i] = B[j * ldb + i] = ((float)rand() / (float)RAND_MAX) + ((float)rand() / (float)RAND_MAX) * I;
   }
 
   ctrsm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb);

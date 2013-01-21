@@ -15,7 +15,7 @@ static void zpotrf_ref(CBlasUplo uplo, size_t n, double complex * restrict A, si
         double complex temp = A[j * lda + i];
         for (size_t k = 0; k < i; k++)
           temp -= A[j * lda + k] * conj(A[i * lda + k]);
-        A[j * lda + i] = temp / A[i * lda + i];
+        A[j * lda + i] = temp / creal(A[i * lda + i]);
       }
 
       double ajj = creal(A[j * lda + j]);
@@ -26,19 +26,14 @@ static void zpotrf_ref(CBlasUplo uplo, size_t n, double complex * restrict A, si
         *info = (long)j + 1;
         return;
       }
-      else
-        A[j * lda + j] = sqrt(ajj);
+      A[j * lda + j] = sqrt(ajj);
     }
   }
   else {
     for (size_t j = 0; j < n; j++) {
-      for (size_t k = 0; k < j; k++) {
-        double complex temp = conj(A[k * lda + j]);
-        for (size_t i = j; i < n; i++)
-          A[j * lda + i] -= temp * A[k * lda + i];
-      }
-
       double ajj = creal(A[j * lda + j]);
+      for (size_t k = 0; k < j; k++)
+        ajj -= A[k * lda + j] * conj(A[k * lda + j]);
       if (ajj <= 0.0 || isnan(ajj)) {
         A[j * lda + j] = ajj;
         *info = (long)j + 1;
@@ -46,8 +41,13 @@ static void zpotrf_ref(CBlasUplo uplo, size_t n, double complex * restrict A, si
       }
       ajj = sqrt(ajj);
       A[j * lda + j] = ajj;
-      for (size_t i = j + 1; i < n; i++)
-        A[j * lda + i] /= ajj;
+
+      for (size_t i = j + 1; i < n; i++) {
+        double complex temp = A[j * lda + i];
+        for (size_t k = 0; k < j; k++)
+          temp -= conj(A[k * lda + j]) * A[k * lda + i];
+        A[j * lda + i] = temp / ajj;
+      }
     }
   }
 }

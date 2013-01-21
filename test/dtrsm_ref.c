@@ -118,22 +118,3 @@ static void dtrsm_ref(CBlasSide side, CBlasUplo uplo, CBlasTranspose trans,
     }
   }
 }
-
-static double gaussian() {
-  static bool hasNext = false;
-  static double next;
-
-  if (hasNext) {
-    hasNext = false;
-    return next;
-  }
-
-  double u0 = ((double)rand() + 1) / (double)RAND_MAX;
-  double u1 = ((double)rand() + 1) / (double)RAND_MAX;
-  double r = sqrt(-2 * log(u0));
-  double phi = 2. * 3.1415926535897932384626433832795 * u1;
-  next = r * sin(phi);
-  hasNext = true;
-
-  return r * cos(phi);
-}

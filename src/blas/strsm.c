@@ -45,7 +45,8 @@ void strsm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag
     return;
   }
 
-  if (m == 0 || n == 0) return;
+  if (m == 0 || n == 0)
+    return;
 
   if (alpha == zero) {
 #pragma omp parallel for
@@ -238,13 +239,13 @@ CUresult cuStrsm(CUmodule module,
 
   char name[102];
   snprintf(name, 102,
-           "_Z5strsmIL9CBlasSide%dEL9CBlasUplo%dEL14CBlasTranspose%dEL9CBlasDiag%dELj%uELj%uELj%uELj%uEEviifPKfiPfi",
+           "_Z5strsmIL9CBlasSide%dEL9CBlasUplo%dEL14CBlasTranspose%dEL9CBlasDiag%dELj%uELj%uELj%uELj%uEEvPKfPffiiii",
            side, uplo, transA, diag, mb, nb, bx, by);
 
   CUfunction function;
   CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
 
-  void * params[] = { &m, &n, &alpha, &A, &lda, &B, &ldb };
+  void * params[] = { &A, &B, &alpha, &lda, &ldb, &m, &n };
 
   const unsigned int gx = (side == CBlasLeft) ? 1 : (unsigned int)(m + mb - 1) / mb;
   const unsigned int gy = (side == CBlasLeft) ? (unsigned int)(n + nb - 1) / nb : 1;

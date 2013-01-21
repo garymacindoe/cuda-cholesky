@@ -185,8 +185,7 @@ void zherk(CBlasUplo uplo, CBlasTranspose trans,
   }
 }
 
-CUresult cuZherk(CUmodule module,
-                 CBlasUplo uplo, CBlasTranspose trans,
+CUresult cuZherk(CUmodule module, CBlasUplo uplo, CBlasTranspose trans,
                  size_t n, size_t k,
                  double alpha, CUdeviceptr A, size_t lda,
                  double beta, CUdeviceptr C, size_t ldc, CUstream stream) {

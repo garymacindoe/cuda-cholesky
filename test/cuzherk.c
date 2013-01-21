@@ -84,7 +84,7 @@ int main(int argc, char * argv[]) {
   beta = (double)rand() / (double)RAND_MAX;
 
   if (trans == CBlasNoTrans) {
-    lda = (n + 1u) & ~1u;
+    lda = n;
     if ((A = malloc(lda * k * sizeof(double complex))) == NULL) {
       fputs("Unable to allocate A\n", stderr);
       return -1;
@@ -103,7 +103,7 @@ int main(int argc, char * argv[]) {
     CU_ERROR_CHECK(cuMemcpy2D(&copy));
   }
   else {
-    lda = (k + 1u) & ~1u;
+    lda = k;
     if ((A = malloc(lda * n * sizeof(double complex))) == NULL) {
       fputs("Unable to allocate A\n", stderr);
       return -1;
@@ -122,7 +122,7 @@ int main(int argc, char * argv[]) {
     CU_ERROR_CHECK(cuMemcpy2D(&copy));
   }
 
-  ldc = (n + 1u) & ~1u;
+  ldc = n;
   if ((C = malloc(ldc * n * sizeof(double complex))) == NULL) {
     fputs("Unable to allocate C\n", stderr);
     return -3;

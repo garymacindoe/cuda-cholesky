@@ -26,16 +26,6 @@ static inline CUresult cuMemcpyDtoH2DAsync(void * A, size_t lda, size_t ai, size
   return cuMemcpy2DAsync(&copy, stream);
 }
 
-static inline CUresult cuMemcpyDtoD2DAsync(CUdeviceptr A, size_t lda, size_t ai, size_t aj,
-                                          CUdeviceptr B, size_t ldb, size_t bi, size_t bj,
-                                          size_t m, size_t n, size_t elemSize, CUstream stream) {
-  CUDA_MEMCPY2D copy = {
-    bi * elemSize, bj, CU_MEMORYTYPE_DEVICE, NULL, B, 0, ldb * elemSize,
-    ai * elemSize, aj, CU_MEMORYTYPE_DEVICE, NULL, A, 0, lda * elemSize,
-    m * elemSize, n };
-  return cuMemcpy2DAsync(&copy, stream);
-}
-
 static const double complex zero = 0.0 + 0.0 * I;
 static const double complex one = 1.0 + 0.0 * I;
 
@@ -225,7 +215,7 @@ void ztrmm(CBlasSide side, CBlasUplo uplo, CBlasTranspose trans, CBlasDiag diag,
   }
 }
 
-void ztrmm2(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag,
+void ztrmm2(CBlasSide side, CBlasUplo uplo, CBlasTranspose trans, CBlasDiag diag,
            size_t m, size_t n,
            double complex alpha, const double complex * restrict A, size_t lda,
            const double complex * restrict B, size_t ldb,
@@ -257,13 +247,13 @@ void ztrmm2(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag dia
   }
 
   if (side == CBlasLeft) {
-    if (transA == CBlasNoTrans) {
+    if (trans == CBlasNoTrans) {
       if (uplo == CBlasUpper) {
 #pragma omp parallel for
         for (size_t j = 0; j < n; j++) {
           for (size_t k = 0; k < m; k++) {
             register double complex temp = B[j * ldb + k];
-            if (B[j * ldb + k] != zero) {
+            if (temp != zero) {
               temp *= alpha;
               for (size_t i = 0; i < k; i++)
                 X[j * ldx + i] += temp * A[k * lda + i];
@@ -298,7 +288,7 @@ void ztrmm2(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag dia
           size_t i = m - 1;
           do {
             register double complex temp = B[j * ldb + i];
-            if (transA == CBlasTrans) {
+            if (trans == CBlasTrans) {
               if (diag == CBlasNonUnit) temp *= A[i * lda + i];
               for (size_t k = 0; k < i; k++)
                 temp += A[i * lda + k] * B[j * ldb + k];
@@ -317,7 +307,7 @@ void ztrmm2(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag dia
         for (size_t j = 0; j < n; j++) {
           for (size_t i = 0; i < m; i++) {
             register double complex temp = B[j * ldb + i];
-            if (transA == CBlasTrans) {
+            if (trans == CBlasTrans) {
               if (diag == CBlasNonUnit) temp *= A[i * lda + i];
               for (size_t k = i + 1; k < m; k++)
                 temp += A[i * lda + k] * B[j * ldb + k];
@@ -334,7 +324,7 @@ void ztrmm2(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag dia
     }
   }
   else {
-    if (transA == CBlasNoTrans) {
+    if (trans == CBlasNoTrans) {
       if (uplo == CBlasUpper) {
         size_t j = n - 1;
         do {
@@ -373,7 +363,7 @@ void ztrmm2(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag dia
           for (size_t j = 0; j < k; j++) {
             if (A[k * lda + j] != zero) {
               register double complex temp;
-              if (transA == CBlasTrans)
+              if (trans == CBlasTrans)
                 temp = alpha * A[k * lda + j];
               else
                 temp = alpha * conj(A[k * lda + j]);
@@ -383,7 +373,7 @@ void ztrmm2(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag dia
           }
           register double complex temp = alpha;
           if (diag == CBlasNonUnit)
-            temp *= ((transA == CBlasTrans) ? A[k * lda + k] : conj(A[k * lda + k]));
+            temp *= ((trans == CBlasTrans) ? A[k * lda + k] : conj(A[k * lda + k]));
           if (temp != one) {
             for (size_t i = 0; i < m; i++)
               X[k * ldx + i] = temp * B[k * ldb + i];
@@ -396,7 +386,7 @@ void ztrmm2(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag dia
           for (size_t j = k + 1; j < n; j++) {
             if (A[k * lda + j] != zero) {
               register double complex temp;
-              if (transA == CBlasTrans)
+              if (trans == CBlasTrans)
                 temp = alpha * A[k * lda + j];
               else
                 temp = alpha * conj(A[k * lda + j]);
@@ -406,7 +396,7 @@ void ztrmm2(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag dia
           }
           register double complex temp = alpha;
           if (diag == CBlasNonUnit)
-            temp *= ((transA == CBlasTrans) ? A[k * lda + k] : conj(A[k * lda + k]));
+            temp *= ((trans == CBlasTrans) ? A[k * lda + k] : conj(A[k * lda + k]));
           if (temp != one) {
             for (size_t i = 0; i < m; i++)
               X[k * ldx + i] = temp * B[k * ldb + i];
@@ -439,20 +429,20 @@ CUresult cuZtrmm2(CUmodule module,
   if (m == 0 || n == 0)
     return CUDA_SUCCESS;
 
-  const unsigned int mb = (side == CBlasRight) ? 64 :  8;
-  const unsigned int nb = (side == CBlasRight) ?  4 :  8;
-  const unsigned int kb = (side == CBlasRight) ? 16 :  4;
-  const unsigned int bx = (side == CBlasRight) ? 16 :  4;
-  const unsigned int by = (side == CBlasRight) ?  4 :  8;
+  const unsigned int mb = (trans == CBlasNoTrans) ? 64 :  8;
+  const unsigned int nb = (trans == CBlasNoTrans) ?  4 :  8;
+  const unsigned int kb = (trans == CBlasNoTrans) ? 16 :  4;
+  const unsigned int bx = (trans == CBlasNoTrans) ? 16 :  4;
+  const unsigned int by = (trans == CBlasNoTrans) ?  4 :  8;
 
   char name[95];
   if (trans == CBlasNoTrans)
     snprintf(name, 78,
-             "_Z8ztrmm%c%c%cIL9CBlasDiag%dELj%uELj%uELj%uELj%uELj%uEEvPK7double2S3_PS1_S1_iiiii",
+             "_Z8ztrmm%c%c%cIL9CBlasDiag%dELj%uELj%uELj%uELj%uELj%uEEv7double2PKS1_S3_PS1_iiiii",
              side, uplo, trans, diag, mb, nb, kb, bx, by);
   else
     snprintf(name, 95,
-             "_Z8ztrmm%c%cTIL14CBlasTranspose%dEL9CBlasDiag%dELj%uELj%uELj%uELj%uELj%uEEvPK7double2S4_PS2_S2_iiiii",
+             "_Z8ztrmm%c%cTIL14CBlasTranspose%dEL9CBlasDiag%dELj%uELj%uELj%uELj%uELj%uEEv7double2PKS2_S4_PS2_iiiii",
              side, uplo, trans, diag, mb, nb, kb, bx, by);
 
   CUfunction function;

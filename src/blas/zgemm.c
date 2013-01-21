@@ -221,8 +221,7 @@ void zgemm(CBlasTranspose transA, CBlasTranspose transB,
   }
 }
 
-CUresult cuZgemm2(CUmodule module,
-                  CBlasTranspose transA, CBlasTranspose transB,
+CUresult cuZgemm2(CUmodule module, CBlasTranspose transA, CBlasTranspose transB,
                   size_t m, size_t n, size_t k,
                   double complex alpha, CUdeviceptr A, size_t lda, CUdeviceptr B, size_t ldb,
                   double complex beta, CUdeviceptr C, size_t ldc, CUdeviceptr D, size_t ldd,
