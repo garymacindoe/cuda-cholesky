@@ -7,8 +7,8 @@
 static inline size_t min(size_t a, size_t b) { return (a < b) ? a : b; }
 
 static inline CUresult cuMemcpyHtoD2DAsync(CUdeviceptr A, size_t lda, size_t ai, size_t aj,
-                                          const void * B, size_t ldb, size_t bi, size_t bj,
-                                          size_t m, size_t n, size_t elemSize, CUstream stream) {
+                                           const void * B, size_t ldb, size_t bi, size_t bj,
+                                           size_t m, size_t n, size_t elemSize, CUstream stream) {
   CUDA_MEMCPY2D copy = {
     bi * elemSize, bj, CU_MEMORYTYPE_HOST, B, 0, 0, ldb * elemSize,
     ai * elemSize, aj, CU_MEMORYTYPE_DEVICE, NULL, A, 0, lda * elemSize,
@@ -17,8 +17,8 @@ static inline CUresult cuMemcpyHtoD2DAsync(CUdeviceptr A, size_t lda, size_t ai,
 }
 
 static inline CUresult cuMemcpyDtoH2DAsync(void * A, size_t lda, size_t ai, size_t aj,
-                                          CUdeviceptr B, size_t ldb, size_t bi, size_t bj,
-                                          size_t m, size_t n, size_t elemSize, CUstream stream) {
+                                           CUdeviceptr B, size_t ldb, size_t bi, size_t bj,
+                                           size_t m, size_t n, size_t elemSize, CUstream stream) {
   CUDA_MEMCPY2D copy = {
     bi * elemSize, bj, CU_MEMORYTYPE_DEVICE, NULL, B, 0, ldb * elemSize,
     ai * elemSize, aj, CU_MEMORYTYPE_HOST, A, 0, 0, lda * elemSize,
@@ -210,17 +210,16 @@ CUresult cuSpotrf(CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, long * in
       CU_ERROR_CHECK(cuSsyrk(ssyrk, CBlasUpper, CBlasTrans, jb, j,
                              -one, A + j * lda * sizeof(float), lda,
                              one, A + (j * lda + j) * sizeof(float), lda, stream0));
+      /* Overlap the SSYRK with an SGEMM (on a different stream) */
+      CU_ERROR_CHECK(cuSgemm(sgemm, CBlasTrans, CBlasNoTrans, jb, n - j - jb, j,
+                             -one, A + j * lda * sizeof(float), lda,
+                             A + (j + jb) * lda * sizeof(float), lda,
+                             one, A + ((j + jb) * lda + j) * sizeof(float), lda, stream1));
       /* Start copying diagonal block onto host asynchronously on the same
        * stream as the SSYRK above to ensure it has finised updating the block
        * before it is copied */
       CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(B, ldb, 0, 0, A, lda, j, j,
                                          jb, jb, sizeof(float), stream0));
-      /* Overlap the SSYRK and copy of the diagonal block with an SGEMM (on a
-       * different stream) */
-      CU_ERROR_CHECK(cuSgemm(sgemm, CBlasTrans, CBlasNoTrans, jb, n - j - jb, j,
-                             -one, A + j * lda * sizeof(float), lda,
-                             A + (j + jb) * lda * sizeof(float), lda,
-                             one, A + ((j + jb) * lda + j) * sizeof(float), lda, stream1));
       /* Wait until the diagonal block has been copied */
       CU_ERROR_CHECK(cuStreamSynchronize(stream0));
       /* Perform the diagonal block decomposition using the CPU */
@@ -252,17 +251,16 @@ CUresult cuSpotrf(CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, long * in
       CU_ERROR_CHECK(cuSsyrk(ssyrk, CBlasLower, CBlasNoTrans, jb, j,
                              -one, A + j * sizeof(float), lda,
                              one, A + (j * lda + j) * sizeof(float), lda, stream0));
+      /* Overlap the SSYRK with an SGEMM (on a different stream) */
+      CU_ERROR_CHECK(cuSgemm(sgemm, CBlasNoTrans, CBlasTrans, n - j - jb, jb, j,
+                             -one, A + (j + jb) * sizeof(float), lda,
+                             A + j * sizeof(float), lda,
+                             one, A + (j * lda + j + jb) * sizeof(float), lda, stream1));
       /* Start copying diagonal block onto host asynchronously on the same
        * stream as the SSYRK above to ensure it has finised updating the block
        * before it is copied */
       CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(B, ldb, 0, 0, A, lda, j, j,
                                          jb, jb, sizeof(float), stream0));
-      /* Overlap the SSYRK and copy of the diagonal block with an SGEMM (on a
-       * different stream) */
-      CU_ERROR_CHECK(cuSgemm(sgemm, CBlasNoTrans, CBlasTrans, n - j - jb, jb, j,
-                             -one, A + (j + jb) * sizeof(float), lda,
-                             A + j * sizeof(float), lda,
-                             one, A + (j * lda + j + jb) * sizeof(float), lda, stream1));
       /* Wait until the diagonal block has been copied */
       CU_ERROR_CHECK(cuStreamSynchronize(stream0));
       /* Perform the diagonal block decomposition using the CPU */

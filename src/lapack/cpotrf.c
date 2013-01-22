@@ -7,8 +7,8 @@
 static inline size_t min(size_t a, size_t b) { return (a < b) ? a : b; }
 
 static inline CUresult cuMemcpyHtoD2DAsync(CUdeviceptr A, size_t lda, size_t ai, size_t aj,
-                                          const void * B, size_t ldb, size_t bi, size_t bj,
-                                          size_t m, size_t n, size_t elemSize, CUstream stream) {
+                                           const void * B, size_t ldb, size_t bi, size_t bj,
+                                           size_t m, size_t n, size_t elemSize, CUstream stream) {
   CUDA_MEMCPY2D copy = {
     bi * elemSize, bj, CU_MEMORYTYPE_HOST, B, 0, 0, ldb * elemSize,
     ai * elemSize, aj, CU_MEMORYTYPE_DEVICE, NULL, A, 0, lda * elemSize,
@@ -17,8 +17,8 @@ static inline CUresult cuMemcpyHtoD2DAsync(CUdeviceptr A, size_t lda, size_t ai,
 }
 
 static inline CUresult cuMemcpyDtoH2DAsync(void * A, size_t lda, size_t ai, size_t aj,
-                                          CUdeviceptr B, size_t ldb, size_t bi, size_t bj,
-                                          size_t m, size_t n, size_t elemSize, CUstream stream) {
+                                           CUdeviceptr B, size_t ldb, size_t bi, size_t bj,
+                                           size_t m, size_t n, size_t elemSize, CUstream stream) {
   CUDA_MEMCPY2D copy = {
     bi * elemSize, bj, CU_MEMORYTYPE_DEVICE, NULL, B, 0, ldb * elemSize,
     ai * elemSize, aj, CU_MEMORYTYPE_HOST, A, 0, 0, lda * elemSize,
@@ -212,17 +212,16 @@ CUresult cuCpotrf(CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, long * in
       CU_ERROR_CHECK(cuCherk(cherk, CBlasUpper, CBlasConjTrans, jb, j,
                              -one, A + j * lda * sizeof(float complex), lda,
                              one, A + (j * lda + j) * sizeof(float complex), lda, stream0));
+      /* Overlap the CHERK with a CGEMM (on a different stream) */
+      CU_ERROR_CHECK(cuCgemm(cgemm, CBlasConjTrans, CBlasNoTrans, jb, n - j - jb, j,
+                             -complex_one, A + j * lda * sizeof(float complex), lda,
+                             A + (j + jb) * lda * sizeof(float complex), lda,
+                             complex_one, A + ((j + jb) * lda + j) * sizeof(float complex), lda, stream1));
       /* Start copying diagonal block onto host asynchronously on the same
        * stream as the CHERK above to ensure it has finised updating the block
        * before it is copied */
       CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(B, ldb, 0, 0, A, lda, j, j,
                                          jb, jb, sizeof(float complex), stream0));
-      /* Overlap the CHERK and copy of the diagonal block with an CGEMM (on a
-       * different stream) */
-      CU_ERROR_CHECK(cuCgemm(cgemm, CBlasConjTrans, CBlasNoTrans, jb, n - j - jb, j,
-                             -complex_one, A + j * lda * sizeof(float complex), lda,
-                             A + (j + jb) * lda * sizeof(float complex), lda,
-                             complex_one, A + ((j + jb) * lda + j) * sizeof(float complex), lda, stream1));
       /* Wait until the diagonal block has been copied */
       CU_ERROR_CHECK(cuStreamSynchronize(stream0));
       /* Perform the diagonal block decomposition using the CPU */
@@ -254,17 +253,16 @@ CUresult cuCpotrf(CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, long * in
       CU_ERROR_CHECK(cuCherk(cherk, CBlasLower, CBlasNoTrans, jb, j,
                              -one, A + j * sizeof(float complex), lda,
                              one, A + (j * lda + j) * sizeof(float complex), lda, stream0));
+      /* Overlap the CHERK with a CGEMM (on a different stream) */
+      CU_ERROR_CHECK(cuCgemm(cgemm, CBlasNoTrans, CBlasConjTrans, n - j - jb, jb, j,
+                             -complex_one, A + (j + jb) * sizeof(float complex), lda,
+                             A + j * sizeof(float complex), lda,
+                             complex_one, A + (j * lda + j + jb) * sizeof(float complex), lda, stream1));
       /* Start copying diagonal block onto host asynchronously on the same
        * stream as the CHERK above to ensure it has finised updating the block
        * before it is copied */
       CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(B, ldb, 0, 0, A, lda, j, j,
                                          jb, jb, sizeof(float complex), stream0));
-      /* Overlap the CHERK and copy of the diagonal block with an CGEMM (on a
-       * different stream) */
-      CU_ERROR_CHECK(cuCgemm(cgemm, CBlasNoTrans, CBlasConjTrans, n - j - jb, jb, j,
-                             -complex_one, A + (j + jb) * sizeof(float complex), lda,
-                             A + j * sizeof(float complex), lda,
-                             complex_one, A + (j * lda + j + jb) * sizeof(float complex), lda, stream1));
       /* Wait until the diagonal block has been copied */
       CU_ERROR_CHECK(cuStreamSynchronize(stream0));
       /* Perform the diagonal block decomposition using the CPU */

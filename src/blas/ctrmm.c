@@ -500,7 +500,7 @@ CUresult cuMultiGPUCtrmm(CUmultiGPUBlasHandle handle,
           const size_t ib = min(mb, m - i);
           CU_ERROR_CHECK(cuMultiGPUCgemm(handle, CBlasNoTrans, CBlasNoTrans, ib, n, m - i - ib, -one, &A[(i + ib) * lda + i], lda, &B[i + ib], ldb, alpha, &B[i], ldb));
           CU_ERROR_CHECK(cuMultiGPUBlasSynchronize(handle));
-          ctrmm(CBlasLeft, CBlasUpper, CBlasNoTrans, diag, ib, n, one, &A[i], lda, &B[i], ldb);
+          ctrmm(CBlasLeft, CBlasUpper, CBlasNoTrans, diag, ib, n, one, &A[i * lda + i], lda, &B[i], ldb);
         } while (i > 0);
       }
       else {

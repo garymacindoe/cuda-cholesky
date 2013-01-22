@@ -216,10 +216,10 @@ void ztrmm(CBlasSide side, CBlasUplo uplo, CBlasTranspose trans, CBlasDiag diag,
 }
 
 void ztrmm2(CBlasSide side, CBlasUplo uplo, CBlasTranspose trans, CBlasDiag diag,
-           size_t m, size_t n,
-           double complex alpha, const double complex * restrict A, size_t lda,
-           const double complex * restrict B, size_t ldb,
-           double complex * restrict X, size_t ldx) {
+            size_t m, size_t n,
+            double complex alpha, const double complex * restrict A, size_t lda,
+            const double complex * restrict B, size_t ldb,
+            double complex * restrict X, size_t ldx) {
   const size_t nRowA = (side == CBlasLeft) ? m : n;
 
   int info = 0;

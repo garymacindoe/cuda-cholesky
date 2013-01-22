@@ -248,7 +248,7 @@ CUresult cuZtrsm(CUmodule module,
                  size_t m, size_t n,
                  double complex alpha, CUdeviceptr A, size_t lda,
                  CUdeviceptr B, size_t ldb, CUstream stream) {
-  size_t nRowA = (side == CBlasLeft) ? m : n;
+  const size_t nRowA = (side == CBlasLeft) ? m : n;
 
   int info = 0;
   if (lda < nRowA)
@@ -260,7 +260,8 @@ CUresult cuZtrsm(CUmodule module,
     return CUDA_ERROR_INVALID_VALUE;
   }
 
-  if (m == 0 || n == 0) return CUDA_SUCCESS;
+  if (m == 0 || n == 0)
+    return CUDA_SUCCESS;
 
   const unsigned int bx =  2;
   const unsigned int by =  2;

@@ -76,7 +76,7 @@ void strtri(CBlasUplo uplo, CBlasDiag diag,
   if (n == 0)
     return;
 
-  const size_t nb = 64;
+  const size_t nb = (uplo == CBlasUpper) ? 32 : 64;
 
   if (n < nb) {
     strti2(uplo, diag, n, A, lda, info);
@@ -208,7 +208,7 @@ void strtri2(CBlasUplo uplo, CBlasDiag diag,
   if (n == 0)
     return;
 
-  const size_t nb = 64;
+  const size_t nb = (uplo == CBlasUpper) ? 32 : 64;
 
   if (n < nb) {
     strti22(uplo, diag, n, A, lda, B, ldb, info);

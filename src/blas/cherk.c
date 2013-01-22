@@ -34,7 +34,7 @@ void cherk(CBlasUplo uplo, CBlasTranspose trans,
            size_t n, size_t k,
            float alpha, const float complex * restrict A, size_t lda,
            float beta, float complex * restrict C, size_t ldc) {
-  size_t nRowA = (trans == CBlasNoTrans) ? n : k;
+  const size_t nRowA = (trans == CBlasNoTrans) ? n : k;
 
   int info = 0;
   if (trans == CBlasTrans)
@@ -189,7 +189,7 @@ CUresult cuCherk(CUmodule module, CBlasUplo uplo, CBlasTranspose trans,
                  size_t n, size_t k,
                  float alpha, CUdeviceptr A, size_t lda,
                  float beta, CUdeviceptr C, size_t ldc, CUstream stream) {
-  size_t nRowA = (trans == CBlasNoTrans) ? n : k;
+  const size_t nRowA = (trans == CBlasNoTrans) ? n : k;
 
   int info = 0;
   if (trans == CBlasTrans)
@@ -233,7 +233,7 @@ CUresult cuMultiGPUCherk(CUmultiGPUBlasHandle handle,
                          size_t n, size_t k,
                          float alpha, const float complex * restrict A, size_t lda,
                          float beta, float complex * restrict C, size_t ldc) {
-  size_t nRowA = (trans == CBlasNoTrans) ? n : k;
+  const size_t nRowA = (trans == CBlasNoTrans) ? n : k;
 
   int info = 0;
   if (trans == CBlasTrans)

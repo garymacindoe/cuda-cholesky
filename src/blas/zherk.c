@@ -34,7 +34,7 @@ void zherk(CBlasUplo uplo, CBlasTranspose trans,
            size_t n, size_t k,
            double alpha, const double complex * restrict A, size_t lda,
            double beta, double complex * restrict C, size_t ldc) {
-  size_t nRowA = (trans == CBlasNoTrans) ? n : k;
+  const size_t nRowA = (trans == CBlasNoTrans) ? n : k;
 
   int info = 0;
   if (trans == CBlasTrans)
@@ -189,7 +189,7 @@ CUresult cuZherk(CUmodule module, CBlasUplo uplo, CBlasTranspose trans,
                  size_t n, size_t k,
                  double alpha, CUdeviceptr A, size_t lda,
                  double beta, CUdeviceptr C, size_t ldc, CUstream stream) {
-  size_t nRowA = (trans == CBlasNoTrans) ? n : k;
+  const size_t nRowA = (trans == CBlasNoTrans) ? n : k;
 
   int info = 0;
   if (trans == CBlasTrans)
@@ -233,7 +233,7 @@ CUresult cuMultiGPUZherk(CUmultiGPUBlasHandle handle,
                          size_t n, size_t k,
                          double alpha, const double complex * restrict A, size_t lda,
                          double beta, double complex * restrict C, size_t ldc) {
-  size_t nRowA = (trans == CBlasNoTrans) ? n : k;
+  const size_t nRowA = (trans == CBlasNoTrans) ? n : k;
 
   int info = 0;
   if (trans == CBlasTrans)

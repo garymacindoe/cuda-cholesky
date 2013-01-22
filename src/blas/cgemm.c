@@ -33,8 +33,8 @@ void cgemm(CBlasTranspose transA, CBlasTranspose transB,
            size_t m, size_t n, size_t k,
            float complex alpha, const float complex * restrict A, size_t lda, const float complex * restrict B, size_t ldb,
            float complex beta, float complex * restrict C, size_t ldc) {
-  size_t nRowA = (transA == CBlasNoTrans) ? m : k;
-  size_t nRowB = (transB == CBlasNoTrans) ? k : n;
+  const size_t nRowA = (transA == CBlasNoTrans) ? m : k;
+  const size_t nRowB = (transB == CBlasNoTrans) ? k : n;
 
   int info = 0;
   if (lda < nRowA)
@@ -226,8 +226,8 @@ CUresult cuCgemm2(CUmodule module, CBlasTranspose transA, CBlasTranspose transB,
                   float complex alpha, CUdeviceptr A, size_t lda, CUdeviceptr B, size_t ldb,
                   float complex beta, CUdeviceptr C, size_t ldc, CUdeviceptr D, size_t ldd,
                   CUstream stream) {
-  size_t nRowA = (transA == CBlasNoTrans) ? m : k;
-  size_t nRowB = (transB == CBlasNoTrans) ? k : n;
+  const size_t nRowA = (transA == CBlasNoTrans) ? m : k;
+  const size_t nRowB = (transB == CBlasNoTrans) ? k : n;
 
   int info = 0;
   if (lda < nRowA)
@@ -468,8 +468,8 @@ CUresult cuMultiGPUCgemm(CUmultiGPUBlasHandle handle,
                          float complex alpha, const float complex * restrict A, size_t lda,
                          const float complex * restrict B, size_t ldb,
                          float complex beta, float complex * restrict C, size_t ldc) {
-  size_t nRowA = (transA == CBlasNoTrans) ? m : k;
-  size_t nRowB = (transB == CBlasNoTrans) ? k : n;
+  const size_t nRowA = (transA == CBlasNoTrans) ? m : k;
+  const size_t nRowB = (transB == CBlasNoTrans) ? k : n;
 
   int info = 0;
   if (lda < nRowA)

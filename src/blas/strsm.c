@@ -230,7 +230,8 @@ CUresult cuStrsm(CUmodule module,
     return CUDA_ERROR_INVALID_VALUE;
   }
 
-  if (m == 0 || n == 0) return CUDA_SUCCESS;
+  if (m == 0 || n == 0)
+    return CUDA_SUCCESS;
 
   const unsigned int bx =  8;
   const unsigned int by =  8;

@@ -33,8 +33,8 @@ void zgemm(CBlasTranspose transA, CBlasTranspose transB,
            size_t m, size_t n, size_t k,
            double complex alpha, const double complex * restrict A, size_t lda, const double complex * restrict B, size_t ldb,
            double complex beta, double complex * restrict C, size_t ldc) {
-  size_t nRowA = (transA == CBlasNoTrans) ? m : k;
-  size_t nRowB = (transB == CBlasNoTrans) ? k : n;
+  const size_t nRowA = (transA == CBlasNoTrans) ? m : k;
+  const size_t nRowB = (transB == CBlasNoTrans) ? k : n;
 
   int info = 0;
   if (lda < nRowA)
@@ -226,8 +226,8 @@ CUresult cuZgemm2(CUmodule module, CBlasTranspose transA, CBlasTranspose transB,
                   double complex alpha, CUdeviceptr A, size_t lda, CUdeviceptr B, size_t ldb,
                   double complex beta, CUdeviceptr C, size_t ldc, CUdeviceptr D, size_t ldd,
                   CUstream stream) {
-  size_t nRowA = (transA == CBlasNoTrans) ? m : k;
-  size_t nRowB = (transB == CBlasNoTrans) ? k : n;
+  const size_t nRowA = (transA == CBlasNoTrans) ? m : k;
+  const size_t nRowB = (transB == CBlasNoTrans) ? k : n;
 
   int info = 0;
   if (lda < nRowA)
@@ -475,8 +475,8 @@ CUresult cuMultiGPUZgemm(CUmultiGPUBlasHandle handle,
                          double complex alpha, const double complex * restrict A, size_t lda,
                          const double complex * restrict B, size_t ldb,
                          double complex beta, double complex * restrict C, size_t ldc) {
-  size_t nRowA = (transA == CBlasNoTrans) ? m : k;
-  size_t nRowB = (transB == CBlasNoTrans) ? k : n;
+  const size_t nRowA = (transA == CBlasNoTrans) ? m : k;
+  const size_t nRowB = (transB == CBlasNoTrans) ? k : n;
 
   int info = 0;
   if (lda < nRowA)

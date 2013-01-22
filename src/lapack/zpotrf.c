@@ -7,8 +7,8 @@
 static inline size_t min(size_t a, size_t b) { return (a < b) ? a : b; }
 
 static inline CUresult cuMemcpyHtoD2DAsync(CUdeviceptr A, size_t lda, size_t ai, size_t aj,
-                                          const void * B, size_t ldb, size_t bi, size_t bj,
-                                          size_t m, size_t n, size_t elemSize, CUstream stream) {
+                                           const void * B, size_t ldb, size_t bi, size_t bj,
+                                           size_t m, size_t n, size_t elemSize, CUstream stream) {
   CUDA_MEMCPY2D copy = {
     bi * elemSize, bj, CU_MEMORYTYPE_HOST, B, 0, 0, ldb * elemSize,
     ai * elemSize, aj, CU_MEMORYTYPE_DEVICE, NULL, A, 0, lda * elemSize,
@@ -17,8 +17,8 @@ static inline CUresult cuMemcpyHtoD2DAsync(CUdeviceptr A, size_t lda, size_t ai,
 }
 
 static inline CUresult cuMemcpyDtoH2DAsync(void * A, size_t lda, size_t ai, size_t aj,
-                                          CUdeviceptr B, size_t ldb, size_t bi, size_t bj,
-                                          size_t m, size_t n, size_t elemSize, CUstream stream) {
+                                           CUdeviceptr B, size_t ldb, size_t bi, size_t bj,
+                                           size_t m, size_t n, size_t elemSize, CUstream stream) {
   CUDA_MEMCPY2D copy = {
     bi * elemSize, bj, CU_MEMORYTYPE_DEVICE, NULL, B, 0, ldb * elemSize,
     ai * elemSize, aj, CU_MEMORYTYPE_HOST, A, 0, 0, lda * elemSize,
@@ -152,7 +152,7 @@ void zpotrf(CBlasUplo uplo,
 //   const unsigned int bx = 32;
 //
 //   char name[45];
-//   snprintf(name, 45, "_Z6zpotf2IL9CBlasUplo%dELj%uEEviP6double2iPi", uplo, bx);
+//   snprintf(name, 45, "_Z6zpotf2IL9CBlasUplo%dELj%uEEviP7double2iPi", uplo, bx);
 //
 //   CUfunction function;
 //   CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
@@ -212,17 +212,16 @@ CUresult cuZpotrf(CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, long * in
       CU_ERROR_CHECK(cuZherk(zherk, CBlasUpper, CBlasConjTrans, jb, j,
                              -one, A + j * lda * sizeof(double complex), lda,
                              one, A + (j * lda + j) * sizeof(double complex), lda, stream0));
+      /* Overlap the ZHERK with a ZGEMM (on a different stream) */
+      CU_ERROR_CHECK(cuZgemm(zgemm, CBlasConjTrans, CBlasNoTrans, jb, n - j - jb, j,
+                             -complex_one, A + j * lda * sizeof(double complex), lda,
+                             A + (j + jb) * lda * sizeof(double complex), lda,
+                             complex_one, A + ((j + jb) * lda + j) * sizeof(double complex), lda, stream1));
       /* Start copying diagonal block onto host asynchronously on the same
        * stream as the ZHERK above to ensure it has finised updating the block
        * before it is copied */
       CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(B, ldb, 0, 0, A, lda, j, j,
                                          jb, jb, sizeof(double complex), stream0));
-      /* Overlap the ZHERK and copy of the diagonal block with an ZGEMM (on a
-       * different stream) */
-      CU_ERROR_CHECK(cuZgemm(zgemm, CBlasConjTrans, CBlasNoTrans, jb, n - j - jb, j,
-                             -complex_one, A + j * lda * sizeof(double complex), lda,
-                             A + (j + jb) * lda * sizeof(double complex), lda,
-                             complex_one, A + ((j + jb) * lda + j) * sizeof(double complex), lda, stream1));
       /* Wait until the diagonal block has been copied */
       CU_ERROR_CHECK(cuStreamSynchronize(stream0));
       /* Perform the diagonal block decomposition using the CPU */
@@ -254,17 +253,16 @@ CUresult cuZpotrf(CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, long * in
       CU_ERROR_CHECK(cuZherk(zherk, CBlasLower, CBlasNoTrans, jb, j,
                              -one, A + j * sizeof(double complex), lda,
                              one, A + (j * lda + j) * sizeof(double complex), lda, stream0));
+      /* Overlap the ZHERK with a ZGEMM (on a different stream) */
+      CU_ERROR_CHECK(cuZgemm(zgemm, CBlasNoTrans, CBlasConjTrans, n - j - jb, jb, j,
+                             -complex_one, A + (j + jb) * sizeof(double complex), lda,
+                             A + j * sizeof(double complex), lda,
+                             complex_one, A + (j * lda + j + jb) * sizeof(double complex), lda, stream1));
       /* Start copying diagonal block onto host asynchronously on the same
        * stream as the ZHERK above to ensure it has finised updating the block
        * before it is copied */
       CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(B, ldb, 0, 0, A, lda, j, j,
                                          jb, jb, sizeof(double complex), stream0));
-      /* Overlap the ZHERK and copy of the diagonal block with an ZGEMM (on a
-       * different stream) */
-      CU_ERROR_CHECK(cuZgemm(zgemm, CBlasNoTrans, CBlasConjTrans, n - j - jb, jb, j,
-                             -complex_one, A + (j + jb) * sizeof(double complex), lda,
-                             A + j * sizeof(double complex), lda,
-                             complex_one, A + (j * lda + j + jb) * sizeof(double complex), lda, stream1));
       /* Wait until the diagonal block has been copied */
       CU_ERROR_CHECK(cuStreamSynchronize(stream0));
       /* Perform the diagonal block decomposition using the CPU */

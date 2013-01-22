@@ -248,7 +248,7 @@ CUresult cuCtrsm(CUmodule module,
                  size_t m, size_t n,
                  float complex alpha, CUdeviceptr A, size_t lda,
                  CUdeviceptr B, size_t ldb, CUstream stream) {
-  size_t nRowA = (side == CBlasLeft) ? m : n;
+  const size_t nRowA = (side == CBlasLeft) ? m : n;
 
   int info = 0;
   if (lda < nRowA)
