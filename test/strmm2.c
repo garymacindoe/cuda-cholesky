@@ -1,7 +1,7 @@
 #include "blas.h"
 #include <stdio.h>
-#include <math.h>
 #include <float.h>
+#include <math.h>
 #include <sys/time.h>
 #include "strmm_ref.c"
 

@@ -38,7 +38,8 @@ static void cpotri_ref(CBlasUplo uplo, size_t n,
     }
   }
   else {
-    for (size_t j = n - 1; j >= 0; j--) {
+    size_t j = n - 1;
+    do {
       if (A[j * lda + j] == (0.0f + 0.0f * I)) {
         *info = (long)j + 1;
         return;
@@ -46,13 +47,14 @@ static void cpotri_ref(CBlasUplo uplo, size_t n,
       A[j * lda + j] = (1.0f + 0.0f * I) / A[j * lda + j];
       float complex ajj = -A[j * lda + j];
 
-      for (size_t i = n - 1; i > j; i--) {
+      size_t i = n - 1;
+      do {
         float complex temp = A[j * lda + i] * A[i * lda + i];
         for (size_t k = j + 1; k < i; k++)
           temp += A[k * lda + i] * A[j * lda + k];
         A[j * lda + i] = temp * ajj;
-      }
-    }
+      } while (i-- > j);
+    } while (j-- > 0);
 
     for (size_t i = 0; i < n; i++) {
       float complex aii = conjf(A[i * lda + i]);
@@ -66,20 +68,11 @@ static void cpotri_ref(CBlasUplo uplo, size_t n,
 }
 
 static float complex gaussian() {
-  static bool hasNext = false;
-  static float complex next;
-
-  if (hasNext) {
-    hasNext = false;
-    return next;
-  }
-
-  float complex u0 = ((float complex)rand() + 1) / (float complex)RAND_MAX;
-  float complex u1 = ((float complex)rand() + 1) / (float complex)RAND_MAX;
-  float complex r = sqrtf(-2 * logf(u0));
-  float complex phi = 2.0f * 3.1415926535f * u1;
-  next = r * sinf(phi);
-  hasNext = true;
-
-  return r * cosf(phi);
+  float u0 = ((float)rand() + 1.0f) / (float)RAND_MAX;
+  float u1 = ((float)rand() + 1.0f) / (float)RAND_MAX;
+  float r = sqrtf(-2.0f * logf(u0));
+  float phi = 2.0f * 3.1415926535f * u1;
+  float real = r * sinf(phi);
+  float imag = r * cosf(phi);
+  return real + imag * I;
 }

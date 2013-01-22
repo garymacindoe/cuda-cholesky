@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <math.h>
 #include <float.h>
-#include "cpotrf_ref.c"
+#include "zpotri_ref.c"
 
 int main(int argc, char * argv[]) {
   CBlasUplo uplo;
@@ -37,7 +37,7 @@ int main(int argc, char * argv[]) {
 
   srand(0);
 
-  float complex * A, * C, * refA;
+  double complex * A, * C, * refA;
   CUdeviceptr dA;
   size_t lda, ldc, dlda, k = 5 * n;
   long info, rInfo;
@@ -50,20 +50,20 @@ int main(int argc, char * argv[]) {
   CUcontext context;
   CU_ERROR_CHECK(cuCtxCreate(&context, CU_CTX_SCHED_BLOCKING_SYNC, device));
 
-  lda = (n + 1u) & ~1u;
-  if ((A = malloc(lda *  n * sizeof(float complex))) == NULL) {
+  lda = n;
+  if ((A = malloc(lda *  n * sizeof(double complex))) == NULL) {
     fprintf(stderr, "Unable to allocate A\n");
     return -1;
   }
-  if ((refA = malloc(lda * n * sizeof(float complex))) == NULL) {
+  if ((refA = malloc(lda * n * sizeof(double complex))) == NULL) {
     fprintf(stderr, "Unable to allocate refA\n");
     return -2;
   }
-  CU_ERROR_CHECK(cuMemAllocPitch(&dA, &dlda, n * sizeof(float complex), n, sizeof(float complex)));
-  dlda /= sizeof(float complex);
+  CU_ERROR_CHECK(cuMemAllocPitch(&dA, &dlda, n * sizeof(double complex), n, sizeof(double complex)));
+  dlda /= sizeof(double complex);
 
-  ldc = (k + 1u) & ~1u;
-  if ((C = malloc(ldc * n * sizeof(float complex))) == NULL) {
+  ldc = k;
+  if ((C = malloc(ldc * n * sizeof(double complex))) == NULL) {
     fprintf(stderr, "Unable to allocate C\n");
     return -3;
   }
@@ -74,7 +74,7 @@ int main(int argc, char * argv[]) {
   }
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < n; i++) {
-      float complex temp = 0.0f + 0.0f * I;
+      double complex temp = 0.0 + 0.0 * I;
       for (size_t l = 0; l < k; l++)
         temp += C[i * ldc + l] * C[j * ldc + l];
       refA[j * lda + i] = A[j * lda + i] = temp;
@@ -82,43 +82,51 @@ int main(int argc, char * argv[]) {
   }
   free(C);
 
-  CUDA_MEMCPY2D copy = { 0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(float complex),
-                         0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(float complex),
-                         n * sizeof(float complex), n };
+  zpotrf(uplo, n, A, lda, &info);
+  if (info != 0) {
+    fprintf(stderr, "Failed to compute Cholesky decomposition of A\n");
+    return (int)info;
+  }
+
+  for (size_t j = 0; j < n; j++)
+    memcpy(&refA[j * lda], &A[j * lda], n * sizeof(double complex));
+
+  CUDA_MEMCPY2D copy = { 0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(double complex),
+                         0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(double complex),
+                         n * sizeof(double complex), n };
   CU_ERROR_CHECK(cuMemcpy2D(&copy));
 
-  cpotrf_ref(uplo, n, refA, lda, &rInfo);
-  CU_ERROR_CHECK(cuCpotrf(uplo, n, dA, dlda, &info));
+  zpotri_ref(uplo, n, refA, lda, &rInfo);
+  CU_ERROR_CHECK(cuZpotri(uplo, n, dA, dlda, &info));
 
-  copy = (CUDA_MEMCPY2D){ 0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(float complex),
-                          0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(float complex),
-                          n * sizeof(float complex), n };
+  copy = (CUDA_MEMCPY2D){ 0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(double complex),
+                          0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(double complex),
+                          n * sizeof(double complex), n };
   CU_ERROR_CHECK(cuMemcpy2D(&copy));
 
   bool passed = (info == rInfo);
-  float rdiff = 0.0f, idiff = 0.0f;
+  double rdiff = 0.0, idiff = 0.0;
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < n; i++) {
-      float d = fabsf(crealf(A[j * lda + i]) - crealf(refA[j * lda + i]));
+      double d = fabs(creal(A[j * lda + i]) - creal(refA[j * lda + i]));
       if (d > rdiff)
         rdiff = d;
-      d = fabsf(cimagf(A[j * lda + i]) - cimagf(refA[j * lda + i]));
+      d = fabs(cimag(A[j * lda + i]) - cimag(refA[j * lda + i]));
       if (d > idiff)
         idiff = d;
     }
   }
 
-  // Set A to identity so that repeated applications of the cholesky
-  // decomposition while benchmarking do not exit early due to
-  // non-positive-definite-ness.
+  // Set A to identity so that repeated applications of the inverse
+  // while benchmarking do not exit early due to singularity.
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < n; i++)
-      A[j * lda + i] = (i == j) ? (1.0f + 0.0f * I) : (0.0f + 0.0f * I);
+      A[j * lda + i] = (i == j) ? (1.0 + 0.0 * I) : (0.0 + 0.0 * I);
   }
 
-  copy = (CUDA_MEMCPY2D){ 0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(float complex),
-                          0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(float complex),
-                          n * sizeof(float complex), n };
+  copy = (CUDA_MEMCPY2D){ 0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(double complex),
+                          0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(double complex),
+                          n * sizeof(double complex), n };
   CU_ERROR_CHECK(cuMemcpy2D(&copy));
 
   CUevent start, stop;
@@ -127,7 +135,7 @@ int main(int argc, char * argv[]) {
 
   CU_ERROR_CHECK(cuEventRecord(start, NULL));
   for (size_t i = 0; i < 20; i++)
-    CU_ERROR_CHECK(cuCpotrf(uplo, n, dA, dlda, &info));
+    CU_ERROR_CHECK(cuZpotri(uplo, n, dA, dlda, &info));
   CU_ERROR_CHECK(cuEventRecord(stop, NULL));
   CU_ERROR_CHECK(cuEventSynchronize(stop));
 
@@ -138,8 +146,7 @@ int main(int argc, char * argv[]) {
   CU_ERROR_CHECK(cuEventDestroy(start));
   CU_ERROR_CHECK(cuEventDestroy(stop));
 
-  size_t flops = (((n * n * n) / 6) + ((n * n) / 2) + (n / 3)) * 6 +
-                 (((n * n * n) / 6) - (n / 6)) * 2;
+  size_t flops = ((n * n * n) / 3) + ((2 * n) / 3);
   fprintf(stdout, "%.3es %.3gGFlops/s Error: %.3e + %.3ei\n%sED!\n", time,
           ((float)flops * 1.e-6f) / time, rdiff, idiff, (passed) ? "PASS" : "FAIL");
 

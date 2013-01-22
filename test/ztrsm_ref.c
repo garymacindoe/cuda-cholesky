@@ -1,7 +1,7 @@
 static void ztrsm_ref(CBlasSide side, CBlasUplo uplo, CBlasTranspose trans,
                       CBlasDiag diag, size_t m, size_t n,
                       double complex alpha, const double complex * restrict A, size_t lda,
-                      double complex * restrict B, size_t ldb, size_t * restrict E) {
+                      double complex * restrict B, size_t ldb, size_t * restrict E, size_t * restrict F) {
 
   if (m == 0 || n == 0) return;
 

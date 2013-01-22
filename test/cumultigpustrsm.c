@@ -1,8 +1,8 @@
 #include "blas.h"
 #include "error.h"
 #include <stdio.h>
-#include <math.h>
 #include <float.h>
+#include <math.h>
 #include <sys/time.h>
 #include "strsm_ref.c"
 
@@ -99,7 +99,7 @@ int main(int argc, char * argv[]) {
   CUmultiGPUBlasHandle handle;
   CU_ERROR_CHECK(cuMultiGPUBlasCreate(&handle, mGPU));
 
-  alpha = gaussian();
+  alpha = (float)rand() / (float)RAND_MAX;
 
   if (side == CBlasLeft) {
     lda = (m + 3u) & ~3u;
@@ -116,7 +116,7 @@ int main(int argc, char * argv[]) {
     }
     for (size_t j = 0; j < m; j++) {
       for (size_t i = 0; i < k; i++)
-        C[j * ldc + i] = gaussian();
+        C[j * ldc + i] = (float)rand() / (float)RAND_MAX;
     }
     for (size_t j = 0; j < m; j++) {
       for (size_t i = 0; i < m; i++) {
@@ -143,7 +143,7 @@ int main(int argc, char * argv[]) {
     }
     for (size_t j = 0; j < n; j++) {
       for (size_t i = 0; i < k; i++)
-        C[j * ldc + i] = gaussian();
+        C[j * ldc + i] = (float)rand() / (float)RAND_MAX;
     }
     for (size_t j = 0; j < n; j++) {
       for (size_t i = 0; i < n; i++) {
@@ -172,11 +172,12 @@ int main(int argc, char * argv[]) {
 
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < m; i++)
-      refB[j * ldb + i] = B[j * ldb + i] = gaussian();
+      refB[j * ldb + i] = B[j * ldb + i] = (float)rand() / (float)RAND_MAX;
   }
 
   strsm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb, F);
   CU_ERROR_CHECK(cuMultiGPUStrsm(handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb));
+  CU_ERROR_CHECK(cuMultiGPUSynchronize(mGPU));
 
   bool passed = true;
   float diff = 0.0f;
@@ -201,6 +202,7 @@ int main(int argc, char * argv[]) {
   }
   for (size_t i = 0; i < 20; i++)
     CU_ERROR_CHECK(cuMultiGPUStrsm(handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb));
+  CU_ERROR_CHECK(cuMultiGPUSynchronize(mGPU));
   if (gettimeofday(&stop, NULL) != 0) {
     fputs("gettimeofday failed\n", stderr);
     return -7;

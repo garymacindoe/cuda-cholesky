@@ -1,9 +1,9 @@
 #include "blas.h"
 #include "error.h"
 #include <stdio.h>
+#include <float.h>
 #include <math.h>
 #include <sys/time.h>
-#include <float.h>
 #include "dtrsm_ref.c"
 
 int main(int argc, char * argv[]) {
@@ -177,6 +177,7 @@ int main(int argc, char * argv[]) {
 
   dtrsm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb, F);
   CU_ERROR_CHECK(cuMultiGPUDtrsm(handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb));
+  CU_ERROR_CHECK(cuMultiGPUSynchronize(mGPU));
 
   bool passed = true;
   double diff = 0.0;
@@ -201,6 +202,7 @@ int main(int argc, char * argv[]) {
   }
   for (size_t i = 0; i < 20; i++)
     CU_ERROR_CHECK(cuMultiGPUDtrsm(handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb));
+  CU_ERROR_CHECK(cuMultiGPUSynchronize(mGPU));
   if (gettimeofday(&stop, NULL) != 0) {
     fputs("gettimeofday failed\n", stderr);
     return -7;

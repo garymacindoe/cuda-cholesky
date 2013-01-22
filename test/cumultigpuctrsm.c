@@ -83,7 +83,7 @@ int main(int argc, char * argv[]) {
   srand(0);
 
   float complex alpha, * A, * B, * refB, * C;
-  size_t lda, ldb, ldc;
+  size_t lda, ldb, ldc, * F, * G;
 
   CU_ERROR_CHECK(cuInit(0));
 
@@ -166,14 +166,23 @@ int main(int argc, char * argv[]) {
     fputs("Unable to allocate refB\n", stderr);
     return -4;
   }
+  if ((F = calloc(ldb * n, sizeof(float complex))) == NULL) {
+    fputs("Unable to allocate F\n", stderr);
+    return -5;
+  }
+  if ((G = calloc(ldb * n, sizeof(float complex))) == NULL) {
+    fputs("Unable to allocate G\n", stderr);
+    return -6;
+  }
 
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < m; i++)
       refB[j * ldb + i] = B[j * ldb + i] = ((float)rand() / (float)RAND_MAX) + ((float)rand() / (float)RAND_MAX) * I;
   }
 
-  ctrsm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb);
+  ctrsm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb, F, G);
   CU_ERROR_CHECK(cuMultiGPUCtrsm(handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb));
+  CU_ERROR_CHECK(cuMultiGPUSynchronize(mGPU));
 
   bool passed = true;
   float rdiff = 0.0f, idiff = 0.0f;
@@ -183,34 +192,23 @@ int main(int argc, char * argv[]) {
       if (d > rdiff)
         rdiff = d;
 
+      if (passed) {
+        if (d > (float)F[j * ldb + i] * 2.0f * FLT_EPSILON)
+          passed = false;
+      }
+
       float c = fabsf(cimagf(B[j * ldb + i]) - cimagf(refB[j * ldb + i]));
       if (c > idiff)
         idiff = c;
 
       if (passed) {
-        size_t k;
-        if (side == CBlasLeft) {
-          if (uplo == CBlasUpper)
-            k = (trans == CBlasNoTrans) ? m - i - 1 : i;
-          else
-            k = (trans == CBlasNoTrans) ? i : m - i - 1;
-        }
-        else {
-          if (uplo == CBlasUpper)
-            k = (trans == CBlasNoTrans) ? j : n - j - 1;
-          else
-            k = (trans == CBlasNoTrans) ? n - j - 1 : j;
-        }
-        if (diag == CBlasNonUnit)
-          k++;
-        if (alpha != 0.0f + 0.0f * I)
-          k++;
-
-        if (d > (float)k * FLT_EPSILON || c > (float)FLT_EPSILON)
+        if (c > (float)G[j * ldb + i] * 2.0f * FLT_EPSILON)
           passed = false;
       }
     }
   }
+  free(F);
+  free(G);
 
   struct timeval start, stop;
   if (gettimeofday(&start, NULL) != 0) {
@@ -219,6 +217,7 @@ int main(int argc, char * argv[]) {
   }
   for (size_t i = 0; i < 20; i++)
     CU_ERROR_CHECK(cuMultiGPUCtrsm(handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb));
+  CU_ERROR_CHECK(cuMultiGPUSynchronize(mGPU));
   if (gettimeofday(&stop, NULL) != 0) {
     fputs("gettimeofday failed\n", stderr);
     return -6;

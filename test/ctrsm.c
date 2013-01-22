@@ -84,7 +84,7 @@ int main(int argc, char * argv[]) {
   srand(0);
 
   float complex alpha, * A, * B, * refB, * C;
-  size_t lda, ldb, ldc, * F;
+  size_t lda, ldb, ldc, * F, * G;
 
   alpha = ((float)rand() / (float)RAND_MAX) + ((float)rand() / (float)RAND_MAX) * I;
 
@@ -162,7 +162,7 @@ int main(int argc, char * argv[]) {
       refB[j * ldb + i] = B[j * ldb + i] = ((float)rand() / (float)RAND_MAX) + ((float)rand() / (float)RAND_MAX) * I;
   }
 
-  ctrsm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb, F);
+  ctrsm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb, F, G);
   ctrsm(side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb);
 
   bool passed = true;
@@ -173,18 +173,23 @@ int main(int argc, char * argv[]) {
       if (d > rdiff)
         rdiff = d;
 
+      if (passed) {
+        if (d > (float)F[j * ldb + i] * 2.0f * FLT_EPSILON)
+          passed = false;
+      }
+
       float c = fabsf(cimagf(B[j * ldb + i]) - cimagf(refB[j * ldb + i]));
       if (c > idiff)
         idiff = c;
 
       if (passed) {
-        if (d > (float)F[j * ldb + i] * 2.0f * FLT_EPSILON ||
-            c > (float)F[j * ldb + i] * 2.0f * FLT_EPSILON)
+        if (c > (float)G[j * ldb + i] * 2.0f * FLT_EPSILON)
           passed = false;
       }
     }
   }
   free(F);
+  free(G);
 
   struct timeval start, stop;
   if (gettimeofday(&start, NULL) != 0) {

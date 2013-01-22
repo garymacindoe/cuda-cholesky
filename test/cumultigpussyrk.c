@@ -118,6 +118,7 @@ int main(int argc, char * argv[]) {
 
   ssyrk_ref(uplo, trans, n, k, alpha, A, lda, beta, refC, ldc);
   CU_ERROR_CHECK(cuMultiGPUSsyrk(handle, uplo, trans, n, k, alpha, A, lda, beta, C, ldc));
+  CU_ERROR_CHECK(cuMultiGPUSynchronize(mGPU));
 
   float diff = 0.0f;
   for (size_t j = 0; j < n; j++) {
@@ -135,6 +136,7 @@ int main(int argc, char * argv[]) {
   }
   for (size_t i = 0; i < 20; i++)
     CU_ERROR_CHECK(cuMultiGPUSsyrk(handle, uplo, trans, n, k, alpha, A, lda, beta, C, ldc));
+  CU_ERROR_CHECK(cuMultiGPUSynchronize(mGPU));
   if (gettimeofday(&stop, NULL) != 0) {
     fputs("gettimeofday failed\n", stderr);
     return -6;

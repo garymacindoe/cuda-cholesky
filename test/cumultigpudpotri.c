@@ -3,18 +3,18 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <string.h>
 #include <float.h>
 #include <math.h>
 #include <sys/time.h>
-#include "dpotrf_ref.c"
+#include "dpotri_ref.c"
 
 int main(int argc, char * argv[]) {
   CBlasUplo uplo;
   size_t n;
 
   if (argc != 3) {
-    fprintf(stderr, "Usage: %s <uplo> <n>\n"
-                    "where:\n"
+    fprintf(stderr, "Usage: %s <uplo> <diag> <n>\nwhere:\n"
                     "  uplo  is 'u' or 'U' for CBlasUpper or 'l' or 'L' for CBlasLower\n"
                     "  n     is the size of the matrix\n", argv[0]);
     return 1;
@@ -38,7 +38,7 @@ int main(int argc, char * argv[]) {
 
   srand(0);
 
-  double * A, * C, * refA;
+  double * A, * refA, * C;
   size_t lda, ldc, k = 5 * n;
   long info, rInfo;
 
@@ -62,6 +62,7 @@ int main(int argc, char * argv[]) {
     fprintf(stderr, "Unable to allocate A\n");
     return -1;
   }
+
   if ((refA = malloc(lda * n * sizeof(double))) == NULL) {
     fprintf(stderr, "Unable to allocate refA\n");
     return -2;
@@ -82,13 +83,22 @@ int main(int argc, char * argv[]) {
       double temp = 0.0;
       for (size_t l = 0; l < k; l++)
         temp += C[i * ldc + l] * C[j * ldc + l];
-      refA[j * lda + i] = A[j * lda + i] = temp;
+      A[j * lda + i] = temp;
     }
   }
   free(C);
 
-  dpotrf_ref(uplo, n, refA, lda, &rInfo);
-  CU_ERROR_CHECK(cuMultiGPUDpotrf(handle, uplo, n, A, lda, &info));
+  dpotrf(uplo, n, A, lda, &info);
+  if (info != 0) {
+    fprintf(stderr, "Failed to compute Cholesky decomposition of A\n");
+    return (int)info;
+  }
+
+  for (size_t j = 0; j < n; j++)
+    memcpy(&refA[j * lda], &A[j * lda], n * sizeof(double));
+
+  dpotri_ref(uplo, n, refA, lda, &rInfo);
+  CU_ERROR_CHECK(cuMultiGPUDpotri(handle, uplo, n, A, lda, &info));
   CU_ERROR_CHECK(cuMultiGPUSynchronize(mGPU));
 
   bool passed = (info == rInfo);
@@ -101,9 +111,8 @@ int main(int argc, char * argv[]) {
     }
   }
 
-  // Set A to identity so that repeated applications of the cholesky
-  // decomposition while benchmarking do not exit early due to
-  // non-positive-definite-ness.
+  // Set A to identity so that repeated applications of the inverse
+  // while benchmarking do not exit early due to singularity.
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < n; i++)
       A[j * lda + i] = (i == j) ? 1.0 : 0.0;
@@ -115,7 +124,7 @@ int main(int argc, char * argv[]) {
     return -4;
   }
   for (size_t i = 0; i < 20; i++)
-    CU_ERROR_CHECK(cuMultiGPUDpotrf(handle, uplo, n, A, lda, &info));
+    CU_ERROR_CHECK(cuMultiGPUDpotri(handle, uplo, n, A, lda, &info));
   CU_ERROR_CHECK(cuMultiGPUSynchronize(mGPU));
   if (gettimeofday(&stop, NULL) != 0) {
     fprintf(stderr, "gettimeofday failed at %s:%d\n", __FILE__, __LINE__);
@@ -124,7 +133,7 @@ int main(int argc, char * argv[]) {
 
   double time = ((double)(stop.tv_sec - start.tv_sec) +
                  (double)(stop.tv_usec - start.tv_usec) * 1.e-6) / 20.0;
-  size_t flops = ((n * n * n) / 3) + ((n * n) / 2) + (n / 6);
+  size_t flops = ((n * n * n) / 3) + ((2 * n) / 3);
   fprintf(stdout, "%.3es %.3gGFlops/s Error: %.3e\n%sED!\n", time,
           ((double)flops * 1.e-9) / time, diff, (passed) ? "PASS" : "FAIL");
 

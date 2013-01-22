@@ -92,7 +92,7 @@ int main(int argc, char * argv[]) {
 
   float complex alpha, * A, * B, * refB, * C;
   CUdeviceptr dA, dB;
-  size_t lda, ldb, ldc, dlda, dldb, * F;
+  size_t lda, ldb, ldc, dlda, dldb, * F, * G;
 
   CU_ERROR_CHECK(cuInit(0));
 
@@ -189,6 +189,10 @@ int main(int argc, char * argv[]) {
     fputs("Unable to allocate F\n", stderr);
     return -5;
   }
+  if ((G = calloc(ldb * n, sizeof(size_t))) == NULL) {
+    fputs("Unable to allocate G\n", stderr);
+    return -6;
+  }
   CU_ERROR_CHECK(cuMemAllocPitch(&dB, &dldb, m * sizeof(float complex), n, sizeof(float complex)));
   dldb /= sizeof(float complex);
 
@@ -202,7 +206,7 @@ int main(int argc, char * argv[]) {
                          m * sizeof(float complex), n };
   CU_ERROR_CHECK(cuMemcpy2D(&copy));
 
-  ctrsm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb, F);
+  ctrsm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb, F, G);
   CU_ERROR_CHECK(cuCtrsm(module, side, uplo, trans, diag, m, n, alpha, dA, dlda, dB, dldb, NULL));
 
   copy = (CUDA_MEMCPY2D){ 0, 0, CU_MEMORYTYPE_DEVICE, NULL, dB, NULL, dldb * sizeof(float complex),
@@ -218,17 +222,23 @@ int main(int argc, char * argv[]) {
       if (d > rdiff)
         rdiff = d;
 
+      if (passed) {
+        if (d > (float)F[j * ldb + i] * 2.0f * FLT_EPSILON)
+          passed = false;
+      }
+
       float c = fabsf(cimagf(B[j * ldb + i]) - cimagf(refB[j * ldb + i]));
       if (c > idiff)
         idiff = c;
 
       if (passed) {
-        if (d > (float)F[j * ldb + i] * 2.0f * FLT_EPSILON ||
-            c > (float)F[j * ldb + i] * 2.0f * FLT_EPSILON)
+        if (c > (float)G[j * ldb + i] * 2.0f * FLT_EPSILON)
           passed = false;
       }
     }
   }
+  free(F);
+  free(G);
 
   CUevent start, stop;
   CU_ERROR_CHECK(cuEventCreate(&start, CU_EVENT_BLOCKING_SYNC));

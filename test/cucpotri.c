@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <math.h>
 #include <float.h>
-#include "cpotrf_ref.c"
+#include "cpotri_ref.c"
 
 int main(int argc, char * argv[]) {
   CBlasUplo uplo;
@@ -82,13 +82,22 @@ int main(int argc, char * argv[]) {
   }
   free(C);
 
+  cpotrf(uplo, n, A, lda, &info);
+  if (info != 0) {
+    fprintf(stderr, "Failed to compute Cholesky decomposition of A\n");
+    return (int)info;
+  }
+
+  for (size_t j = 0; j < n; j++)
+    memcpy(&refA[j * lda], &A[j * lda], n * sizeof(float complex));
+
   CUDA_MEMCPY2D copy = { 0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(float complex),
                          0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(float complex),
                          n * sizeof(float complex), n };
   CU_ERROR_CHECK(cuMemcpy2D(&copy));
 
-  cpotrf_ref(uplo, n, refA, lda, &rInfo);
-  CU_ERROR_CHECK(cuCpotrf(uplo, n, dA, dlda, &info));
+  cpotri_ref(uplo, n, refA, lda, &rInfo);
+  CU_ERROR_CHECK(cuCpotri(uplo, n, dA, dlda, &info));
 
   copy = (CUDA_MEMCPY2D){ 0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(float complex),
                           0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(float complex),
@@ -108,9 +117,8 @@ int main(int argc, char * argv[]) {
     }
   }
 
-  // Set A to identity so that repeated applications of the cholesky
-  // decomposition while benchmarking do not exit early due to
-  // non-positive-definite-ness.
+  // Set A to identity so that repeated applications of the inverse
+  // while benchmarking do not exit early due to singularity.
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < n; i++)
       A[j * lda + i] = (i == j) ? (1.0f + 0.0f * I) : (0.0f + 0.0f * I);
@@ -127,7 +135,7 @@ int main(int argc, char * argv[]) {
 
   CU_ERROR_CHECK(cuEventRecord(start, NULL));
   for (size_t i = 0; i < 20; i++)
-    CU_ERROR_CHECK(cuCpotrf(uplo, n, dA, dlda, &info));
+    CU_ERROR_CHECK(cuCpotri(uplo, n, dA, dlda, &info));
   CU_ERROR_CHECK(cuEventRecord(stop, NULL));
   CU_ERROR_CHECK(cuEventSynchronize(stop));
 
@@ -138,8 +146,7 @@ int main(int argc, char * argv[]) {
   CU_ERROR_CHECK(cuEventDestroy(start));
   CU_ERROR_CHECK(cuEventDestroy(stop));
 
-  size_t flops = (((n * n * n) / 6) + ((n * n) / 2) + (n / 3)) * 6 +
-                 (((n * n * n) / 6) - (n / 6)) * 2;
+  size_t flops = ((n * n * n) / 3) + ((2 * n) / 3);
   fprintf(stdout, "%.3es %.3gGFlops/s Error: %.3e + %.3ei\n%sED!\n", time,
           ((float)flops * 1.e-6f) / time, rdiff, idiff, (passed) ? "PASS" : "FAIL");
 

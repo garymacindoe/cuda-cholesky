@@ -86,7 +86,7 @@ int main(int argc, char * argv[]) {
       double temp = 0.0;
       for (size_t l = 0; l < k; l++)
         temp += C[i * ldc + l] * C[j * ldc + l];
-      A[j * lda + i] = 0.01 * temp;
+      A[j * lda + i] = temp;
     }
   }
   free(C);

@@ -103,7 +103,7 @@ int main(int argc, char * argv[]) {
   alpha = (double)rand() / (double)RAND_MAX + ((double)rand() / (double)RAND_MAX) * I;
 
   if (side == CBlasLeft) {
-    lda = (m + 1u) & ~1u;
+    lda = m;
     if ((A = malloc(lda * m * sizeof(double complex))) == NULL) {
       fputs("Unable to allocate A\n", stderr);
       return -1;
@@ -115,7 +115,7 @@ int main(int argc, char * argv[]) {
     }
   }
   else {
-    lda = (n + 1u) & ~1u;
+    lda = n;
     if ((A = malloc(lda * n * sizeof(double complex))) == NULL) {
       fputs("Unable to allocate A\n", stderr);
       return -1;
@@ -127,7 +127,7 @@ int main(int argc, char * argv[]) {
     }
   }
 
-  ldb = (m + 1u) & ~1u;
+  ldb = m;
   if ((B = malloc(ldb * n * sizeof(double complex))) == NULL) {
     fputs("Unable to allocate B\n", stderr);
     return -3;
@@ -144,6 +144,7 @@ int main(int argc, char * argv[]) {
 
   ztrmm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb);
   CU_ERROR_CHECK(cuMultiGPUZtrmm(handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb));
+  CU_ERROR_CHECK(cuMultiGPUSynchronize(mGPU));
 
   bool passed = true;
   double rdiff = 0.0, idiff = 0.0;
@@ -179,6 +180,7 @@ int main(int argc, char * argv[]) {
   }
   for (size_t i = 0; i < 20; i++)
     CU_ERROR_CHECK(cuMultiGPUZtrmm(handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb));
+  CU_ERROR_CHECK(cuMultiGPUSynchronize(mGPU));
   if (gettimeofday(&stop, NULL) != 0) {
     fputs("gettimeofday failed\n", stderr);
     return -6;

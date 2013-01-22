@@ -131,7 +131,7 @@ int main(int argc, char * argv[]) {
   dtrmm(side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb);
 
   bool passed = true;
-  double diff = 0.0f;
+  double diff = 0.0;
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < m; i++) {
       double d = fabs(B[j * ldb + i] - refB[j * ldb + i]);

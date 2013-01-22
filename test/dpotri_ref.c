@@ -76,10 +76,10 @@ static double gaussian() {
     return next;
   }
 
-  double u0 = ((double)rand() + 1) / (double)RAND_MAX;
-  double u1 = ((double)rand() + 1) / (double)RAND_MAX;
-  double r = sqrt(-2 * log(u0));
-  double phi = 2. * 3.1415926535897932384626433832795 * u1;
+  double u0 = ((double)rand() + 1.0) / (double)RAND_MAX;
+  double u1 = ((double)rand() + 1.0) / (double)RAND_MAX;
+  double r = sqrt(-2.0 * log(u0));
+  double phi = 2.0 * 3.1415926535897932384626433832795 * u1;
   next = r * sin(phi);
   hasNext = true;
 

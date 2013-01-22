@@ -84,9 +84,9 @@ int main(int argc, char * argv[]) {
   srand(0);
 
   double complex alpha, * A, * B, * refB, * C;
-  size_t lda, ldb, ldc, * F;
+  size_t lda, ldb, ldc, * F, * G;
 
-  alpha = (double)rand() / (double)RAND_MAX + ((double)rand() / (double)RAND_MAX) * I;
+  alpha = ((double)rand() / (double)RAND_MAX) + ((double)rand() / (double)RAND_MAX) * I;
 
   if (side == CBlasLeft) {
     lda = m;
@@ -103,7 +103,7 @@ int main(int argc, char * argv[]) {
     }
     for (size_t j = 0; j < m; j++) {
       for (size_t i = 0; i < k; i++)
-        C[j * ldc + i] = (double)rand() / (double)RAND_MAX + ((double)rand() / (double)RAND_MAX) * I;
+        C[j * ldc + i] = ((double)rand() / (double)RAND_MAX) + ((double)rand() / (double)RAND_MAX) * I;
     }
     for (size_t j = 0; j < m; j++) {
       for (size_t i = 0; i < m; i++) {
@@ -130,7 +130,7 @@ int main(int argc, char * argv[]) {
     }
     for (size_t j = 0; j < n; j++) {
       for (size_t i = 0; i < k; i++)
-        C[j * ldc + i] = (double)rand() / (double)RAND_MAX + ((double)rand() / (double)RAND_MAX) * I;
+        C[j * ldc + i] = ((double)rand() / (double)RAND_MAX) + ((double)rand() / (double)RAND_MAX) * I;
     }
     for (size_t j = 0; j < n; j++) {
       for (size_t i = 0; i < n; i++) {
@@ -156,13 +156,17 @@ int main(int argc, char * argv[]) {
     fputs("Unable to allocate F\n", stderr);
     return -5;
   }
+  if ((G = calloc(ldb * n, sizeof(size_t))) == NULL) {
+    fputs("Unable to allocate G\n", stderr);
+    return -6;
+  }
 
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < m; i++)
-      refB[j * ldb + i] = B[j * ldb + i] = (double)rand() / (double)RAND_MAX + ((double)rand() / (double)RAND_MAX) * I;
+      refB[j * ldb + i] = B[j * ldb + i] = ((double)rand() / (double)RAND_MAX) + ((double)rand() / (double)RAND_MAX) * I;
   }
 
-  ztrsm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb, F);
+  ztrsm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb, F, G);
   ztrsm(side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb);
 
   bool passed = true;
@@ -173,18 +177,23 @@ int main(int argc, char * argv[]) {
       if (d > rdiff)
         rdiff = d;
 
+      if (passed) {
+        if (d > (double)F[j * ldb + i] * 2.0 * DBL_EPSILON)
+          passed = false;
+      }
+
       double c = fabs(cimag(B[j * ldb + i]) - cimag(refB[j * ldb + i]));
       if (c > idiff)
         idiff = c;
 
       if (passed) {
-        if (d > (double)F[j * ldb + i] * 2.0 * DBL_EPSILON ||
-            c > (double)F[j * ldb + i] * 2.0 * DBL_EPSILON)
+        if (c > (double)G[j * ldb + i] * 2.0 * DBL_EPSILON)
           passed = false;
       }
     }
   }
   free(F);
+  free(G);
 
   struct timeval start, stop;
   if (gettimeofday(&start, NULL) != 0) {

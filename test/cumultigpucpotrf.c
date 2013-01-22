@@ -1,9 +1,12 @@
 #include "lapack.h"
 #include "error.h"
 #include <stdio.h>
-#include <sys/time.h>
+#include <stdlib.h>
+#include <stdbool.h>
 #include <float.h>
+#include <math.h>
 #include <complex.h>
+#include <sys/time.h>
 #include "cpotrf_ref.c"
 
 int main(int argc, char * argv[]) {
@@ -40,17 +43,18 @@ int main(int argc, char * argv[]) {
   size_t lda, ldc, k = 5 * n;
   long info, rInfo;
 
-  CU_ERROR_CHECK(cuInit(0));
-
   int deviceCount;
   CU_ERROR_CHECK(cuDeviceGetCount(&deviceCount));
 
-  CUcontext contexts[deviceCount];
-  for (int i = 0; i < deviceCount; i++) {
-    CUdevice device;
-    CU_ERROR_CHECK(cuDeviceGet(&device, i));
-    CU_ERROR_CHECK(cuCtxCreate(&contexts[i], CU_CTX_SCHED_YIELD, device));
-  }
+  CUdevice devices[deviceCount];
+  for (int i = 0; i < deviceCount; i++)
+    CU_ERROR_CHECK(cuDeviceGet(&devices[i], i));
+
+  CUmultiGPU mGPU;
+  CU_ERROR_CHECK(cuMultiGPUCreate(&mGPU, devices, deviceCount));
+
+  CUmultiGPUBlasHandle handle;
+  CU_ERROR_CHECK(cuMultiGPUBlasCreate(&handle, mGPU));
 
   lda = (n + 1u) & ~1u;
   if ((A = malloc(lda *  n * sizeof(float complex))) == NULL) {
@@ -62,28 +66,29 @@ int main(int argc, char * argv[]) {
     return -2;
   }
 
-  ldc = (n + 1u) & ~1u;
-  if ((C = malloc(n * k * sizeof(float complex))) == NULL) {
+  ldc = (k + 1u) & ~1u;
+  if ((C = malloc(ldc * n * sizeof(float complex))) == NULL) {
     fprintf(stderr, "Unable to allocate C\n");
     return -3;
   }
 
-  for (size_t j = 0; j < k; j++) {
-    for (size_t i = 0; i < n; i++)
+  for (size_t j = 0; j < n; j++) {
+    for (size_t i = 0; i < k; i++)
       C[j * ldc + i] = gaussian();
   }
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < n; i++) {
-      float complex temp = 0.0f;
+      float complex temp = 0.0f + 0.0f * I;
       for (size_t l = 0; l < k; l++)
-        temp += conjf(C[i * ldc + l]) * C[j * ldc + l];
+        temp += C[i * ldc + l] * conjf(C[j * ldc + l]);
       refA[j * lda + i] = A[j * lda + i] = temp;
     }
   }
   free(C);
 
   cpotrf_ref(uplo, n, refA, lda, &rInfo);
-  CU_ERROR_CHECK(cuMultiGPUCpotrf(contexts, deviceCount, uplo, n, A, lda, &info));
+  CU_ERROR_CHECK(cuMultiGPUCpotrf(handle, uplo, n, A, lda, &info));
+  CU_ERROR_CHECK(cuMultiGPUSynchronize(mGPU));
 
   bool passed = (info == rInfo);
   float rdiff = 0.0f, idiff = 0.0f;
@@ -92,10 +97,9 @@ int main(int argc, char * argv[]) {
       float d = fabsf(crealf(A[j * lda + i]) - crealf(refA[j * lda + i]));
       if (d > rdiff)
         rdiff = d;
-
-      float c = fabsf(cimagf(A[j * lda + i]) - cimagf(refA[j * lda + i]));
-      if (c > idiff)
-        idiff = c;
+      d = fabsf(cimagf(A[j * lda + i]) - cimagf(refA[j * lda + i]));
+      if (d > idiff)
+        idiff = d;
     }
   }
 
@@ -104,7 +108,7 @@ int main(int argc, char * argv[]) {
   // non-positive-definite-ness.
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < n; i++)
-      A[j * lda + i] = (i == j) ? 1.0f : 0.0f;
+      A[j * lda + i] = (i == j) ? (1.0f + 0.0f * I) : (0.0f + 0.0f * I);
   }
 
   struct timeval start, stop;
@@ -113,7 +117,8 @@ int main(int argc, char * argv[]) {
     return -4;
   }
   for (size_t i = 0; i < 20; i++)
-    CU_ERROR_CHECK(cuMultiGPUCpotrf(contexts, deviceCount, uplo, n, A, lda, &info));
+    CU_ERROR_CHECK(cuMultiGPUCpotrf(handle, uplo, n, A, lda, &info));
+  CU_ERROR_CHECK(cuMultiGPUSynchronize(mGPU));
   if (gettimeofday(&stop, NULL) != 0) {
     fprintf(stderr, "gettimeofday failed at %s:%d\n", __FILE__, __LINE__);
     return -5;
@@ -123,14 +128,14 @@ int main(int argc, char * argv[]) {
                  (double)(stop.tv_usec - start.tv_usec) * 1.e-6) / 20.0;
   size_t flops = (((n * n * n) / 6) + ((n * n) / 2) + (n / 3)) * 6 +
                  (((n * n * n) / 6) - (n / 6)) * 2;
-  fprintf(stdout, "%.3es %.3gGFlops/s Error: %.3e\n%sED!\n", time,
-          ((double)flops * 1.e-9) / time, diff, (passed) ? "PASS" : "FAIL");
+  fprintf(stdout, "%.3es %.3gGFlops/s Error: %.3e + %.3ei\n%sED!\n", time,
+          ((double)flops * 1.e-9) / time, rdiff, idiff, (passed) ? "PASS" : "FAIL");
 
   free(A);
   free(refA);
 
-  for (int i = 0; i < deviceCount; i++)
-    CU_ERROR_CHECK(cuCtxDestroy(contexts[i]));
+  CU_ERROR_CHECK(cuMultiGPUBlasDestroy(handle));
+  CU_ERROR_CHECK(cuMultiGPUDestroy(mGPU));
 
   return (int)!passed;
 }

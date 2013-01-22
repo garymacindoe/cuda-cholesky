@@ -3,20 +3,19 @@
 #include <stdio.h>
 #include <math.h>
 #include <float.h>
-#include <complex.h>
 #include "zpotrf_ref.c"
 
 int main(int argc, char * argv[]) {
   CBlasUplo uplo;
   size_t n;
-  int d;
+  int d = 0;
 
   if (argc < 3 || argc > 4) {
-    fprintf(stderr, "Usage: %s <uplo> <n> [device]\n"
+    fprintf(stderr, "Usage: %s <uplo> <n>\n"
                     "where:\n"
-                    "  uplo is 'u' or 'U' for CBlasUpper or 'l' or 'L' for CBlasLower\n"
-                    "  n                  is the size of the matrix\n"
-                    "  device             is the ordinal of the GPU to use (default 0)\n", argv[0]);
+                    "  uplo    is 'u' or 'U' for CBlasUpper or 'l' or 'L' for CBlasLower\n"
+                    "  n       is the size of the matrix\n"
+                    "  device  is the GPU to use (default 0)\n", argv[0]);
     return 1;
   }
 
@@ -36,23 +35,12 @@ int main(int argc, char * argv[]) {
     return 2;
   }
 
-  if (argc == 4) {
-    if (sscanf(argv[3], "%d", &d) != 1) {
-      fprintf(stderr, "Unable to parse number from '%s'\n", argv[3]);
-      return 3;
-    }
-  }
-  else
-    d = 0;
-
   srand(0);
 
   double complex * A, * C, * refA;
-  size_t lda, ldc, k = 5 * n;
-  long info, rInfo;
   CUdeviceptr dA;
-  size_t dlda;
-  CUDA_MEMCPY2D copy;
+  size_t lda, ldc, dlda, k = 5 * n;
+  long info, rInfo;
 
   CU_ERROR_CHECK(cuInit(0));
 
@@ -67,20 +55,12 @@ int main(int argc, char * argv[]) {
     fprintf(stderr, "Unable to allocate A\n");
     return -1;
   }
-
-  if (n > 0) {
-    CU_ERROR_CHECK(cuMemAllocPitch(&dA, &dlda, n * sizeof(double complex), n, sizeof(double complex)));
-    dlda /= sizeof(double complex);
-  }
-  else {
-    dA = 0;
-    dlda = 0;
-  }
-
   if ((refA = malloc(lda * n * sizeof(double complex))) == NULL) {
     fprintf(stderr, "Unable to allocate refA\n");
     return -2;
   }
+  CU_ERROR_CHECK(cuMemAllocPitch(&dA, &dlda, n * sizeof(double complex), n, sizeof(double complex)));
+  dlda /= sizeof(double complex);
 
   ldc = k;
   if ((C = malloc(ldc * n * sizeof(double complex))) == NULL) {
@@ -102,9 +82,9 @@ int main(int argc, char * argv[]) {
   }
   free(C);
 
-  copy = (CUDA_MEMCPY2D){ 0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(double complex),
-                          0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(double complex),
-                          n * sizeof(double complex), n };
+  CUDA_MEMCPY2D copy = { 0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(double complex),
+                         0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(double complex),
+                         n * sizeof(double complex), n };
   CU_ERROR_CHECK(cuMemcpy2D(&copy));
 
   zpotrf_ref(uplo, n, refA, lda, &rInfo);
@@ -160,14 +140,12 @@ int main(int argc, char * argv[]) {
 
   size_t flops = (((n * n * n) / 6) + ((n * n) / 2) + (n / 3)) * 6 +
                  (((n * n * n) / 6) - (n / 6)) * 2;
-
   fprintf(stdout, "%.3es %.3gGFlops/s Error: %.3e + %.3ei\n%sED!\n", time,
-          ((double)flops * 1.e-9) / time, rdiff, idiff, (passed) ? "PASS" : "FAIL");
+          ((float)flops * 1.e-6f) / time, rdiff, idiff, (passed) ? "PASS" : "FAIL");
 
   free(A);
   free(refA);
-  if (dA != 0)
-    CU_ERROR_CHECK(cuMemFree(dA));
+  CU_ERROR_CHECK(cuMemFree(dA));
 
   CU_ERROR_CHECK(cuCtxDestroy(context));
 

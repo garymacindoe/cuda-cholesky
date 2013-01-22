@@ -3,18 +3,18 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <string.h>
 #include <float.h>
 #include <math.h>
 #include <sys/time.h>
-#include "dpotrf_ref.c"
+#include "cpotri_ref.c"
 
 int main(int argc, char * argv[]) {
   CBlasUplo uplo;
   size_t n;
 
   if (argc != 3) {
-    fprintf(stderr, "Usage: %s <uplo> <n>\n"
-                    "where:\n"
+    fprintf(stderr, "Usage: %s <uplo> <diag> <n>\nwhere:\n"
                     "  uplo  is 'u' or 'U' for CBlasUpper or 'l' or 'L' for CBlasLower\n"
                     "  n     is the size of the matrix\n", argv[0]);
     return 1;
@@ -38,11 +38,9 @@ int main(int argc, char * argv[]) {
 
   srand(0);
 
-  double * A, * C, * refA;
+  float complex * A, * refA, * C;
   size_t lda, ldc, k = 5 * n;
   long info, rInfo;
-
-  CU_ERROR_CHECK(cuInit(0));
 
   int deviceCount;
   CU_ERROR_CHECK(cuDeviceGetCount(&deviceCount));
@@ -58,17 +56,18 @@ int main(int argc, char * argv[]) {
   CU_ERROR_CHECK(cuMultiGPUBlasCreate(&handle, mGPU));
 
   lda = (n + 1u) & ~1u;
-  if ((A = malloc(lda *  n * sizeof(double))) == NULL) {
+  if ((A = malloc(lda *  n * sizeof(float complex))) == NULL) {
     fprintf(stderr, "Unable to allocate A\n");
     return -1;
   }
-  if ((refA = malloc(lda * n * sizeof(double))) == NULL) {
+
+  if ((refA = malloc(lda * n * sizeof(float complex))) == NULL) {
     fprintf(stderr, "Unable to allocate refA\n");
     return -2;
   }
 
   ldc = (k + 1u) & ~1u;
-  if ((C = malloc(ldc * n * sizeof(double))) == NULL) {
+  if ((C = malloc(ldc * n * sizeof(float complex))) == NULL) {
     fprintf(stderr, "Unable to allocate C\n");
     return -3;
   }
@@ -79,7 +78,7 @@ int main(int argc, char * argv[]) {
   }
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < n; i++) {
-      double temp = 0.0;
+      float complex temp = 0.0f + 0.0f * I;
       for (size_t l = 0; l < k; l++)
         temp += C[i * ldc + l] * C[j * ldc + l];
       refA[j * lda + i] = A[j * lda + i] = temp;
@@ -87,26 +86,37 @@ int main(int argc, char * argv[]) {
   }
   free(C);
 
-  dpotrf_ref(uplo, n, refA, lda, &rInfo);
-  CU_ERROR_CHECK(cuMultiGPUDpotrf(handle, uplo, n, A, lda, &info));
+  cpotrf(uplo, n, A, lda, &info);
+  if (info != 0) {
+    fprintf(stderr, "Failed to compute Cholesky decomposition of A\n");
+    return (int)info;
+  }
+
+  for (size_t j = 0; j < n; j++)
+    memcpy(&refA[j * lda], &A[j * lda], n * sizeof(float complex));
+
+  cpotri_ref(uplo, n, refA, lda, &rInfo);
+  CU_ERROR_CHECK(cuMultiGPUCpotri(handle, uplo, n, A, lda, &info));
   CU_ERROR_CHECK(cuMultiGPUSynchronize(mGPU));
 
   bool passed = (info == rInfo);
-  double diff = 0.0;
+  float rdiff = 0.0f, idiff = 0.0f;
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < n; i++) {
-      double d = fabs(A[j * lda + i] - refA[j * lda + i]);
-      if (d > diff)
-        diff = d;
+      float d = fabsf(crealf(A[j * lda + i]) - crealf(refA[j * lda + i]));
+      if (d > rdiff)
+        rdiff = d;
+      d = fabsf(cimagf(A[j * lda + i]) - cimagf(refA[j * lda + i]));
+      if (d > idiff)
+        idiff = d;
     }
   }
 
-  // Set A to identity so that repeated applications of the cholesky
-  // decomposition while benchmarking do not exit early due to
-  // non-positive-definite-ness.
+  // Set A to identity so that repeated applications of the inverse
+  // while benchmarking do not exit early due to singularity.
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < n; i++)
-      A[j * lda + i] = (i == j) ? 1.0 : 0.0;
+      A[j * lda + i] = (i == j) ? (1.0f + 0.0f * I) : (0.0f + 0.0f * I);
   }
 
   struct timeval start, stop;
@@ -115,7 +125,7 @@ int main(int argc, char * argv[]) {
     return -4;
   }
   for (size_t i = 0; i < 20; i++)
-    CU_ERROR_CHECK(cuMultiGPUDpotrf(handle, uplo, n, A, lda, &info));
+    CU_ERROR_CHECK(cuMultiGPUCpotrf(handle, uplo, n, A, lda, &info));
   CU_ERROR_CHECK(cuMultiGPUSynchronize(mGPU));
   if (gettimeofday(&stop, NULL) != 0) {
     fprintf(stderr, "gettimeofday failed at %s:%d\n", __FILE__, __LINE__);
@@ -123,10 +133,10 @@ int main(int argc, char * argv[]) {
   }
 
   double time = ((double)(stop.tv_sec - start.tv_sec) +
-                 (double)(stop.tv_usec - start.tv_usec) * 1.e-6) / 20.0;
-  size_t flops = ((n * n * n) / 3) + ((n * n) / 2) + (n / 6);
-  fprintf(stdout, "%.3es %.3gGFlops/s Error: %.3e\n%sED!\n", time,
-          ((double)flops * 1.e-9) / time, diff, (passed) ? "PASS" : "FAIL");
+                 (double)(stop.tv_usec - start.tv_usec) * 1.e-6) / 20.0f;
+  size_t flops = ((n * n * n) / 3) + ((2 * n) / 3);
+  fprintf(stdout, "%.3es %.3gGFlops/s Error: %.3e + %.3ei\n%sED!\n", time,
+          ((double)flops * 1.e-9) / time, rdiff, idiff, (passed) ? "PASS" : "FAIL");
 
   free(A);
   free(refA);

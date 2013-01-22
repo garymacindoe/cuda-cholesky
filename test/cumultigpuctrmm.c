@@ -144,6 +144,7 @@ int main(int argc, char * argv[]) {
 
   ctrmm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb);
   CU_ERROR_CHECK(cuMultiGPUCtrmm(handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb));
+  CU_ERROR_CHECK(cuMultiGPUSynchronize(mGPU));
 
   bool passed = true;
   float rdiff = 0.0f, idiff = 0.0f;
@@ -179,6 +180,7 @@ int main(int argc, char * argv[]) {
   }
   for (size_t i = 0; i < 20; i++)
     CU_ERROR_CHECK(cuMultiGPUCtrmm(handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb));
+  CU_ERROR_CHECK(cuMultiGPUSynchronize(mGPU));
   if (gettimeofday(&stop, NULL) != 0) {
     fputs("gettimeofday failed\n", stderr);
     return -6;

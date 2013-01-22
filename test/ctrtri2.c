@@ -86,7 +86,7 @@ int main(int argc, char * argv[]) {
       float complex temp = 0.0f + 0.0f * I;
       for (size_t l = 0; l < k; l++)
         temp += conj(C[i * ldc + l]) * C[j * ldc + l];
-      A[j * lda + i] = (0.01f + 0.01f * I) * temp;
+      A[j * lda + i] = temp;
     }
   }
   free(C);

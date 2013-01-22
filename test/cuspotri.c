@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <math.h>
 #include <float.h>
-#include "cpotrf_ref.c"
+#include "spotri_ref.c"
 
 int main(int argc, char * argv[]) {
   CBlasUplo uplo;
@@ -37,7 +37,7 @@ int main(int argc, char * argv[]) {
 
   srand(0);
 
-  float complex * A, * C, * refA;
+  float * A, * C, * refA;
   CUdeviceptr dA;
   size_t lda, ldc, dlda, k = 5 * n;
   long info, rInfo;
@@ -50,20 +50,20 @@ int main(int argc, char * argv[]) {
   CUcontext context;
   CU_ERROR_CHECK(cuCtxCreate(&context, CU_CTX_SCHED_BLOCKING_SYNC, device));
 
-  lda = (n + 1u) & ~1u;
-  if ((A = malloc(lda *  n * sizeof(float complex))) == NULL) {
+  lda = (n + 3u) & ~3u;
+  if ((A = malloc(lda *  n * sizeof(float))) == NULL) {
     fprintf(stderr, "Unable to allocate A\n");
     return -1;
   }
-  if ((refA = malloc(lda * n * sizeof(float complex))) == NULL) {
+  if ((refA = malloc(lda * n * sizeof(float))) == NULL) {
     fprintf(stderr, "Unable to allocate refA\n");
     return -2;
   }
-  CU_ERROR_CHECK(cuMemAllocPitch(&dA, &dlda, n * sizeof(float complex), n, sizeof(float complex)));
-  dlda /= sizeof(float complex);
+  CU_ERROR_CHECK(cuMemAllocPitch(&dA, &dlda, n * sizeof(float), n, sizeof(float)));
+  dlda /= sizeof(float);
 
-  ldc = (k + 1u) & ~1u;
-  if ((C = malloc(ldc * n * sizeof(float complex))) == NULL) {
+  ldc = (k + 3u) & ~3u;
+  if ((C = malloc(ldc * n * sizeof(float))) == NULL) {
     fprintf(stderr, "Unable to allocate C\n");
     return -3;
   }
@@ -74,7 +74,7 @@ int main(int argc, char * argv[]) {
   }
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < n; i++) {
-      float complex temp = 0.0f + 0.0f * I;
+      float temp = 0.0f;
       for (size_t l = 0; l < k; l++)
         temp += C[i * ldc + l] * C[j * ldc + l];
       refA[j * lda + i] = A[j * lda + i] = temp;
@@ -82,29 +82,35 @@ int main(int argc, char * argv[]) {
   }
   free(C);
 
-  CUDA_MEMCPY2D copy = { 0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(float complex),
-                         0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(float complex),
-                         n * sizeof(float complex), n };
+  spotrf(uplo, n, A, lda, &info);
+  if (info != 0) {
+    fprintf(stderr, "Failed to compute Cholesky decomposition of A\n");
+    return (int)info;
+  }
+
+  for (size_t j = 0; j < n; j++)
+    memcpy(&refA[j * lda], &A[j * lda], n * sizeof(float));
+
+  CUDA_MEMCPY2D copy = { 0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(float),
+                         0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(float),
+                         n * sizeof(float), n };
   CU_ERROR_CHECK(cuMemcpy2D(&copy));
 
-  cpotrf_ref(uplo, n, refA, lda, &rInfo);
-  CU_ERROR_CHECK(cuCpotrf(uplo, n, dA, dlda, &info));
+  spotri_ref(uplo, n, refA, lda, &rInfo);
+  CU_ERROR_CHECK(cuSpotri(uplo, n, dA, dlda, &info));
 
-  copy = (CUDA_MEMCPY2D){ 0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(float complex),
-                          0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(float complex),
-                          n * sizeof(float complex), n };
+  copy = (CUDA_MEMCPY2D){ 0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(float),
+                          0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(float),
+                          n * sizeof(float), n };
   CU_ERROR_CHECK(cuMemcpy2D(&copy));
 
   bool passed = (info == rInfo);
-  float rdiff = 0.0f, idiff = 0.0f;
+  float diff = 0.0f;
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < n; i++) {
-      float d = fabsf(crealf(A[j * lda + i]) - crealf(refA[j * lda + i]));
-      if (d > rdiff)
-        rdiff = d;
-      d = fabsf(cimagf(A[j * lda + i]) - cimagf(refA[j * lda + i]));
-      if (d > idiff)
-        idiff = d;
+      float d = fabsf(A[j * lda + i] - refA[j * lda + i]);
+      if (d > diff)
+        diff = d;
     }
   }
 
@@ -113,12 +119,12 @@ int main(int argc, char * argv[]) {
   // non-positive-definite-ness.
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < n; i++)
-      A[j * lda + i] = (i == j) ? (1.0f + 0.0f * I) : (0.0f + 0.0f * I);
+      A[j * lda + i] = (i == j) ? 1.0f : 0.0f;
   }
 
-  copy = (CUDA_MEMCPY2D){ 0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(float complex),
-                          0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(float complex),
-                          n * sizeof(float complex), n };
+  copy = (CUDA_MEMCPY2D){ 0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(float),
+                          0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(float),
+                          n * sizeof(float), n };
   CU_ERROR_CHECK(cuMemcpy2D(&copy));
 
   CUevent start, stop;
@@ -127,7 +133,7 @@ int main(int argc, char * argv[]) {
 
   CU_ERROR_CHECK(cuEventRecord(start, NULL));
   for (size_t i = 0; i < 20; i++)
-    CU_ERROR_CHECK(cuCpotrf(uplo, n, dA, dlda, &info));
+    CU_ERROR_CHECK(cuSpotri(uplo, n, dA, dlda, &info));
   CU_ERROR_CHECK(cuEventRecord(stop, NULL));
   CU_ERROR_CHECK(cuEventSynchronize(stop));
 
@@ -138,10 +144,9 @@ int main(int argc, char * argv[]) {
   CU_ERROR_CHECK(cuEventDestroy(start));
   CU_ERROR_CHECK(cuEventDestroy(stop));
 
-  size_t flops = (((n * n * n) / 6) + ((n * n) / 2) + (n / 3)) * 6 +
-                 (((n * n * n) / 6) - (n / 6)) * 2;
-  fprintf(stdout, "%.3es %.3gGFlops/s Error: %.3e + %.3ei\n%sED!\n", time,
-          ((float)flops * 1.e-6f) / time, rdiff, idiff, (passed) ? "PASS" : "FAIL");
+  size_t flops = ((n * n * n) / 3) + ((2 * n) / 3);
+  fprintf(stdout, "%.3es %.3gGFlops/s Error: %.3e\n%sED!\n", time,
+          ((float)flops * 1.e-6f) / time, diff, (passed) ? "PASS" : "FAIL");
 
   free(A);
   free(refA);

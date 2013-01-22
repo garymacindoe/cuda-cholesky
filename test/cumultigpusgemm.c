@@ -146,6 +146,7 @@ int main(int argc, char * argv[]) {
   sgemm_ref(transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, refC, ldc);
   CU_ERROR_CHECK(cuMultiGPUSgemm(handle, transA, transB, m, n, k,
                                  alpha, A, lda, B, ldb, beta, C, ldc));
+  CU_ERROR_CHECK(cuMultiGPUSynchronize(mGPU));
 
   float diff = 0.0f;
   for (size_t j = 0; j < n; j++) {
@@ -162,8 +163,8 @@ int main(int argc, char * argv[]) {
     return -5;
   }
   for (size_t i = 0; i < 20; i++)
-  CU_ERROR_CHECK(cuMultiGPUSgemm(handle, transA, transB, m, n, k,
-                                 alpha, A, lda, B, ldb, beta, C, ldc));
+    CU_ERROR_CHECK(cuMultiGPUSgemm(handle, transA, transB, m, n, k,
+                                   alpha, A, lda, B, ldb, beta, C, ldc));
   CU_ERROR_CHECK(cuMultiGPUSynchronize(mGPU));
   if (gettimeofday(&stop, NULL) != 0) {
     fputs("gettimeofday failed\n", stderr);

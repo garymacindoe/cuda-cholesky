@@ -1,7 +1,7 @@
 static void ctrsm_ref(CBlasSide side, CBlasUplo uplo, CBlasTranspose trans,
                       CBlasDiag diag, size_t m, size_t n,
                       float complex alpha, const float complex * restrict A, size_t lda,
-                      float complex * restrict B, size_t ldb, size_t * restrict E) {
+                      float complex * restrict B, size_t ldb, size_t * restrict E, size_t * restrict F) {
 
   if (m == 0 || n == 0) return;
 

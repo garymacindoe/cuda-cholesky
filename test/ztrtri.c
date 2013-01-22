@@ -80,7 +80,7 @@ int main(int argc, char * argv[]) {
       double complex temp = 0.0 + 0.0 * I;
       for (size_t l = 0; l < k; l++)
         temp += conj(C[i * ldc + l]) * C[j * ldc + l];
-      A[j * lda + i] = (0.01 + 0.01 * I) * temp;
+      A[j * lda + i] = temp;
     }
   }
   free(C);

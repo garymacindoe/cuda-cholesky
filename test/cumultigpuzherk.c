@@ -120,6 +120,7 @@ int main(int argc, char * argv[]) {
 
   zherk_ref(uplo, trans, n, k, alpha, A, lda, beta, refC, ldc);
   CU_ERROR_CHECK(cuMultiGPUZherk(handle, uplo, trans, n, k, alpha, A, lda, beta, C, ldc));
+  CU_ERROR_CHECK(cuMultiGPUSynchronize(mGPU));
 
   double rdiff = 0.0, idiff = 0.0;
   for (size_t j = 0; j < n; j++) {
@@ -140,6 +141,7 @@ int main(int argc, char * argv[]) {
   }
   for (size_t i = 0; i < 20; i++)
     CU_ERROR_CHECK(cuMultiGPUZherk(handle, uplo, trans, n, k, alpha, A, lda, beta, C, ldc));
+  CU_ERROR_CHECK(cuMultiGPUSynchronize(mGPU));
   if (gettimeofday(&stop, NULL) != 0) {
     fputs("gettimeofday failed\n", stderr);
     return -6;
