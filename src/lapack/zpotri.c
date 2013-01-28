@@ -2,7 +2,7 @@
 #include "error.h"
 // #include <stdio.h>
 #include <math.h>
-#include "../blas/handle.h"
+#include "../blas/config.h"
 
 static inline size_t min(size_t a, size_t b) { return (a < b) ? a : b; }
 
@@ -147,7 +147,8 @@ void zpotri(CBlasUplo uplo,
   zlauum(uplo, n, A, lda, info);
 }
 
-CUresult cuZpotri(CBlasUplo uplo,
+CUresult cuZpotri(CUblashandle handle,
+                  CBlasUplo uplo,
                   size_t n,
                   CUdeviceptr A, size_t lda,
                   long * info) {
@@ -165,7 +166,6 @@ CUresult cuZpotri(CBlasUplo uplo,
   double complex * B;
   CUdeviceptr X;
   size_t ldb, ldx;
-  CUmodule zgemm, zherk, ztrmm, ztrsm;
   CUstream stream0, stream1;
 
   /**
@@ -176,12 +176,6 @@ CUresult cuZpotri(CBlasUplo uplo,
    * triangular ZLAUUM.  This means that the size of B in host memory changes
    * between loops when A is lower triangular.
    */
-
-  // Load the GPU BLAS modules
-  CU_ERROR_CHECK(cuModuleLoad(&zgemm, "zgemm.fatbin"));
-  CU_ERROR_CHECK(cuModuleLoad(&zherk, "zherk.fatbin"));
-  CU_ERROR_CHECK(cuModuleLoad(&ztrmm, "ztrmm.fatbin"));
-  CU_ERROR_CHECK(cuModuleLoad(&ztrsm, "ztrsm.fatbin"));
 
   // Create two streams for asynchronous copy and compute
   CU_ERROR_CHECK(cuStreamCreate(&stream0, 0));
@@ -203,13 +197,13 @@ CUresult cuZpotri(CBlasUplo uplo,
       const size_t jb = min(nb, n - j);
 
       /* Update the current column using the big square matrix to the left */
-      CU_ERROR_CHECK(cuZtrmm2(ztrmm, CBlasLeft, CBlasUpper, CBlasNoTrans, CBlasNonUnit, j, jb,
+      CU_ERROR_CHECK(cuZtrmm2(handle, CBlasLeft, CBlasUpper, CBlasNoTrans, CBlasNonUnit, j, jb,
                               one, A, lda, A + j * lda * sizeof(double complex), lda, X, ldx, stream0));
       /* GPU ZTRMM is out of place so copy back into place */
       CU_ERROR_CHECK(cuMemcpyDtoD2DAsync(A, lda, 0, j, X, ldx, 0, 0, j, jb, sizeof(double complex), stream0));
       /* Then update the column again using the small square matrix on the
        * diagonal below (on the same stream) */
-      CU_ERROR_CHECK(cuZtrsm(ztrsm, CBlasRight, CBlasUpper, CBlasNoTrans, CBlasNonUnit, j, jb,
+      CU_ERROR_CHECK(cuZtrsm(handle, CBlasRight, CBlasUpper, CBlasNoTrans, CBlasNonUnit, j, jb,
                              -one, A + (j * lda + j) * sizeof(double complex), lda, A + j * lda * sizeof(double complex), lda, stream0));
       /* Overlap both the operations above with a copy of the diagonal block
        * onto the host.  There is a possibility of overwriting the result of the
@@ -239,11 +233,11 @@ CUresult cuZpotri(CBlasUplo uplo,
       const size_t ib = min(nb, n - i);
 
       /* Update the current column using the diagonal block */
-      CU_ERROR_CHECK(cuZtrmm2(ztrmm, CBlasRight, CBlasUpper, CBlasConjTrans, CBlasNonUnit, i, ib,
+      CU_ERROR_CHECK(cuZtrmm2(handle, CBlasRight, CBlasUpper, CBlasConjTrans, CBlasNonUnit, i, ib,
                               one, A + (i * lda + i) * sizeof(double complex), lda,
                               A + i * lda * sizeof(double complex), lda, X, ldx, stream0));
       /* Update the current column using the big matrix to the right */
-      CU_ERROR_CHECK(cuZgemm2(zgemm, CBlasNoTrans, CBlasConjTrans, i, ib, n - i - ib,
+      CU_ERROR_CHECK(cuZgemm2(handle, CBlasNoTrans, CBlasConjTrans, i, ib, n - i - ib,
                               one, A + (i + ib) * lda * sizeof(double complex), lda,
                               A + ((i + ib) * lda + i) * sizeof(double complex), lda,
                               one, X, ldx, A + i * lda * sizeof(double complex), lda, stream0));
@@ -262,7 +256,7 @@ CUresult cuZpotri(CBlasUplo uplo,
                                          ib, ib, sizeof(double complex), stream1));
       /* Perform the ZHERK on the same stream as the copy to ensure A has
        * finised copying back first. */
-      CU_ERROR_CHECK(cuZherk(zherk, CBlasUpper, CBlasNoTrans, ib, n - i - ib,
+      CU_ERROR_CHECK(cuZherk(handle, CBlasUpper, CBlasNoTrans, ib, n - i - ib,
                              one, A + ((i + ib) * lda + i) * sizeof(double complex), lda,
                              one, A + (i * lda + i) * sizeof(double complex), lda, stream1));
       /* Ensure the ZHERK has finished before starting the ZTRMM from the next
@@ -291,14 +285,14 @@ CUresult cuZpotri(CBlasUplo uplo,
       const size_t jb = min(nb, n - j);
 
       /* Update the current column using the big square matrix to the right */
-      CU_ERROR_CHECK(cuZtrmm2(ztrmm, CBlasLeft, CBlasLower, CBlasNoTrans, CBlasNonUnit, n - j - jb, jb,
+      CU_ERROR_CHECK(cuZtrmm2(handle, CBlasLeft, CBlasLower, CBlasNoTrans, CBlasNonUnit, n - j - jb, jb,
                               one, A + ((j + jb) * lda + j + jb) * sizeof(double complex), lda,
                               A + (j * lda + j + jb) * sizeof(double complex), lda, X, ldx, stream0));
       /* GPU ZTRMM is out of place so copy back into place */
       CU_ERROR_CHECK(cuMemcpyDtoD2DAsync(A, lda, j + jb, j, X, ldx, 0, 0, j, jb, sizeof(double complex), stream0));
       /* Then update the column again using the small square matrix on the
        * diagonal above (on the same stream) */
-      CU_ERROR_CHECK(cuZtrsm(ztrsm, CBlasRight, CBlasLower, CBlasNoTrans, CBlasNonUnit, n - j - jb, jb,
+      CU_ERROR_CHECK(cuZtrsm(handle, CBlasRight, CBlasLower, CBlasNoTrans, CBlasNonUnit, n - j - jb, jb,
                              -one, A + (j * lda + j) * sizeof(double complex), lda, A + (j * lda + j + jb) * sizeof(double complex), lda, stream0));
       /* Overlap both the operations above with a copy of the diagonal block
        * onto the host.  There is a possibility of overwriting the result of the
@@ -339,11 +333,11 @@ CUresult cuZpotri(CBlasUplo uplo,
       const size_t ib = min(mb, n - i);
 
       /* Update the current column using the diagonal block */
-      CU_ERROR_CHECK(cuZtrmm2(ztrmm, CBlasLeft, CBlasLower, CBlasConjTrans, CBlasNonUnit, ib, i,
+      CU_ERROR_CHECK(cuZtrmm2(handle, CBlasLeft, CBlasLower, CBlasConjTrans, CBlasNonUnit, ib, i,
                               one, A + (i * lda + i) * sizeof(double complex), lda,
                               A + i * sizeof(double complex), lda, X, ldx, stream0));
       /* Update the current column using the big matrix to the right */
-      CU_ERROR_CHECK(cuZgemm2(zgemm, CBlasConjTrans, CBlasNoTrans, ib, i, n - i - ib,
+      CU_ERROR_CHECK(cuZgemm2(handle, CBlasConjTrans, CBlasNoTrans, ib, i, n - i - ib,
                               one, A + (i * lda + i + ib) * sizeof(double complex), lda,
                               A + (i + ib) * sizeof(double complex), lda,
                               one, X, ldx, A + i * sizeof(double complex), lda, stream0));
@@ -362,7 +356,7 @@ CUresult cuZpotri(CBlasUplo uplo,
                                          ib, ib, sizeof(double complex), stream1));
       /* Perform the ZHERK on the same stream as the copy to ensure A has
        * finised copying back first. */
-      CU_ERROR_CHECK(cuZherk(zherk, CBlasLower, CBlasConjTrans, ib, n - i - ib,
+      CU_ERROR_CHECK(cuZherk(handle, CBlasLower, CBlasConjTrans, ib, n - i - ib,
                              one, A + i * sizeof(double complex), lda,
                              one, A + (i * lda + i) * sizeof(double complex), lda, stream1));
       /* Ensure the ZHERK has finished before starting the ZTRMM from the next
@@ -375,11 +369,6 @@ CUresult cuZpotri(CBlasUplo uplo,
   // Clean up resources
   CU_ERROR_CHECK(cuMemFreeHost(B));
   CU_ERROR_CHECK(cuMemFree(X));
-
-  CU_ERROR_CHECK(cuModuleUnload(zgemm));
-  CU_ERROR_CHECK(cuModuleUnload(zherk));
-  CU_ERROR_CHECK(cuModuleUnload(ztrmm));
-  CU_ERROR_CHECK(cuModuleUnload(ztrsm));
 
   CU_ERROR_CHECK(cuStreamDestroy(stream0));
   CU_ERROR_CHECK(cuStreamDestroy(stream1));

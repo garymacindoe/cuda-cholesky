@@ -2,7 +2,7 @@
 #include "error.h"
 // #include <stdio.h>
 #include <math.h>
-#include "../blas/handle.h"
+#include "../blas/config.h"
 
 static inline size_t min(size_t a, size_t b) { return (a < b) ? a : b; }
 
@@ -147,7 +147,8 @@ void spotri(CBlasUplo uplo,
   slauum(uplo, n, A, lda, info);
 }
 
-CUresult cuSpotri(CBlasUplo uplo,
+CUresult cuSpotri(CUblashandle handle,
+                  CBlasUplo uplo,
                   size_t n,
                   CUdeviceptr A, size_t lda,
                   long * info) {
@@ -165,7 +166,6 @@ CUresult cuSpotri(CBlasUplo uplo,
   float * B;
   CUdeviceptr X;
   size_t ldb, ldx;
-  CUmodule sgemm, ssyrk, strmm, strsm;
   CUstream stream0, stream1;
 
   /**
@@ -176,12 +176,6 @@ CUresult cuSpotri(CBlasUplo uplo,
    * triangular SLAUUM.  This means that the size of B in host memory changes
    * between loops when A is lower triangular.
    */
-
-  // Load the GPU BLAS modules
-  CU_ERROR_CHECK(cuModuleLoad(&sgemm, "sgemm.fatbin"));
-  CU_ERROR_CHECK(cuModuleLoad(&ssyrk, "ssyrk.fatbin"));
-  CU_ERROR_CHECK(cuModuleLoad(&strmm, "strmm.fatbin"));
-  CU_ERROR_CHECK(cuModuleLoad(&strsm, "strsm.fatbin"));
 
   // Create two streams for asynchronous copy and compute
   CU_ERROR_CHECK(cuStreamCreate(&stream0, 0));
@@ -203,13 +197,13 @@ CUresult cuSpotri(CBlasUplo uplo,
       const size_t jb = min(nb, n - j);
 
       /* Update the current column using the big square matrix to the left */
-      CU_ERROR_CHECK(cuStrmm2(strmm, CBlasLeft, CBlasUpper, CBlasNoTrans, CBlasNonUnit, j, jb,
+      CU_ERROR_CHECK(cuStrmm2(handle, CBlasLeft, CBlasUpper, CBlasNoTrans, CBlasNonUnit, j, jb,
                               one, A, lda, A + j * lda * sizeof(float), lda, X, ldx, stream0));
       /* GPU STRMM is out of place so copy back into place */
       CU_ERROR_CHECK(cuMemcpyDtoD2DAsync(A, lda, 0, j, X, ldx, 0, 0, j, jb, sizeof(float), stream0));
       /* Then update the column again using the small square matrix on the
        * diagonal below (on the same stream) */
-      CU_ERROR_CHECK(cuStrsm(strsm, CBlasRight, CBlasUpper, CBlasNoTrans, CBlasNonUnit, j, jb,
+      CU_ERROR_CHECK(cuStrsm(handle, CBlasRight, CBlasUpper, CBlasNoTrans, CBlasNonUnit, j, jb,
                              -one, A + (j * lda + j) * sizeof(float), lda, A + j * lda * sizeof(float), lda, stream0));
       /* Overlap both the operations above with a copy of the diagonal block
        * onto the host.  There is a possibility of overwriting the result of the
@@ -239,11 +233,11 @@ CUresult cuSpotri(CBlasUplo uplo,
       const size_t ib = min(nb, n - i);
 
       /* Update the current column using the diagonal block */
-      CU_ERROR_CHECK(cuStrmm2(strmm, CBlasRight, CBlasUpper, CBlasTrans, CBlasNonUnit, i, ib,
+      CU_ERROR_CHECK(cuStrmm2(handle, CBlasRight, CBlasUpper, CBlasTrans, CBlasNonUnit, i, ib,
                               one, A + (i * lda + i) * sizeof(float), lda,
                               A + i * lda * sizeof(float), lda, X, ldx, stream0));
       /* Update the current column using the big matrix to the right */
-      CU_ERROR_CHECK(cuSgemm2(sgemm, CBlasNoTrans, CBlasTrans, i, ib, n - i - ib,
+      CU_ERROR_CHECK(cuSgemm2(handle, CBlasNoTrans, CBlasTrans, i, ib, n - i - ib,
                               one, A + (i + ib) * lda * sizeof(float), lda,
                               A + ((i + ib) * lda + i) * sizeof(float), lda,
                               one, X, ldx, A + i * lda * sizeof(float), lda, stream0));
@@ -262,7 +256,7 @@ CUresult cuSpotri(CBlasUplo uplo,
                                          ib, ib, sizeof(float), stream1));
       /* Perform the SSYRK on the same stream as the copy to ensure A has
        * finised copying back first. */
-      CU_ERROR_CHECK(cuSsyrk(ssyrk, CBlasUpper, CBlasNoTrans, ib, n - i - ib,
+      CU_ERROR_CHECK(cuSsyrk(handle, CBlasUpper, CBlasNoTrans, ib, n - i - ib,
                              one, A + ((i + ib) * lda + i) * sizeof(float), lda,
                              one, A + (i * lda + i) * sizeof(float), lda, stream1));
       /* Ensure the SSYRK has finished before starting the STRMM from the next
@@ -291,14 +285,14 @@ CUresult cuSpotri(CBlasUplo uplo,
       const size_t jb = min(nb, n - j);
 
       /* Update the current column using the big square matrix to the right */
-      CU_ERROR_CHECK(cuStrmm2(strmm, CBlasLeft, CBlasLower, CBlasNoTrans, CBlasNonUnit, n - j - jb, jb,
+      CU_ERROR_CHECK(cuStrmm2(handle, CBlasLeft, CBlasLower, CBlasNoTrans, CBlasNonUnit, n - j - jb, jb,
                               one, A + ((j + jb) * lda + j + jb) * sizeof(float), lda,
                               A + (j * lda + j + jb) * sizeof(float), lda, X, ldx, stream0));
       /* GPU STRMM is out of place so copy back into place */
       CU_ERROR_CHECK(cuMemcpyDtoD2DAsync(A, lda, j + jb, j, X, ldx, 0, 0, j, jb, sizeof(float), stream0));
       /* Then update the column again using the small square matrix on the
        * diagonal above (on the same stream) */
-      CU_ERROR_CHECK(cuStrsm(strsm, CBlasRight, CBlasLower, CBlasNoTrans, CBlasNonUnit, n - j - jb, jb,
+      CU_ERROR_CHECK(cuStrsm(handle, CBlasRight, CBlasLower, CBlasNoTrans, CBlasNonUnit, n - j - jb, jb,
                              -one, A + (j * lda + j) * sizeof(float), lda, A + (j * lda + j + jb) * sizeof(float), lda, stream0));
       /* Overlap both the operations above with a copy of the diagonal block
        * onto the host.  There is a possibility of overwriting the result of the
@@ -339,11 +333,11 @@ CUresult cuSpotri(CBlasUplo uplo,
       const size_t ib = min(mb, n - i);
 
       /* Update the current column using the diagonal block */
-      CU_ERROR_CHECK(cuStrmm2(strmm, CBlasLeft, CBlasLower, CBlasTrans, CBlasNonUnit, ib, i,
+      CU_ERROR_CHECK(cuStrmm2(handle, CBlasLeft, CBlasLower, CBlasTrans, CBlasNonUnit, ib, i,
                               one, A + (i * lda + i) * sizeof(float), lda,
                               A + i * sizeof(float), lda, X, ldx, stream0));
       /* Update the current column using the big matrix to the right */
-      CU_ERROR_CHECK(cuSgemm2(sgemm, CBlasTrans, CBlasNoTrans, ib, i, n - i - ib,
+      CU_ERROR_CHECK(cuSgemm2(handle, CBlasTrans, CBlasNoTrans, ib, i, n - i - ib,
                               one, A + (i * lda + i + ib) * sizeof(float), lda,
                               A + (i + ib) * sizeof(float), lda,
                               one, X, ldx, A + i * sizeof(float), lda, stream0));
@@ -362,7 +356,7 @@ CUresult cuSpotri(CBlasUplo uplo,
                                          ib, ib, sizeof(float), stream1));
       /* Perform the SSYRK on the same stream as the copy to ensure A has
        * finised copying back first. */
-      CU_ERROR_CHECK(cuSsyrk(ssyrk, CBlasLower, CBlasTrans, ib, n - i - ib,
+      CU_ERROR_CHECK(cuSsyrk(handle, CBlasLower, CBlasTrans, ib, n - i - ib,
                              one, A + i * sizeof(float), lda,
                              one, A + (i * lda + i) * sizeof(float), lda, stream1));
       /* Ensure the SSYRK has finished before starting the STRMM from the next
@@ -375,11 +369,6 @@ CUresult cuSpotri(CBlasUplo uplo,
   // Clean up resources
   CU_ERROR_CHECK(cuMemFreeHost(B));
   CU_ERROR_CHECK(cuMemFree(X));
-
-  CU_ERROR_CHECK(cuModuleUnload(sgemm));
-  CU_ERROR_CHECK(cuModuleUnload(ssyrk));
-  CU_ERROR_CHECK(cuModuleUnload(strmm));
-  CU_ERROR_CHECK(cuModuleUnload(strsm));
 
   CU_ERROR_CHECK(cuStreamDestroy(stream0));
   CU_ERROR_CHECK(cuStreamDestroy(stream1));

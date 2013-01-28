@@ -2,6 +2,8 @@
 #include "error.h"
 #include <stdio.h>
 #include "handle.h"
+#include "config.h"
+#include "dtrmm.fatbin.c"
 
 static inline size_t min(size_t a, size_t b) { return (a < b) ? a : b; }
 static inline size_t max(size_t a, size_t b) { return (a > b) ? a : b; }
@@ -359,7 +361,7 @@ void dtrmm2(CBlasSide side, CBlasUplo uplo, CBlasTranspose trans, CBlasDiag diag
   }
 }
 
-CUresult cuDtrmm2(CUmodule module,
+CUresult cuDtrmm2(CUblashandle handle,
                   CBlasSide side, CBlasUplo uplo, CBlasTranspose trans, CBlasDiag diag,
                   size_t m, size_t n,
                   double alpha, CUdeviceptr A, size_t lda, CUdeviceptr B, size_t ldb,
@@ -381,6 +383,11 @@ CUresult cuDtrmm2(CUmodule module,
   if (m == 0 || n == 0)
     return CUDA_SUCCESS;
 
+  CU_ERROR_CHECK(cuCtxPushCurrent(handle->context));
+
+  if (handle->dtrmm == NULL)
+    CU_ERROR_CHECK(cuModuleLoadData(&handle->dtrmm, imageBytes));
+
   const unsigned int mb = (side == CBlasRight) ? 64 : (trans == CBlasNoTrans) ? 64 : 32;
   const unsigned int nb = (side == CBlasRight) ?  8 : (trans == CBlasNoTrans) ?  8 : 16;
   const unsigned int kb = (side == CBlasRight) ?  8 : (trans == CBlasNoTrans) ? 16 :  8;
@@ -393,7 +400,7 @@ CUresult cuDtrmm2(CUmodule module,
            side, uplo, trans, diag, mb, nb, kb, bx, by);
 
   CUfunction function;
-  CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
+  CU_ERROR_CHECK(cuModuleGetFunction(&function, handle->dtrmm, name));
 
   void * params[] = { &A, &B, &X, &alpha, &lda, &ldb, &ldx, &m, &n };
 
@@ -401,6 +408,8 @@ CUresult cuDtrmm2(CUmodule module,
                                 (unsigned int)(m + mb - 1) / mb, (unsigned int)(n + nb - 1) / nb, 1,
                                 bx, by, 1,
                                 0, stream, params, NULL));
+
+  CU_ERROR_CHECK(cuCtxPopCurrent(&handle->context));
 
   return CUDA_SUCCESS;
 }

@@ -2,6 +2,8 @@
 #include "error.h"
 #include <stdio.h>
 #include "handle.h"
+#include "config.h"
+#include "sgemm.fatbin.c"
 
 static inline size_t min(size_t a, size_t b) { return (a < b) ? a : b; }
 static inline size_t max(size_t a, size_t b) { return (a > b) ? a : b; }
@@ -143,7 +145,7 @@ void sgemm(CBlasTranspose transA, CBlasTranspose transB,
   }
 }
 
-CUresult cuSgemm2(CUmodule module, CBlasTranspose transA, CBlasTranspose transB,
+CUresult cuSgemm2(CUblashandle handle, CBlasTranspose transA, CBlasTranspose transB,
                   size_t m, size_t n, size_t k,
                   float alpha, CUdeviceptr A, size_t lda, CUdeviceptr B, size_t ldb,
                   float beta, CUdeviceptr C, size_t ldc, CUdeviceptr D, size_t ldd,
@@ -168,6 +170,11 @@ CUresult cuSgemm2(CUmodule module, CBlasTranspose transA, CBlasTranspose transB,
   if (m == 0 || n == 0 || ((alpha == zero || k == 0) && beta == one))
     return CUDA_SUCCESS;
 
+  CU_ERROR_CHECK(cuCtxPushCurrent(handle->context));
+
+  if (handle->sgemm == NULL)
+    CU_ERROR_CHECK(cuModuleLoadData(&handle->sgemm, imageBytes));
+
   const unsigned int mb = (transA == CBlasNoTrans) ? 64 : 32;
   const unsigned int nb = (transA == CBlasNoTrans) ? 16 : 32;
   const unsigned int kb = (transA == CBlasNoTrans) ? 16 :  8;
@@ -180,18 +187,20 @@ CUresult cuSgemm2(CUmodule module, CBlasTranspose transA, CBlasTranspose transB,
            transA, transB, mb, nb, kb, bx, by);
 
   CUfunction function;
-  CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
+  CU_ERROR_CHECK(cuModuleGetFunction(&function, handle->sgemm, name));
 
   void * params[] = { &A, &B, &C, &D, &alpha, &beta, &lda, &ldb, &ldc, &ldd, &m, &n, &k };
 
   CU_ERROR_CHECK(cuLaunchKernel(function, (unsigned int)(m + mb - 1) / mb, (unsigned int)(n + nb - 1) / nb, 1,
                                 bx, by, 1, 0, stream, params, NULL));
 
+  CU_ERROR_CHECK(cuCtxPopCurrent(&handle->context));
+
   return CUDA_SUCCESS;
 }
 
 struct sgemm_args {
-  struct multigpu_blas_plan * plan;
+  CUblashandle handle;
   const float * A, * B;
   float * C;
   size_t m, n, k, lda, ldb, ldc;
@@ -201,31 +210,57 @@ struct sgemm_args {
 
 static CUresult background_sgemm(const void * a) {
   struct sgemm_args * args = (struct sgemm_args *)a;
-  struct multigpu_blas_plan * plan = args->plan;
+  CUblashandle handle = args->handle;
 
+  // Block sizes
   const size_t mb = (args->transA == CBlasNoTrans) ? SGEMM_N_MB : SGEMM_T_MB;
   const size_t nb = (args->transA == CBlasNoTrans) ? SGEMM_N_NB : SGEMM_T_NB;
   const size_t kb = (args->transA == CBlasNoTrans) ? SGEMM_N_KB : SGEMM_T_KB;
 
-  CUdeviceptr A0 = plan->A;
-  CUdeviceptr A1 = plan->A + plan->lda * mb;
-  const size_t lda = plan->lda / sizeof(float);
-  CUdeviceptr B0 = plan->B;
-  CUdeviceptr B1 = plan->B + plan->ldb * ((args->transB == CBlasNoTrans) ? nb : kb);
-  const size_t ldb = plan->ldb / sizeof(float);
-  CUdeviceptr C = plan->C;
-  const size_t ldc = plan->ldc / sizeof(float);
+  // Temporary device memory and streams
+  CUdeviceptr A0, A1, B0, B1, C;
+  size_t lda, ldb, ldc;
+  CUstream copy, compute;
+
+  // Allocate two matrices for blocks of A and B on the device and one for a
+  // block of C
+  if (args->transA == CBlasNoTrans) {
+    CU_ERROR_CHECK(cuMemAllocPitch(&A0, &lda, mb * sizeof(float), kb, sizeof(float)));
+    CU_ERROR_CHECK(cuMemAllocPitch(&A1, &lda, mb * sizeof(float), kb, sizeof(float)));
+  }
+  else {
+    CU_ERROR_CHECK(cuMemAllocPitch(&A0, &lda, kb * sizeof(float), mb, sizeof(float)));
+    CU_ERROR_CHECK(cuMemAllocPitch(&A1, &lda, kb * sizeof(float), mb, sizeof(float)));
+  }
+  lda /= sizeof(float);
+
+  if (args->transB == CBlasNoTrans) {
+    CU_ERROR_CHECK(cuMemAllocPitch(&B0, &ldb, kb * sizeof(float), nb, sizeof(float)));
+    CU_ERROR_CHECK(cuMemAllocPitch(&B1, &ldb, kb * sizeof(float), nb, sizeof(float)));
+  }
+  else {
+    CU_ERROR_CHECK(cuMemAllocPitch(&B0, &ldb, nb * sizeof(float), kb, sizeof(float)));
+    CU_ERROR_CHECK(cuMemAllocPitch(&B1, &ldb, nb * sizeof(float), kb, sizeof(float)));
+  }
+  ldb /= sizeof(float);
+
+  CU_ERROR_CHECK(cuMemAllocPitch(&C, &ldc, mb * sizeof(float), nb, sizeof(float)));
+  ldc /= sizeof(float);
+
+  // Create streams
+  CU_ERROR_CHECK(cuStreamCreate(&copy, CU_STREAM_NON_BLOCKING));
+  CU_ERROR_CHECK(cuStreamCreate(&compute, CU_STREAM_NON_BLOCKING));
 
   // Copy C onto the device using the compute stream
   CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(C, ldc, 0, 0,
                                      args->C, args->ldc, 0, 0,
-                                     args->m, args->n, sizeof(float), plan->compute));
+                                     args->m, args->n, sizeof(float), compute));
 
   // Perform C *= beta on the compute stream to ensure C has finished copying
-  CU_ERROR_CHECK(cuSgemm(plan->sgemm, CBlasNoTrans, CBlasNoTrans,
+  CU_ERROR_CHECK(cuSgemm(handle, CBlasNoTrans, CBlasNoTrans,
                          args->m, args->n, 0,
                          zero, 0, ldc, 0, 0,
-                         args->beta, C, ldc, plan->compute));
+                         args->beta, C, ldc, compute));
 
   // Can exit early if alpha * op(A) * op(B) will evaluate to zero
   if (args->alpha != zero && args->k > 0) {
@@ -237,17 +272,17 @@ static CUresult background_sgemm(const void * a) {
         const size_t lb = min(args->k, kb);
         CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A0, lda, 0, 0,
                                            args->A, args->lda, 0, 0,
-                                           args->m, lb, sizeof(float), plan->compute));
+                                           args->m, lb, sizeof(float), compute));
         CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(B0, ldb, 0, 0,
                                            args->B, args->ldb, 0, 0,
-                                           lb, args->n, sizeof(float), plan->compute));
+                                           lb, args->n, sizeof(float), compute));
 
         for (size_t l = 0; l < args->k; l += kb) {
           // Compute C on the same stream as the copies to ensure they have finished first
-          CU_ERROR_CHECK(cuSgemm(plan->sgemm, args->transA, args->transB,
+          CU_ERROR_CHECK(cuSgemm(handle, args->transA, args->transB,
                                  args->m, args->n, min(args->k - l, kb),
                                  args->alpha, A0, lda, B0, ldb,
-                                 one, C, ldc, plan->compute));
+                                 one, C, ldc, compute));
 
           // If there is more work to do
           if (l + kb < args->k) {
@@ -255,13 +290,13 @@ static CUresult background_sgemm(const void * a) {
             // Copy the next blocks of A and B on the opposite stream from the sgemm
             CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A1, lda, 0, 0,
                                                args->A, args->lda, 0, l + kb,
-                                               args->m, lb, sizeof(float), plan->copy));
+                                               args->m, lb, sizeof(float), copy));
             CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(B1, ldb, 0, 0,
                                                args->B, args->ldb, l + kb, 0,
-                                               lb, args->n, sizeof(float), plan->copy));
+                                               lb, args->n, sizeof(float), copy));
 
             // Swap the streams and pointers so that the compute starts after the copy
-            CUstream stream = plan->compute; plan->compute = plan->copy; plan->copy = stream;
+            CUstream stream = compute; compute = copy; copy = stream;
             CUdeviceptr ptr = A0; A0 = A1; A1 = ptr;
             ptr = B0; B0 = B1; B1 = ptr;
           }
@@ -272,17 +307,17 @@ static CUresult background_sgemm(const void * a) {
         const size_t lb = min(args->k, kb);
         CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A0, lda, 0, 0,
                                            args->A, args->lda, 0, 0,
-                                           lb, args->m, sizeof(float), plan->compute));
+                                           lb, args->m, sizeof(float), compute));
         CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(B0, ldb, 0, 0,
                                            args->B, args->ldb, 0, 0,
-                                           lb, args->n, sizeof(float), plan->compute));
+                                           lb, args->n, sizeof(float), compute));
 
         for (size_t l = 0; l < args->k; l += kb) {
           // Compute C on the same stream as the copies to ensure they have finished first
-          CU_ERROR_CHECK(cuSgemm(plan->sgemm, args->transA, args->transB,
+          CU_ERROR_CHECK(cuSgemm(handle, args->transA, args->transB,
                                  args->m, args->n, min(args->k - l, kb),
                                  args->alpha, A0, lda, B0, ldb,
-                                 one, C, ldc, plan->compute));
+                                 one, C, ldc, compute));
 
           // If there is more work to do
           if (l + kb < args->k) {
@@ -290,13 +325,13 @@ static CUresult background_sgemm(const void * a) {
             // Copy the next blocks of A and B on the opposite stream from the sgemm
             CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A1, lda, 0, 0,
                                                args->A, args->lda, l + kb, 0,
-                                               lb, args->m, sizeof(float), plan->copy));
+                                               lb, args->m, sizeof(float), copy));
             CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(B1, ldb, 0, 0,
                                                args->B, args->ldb, l + kb, 0,
-                                               lb, args->n, sizeof(float), plan->copy));
+                                               lb, args->n, sizeof(float), copy));
 
             // Swap the streams and pointers so that the compute starts after the copy
-            CUstream stream = plan->compute; plan->compute = plan->copy; plan->copy = stream;
+            CUstream stream = compute; compute = copy; copy = stream;
             CUdeviceptr ptr = A0; A0 = A1; A1 = ptr;
             ptr = B0; B0 = B1; B1 = ptr;
           }
@@ -309,17 +344,17 @@ static CUresult background_sgemm(const void * a) {
         const size_t lb = min(args->k, kb);
         CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A0, lda, 0, 0,
                                            args->A, args->lda, 0, 0,
-                                           args->m, lb, sizeof(float), plan->compute));
+                                           args->m, lb, sizeof(float), compute));
         CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(B0, ldb, 0, 0,
                                            args->B, args->ldb, 0, 0,
-                                           args->n, lb, sizeof(float), plan->compute));
+                                           args->n, lb, sizeof(float), compute));
 
         for (size_t l = 0; l < args->k; l += kb) {
           // Compute C on the same stream as the copies to ensure they have finished first
-          CU_ERROR_CHECK(cuSgemm(plan->sgemm, args->transA, args->transB,
+          CU_ERROR_CHECK(cuSgemm(handle, args->transA, args->transB,
                                  args->m, args->n, min(args->k - l, kb),
                                  args->alpha, A0, lda, B0, ldb,
-                                 one, C, ldc, plan->compute));
+                                 one, C, ldc, compute));
 
           // If there is more work to do
           if (l + kb < args->k) {
@@ -327,13 +362,13 @@ static CUresult background_sgemm(const void * a) {
             // Copy the next blocks of A and B on the opposite stream from the sgemm
             CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A1, lda, 0, 0,
                                                args->A, args->lda, 0, l + kb,
-                                               args->m, lb, sizeof(float), plan->copy));
+                                               args->m, lb, sizeof(float), copy));
             CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(B1, ldb, 0, 0,
                                                args->B, args->ldb, 0, l + kb,
-                                               args->n, lb, sizeof(float), plan->copy));
+                                               args->n, lb, sizeof(float), copy));
 
             // Swap the streams and pointers so that the compute starts after the copy
-            CUstream stream = plan->compute; plan->compute = plan->copy; plan->copy = stream;
+            CUstream stream = compute; compute = copy; copy = stream;
             CUdeviceptr ptr = A0; A0 = A1; A1 = ptr;
             ptr = B0; B0 = B1; B1 = ptr;
           }
@@ -344,17 +379,17 @@ static CUresult background_sgemm(const void * a) {
         const size_t lb = min(args->k, kb);
         CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A0, lda, 0, 0,
                                            args->A, args->lda, 0, 0,
-                                           lb, args->m, sizeof(float), plan->compute));
+                                           lb, args->m, sizeof(float), compute));
         CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(B0, ldb, 0, 0,
                                            args->B, args->ldb, 0, 0,
-                                           args->n, lb, sizeof(float), plan->compute));
+                                           args->n, lb, sizeof(float), compute));
 
         for (size_t l = 0; l < args->k; l += kb) {
           // Compute C on the same stream as the copies to ensure they have finished first
-          CU_ERROR_CHECK(cuSgemm(plan->sgemm, args->transA, args->transB,
+          CU_ERROR_CHECK(cuSgemm(handle, args->transA, args->transB,
                                  args->m, args->n, min(args->k - l, kb),
                                  args->alpha, A0, lda, B0, ldb,
-                                 one, C, ldc, plan->compute));
+                                 one, C, ldc, compute));
 
           // If there is more work to do
           if (l + kb < args->k) {
@@ -362,13 +397,13 @@ static CUresult background_sgemm(const void * a) {
             // Copy the next blocks of A and B on the opposite stream from the sgemm
             CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A1, lda, 0, 0,
                                                args->A, args->lda, l + kb, 0,
-                                               lb, args->m, sizeof(float), plan->copy));
+                                               lb, args->m, sizeof(float), copy));
             CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(B1, ldb, 0, 0,
                                                args->B, args->ldb, 0, l + kb,
-                                               args->n, lb, sizeof(float), plan->copy));
+                                               args->n, lb, sizeof(float), copy));
 
             // Swap the streams and pointers so that the compute starts after the copy
-            CUstream stream = plan->compute; plan->compute = plan->copy; plan->copy = stream;
+            CUstream stream = compute; compute = copy; copy = stream;
             CUdeviceptr ptr = A0; A0 = A1; A1 = ptr;
             ptr = B0; B0 = B1; B1 = ptr;
           }
@@ -379,7 +414,17 @@ static CUresult background_sgemm(const void * a) {
 
   // Copy C back onto the host on the compute stream
   CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(args->C, args->ldc, 0, 0, C, ldc, 0, 0,
-                                     args->m, args->n, sizeof(float), plan->compute));
+                                     args->m, args->n, sizeof(float), compute));
+
+  // Clean up temporary memory and streams
+  CU_ERROR_CHECK(cuMemFree(A0));
+  CU_ERROR_CHECK(cuMemFree(A1));
+  CU_ERROR_CHECK(cuMemFree(B0));
+  CU_ERROR_CHECK(cuMemFree(B1));
+  CU_ERROR_CHECK(cuMemFree(C));
+
+  CU_ERROR_CHECK(cuStreamDestroy(copy));
+  CU_ERROR_CHECK(cuStreamDestroy(compute));
 
   return CUDA_SUCCESS;
 }
@@ -453,7 +498,7 @@ CUresult cuMultiGPUSgemm(CUmultiGPUBlasHandle handle,
           args.A = &A[i];
           args.B = &B[j * ldb];
           args.C = &C[j * ldc + i];
-          args.plan = &handle->plans[ctx];
+          args.handle = &handle->handles[ctx];
           CU_ERROR_CHECK(cuTaskCreate(&tasks[task], background_sgemm, &args, sizeof(struct sgemm_args)));
           CU_ERROR_CHECK(cuMultiGPURunTask(handle->mGPU, ctx++, tasks[task++]));
           if (ctx == nCtxs)
@@ -469,7 +514,7 @@ CUresult cuMultiGPUSgemm(CUmultiGPUBlasHandle handle,
           args.A = &A[i * lda];
           args.B = &B[j * ldb];
           args.C = &C[j * ldc + i];
-          args.plan = &handle->plans[ctx];
+          args.handle = &handle->handles[ctx];
           CU_ERROR_CHECK(cuTaskCreate(&tasks[task], background_sgemm, &args, sizeof(struct sgemm_args)));
           CU_ERROR_CHECK(cuMultiGPURunTask(handle->mGPU, ctx++, tasks[task++]));
           if (ctx == nCtxs)
@@ -487,7 +532,7 @@ CUresult cuMultiGPUSgemm(CUmultiGPUBlasHandle handle,
           args.A = &A[i];
           args.B = &B[j];
           args.C = &C[j * ldc + i];
-          args.plan = &handle->plans[ctx];
+          args.handle = &handle->handles[ctx];
           CU_ERROR_CHECK(cuTaskCreate(&tasks[task], background_sgemm, &args, sizeof(struct sgemm_args)));
           CU_ERROR_CHECK(cuMultiGPURunTask(handle->mGPU, ctx++, tasks[task++]));
           if (ctx == nCtxs)
@@ -503,7 +548,7 @@ CUresult cuMultiGPUSgemm(CUmultiGPUBlasHandle handle,
           args.A = &A[i * lda];
           args.B = &B[j];
           args.C = &C[j * ldc + i];
-          args.plan = &handle->plans[ctx];
+          args.handle = &handle->handles[ctx];
           CU_ERROR_CHECK(cuTaskCreate(&tasks[task], background_sgemm, &args, sizeof(struct sgemm_args)));
           CU_ERROR_CHECK(cuMultiGPURunTask(handle->mGPU, ctx++, tasks[task++]));
           if (ctx == nCtxs)

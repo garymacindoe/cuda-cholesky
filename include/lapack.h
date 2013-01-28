@@ -52,22 +52,22 @@ void zpotri(CBlasUplo, size_t, double complex * restrict, size_t, long * restric
 
 /** My Hybrid implementations */
 // Single precision Cholesky decomposition
-CUresult cuSpotrf(CBlasUplo, size_t, CUdeviceptr, size_t, long *);
+CUresult cuSpotrf(CUblashandle, CBlasUplo, size_t, CUdeviceptr, size_t, long *);
 // Double precision Cholesky decomposition
-CUresult cuDpotrf(CBlasUplo, size_t, CUdeviceptr, size_t, long *);
+CUresult cuDpotrf(CUblashandle, CBlasUplo, size_t, CUdeviceptr, size_t, long *);
 // Single precision complex Cholesky decomposition
-CUresult cuCpotrf(CBlasUplo, size_t, CUdeviceptr, size_t, long *);
+CUresult cuCpotrf(CUblashandle, CBlasUplo, size_t, CUdeviceptr, size_t, long *);
 // Double precision complex Cholesky decomposition
-CUresult cuZpotrf(CBlasUplo, size_t, CUdeviceptr, size_t, long *);
+CUresult cuZpotrf(CUblashandle, CBlasUplo, size_t, CUdeviceptr, size_t, long *);
 
 // Single precision inverse from Cholesky decomposition
-CUresult cuSpotri(CBlasUplo, size_t, CUdeviceptr, size_t, long *);
+CUresult cuSpotri(CUblashandle, CBlasUplo, size_t, CUdeviceptr, size_t, long *);
 // Double precision inverse from Cholesky decomposition
-CUresult cuDpotri(CBlasUplo, size_t, CUdeviceptr, size_t, long *);
+CUresult cuDpotri(CUblashandle, CBlasUplo, size_t, CUdeviceptr, size_t, long *);
 // Single precision complex inverse from Cholesky decomposition
-CUresult cuCpotri(CBlasUplo, size_t, CUdeviceptr, size_t, long *);
+CUresult cuCpotri(CUblashandle, CBlasUplo, size_t, CUdeviceptr, size_t, long *);
 // Double precision complex inverse from Cholesky decomposition
-CUresult cuZpotri(CBlasUplo, size_t, CUdeviceptr, size_t, long *);
+CUresult cuZpotri(CUblashandle, CBlasUplo, size_t, CUdeviceptr, size_t, long *);
 
 /** My CPU + multiGPU implementations */
 // Single precision Cholesky decomposition

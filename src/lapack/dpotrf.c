@@ -2,7 +2,7 @@
 #include "error.h"
 // #include <stdio.h>
 #include <math.h>
-#include "../blas/handle.h"
+#include "../blas/config.h"
 
 static inline size_t min(size_t a, size_t b) { return (a < b) ? a : b; }
 
@@ -162,7 +162,7 @@ void dpotrf(CBlasUplo uplo,
 //   return CUDA_SUCCESS;
 // }
 
-CUresult cuDpotrf(CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, long * info) {
+CUresult cuDpotrf(CUblashandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, long * info) {
   *info = 0;
   if (lda < n)
     *info = -4;
@@ -187,16 +187,10 @@ CUresult cuDpotrf(CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, long * in
 
   double * B;
   size_t ldb;
-  CUmodule dsyrk, dgemm, dtrsm;
   CUstream stream0, stream1;
 
   // Allocate page-locked host memory for diagonal block
   CU_ERROR_CHECK(cuMemAllocHost((void **)&B, (ldb = (nb + 1u) & ~1u) * sizeof(double)));
-
-  // Load the GPU BLAS modules
-  CU_ERROR_CHECK(cuModuleLoad(&dsyrk, "dsyrk.fatbin"));
-  CU_ERROR_CHECK(cuModuleLoad(&dgemm, "dgemm.fatbin"));
-  CU_ERROR_CHECK(cuModuleLoad(&dtrsm, "dtrsm.fatbin"));
 
   // Create two streams for asynchronous copy and compute
   CU_ERROR_CHECK(cuStreamCreate(&stream0, 0));
@@ -207,11 +201,11 @@ CUresult cuDpotrf(CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, long * in
       const size_t jb = min(nb, n - j);
 
       /* Rank-K update of diagonal block using column matrix above */
-      CU_ERROR_CHECK(cuDsyrk(dsyrk, CBlasUpper, CBlasTrans, jb, j,
+      CU_ERROR_CHECK(cuDsyrk(handle, CBlasUpper, CBlasTrans, jb, j,
                              -one, A + j * lda * sizeof(double), lda,
                              one, A + (j * lda + j) * sizeof(double), lda, stream0));
       /* Overlap the DSYRK with a DGEMM (on a different stream) */
-      CU_ERROR_CHECK(cuDgemm(dgemm, CBlasTrans, CBlasNoTrans, jb, n - j - jb, j,
+      CU_ERROR_CHECK(cuDgemm(handle, CBlasTrans, CBlasNoTrans, jb, n - j - jb, j,
                              -one, A + j * lda * sizeof(double), lda,
                              A + (j + jb) * lda * sizeof(double), lda,
                              one, A + ((j + jb) * lda + j) * sizeof(double), lda, stream1));
@@ -238,7 +232,7 @@ CUresult cuDpotrf(CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, long * in
 //       CU_ERROR_CHECK(cuStreamSynchronize(stream1));
       /* Triangular solve of the diagonal block using the row matrix to the
        * right on the same stream as the copy to ensure it has completed first */
-      CU_ERROR_CHECK(cuDtrsm(dtrsm, CBlasLeft, CBlasUpper, CBlasTrans, CBlasNonUnit,
+      CU_ERROR_CHECK(cuDtrsm(handle, CBlasLeft, CBlasUpper, CBlasTrans, CBlasNonUnit,
                              jb, n - j - jb, one, A + (j * lda + j) * sizeof(double), lda,
                              A + ((j + jb) * lda + j) * sizeof(double), lda, stream0));
     }
@@ -248,11 +242,11 @@ CUresult cuDpotrf(CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, long * in
       const size_t jb = min(nb, n - j);
 
       /* Rank-K update of diagonal block using row matrix to the left */
-      CU_ERROR_CHECK(cuDsyrk(dsyrk, CBlasLower, CBlasNoTrans, jb, j,
+      CU_ERROR_CHECK(cuDsyrk(handle, CBlasLower, CBlasNoTrans, jb, j,
                              -one, A + j * sizeof(double), lda,
                              one, A + (j * lda + j) * sizeof(double), lda, stream0));
       /* Overlap the DSYRK with a DGEMM (on a different stream) */
-      CU_ERROR_CHECK(cuDgemm(dgemm, CBlasNoTrans, CBlasTrans, n - j - jb, jb, j,
+      CU_ERROR_CHECK(cuDgemm(handle, CBlasNoTrans, CBlasTrans, n - j - jb, jb, j,
                              -one, A + (j + jb) * sizeof(double), lda,
                              A + j * sizeof(double), lda,
                              one, A + (j * lda + j + jb) * sizeof(double), lda, stream1));
@@ -279,7 +273,7 @@ CUresult cuDpotrf(CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, long * in
 //       CU_ERROR_CHECK(cuStreamSynchronize(stream1));
       /* Triangular solve of the diagonal block using the column matrix below
        * on the same stream as the copy to ensure it has completed first */
-      CU_ERROR_CHECK(cuDtrsm(dtrsm, CBlasRight, CBlasLower, CBlasTrans, CBlasNonUnit,
+      CU_ERROR_CHECK(cuDtrsm(handle, CBlasRight, CBlasLower, CBlasTrans, CBlasNonUnit,
                              n - j - jb, jb, one, A + (j * lda + j) * sizeof(double), lda,
                              A + (j * lda + j + jb) * sizeof(double), lda, stream0));
     }
@@ -287,10 +281,6 @@ CUresult cuDpotrf(CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, long * in
 
   // Clean up resources
   CU_ERROR_CHECK(cuMemFreeHost(B));
-
-  CU_ERROR_CHECK(cuModuleUnload(dsyrk));
-  CU_ERROR_CHECK(cuModuleUnload(dgemm));
-  CU_ERROR_CHECK(cuModuleUnload(dtrsm));
 
   CU_ERROR_CHECK(cuStreamDestroy(stream0));
   CU_ERROR_CHECK(cuStreamDestroy(stream1));

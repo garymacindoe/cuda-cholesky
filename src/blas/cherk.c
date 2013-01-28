@@ -2,6 +2,8 @@
 #include "error.h"
 #include <stdio.h>
 #include "handle.h"
+#include "config.h"
+#include "cherk.fatbin.c"
 
 static inline size_t min(size_t a, size_t b) { return (a < b) ? a : b; }
 static inline size_t max(size_t a, size_t b) { return (a > b) ? a : b; }
@@ -185,7 +187,7 @@ void cherk(CBlasUplo uplo, CBlasTranspose trans,
   }
 }
 
-CUresult cuCherk(CUmodule module, CBlasUplo uplo, CBlasTranspose trans,
+CUresult cuCherk(CUblashandle handle, CBlasUplo uplo, CBlasTranspose trans,
                  size_t n, size_t k,
                  float alpha, CUdeviceptr A, size_t lda,
                  float beta, CUdeviceptr C, size_t ldc, CUstream stream) {
@@ -206,6 +208,11 @@ CUresult cuCherk(CUmodule module, CBlasUplo uplo, CBlasTranspose trans,
   if (n == 0 || ((alpha == zero || k == 0) && beta == one))
     return CUDA_SUCCESS;
 
+  CU_ERROR_CHECK(cuCtxPushCurrent(handle->context));
+
+  if (handle->cherk == NULL)
+    CU_ERROR_CHECK(cuModuleLoadData(&handle->cherk, imageBytes));
+
   const unsigned int mb = (trans == CBlasNoTrans) ? 64 : 32;
   const unsigned int nb = (trans == CBlasNoTrans) ?  8 : 16;
   const unsigned int kb = 8;
@@ -218,12 +225,14 @@ CUresult cuCherk(CUmodule module, CBlasUplo uplo, CBlasTranspose trans,
            uplo, trans, mb, nb, kb, bx, by);
 
   CUfunction function;
-  CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
+  CU_ERROR_CHECK(cuModuleGetFunction(&function, handle->cherk, name));
 
   void * params[] = { &A, &C, &alpha, &beta, &lda, &ldc, &n, &k };
 
   CU_ERROR_CHECK(cuLaunchKernel(function, (unsigned int)(n + mb - 1) / mb, (unsigned int)(n + nb - 1) / nb, 1,
                                 bx, by, 1, 0, stream, params, NULL));
+
+  CU_ERROR_CHECK(cuCtxPopCurrent(&handle->context));
 
   return CUDA_SUCCESS;
 }

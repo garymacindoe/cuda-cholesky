@@ -2,6 +2,8 @@
 #include "error.h"
 #include <stdio.h>
 #include "handle.h"
+#include "config.h"
+#include "strsm.fatbin.c"
 
 static inline size_t min(size_t a, size_t b) { return (a < b) ? a : b; }
 static inline size_t max(size_t a, size_t b) { return (a > b) ? a : b; }
@@ -213,7 +215,7 @@ void strsm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag
   }
 }
 
-CUresult cuStrsm(CUmodule module,
+CUresult cuStrsm(CUblashandle handle,
                  CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag,
                  size_t m, size_t n,
                  float alpha, CUdeviceptr A, size_t lda,
@@ -233,6 +235,11 @@ CUresult cuStrsm(CUmodule module,
   if (m == 0 || n == 0)
     return CUDA_SUCCESS;
 
+  CU_ERROR_CHECK(cuCtxPushCurrent(handle->context));
+
+  if (handle->strsm == NULL)
+    CU_ERROR_CHECK(cuModuleLoadData(&handle->strsm, imageBytes));
+
   const unsigned int bx =  8;
   const unsigned int by =  8;
   const unsigned int mb = (side == CBlasLeft) ?  8 : 64;
@@ -244,13 +251,15 @@ CUresult cuStrsm(CUmodule module,
            side, uplo, transA, diag, mb, nb, bx, by);
 
   CUfunction function;
-  CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
+  CU_ERROR_CHECK(cuModuleGetFunction(&function, handle->strsm, name));
 
   void * params[] = { &A, &B, &alpha, &lda, &ldb, &m, &n };
 
   const unsigned int gx = (side == CBlasLeft) ? 1 : (unsigned int)(m + mb - 1) / mb;
   const unsigned int gy = (side == CBlasLeft) ? (unsigned int)(n + nb - 1) / nb : 1;
   CU_ERROR_CHECK(cuLaunchKernel(function, gx, gy, 1, bx, by, 1, 0, stream, params, NULL));
+
+  CU_ERROR_CHECK(cuCtxPopCurrent(&handle->context));
 
   return CUDA_SUCCESS;
 }
