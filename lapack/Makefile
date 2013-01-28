@@ -1,52 +1,65 @@
-include ../make.inc
+include ../../make.inc
 
 CUDA_HOME = /opt/cuda
 
-CPPFLAGS = -Iinclude -I../include -I$(CUDA_HOME)/include
+CPPFLAGS = -I../include -I../../include -I$(CUDA_HOME)/include
+NVCPPFLAGS = -I../include -I../../include
 
 CC = gcc
-CFLAGS = -O0 -pipe -std=c99 -pedantic -Wall -Wextra -Wconversion
+CFLAGS = -march=native -O2 -pipe -std=c99 -pedantic -Wall -Wextra -Wconversion -ftree-vectorize -ffast-math -fopenmp
 # CC = icc
-# CFLAGS = -O0 -pipe -std=c99 -Wall
+# CFLAGS = -xHost -O2 -pipe -std=c99 -Wall -openmp
 
-LOADLIBES = libblas.a ../libcumultigpu.a
-LDFLAGS = -L$(CUDA_HOME)/lib64
-LDLIBS = -lcuda -lgomp -lrt
+NVCFLAGS = -O2 -use_fast_math -maxrregcount=32
 
-VPATH = test include ../include
+BIN2CFLAGS = -c -st
 
-TEST_PROGS = sgemm ssyrk strmm strmm2 strsm \
-             dgemm dsyrk dtrmm dtrmm2 dtrsm \
-             cgemm cherk ctrmm ctrmm2 ctrsm \
-             zgemm zherk ztrmm ztrmm2 ztrsm \
-             cusgemm cusgemm2 cussyrk custrmm2 custrsm \
-             cudgemm cudgemm2 cudsyrk cudtrmm2 cudtrsm \
-             cucgemm cucgemm2 cucherk cuctrmm2 cuctrsm \
-             cuzgemm cuzgemm2 cuzherk cuztrmm2 cuztrsm \
-             cumultigpusgemm cumultigpussyrk cumultigpustrsm cumultigpustrmm \
-             cumultigpudgemm cumultigpudsyrk cumultigpudtrsm cumultigpudtrmm \
-             cumultigpucgemm cumultigpucherk cumultigpuctrsm cumultigpuctrmm \
-             cumultigpuzgemm cumultigpuzherk cumultigpuztrsm cumultigpuztrmm
+VPATH = . ../include ../../include
 
-TEST_SRC = $(addprefix,test/,$(addsuffix,$(TEST_PROGS),.c))
+.PHONY: all clean distclean
 
-.PHONY: all test clean distclean
-
-all: libblas.a
+all: ../liblapack.a
 
 clean:
-	cd src && $(MAKE) clean
-	$(RM) *.o test/*.d
+	$(RM) *.o *.fatbin *.fatbin.c
 
-distclean: clean
-	cd src && $(MAKE) distclean
-	$(RM) $(TEST_PROGS)
+distclean:
+	$(RM) ../liblapack.a
 
-test: $(TEST_PROGS)
+../liblapack.a: spotrf.o spotri.o strtri.o \
+                dpotrf.o dpotri.o dtrtri.o \
+                cpotrf.o cpotri.o ctrtri.o \
+                zpotrf.o zpotri.o ztrtri.o
 
-libblas.a:
-	cd src && $(MAKE)
+spotrf.o: lapack.h blas.h cumultigpu.h error.h config.h spotrf.fatbin.c
+spotri.o: lapack.h blas.h cumultigpu.h error.h config.h spotri.fatbin.c
+strtri.o: lapack.h blas.h cumultigpu.h
 
-$(TEST_PROGS): $(LOADLIBES)
+dpotrf.o: lapack.h blas.h cumultigpu.h error.h config.h dpotrf.fatbin.c
+dpotri.o: lapack.h blas.h cumultigpu.h error.h config.h dpotri.fatbin.c
+dtrtri.o: lapack.h blas.h cumultigpu.h
 
--include $(TEST_SRC:.c=.d)
+cpotrf.o: lapack.h blas.h cumultigpu.h error.h config.h cpotrf.fatbin.c
+cpotri.o: lapack.h blas.h cumultigpu.h error.h config.h cpotri.fatbin.c
+ctrtri.o: lapack.h blas.h cumultigpu.h
+
+zpotrf.o: lapack.h blas.h cumultigpu.h error.h config.h zpotrf.fatbin.c
+zpotri.o: lapack.h blas.h cumultigpu.h error.h config.h zpotri.fatbin.c
+ztrtri.o: lapack.h blas.h cumultigpu.h
+
+spotrf.fatbin spotri.fatbin: NVCFLAGS = -code=sm_11,sm_13 -arch=compute_11
+dpotrf.fatbin dpotri.fatbin: NVCFLAGS = -code=sm_13 -arch=compute_13
+cpotrf.fatbin cpotri.fatbin: NVCFLAGS = -code=sm_11,sm_13 -arch=compute_11
+zpotrf.fatbin zpotri.fatbin: NVCFLAGS = -code=sm_13 -arch=compute_13
+
+spotrf.fatbin: blas.h cumultigpu.h
+spotri.fatbin: blas.h cumultigpu.h
+
+dpotrf.fatbin: blas.h cumultigpu.h
+dpotri.fatbin: blas.h cumultigpu.h
+
+cpotrf.fatbin: blas.h cumultigpu.h
+cpotri.fatbin: blas.h cumultigpu.h
+
+zpotrf.fatbin: blas.h cumultigpu.h
+zpotri.fatbin: blas.h cumultigpu.h
