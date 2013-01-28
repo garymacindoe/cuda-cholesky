@@ -13,3 +13,9 @@ RM ?= rm -f
 
 %.fatbin.c: %.fatbin
 	$(BIN2C) $(BIN2CFLAGS) $(<) > $(@)
+
+%.d: %.c
+	@set -e; $(RM) $@; \
+	$(CC) -MM $(CPPFLAGS) $< > $@.$$$$; \
+	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
+	$(RM) $@.$$$$
