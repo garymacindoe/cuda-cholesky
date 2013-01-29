@@ -9,6 +9,10 @@
 #define STRINGx(x) #x
 #define STRING(x) STRINGx(x)
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * Error handler function type.
  *
@@ -68,5 +72,8 @@ const char * cuGetErrorString(CUresult);
     } \
   } while (false)
 
+#ifdef __cplusplus
+}
+#endif
 
 #endif

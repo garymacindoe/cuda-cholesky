@@ -42,7 +42,7 @@ int main() {
     float time;
 
     // Calculate aligned copy for 32, 64 and 128-bit word sizes
-    for (int j = 4; j <= 16; j *= 2) {
+    for (unsigned int j = 4; j <= 16; j *= 2) {
       copy.WidthInBytes = SIZE;
       copy.Height = 1;
 
@@ -55,13 +55,13 @@ int main() {
       CU_ERROR_CHECK(cuMemAllocPitch(&copy.dstDevice, &copy.dstPitch, copy.dstXInBytes + copy.WidthInBytes, copy.Height, j));
 
       CU_ERROR_CHECK(cuEventRecord(start, 0));
-      for (size_t j = 0; j < ITERATIONS; j++)
+      for (size_t i = 0; i < ITERATIONS; i++)
         CU_ERROR_CHECK(cuMemcpy2D(&copy));
       CU_ERROR_CHECK(cuEventRecord(stop, 0));
       CU_ERROR_CHECK(cuEventSynchronize(stop));
       CU_ERROR_CHECK(cuEventElapsedTime(&time, start, stop));
       time /= ITERATIONS * 1.e3f;
-      double bandwidth = 2 * copy.WidthInBytes * copy.Height / time;
+      double bandwidth = (double)(2 * copy.WidthInBytes * copy.Height) / time;
 
       fprintf(stdout, "\taligned copy (%3u-bit): %6.2f GB/s (%5.2f%%)\n", j * CHAR_BIT, bandwidth / (1 << 30), (bandwidth / pinBandwidth) * 100.0);
 
@@ -70,7 +70,7 @@ int main() {
     }
 
     // Calculate misaligned copy for 32, 64 and 128-bit word sizes
-    for (int j = 4; j <= 16; j *= 2) {
+    for (unsigned int j = 4; j <= 16; j *= 2) {
       copy.WidthInBytes = SIZE;
       copy.Height = 1;
 
@@ -89,7 +89,7 @@ int main() {
       CU_ERROR_CHECK(cuEventSynchronize(stop));
       CU_ERROR_CHECK(cuEventElapsedTime(&time, start, stop));
       time /= ITERATIONS * 1.e3f;
-      double bandwidth = 2 * copy.WidthInBytes * copy.Height / time;
+      double bandwidth = (double)(2 * copy.WidthInBytes * copy.Height) / time;
 
       fprintf(stdout, "\tmisaligned copy (%3u-bit): %6.2f GB/s (%5.2f%%)\n", j * CHAR_BIT, bandwidth / (1 << 30), (bandwidth / pinBandwidth) * 100.0);
 
@@ -98,7 +98,7 @@ int main() {
     }
 
     // Calculate stride-2 copy for 32, 64 and 128-bit word sizes
-    for (int j = 4; j <= 16; j *= 2) {
+    for (unsigned int j = 4; j <= 16; j *= 2) {
       copy.WidthInBytes = SIZE / 2;
       copy.Height = 1;
 
@@ -114,13 +114,13 @@ int main() {
       copy.dstPitch *= 2;
 
       CU_ERROR_CHECK(cuEventRecord(start, 0));
-      for (size_t j = 0; j < ITERATIONS; j++)
+      for (size_t i = 0; i < ITERATIONS; i++)
         CU_ERROR_CHECK(cuMemcpy2D(&copy));
       CU_ERROR_CHECK(cuEventRecord(stop, 0));
       CU_ERROR_CHECK(cuEventSynchronize(stop));
       CU_ERROR_CHECK(cuEventElapsedTime(&time, start, stop));
       time /= ITERATIONS * 1.e3f;
-      double bandwidth = 2 * copy.WidthInBytes * copy.Height / time;
+      double bandwidth = (double)(2 * copy.WidthInBytes * copy.Height) / time;
 
       fprintf(stdout, "\tstride-2 copy (%3u-bit): %6.2f GB/s (%5.2f%%)\n", j * CHAR_BIT, bandwidth / (1 << 30), (bandwidth / pinBandwidth) * 100.0);
 
@@ -129,7 +129,7 @@ int main() {
     }
 
     // Calculate stride-10 copy for 32, 64 and 128-bit word sizes
-    for (int j = 4; j <= 16; j *= 2) {
+    for (unsigned int j = 4; j <= 16; j *= 2) {
       copy.WidthInBytes = SIZE / 10;
       copy.Height = 1;
 
@@ -145,13 +145,13 @@ int main() {
       copy.dstPitch *= 10;
 
       CU_ERROR_CHECK(cuEventRecord(start, 0));
-      for (size_t j = 0; j < ITERATIONS; j++)
+      for (size_t i = 0; i < ITERATIONS; i++)
         CU_ERROR_CHECK(cuMemcpy2D(&copy));
       CU_ERROR_CHECK(cuEventRecord(stop, 0));
       CU_ERROR_CHECK(cuEventSynchronize(stop));
       CU_ERROR_CHECK(cuEventElapsedTime(&time, start, stop));
       time /= ITERATIONS * 1.e3f;
-      double bandwidth = 2 * copy.WidthInBytes * copy.Height / time;
+      double bandwidth = (double)(2 * copy.WidthInBytes * copy.Height) / time;
 
       fprintf(stdout, "\tstride-10 copy (%3u-bit): %6.2f GB/s (%5.2f%%)\n", j * CHAR_BIT, bandwidth / (1 << 30), (bandwidth / pinBandwidth) * 100.0);
 
@@ -160,7 +160,7 @@ int main() {
     }
 
     // Calculate stride-1000 copy for 32, 64 and 128-bit word sizes
-    for (int j = 4; j <= 16; j *= 2) {
+    for (unsigned int j = 4; j <= 16; j *= 2) {
       copy.WidthInBytes = SIZE / 1000;
       copy.Height = 1;
 
@@ -182,7 +182,7 @@ int main() {
       CU_ERROR_CHECK(cuEventSynchronize(stop));
       CU_ERROR_CHECK(cuEventElapsedTime(&time, start, stop));
       time /= ITERATIONS * 1.e3f;
-      double bandwidth = 2 * copy.WidthInBytes * copy.Height / time;
+      double bandwidth = (double)(2 * copy.WidthInBytes * copy.Height) / time;
 
       fprintf(stdout, "\tstride-1000 copy (%3u-bit): %6.2f GB/s (%5.2f%%)\n", j * CHAR_BIT, bandwidth / (1 << 30), (bandwidth / pinBandwidth) * 100.0);
 

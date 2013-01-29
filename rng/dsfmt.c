@@ -1,9 +1,3 @@
-#define TYPES_ONLY
-#include "rng.h"
-#undef TYPES_ONLY
-#include "vector_double.h"
-#include "vector_uint64.h"
-
 #include <stdbool.h>
 #include <emmintrin.h>
 
@@ -130,35 +124,23 @@ static inline w128_t generate(mt_state * mt) {
   return mt->state[mt->index++];
 }
 
-static void get(vectoru64 * res, void * state) {
+static void get(uint64_t * res, size_t n, void * state) {
   mt_state * mt = (mt_state *)state;
 
-  const size_t n = res->n / 2;       // Size of vector data as an array of w128_t
-  const size_t m = res->n - (n * 2); // Remainder of data to be processed sequentially [0, 1]
-
-  // If the vector data is contiguous
-  if (res->inc == 1) {
-    w128_t * ptr = (w128_t *)res->data; // Pointer into vector data as an array of w128_t
-    // Generate vector data in blocks of 2
-    for (size_t i = 0; i < n; i++)
-      ptr[i] = generate(mt);
-  }
-  else {  // Non-contiguous vector
-    for (size_t i = 0; i < res->n; i += 2) {
-      w128_t r = generate(mt);
-      vectoru64Set(res, i    , r.u64[0]);
-      vectoru64Set(res, i + 1, r.u64[1]);
-    }
+  w128_t * ptr = (w128_t *)res; // Pointer into vector data as an array of w128_t
+  // Generate vector data in blocks of 2
+  size_t i = 0;
+  while (n > 2) {
+    ptr[i++] = generate(mt);
+    n -= 2;
   }
 
   // If there are no elements left over in the vector return now
-  if (m == 0) return;
+  if (n == 0) return;
 
   // We need one more individual element so generate 2
   w128_t r = generate(mt);
-
-  // Put the last one into the vector
-  vectoru64Set(res, res->n - 1, r.u64[0]);
+  res[i] = r.u64[0];
 }
 
 static void getOpenOpen(vectord * res, void * state) {

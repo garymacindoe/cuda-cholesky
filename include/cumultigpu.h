@@ -4,6 +4,10 @@
 #include <stddef.h>
 #include <cuda.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct __cutask_st * CUtask;
 
 /**
@@ -90,5 +94,9 @@ CUresult cuMultiGPURunTask(CUmultiGPU, int, CUtask);
  * @return any errors.
  */
 CUresult cuMultiGPUSynchronize(CUmultiGPU);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

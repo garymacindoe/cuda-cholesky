@@ -3,8 +3,8 @@
 #include <sys/time.h>
 #include <cuda.h>
 #include <string.h>
-#include <dlfcn.h>
 #include "error.h"
+#include "flop-test.fatbin.c"
 
 #define ITERATIONS 20
 
@@ -193,7 +193,7 @@ int main() {
   fprintf(stderr, "cuModuleUnload (cubin, mean): %.3es\n\n", time / (double)ITERATIONS);
 
   // Time how long it takes to load and unload a module from a FATBIN file (with
-  // a matchung CUBIN image inside) using cuModuleLoad.
+  // a matching CUBIN image inside) using cuModuleLoad.
   if ((error = gettimeofday(&start, 0)) != 0) {
     fprintf(stderr, "Unable to get start time: %s\n", strerror(error));
     return error;
@@ -268,44 +268,29 @@ int main() {
   time = (double)(stop.tv_sec - start.tv_sec) + ((double)(stop.tv_usec - start.tv_usec) * 1.E-6);
   fprintf(stderr, "cuModuleUnload (cubin in fatbin, mean): %.3es\n\n", time / (double)ITERATIONS);
 
-  // Repeat the experiment with cuModuleLoadData using embedded resources.
-  void * handle, * ptr;
-  char * lderror;
-
-  if ((handle = dlopen(NULL, RTLD_LAZY)) == NULL) {
-    fprintf(stderr, "Unable to dlopen: \"%s\"\n", dlerror());
-    return -1;
-  }
-
-  dlerror();
-  ptr = dlsym(handle, "_flop_test_ptx");
-  if ((lderror = dlerror()) != NULL) {
-    fprintf(stderr, "Unable to dlsym(\"_flop_test_ptx\"): \"%s\"\n", lderror);
-    return -1;
-  }
-
+  // Repeat the experiment with cuModuleLoadData using an embedded fatbin.
   if ((error = gettimeofday(&start, 0)) != 0) {
     fprintf(stderr, "Unable to get start time: %s\n", strerror(error));
     return error;
   }
-  CU_ERROR_CHECK(cuModuleLoadData(&modules[0], ptr));
+  CU_ERROR_CHECK(cuModuleLoadData(&modules[0], imageBytes));
   if ((error = gettimeofday(&stop, 0)) != 0) {
     fprintf(stderr, "Unable to get stop time: %s\n", strerror(error));
     return error;
   }
   time = (double)(stop.tv_sec - start.tv_sec) + ((double)(stop.tv_usec - start.tv_usec) * 1.E-6);
-  fprintf(stderr, "cuModuleLoadData (ptx, 1st): %.3es\n", time);
+  fprintf(stderr, "cuModuleLoadData (embedded fatbin, 1st): %.3es\n", time);
 
   if ((error = gettimeofday(&start, 0)) != 0) {
     fprintf(stderr, "Unable to get start time: %s\n", strerror(error));
     return error;
   }
-  CU_ERROR_CHECK(cuModuleLoadData(&modules[1], ptr));
+  CU_ERROR_CHECK(cuModuleLoadData(&modules[1], imageBytes));
   if ((error = gettimeofday(&stop, 0)) != 0) {
     fprintf(stderr, "Unable to get stop time: %s\n", strerror(error));
     return error; }
   time = (double)(stop.tv_sec - start.tv_sec) + ((double)(stop.tv_usec - start.tv_usec) * 1.E-6);
-  fprintf(stderr, "cuModuleLoadData (ptx, 2nd): %.3es\n", time);
+  fprintf(stderr, "cuModuleLoadData (embedded fatbin), 2nd): %.3es\n", time);
 
   if ((error = gettimeofday(&start, 0)) != 0) {
     fprintf(stderr, "Unable to get start time: %s\n", strerror(error));
@@ -317,7 +302,7 @@ int main() {
     return error;
   }
   time = (double)(stop.tv_sec - start.tv_sec) + ((double)(stop.tv_usec - start.tv_usec) * 1.E-6);
-  fprintf(stderr, "cuModuleUnload (ptx, 2nd): %.3es\n", time);
+  fprintf(stderr, "cuModuleUnload (embedded fatbin, 2nd): %.3es\n", time);
 
   if ((error = gettimeofday(&start, 0)) != 0) {
     fprintf(stderr, "Unable to get start time: %s\n", strerror(error));
@@ -329,20 +314,20 @@ int main() {
     return error;
   }
   time = (double)(stop.tv_sec - start.tv_sec) + ((double)(stop.tv_usec - start.tv_usec) * 1.E-6);
-  fprintf(stderr, "cuModuleUnload (ptx, 1st): %.3es\n", time);
+  fprintf(stderr, "cuModuleUnload (embedded fatbin, 1st): %.3es\n", time);
 
   if ((error = gettimeofday(&start, 0)) != 0) {
     fprintf(stderr, "Unable to get start time: %s\n", strerror(error));
     return error;
   }
   for (size_t i = 0; i < ITERATIONS; i++)
-    CU_ERROR_CHECK(cuModuleLoadData(&modules[i], ptr));
+    CU_ERROR_CHECK(cuModuleLoadData(&modules[i], imageBytes));
   if ((error = gettimeofday(&stop, 0)) != 0) {
     fprintf(stderr, "Unable to get stop time: %s\n", strerror(error));
     return error;
   }
   time = (double)(stop.tv_sec - start.tv_sec) + ((double)(stop.tv_usec - start.tv_usec) * 1.E-6);
-  fprintf(stderr, "cuModuleLoadData (ptx, mean): %.3es\n", time / (double)ITERATIONS);
+  fprintf(stderr, "cuModuleLoadData (embedded fatbin, mean): %.3es\n", time / (double)ITERATIONS);
 
   if ((error = gettimeofday(&start, 0)) != 0) {
     fprintf(stderr, "Unable to get start time: %s\n", strerror(error));
@@ -355,171 +340,9 @@ int main() {
     return error;
   }
   time = (double)(stop.tv_sec - start.tv_sec) + ((double)(stop.tv_usec - start.tv_usec) * 1.E-6);
-  fprintf(stderr, "cuModuleUnload (ptx, mean): %.3es\n\n", time / (double)ITERATIONS);
+  fprintf(stderr, "cuModuleUnload (embedded fatbin, mean): %.3es\n\n", time / (double)ITERATIONS);
 
-  dlerror();
-  ptr = dlsym(handle, "_flop_test_cubin");
-  if ((lderror = dlerror()) != NULL) {
-    fprintf(stderr, "Unable to dlsym(\"_flop_test_cubin\"): \"%s\"\n", lderror);
-    return -1;
-  }
-
-  if ((error = gettimeofday(&start, 0)) != 0) {
-    fprintf(stderr, "Unable to get start time: %s\n", strerror(error));
-    return error;
-  }
-  CU_ERROR_CHECK(cuModuleLoadData(&modules[0], ptr));
-  if ((error = gettimeofday(&stop, 0)) != 0) {
-    fprintf(stderr, "Unable to get stop time: %s\n", strerror(error));
-    return error;
-  }
-  time = (double)(stop.tv_sec - start.tv_sec) + ((double)(stop.tv_usec - start.tv_usec) * 1.E-6);
-  fprintf(stderr, "cuModuleLoadData (cubin, 1st): %.3es\n", time);
-
-  if ((error = gettimeofday(&start, 0)) != 0) {
-    fprintf(stderr, "Unable to get start time: %s\n", strerror(error));
-    return error;
-  }
-  CU_ERROR_CHECK(cuModuleLoadData(&modules[1], ptr));
-  if ((error = gettimeofday(&stop, 0)) != 0) {
-    fprintf(stderr, "Unable to get stop time: %s\n", strerror(error));
-    return error;
-  }
-  time = (double)(stop.tv_sec - start.tv_sec) + ((double)(stop.tv_usec - start.tv_usec) * 1.E-6);
-  fprintf(stderr, "cuModuleLoadData (cubin, 2nd): %.3es\n", time);
-
-  if ((error = gettimeofday(&start, 0)) != 0) {
-    fprintf(stderr, "Unable to get start time: %s\n", strerror(error));
-    return error;
-  }
-  CU_ERROR_CHECK(cuModuleUnload(modules[1]));
-  if ((error = gettimeofday(&stop, 0)) != 0) {
-    fprintf(stderr, "Unable to get stop time: %s\n", strerror(error));
-    return error;
-  }
-  time = (double)(stop.tv_sec - start.tv_sec) + ((double)(stop.tv_usec - start.tv_usec) * 1.E-6);
-  fprintf(stderr, "cuModuleUnload (cubin, 2nd): %.3es\n", time);
-
-  if ((error = gettimeofday(&start, 0)) != 0) {
-    fprintf(stderr, "Unable to get start time: %s\n", strerror(error));
-    return error;
-  }
-  CU_ERROR_CHECK(cuModuleUnload(modules[0]));
-  if ((error = gettimeofday(&stop, 0)) != 0) {
-    fprintf(stderr, "Unable to get stop time: %s\n", strerror(error));
-    return error;
-  }
-  time = (double)(stop.tv_sec - start.tv_sec) + ((double)(stop.tv_usec - start.tv_usec) * 1.E-6);
-  fprintf(stderr, "cuModuleUnload (cubin, 1st): %.3es\n", time);
-
-  if ((error = gettimeofday(&start, 0)) != 0) {
-    fprintf(stderr, "Unable to get start time: %s\n", strerror(error));
-    return error;
-  }
-  for (size_t i = 0; i < ITERATIONS; i++)
-    CU_ERROR_CHECK(cuModuleLoadData(&modules[i], ptr));
-  if ((error = gettimeofday(&stop, 0)) != 0) {
-    fprintf(stderr, "Unable to get stop time: %s\n", strerror(error));
-    return error;
-  }
-  time = (double)(stop.tv_sec - start.tv_sec) + ((double)(stop.tv_usec - start.tv_usec) * 1.E-6);
-  fprintf(stderr, "cuModuleLoadData (cubin, mean): %.3es\n", time / (double)ITERATIONS);
-
-  if ((error = gettimeofday(&start, 0)) != 0) {
-    fprintf(stderr, "Unable to get start time: %s\n", strerror(error));
-    return error;
-  }
-  for (size_t i = 0; i < ITERATIONS; i++)
-    CU_ERROR_CHECK(cuModuleUnload(modules[i]));
-  if ((error = gettimeofday(&stop, 0)) != 0) {
-    fprintf(stderr, "Unable to get stop time: %s\n", strerror(error));
-    return error;
-  }
-  time = (double)(stop.tv_sec - start.tv_sec) + ((double)(stop.tv_usec - start.tv_usec) * 1.E-6);
-  fprintf(stderr, "cuModuleUnload (cubin, mean): %.3es\n\n", time / (double)ITERATIONS);
-
-  dlerror();
-  ptr = dlsym(handle, "_flop_test_fatbin");
-  if ((lderror = dlerror()) != NULL) {
-    fprintf(stderr, "Unable to dlsym(\"_flop_test_fatbin\"): \"%s\"\n", lderror);
-    return -1;
-  }
-
-  if ((error = gettimeofday(&start, 0)) != 0) {
-    fprintf(stderr, "Unable to get start time: %s\n", strerror(error));
-    return error;
-  }
-  CU_ERROR_CHECK(cuModuleLoadData(&modules[0], ptr));
-  if ((error = gettimeofday(&stop, 0)) != 0) {
-    fprintf(stderr, "Unable to get stop time: %s\n", strerror(error));
-    return error;
-  }
-  time = (double)(stop.tv_sec - start.tv_sec) + ((double)(stop.tv_usec - start.tv_usec) * 1.E-6);
-  fprintf(stderr, "cuModuleLoadData (cubin in fatbin, 1st): %.3es\n", time);
-
-  if ((error = gettimeofday(&start, 0)) != 0) {
-    fprintf(stderr, "Unable to get start time: %s\n", strerror(error));
-    return error;
-  }
-  CU_ERROR_CHECK(cuModuleLoadData(&modules[1], ptr));
-  if ((error = gettimeofday(&stop, 0)) != 0) {
-    fprintf(stderr, "Unable to get stop time: %s\n", strerror(error));
-    return error;
-  }
-  time = (double)(stop.tv_sec - start.tv_sec) + ((double)(stop.tv_usec - start.tv_usec) * 1.E-6);
-  fprintf(stderr, "cuModuleLoadData (cubin in fatbin, 2nd): %.3es\n", time);
-
-  if ((error = gettimeofday(&start, 0)) != 0) {
-    fprintf(stderr, "Unable to get start time: %s\n", strerror(error));
-    return error;
-  }
-  CU_ERROR_CHECK(cuModuleUnload(modules[1]));
-  if ((error = gettimeofday(&stop, 0)) != 0) {
-    fprintf(stderr, "Unable to get stop time: %s\n", strerror(error));
-    return error;
-  }
-  time = (double)(stop.tv_sec - start.tv_sec) + ((double)(stop.tv_usec - start.tv_usec) * 1.E-6);
-  fprintf(stderr, "cuModuleUnload (cubin in fatbin, 2nd): %.3es\n", time);
-
-  if ((error = gettimeofday(&start, 0)) != 0) {
-    fprintf(stderr, "Unable to get start time: %s\n", strerror(error));
-    return error;
-  }
-  CU_ERROR_CHECK(cuModuleUnload(modules[0]));
-  if ((error = gettimeofday(&stop, 0)) != 0) {
-    fprintf(stderr, "Unable to get stop time: %s\n", strerror(error));
-    return error;
-  }
-  time = (double)(stop.tv_sec - start.tv_sec) + ((double)(stop.tv_usec - start.tv_usec) * 1.E-6);
-  fprintf(stderr, "cuModuleUnload (cubin in fatbin, 1st): %.3es\n", time);
-
-  if ((error = gettimeofday(&start, 0)) != 0) {
-    fprintf(stderr, "Unable to get start time: %s\n", strerror(error));
-    return error;
-  }
-  for (size_t i = 0; i < ITERATIONS; i++)
-    CU_ERROR_CHECK(cuModuleLoadData(&modules[i], ptr));
-  if ((error = gettimeofday(&stop, 0)) != 0) {
-    fprintf(stderr, "Unable to get stop time: %s\n", strerror(error));
-    return error;
-  }
-  time = (double)(stop.tv_sec - start.tv_sec) + ((double)(stop.tv_usec - start.tv_usec) * 1.E-6);
-  fprintf(stderr, "cuModuleLoadData (cubin in fatbin, mean): %.3es\n", time / (double)ITERATIONS);
-
-  if ((error = gettimeofday(&start, 0)) != 0) {
-    fprintf(stderr, "Unable to get start time: %s\n", strerror(error));
-    return error;
-  }
-  for (size_t i = 0; i < ITERATIONS; i++)
-    CU_ERROR_CHECK(cuModuleUnload(modules[i]));
-  if ((error = gettimeofday(&stop, 0)) != 0) {
-    fprintf(stderr, "Unable to get stop time: %s\n", strerror(error));
-    return error;
-  }
-  time = (double)(stop.tv_sec - start.tv_sec) + ((double)(stop.tv_usec - start.tv_usec) * 1.E-6);
-  fprintf(stderr, "cuModuleUnload (cubin in fatbin, mean): %.3es\n\n", time / (double)ITERATIONS);
-
-  CU_ERROR_CHECK(cuModuleLoadData(&modules[0], ptr));
+  CU_ERROR_CHECK(cuModuleLoadData(&modules[0], imageBytes));
   if ((error = gettimeofday(&start, 0)) != 0) {
     fprintf(stderr, "Unable to get start time: %s\n", strerror(error));
     return error;
@@ -533,8 +356,6 @@ int main() {
   time = (double)(stop.tv_sec - start.tv_sec) + ((double)(stop.tv_usec - start.tv_usec) * 1.E-6);
   fprintf(stderr, "cuModuleGetFunction: %.3es\n\n", time / (double)ITERATIONS);
   CU_ERROR_CHECK(cuModuleUnload(modules[0]));
-
-  dlclose(handle);
 
   return 0;
 }

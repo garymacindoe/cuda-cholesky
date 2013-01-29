@@ -1,13 +1,10 @@
-#include <cuda.h>
 #include <stdio.h>
+#include <cuda.h>
 
 #include "error.h"
+#include "kernel-test.fatbin.c"
 
 #define ITERATIONS 1E6
-
-#ifndef CUBINDIR
-#define CUBINDIR "cubin"
-#endif
 
 /**
  * This measures the overhead in launching a kernel function on each GPU in the
@@ -37,7 +34,7 @@ int main() {
     CU_ERROR_CHECK(cuMemcpyHtoD(in, &x, sizeof(float)));
 
     CUmodule module;
-    CU_ERROR_CHECK(cuModuleLoad(&module, "kernel-test.ptx"));
+    CU_ERROR_CHECK(cuModuleLoadData(&module, imageBytes));
 
     CUfunction function;
     CU_ERROR_CHECK(cuModuleGetFunction(&function, module, "kernel"));

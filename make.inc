@@ -8,14 +8,14 @@ RM ?= rm -f
 %.o: %.c
 	$(CC) $(CPPFLAGS) $(CFLAGS) -o $(@) -c $(<)
 
+%.ptx : %.cu
+	$(NVCC) $(NVCPPFLAGS) $(NVCFLAGS) -o $(@) -ptx $(<)
+
+%.cubin : %.cu
+	$(NVCC) $(NVCPPFLAGS) $(NVCFLAGS) -o $(@) -cubin $(<)
+
 %.fatbin: %.cu
-	$(NVCC) $(CPPFLAGS) $(NVCFLAGS) -o $(@) -fatbin $(<)
+	$(NVCC) $(NVCPPFLAGS) $(NVCFLAGS) -o $(@) -fatbin $(<)
 
 %.fatbin.c: %.fatbin
 	$(BIN2C) $(BIN2CFLAGS) $(<) > $(@)
-
-%.d: %.c
-	@set -e; $(RM) $@; \
-	$(CC) -MM $(CPPFLAGS) $< > $@.$$$$; \
-	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
-	$(RM) $@.$$$$

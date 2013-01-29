@@ -1,7 +1,8 @@
-#include <cuda.h>
 #include <stdio.h>
+#include <cuda.h>
 
 #include "error.h"
+#include "flop-test.fatbin.c"
 
 #define ITERATIONS 20
 #define DUAL_ISSUE
@@ -42,7 +43,7 @@ int main() {
     double theoreticalGFlops = (major == 2 ? (minor == 0 ? 32 : 48) : 8) * 2 * multiProcessorCount * clockRate * 1.E-6;
 
     CUmodule module;
-    CU_ERROR_CHECK(cuModuleLoad(&module, "flop-test.fatbin"));
+    CU_ERROR_CHECK(cuModuleLoadData(&module, imageBytes));
 
     CUdeviceptr data;
     CU_ERROR_CHECK(cuMemAlloc(&data, (size_t)maxThreadsPerBlock * sizeof(float)));
@@ -71,7 +72,7 @@ int main() {
     CU_ERROR_CHECK(cuEventElapsedTime(&time, start, stop));
     time /= (float)ITERATIONS;
 
-    double actualGFlops = (131072u * multiProcessorCount * maxThreadsPerBlock * 1.E-6) / time;
+    double actualGFlops = (131072 * multiProcessorCount * maxThreadsPerBlock * 1.E-6) / time;
 
     fprintf(stdout, "Device %d: %3.2f / %3.2f GFlops/s (%2.2f%%, fmaf)\n", d, actualGFlops, theoreticalGFlops, (actualGFlops / theoreticalGFlops) * 100.0);
 
@@ -105,7 +106,7 @@ int main() {
 
     CU_ERROR_CHECK(cuMemFree(data));
 
-    actualGFlops = (196608u * multiProcessorCount * maxThreadsPerBlock * 1.E-6) / time;
+    actualGFlops = (196608 * multiProcessorCount * maxThreadsPerBlock * 1.E-6) / time;
 
     fprintf(stdout, "           %3.2f / %3.2f GFlops/s (%2.2f%%, fmaf + fmulf)\n", actualGFlops, theoreticalGFlops, (actualGFlops / theoreticalGFlops) * 100.0);
 
@@ -149,7 +150,7 @@ int main() {
 
       CU_ERROR_CHECK(cuMemFree(data));
 
-      actualGFlops = (131072u * multiProcessorCount * maxThreadsPerBlock * 1.E-6) / time;
+      actualGFlops = (131072 * multiProcessorCount * maxThreadsPerBlock * 1.E-6) / time;
 
       fprintf(stdout, "          %3.2f / %3.2f GFlops/s (%2.2f%% fma)\n", actualGFlops, theoreticalGFlops, (actualGFlops / theoreticalGFlops) * 100.0);
     }

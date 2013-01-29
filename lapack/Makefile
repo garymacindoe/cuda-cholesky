@@ -1,9 +1,9 @@
-include ../../make.inc
+include ../make.inc
 
 CUDA_HOME = /opt/cuda
 
-CPPFLAGS = -I../include -I../../include -I$(CUDA_HOME)/include
-NVCPPFLAGS = -I../include -I../../include
+CPPFLAGS = -I../include -I$(CUDA_HOME)/include
+NVCPPFLAGS = -I../include
 
 CC = gcc
 CFLAGS = -march=native -O2 -pipe -std=c99 -pedantic -Wall -Wextra -Wconversion -ftree-vectorize -ffast-math -fopenmp
@@ -14,52 +14,52 @@ NVCFLAGS = -O2 -use_fast_math -maxrregcount=32
 
 BIN2CFLAGS = -c -st
 
-VPATH = . ../include ../../include
+TARGET = ../liblapack.a
 
-.PHONY: all clean distclean
+OBJECTS = slauum.o spotrf.o spotri.o strtri.o \
+          dlauum.o dpotrf.o dpotri.o dtrtri.o \
+          clauum.o cpotrf.o cpotri.o ctrtri.o \
+          zlauum.o zpotrf.o zpotri.o ztrtri.o
 
-all: ../liblapack.a
+FATBINS = spotrf.fatbin slauum.fatbin strtri.fatbin \
+          dpotrf.fatbin dlauum.fatbin dtrtri.fatbin \
+          cpotrf.fatbin clauum.fatbin ctrtri.fatbin \
+          zpotrf.fatbin zlauum.fatbin ztrtri.fatbin
+
+VPATH = ../include
+
+.PHONY: all clean
+
+all: $(TARGET)
 
 clean:
-	$(RM) *.o *.fatbin *.fatbin.c
+	$(RM) $(OBJECTS) $(FATBINS) $(addsuffix .c,$(FATBINS))
 
-distclean:
-	$(RM) ../liblapack.a
+$(TARGET): $(OBJECTS)
 
-../liblapack.a: spotrf.o spotri.o strtri.o \
-                dpotrf.o dpotri.o dtrtri.o \
-                cpotrf.o cpotri.o ctrtri.o \
-                zpotrf.o zpotri.o ztrtri.o
-
+slauum.o: lapack.h blas.h cumultigpu.h error.h config.h slauum.fatbin.c
 spotrf.o: lapack.h blas.h cumultigpu.h error.h config.h spotrf.fatbin.c
-spotri.o: lapack.h blas.h cumultigpu.h error.h config.h spotri.fatbin.c
-strtri.o: lapack.h blas.h cumultigpu.h
+spotri.o: lapack.h blas.h cumultigpu.h error.h
+strtri.o: lapack.h blas.h cumultigpu.h error.h config.h strtri.fatbin.c
 
+dlauum.o: lapack.h blas.h cumultigpu.h error.h config.h dlauum.fatbin.c
 dpotrf.o: lapack.h blas.h cumultigpu.h error.h config.h dpotrf.fatbin.c
-dpotri.o: lapack.h blas.h cumultigpu.h error.h config.h dpotri.fatbin.c
-dtrtri.o: lapack.h blas.h cumultigpu.h
+dpotri.o: lapack.h blas.h cumultigpu.h error.h
+dtrtri.o: lapack.h blas.h cumultigpu.h error.h config.h dtrtri.fatbin.c
 
+clauum.o: lapack.h blas.h cumultigpu.h error.h config.h clauum.fatbin.c
 cpotrf.o: lapack.h blas.h cumultigpu.h error.h config.h cpotrf.fatbin.c
-cpotri.o: lapack.h blas.h cumultigpu.h error.h config.h cpotri.fatbin.c
-ctrtri.o: lapack.h blas.h cumultigpu.h
+cpotri.o: lapack.h blas.h cumultigpu.h error.h
+ctrtri.o: lapack.h blas.h cumultigpu.h error.h config.h ctrtri.fatbin.c
 
+zlauum.o: lapack.h blas.h cumultigpu.h error.h config.h zlauum.fatbin.c
 zpotrf.o: lapack.h blas.h cumultigpu.h error.h config.h zpotrf.fatbin.c
-zpotri.o: lapack.h blas.h cumultigpu.h error.h config.h zpotri.fatbin.c
-ztrtri.o: lapack.h blas.h cumultigpu.h
+zpotri.o: lapack.h blas.h cumultigpu.h error.h
+ztrtri.o: lapack.h blas.h cumultigpu.h error.h config.h ztrtri.fatbin.c
 
-spotrf.fatbin spotri.fatbin: NVCFLAGS = -code=sm_11,sm_13 -arch=compute_11
-dpotrf.fatbin dpotri.fatbin: NVCFLAGS = -code=sm_13 -arch=compute_13
-cpotrf.fatbin cpotri.fatbin: NVCFLAGS = -code=sm_11,sm_13 -arch=compute_11
-zpotrf.fatbin zpotri.fatbin: NVCFLAGS = -code=sm_13 -arch=compute_13
+spotrf.fatbin slauum.fatbin strtri.fatbin: NVCFLAGS = -code=sm_11,sm_13 -arch=compute_11
+dpotrf.fatbin dlauum.fatbin dtrtri.fatbin: NVCFLAGS = -code=sm_13 -arch=compute_13
+cpotrf.fatbin clauum.fatbin ctrtri.fatbin: NVCFLAGS = -code=sm_11,sm_13 -arch=compute_11
+zpotrf.fatbin zlauum.fatbin ztrtri.fatbin: NVCFLAGS = -code=sm_13 -arch=compute_13
 
-spotrf.fatbin: blas.h cumultigpu.h
-spotri.fatbin: blas.h cumultigpu.h
-
-dpotrf.fatbin: blas.h cumultigpu.h
-dpotri.fatbin: blas.h cumultigpu.h
-
-cpotrf.fatbin: blas.h cumultigpu.h
-cpotri.fatbin: blas.h cumultigpu.h
-
-zpotrf.fatbin: blas.h cumultigpu.h
-zpotri.fatbin: blas.h cumultigpu.h
+$(FATBINS): blas.h cumultigpu.h

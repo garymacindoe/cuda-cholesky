@@ -1,9 +1,9 @@
-include ../../make.inc
+include ../make.inc
 
 CUDA_HOME = /opt/cuda
 
-CPPFLAGS = -I../include -I../../include -I$(CUDA_HOME)/include
-NVCPPFLAGS = -I../include -I../../include
+CPPFLAGS = -I../include -I$(CUDA_HOME)/include
+NVCPPFLAGS = -I../include
 
 CC = gcc
 CFLAGS = -march=native -O2 -pipe -std=c99 -pedantic -Wall -Wextra -Wconversion -ftree-vectorize -ffast-math -fopenmp
@@ -14,23 +14,29 @@ NVCFLAGS = -O2 -use_fast_math -maxrregcount=32
 
 BIN2CFLAGS = -c -st
 
-VPATH = . ../include ../../include
+TARGET = ../libblas.a
 
-.PHONY: all clean distclean
+OBJECTS = handle.o xerbla.o \
+          sgemm.o ssyrk.o strmm.o strsm.o \
+          dgemm.o dsyrk.o dtrmm.o dtrsm.o \
+          cgemm.o cherk.o ctrmm.o ctrsm.o \
+          zgemm.o zherk.o ztrmm.o ztrsm.o
 
-all: ../libblas.a
+FATBINS = sgemm.fatbin ssyrk.fatbin strmm.fatbin strsm.fatbin \
+          dgemm.fatbin dsyrk.fatbin dtrmm.fatbin dtrsm.fatbin \
+          cgemm.fatbin cherk.fatbin ctrmm.fatbin ctrsm.fatbin \
+          zgemm.fatbin zherk.fatbin ztrmm.fatbin ztrsm.fatbin
+
+VPATH = ../include
+
+.PHONY: all clean
+
+all: $(TARGET)
 
 clean:
-	$(RM) *.o *.fatbin *.fatbin.c
+	$(RM) $(OBJECTS) $(FATBINS) $(addsuffix .c,$(FATBINS))
 
-distclean:
-	$(RM) ../libblas.a
-
-../libblas.a: handle.o xerbla.o \
-              sgemm.o ssyrk.o strmm.o strsm.o \
-              dgemm.o dsyrk.o dtrmm.o dtrsm.o \
-              cgemm.o cherk.o ctrmm.o ctrsm.o \
-              zgemm.o zherk.o ztrmm.o ztrsm.o
+$(TARGET): $(OBJECTS)
 
 handle.o: blas.h cumultigpu.h handle.h error.h
 xerbla.o: blas.h cumultigpu.h
@@ -60,22 +66,4 @@ dgemm.fatbin dsyrk.fatbin dtrmm.fatbin dtrsm.fatbin: NVCFLAGS = -code=sm_13 -arc
 cgemm.fatbin cherk.fatbin ctrmm.fatbin ctrsm.fatbin: NVCFLAGS = -code=sm_11,sm_13 -arch=compute_11
 zgemm.fatbin zherk.fatbin ztrmm.fatbin ztrsm.fatbin: NVCFLAGS = -code=sm_13 -arch=compute_13
 
-sgemm.fatbin: blas.h cumultigpu.h
-ssyrk.fatbin: blas.h cumultigpu.h
-strmm.fatbin: blas.h cumultigpu.h
-strsm.fatbin: blas.h cumultigpu.h
-
-dgemm.fatbin: blas.h cumultigpu.h
-dsyrk.fatbin: blas.h cumultigpu.h
-dtrmm.fatbin: blas.h cumultigpu.h
-dtrsm.fatbin: blas.h cumultigpu.h
-
-cgemm.fatbin: blas.h cumultigpu.h
-cherk.fatbin: blas.h cumultigpu.h
-ctrmm.fatbin: blas.h cumultigpu.h
-ctrsm.fatbin: blas.h cumultigpu.h
-
-zgemm.fatbin: blas.h cumultigpu.h
-zherk.fatbin: blas.h cumultigpu.h
-ztrmm.fatbin: blas.h cumultigpu.h
-ztrsm.fatbin: blas.h cumultigpu.h
+$(FATBINS): blas.h cumultigpu.h

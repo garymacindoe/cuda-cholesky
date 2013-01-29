@@ -1,5 +1,5 @@
-#include <cuda.h>
 #include <stdio.h>
+#include <cuda.h>
 #include <unistd.h>
 
 #include "error.h"

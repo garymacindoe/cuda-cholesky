@@ -359,12 +359,12 @@ CUresult cuMultiGPUZtrsm(CUmultiGPUBlasHandle,
                          double complex, const double complex * restrict, size_t,
                          double complex * restrict, size_t);
 
-#ifdef __CUDACC__
-#undef restrict
-#endif
-
 #ifdef __cplusplus
 }
+#endif
+
+#ifdef __CUDACC__
+#undef restrict
 #endif
 
 #endif

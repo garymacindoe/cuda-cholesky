@@ -1,8 +1,9 @@
 #include "lapack.h"
 #include "error.h"
-// #include <stdio.h>
+#include <stdio.h>
 #include <math.h>
 #include "config.h"
+#include "spotrf.fatbin.c"
 
 static inline size_t min(size_t a, size_t b) { return (a < b) ? a : b; }
 

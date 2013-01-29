@@ -1,8 +1,9 @@
 #include "lapack.h"
 #include "error.h"
-// #include <stdio.h>
+#include <stdio.h>
 #include <math.h>
 #include "config.h"
+#include "cpotrf.fatbin.c"
 
 static inline size_t min(size_t a, size_t b) { return (a < b) ? a : b; }
 
@@ -287,7 +288,7 @@ CUresult cuCpotrf(CUblashandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A, 
   CU_ERROR_CHECK(cuStreamDestroy(stream0));
   CU_ERROR_CHECK(cuStreamDestroy(stream1));
 
-  return (*info == 0) ? CUDA_SUCCESS : CUDA_ERROR_INVALID_VALUE;
+  return CUDA_SUCCESS;
 }
 
 CUresult cuMultiGPUCpotrf(CUmultiGPUBlasHandle handle, CBlasUplo uplo,
