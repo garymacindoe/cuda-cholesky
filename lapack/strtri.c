@@ -82,13 +82,12 @@ static inline void strti2(CBlasUplo uplo, CBlasDiag diag,
       else
         ajj = -one;
 
-      size_t i = n - 1;
-      do {
+      for (size_t i = n - 1; i > j; i--) {
         register float temp = A[j * lda + i];
         if (diag == CBlasNonUnit) A[j * lda + i] *= A[i * lda + i];
         for (size_t k = i + 1; k < n; k++)
           A[j * lda + k] += temp * A[i * lda + k];
-      } while (i-- > j);
+      }
       for (size_t i = j + 1; i < n; i++)
         A[j * lda + i] *= ajj;
     } while (j-- > 0);
@@ -211,13 +210,12 @@ static inline void strti22(CBlasUplo uplo, CBlasDiag diag,
 
       for (size_t i = j + 1; i < n; i++)
         B[j * ldb + i] = A[j * lda + i];
-      size_t i = n - 1;
-      do {
+      for (size_t i = n - 1; i > j; i--) {
         register float temp = B[j * ldb + i];
         if (diag == CBlasNonUnit) B[j * ldb + i] *= B[i * ldb + i];
         for (size_t k = i + 1; k < n; k++)
           B[j * ldb + k] += temp * B[i * ldb + k];
-      } while (i-- > j);
+      }
       for (size_t i = j + 1; i < n; i++)
         B[j * ldb + i] *= bjj;
     } while (j-- > 0);

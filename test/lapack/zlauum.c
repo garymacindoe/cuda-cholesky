@@ -10,13 +10,11 @@
 
 int main(int argc, char * argv[]) {
   CBlasUplo uplo;
-  CBlasDiag diag;
   size_t n;
 
-  if (argc != 4) {
+  if (argc != 3) {
     fprintf(stderr, "Usage: %s <uplo> <diag> <n>\nwhere:\n"
                     "  uplo  is 'u' or 'U' for CBlasUpper or 'l' or 'L' for CBlasLower\n"
-                    "  diag  is 'u' or 'U' for CBlasUnit or 'n' or 'N' for CBlasNonUnit\n"
                     "  n     is the size of the matrix\n", argv[0]);
     return 1;
   }
@@ -32,20 +30,9 @@ int main(int argc, char * argv[]) {
     default: fprintf(stderr, "Unknown uplo '%c'\n", u); return 1;
   }
 
-  char d;
-  if (sscanf(argv[2], "%c", &d) != 1) {
-    fprintf(stderr, "Unable to read character from '%s'\n", argv[2]);
+  if (sscanf(argv[2], "%zu", &n) != 1) {
+    fprintf(stderr, "Unable to parse number from '%s'\n", argv[2]);
     return 2;
-  }
-  switch (d) {
-    case 'U': case 'u': diag = CBlasUnit; break;
-    case 'N': case 'n': diag = CBlasNonUnit; break;
-    default: fprintf(stderr, "Unknown uplo '%c'\n", d); return 1;
-  }
-
-  if (sscanf(argv[3], "%zu", &n) != 1) {
-    fprintf(stderr, "Unable to parse number from '%s'\n", argv[3]);
-    return 3;
   }
 
   srand(0);
@@ -70,8 +57,8 @@ int main(int argc, char * argv[]) {
       refA[j * lda + i] = A[j * lda + i] = ((double)rand() / (double)RAND_MAX) + ((double)rand() / (double)RAND_MAX) * I;
   }
 
-  zlauum_ref(uplo, diag, n, refA, lda, &rInfo);
-  zlauum(uplo, diag, n, A, lda, &info);
+  zlauum_ref(uplo, n, refA, lda, &rInfo);
+  zlauum(uplo, n, A, lda, &info);
 
   bool passed = (info == rInfo);
   double rdiff = 0.0, idiff = 0.0;
@@ -99,7 +86,7 @@ int main(int argc, char * argv[]) {
     return -4;
   }
   for (size_t i = 0; i < 20; i++)
-    zlauum(uplo, diag, n, A, lda, &info);
+    zlauum(uplo, n, A, lda, &info);
   if (gettimeofday(&stop, NULL) != 0) {
     fprintf(stderr, "gettimeofday failed at %s:%d\n", __FILE__, __LINE__);
     return -5;

@@ -49,14 +49,13 @@ static void strtri_ref(CBlasUplo uplo, CBlasDiag diag, size_t n,
       else
         ajj = -1.0f;
 
-      size_t i = n - 1;
-      do {
+      for (size_t i = n - 1; i > j; i--) {
         float temp = A[j * lda + i];
         if (diag == CBlasNonUnit) temp *= A[i * lda + i];
         for (size_t k = j + 1; k < i; k++)
           temp += A[k * lda + i] * A[j * lda + k];
         A[j * lda + i] = temp * ajj;
-      } while (i-- > j);
+      }
     } while (j-- > 0);
   }
 }

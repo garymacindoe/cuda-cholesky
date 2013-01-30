@@ -9,31 +9,29 @@ CFLAGS = -march=native -O2 -pipe -std=c99 -pedantic -Wall -Wextra -Wconversion
 # CC = icc
 # CFLAGS = -xHost -O2 -pipe -std=c99 -Wall
 
-.PHONY: all blas lapack clean distclean
+.PHONY: all test clean distclean
 
 VPATH = include
 
-all: libcumultigpu.a libcumultigpu_seq.a blas lapack
+all: libcumultigpu.a libcumultigpu_seq.a libblas.a liblapack.a
 
-blas:
-	cd blas && $(MAKE) all
-
-lapack:
-	cd lapack && $(MAKE) all
+test:
+	cd test && $(MAKE)
 
 clean:
 	cd blas && $(MAKE) clean
-# 	cd lapack && $(MAKE) clean
-	$(RM) src/*.o
+	cd lapack && $(MAKE) clean
+	cd multigpu && $(MAKE) clean
+	cd test && $(MAKE) clean
 
 distclean: clean
-	cd blas && $(MAKE) distclean
-# 	cd lapack && $(MAKE) distclean
-	$(RM) libcumultigpu.a libcumultigpu_seq.a
+	$(RM) libcumultigpu.a libcumultigpu_seq.a libblas.a liblapack.a
 
-libcumultigpu.a: src/error.o src/multigpu.o
-libcumultigpu_seq.a: src/error.o src/multigpu_seq.o
+libblas.a:
+	cd blas && $(MAKE) all
 
-src/error.c: error.h
-src/multigpu.c: error.h cumultigpu.h
-src/multigpu_seq.c: error.h cumultigpu.h
+liblapack.a:
+	cd lapack && $(MAKE) all
+
+libcumultigpu.a libcumultigpu_seq.a:
+	cd multigpu && $(MAKE) ../$(@)
