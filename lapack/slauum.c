@@ -120,7 +120,7 @@ void slauum(CBlasUplo uplo,
               one, &A[i * lda + i + ib], lda, &A[i + ib], lda,
               one, &A[i], lda);
         ssyrk(CBlasLower, CBlasTrans, ib, n - i - ib,
-              one, &A[i], lda,
+              one, &A[i * lda + i + ib], lda,
               one, &A[i * lda + i], lda);
       }
     }
@@ -248,7 +248,7 @@ CUresult cuSlauum(CUblashandle handle,
       /* Perform the SSYRK on the same stream as the copy to ensure A has
        * finised copying back first. */
       CU_ERROR_CHECK(cuSsyrk(handle, CBlasLower, CBlasTrans, ib, n - i - ib,
-                             one, A + i * sizeof(float), lda,
+                             one, A + (i * lda + i + ib) * sizeof(float), lda,
                              one, A + (i * lda + i) * sizeof(float), lda, stream1));
       /* Ensure the SSYRK has finished before starting the STRMM from the next
        * iteration. (Only needed for devices that can execute multiple kernels
@@ -319,7 +319,7 @@ CUresult cuMultiGPUSlauum(CUmultiGPUBlasHandle handle,
                                        one, &A[i * lda + i + ib], lda, &A[i + ib], lda,
                                        one, &A[i], lda));
         CU_ERROR_CHECK(cuMultiGPUSsyrk(handle, CBlasLower, CBlasTrans, ib, n - i - ib,
-                                       one, &A[i], lda, one, &A[i * lda + i], lda));
+                                       one, &A[i * lda + i + ib], lda, one, &A[i * lda + i], lda));
       }
     }
   }

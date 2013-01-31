@@ -7,15 +7,17 @@
 #include <float.h>
 #include <math.h>
 #include <sys/time.h>
-#include "ref/spotri_ref.c"
+#include "ref/strtri_ref.c"
 
 int main(int argc, char * argv[]) {
   CBlasUplo uplo;
+  CBlasDiag diag;
   size_t n;
 
-  if (argc != 3) {
+  if (argc != 4) {
     fprintf(stderr, "Usage: %s <uplo> <diag> <n>\nwhere:\n"
                     "  uplo  is 'u' or 'U' for CBlasUpper or 'l' or 'L' for CBlasLower\n"
+                    "  diag  is 'u' or 'U' for CBlasUnit or 'n' or 'N' for CBlasNonUnit\n"
                     "  n     is the size of the matrix\n", argv[0]);
     return 1;
   }
@@ -31,15 +33,26 @@ int main(int argc, char * argv[]) {
     default: fprintf(stderr, "Unknown uplo '%c'\n", u); return 1;
   }
 
-  if (sscanf(argv[2], "%zu", &n) != 1) {
-    fprintf(stderr, "Unable to parse number from '%s'\n", argv[2]);
+  char d;
+  if (sscanf(argv[2], "%c", &d) != 1) {
+    fprintf(stderr, "Unable to read character from '%s'\n", argv[2]);
     return 2;
+  }
+  switch (d) {
+    case 'U': case 'u': diag = CBlasUnit; break;
+    case 'N': case 'n': diag = CBlasNonUnit; break;
+    default: fprintf(stderr, "Unknown diag '%c'\n", d); return 1;
+  }
+
+  if (sscanf(argv[3], "%zu", &n) != 1) {
+    fprintf(stderr, "Unable to parse number from '%s'\n", argv[3]);
+    return 3;
   }
 
   srand(0);
 
-  float * A, * refA, * C;
-  size_t lda, ldc, k = 5 * n;
+  float * A, * refA;//, * C;
+  size_t lda;//, ldc, k = 5 * n;
   long info, rInfo;
 
   CU_ERROR_CHECK(cuInit(0));
@@ -68,37 +81,37 @@ int main(int argc, char * argv[]) {
     return -2;
   }
 
-  ldc = (k + 3u) & ~3u;
-  if ((C = malloc(ldc * n * sizeof(float))) == NULL) {
-    fprintf(stderr, "Unable to allocate C\n");
-    return -3;
-  }
+//   ldc = (k + 3u) & ~3u;
+//   if ((C = malloc(ldc * n * sizeof(float))) == NULL) {
+//     fprintf(stderr, "Unable to allocate C\n");
+//     return -3;
+//   }
 
-  for (size_t j = 0; j < n; j++) {
-    for (size_t i = 0; i < k; i++)
-      C[j * ldc + i] = gaussian();
-  }
+//   for (size_t j = 0; j < n; j++) {
+//     for (size_t i = 0; i < k; i++)
+//       C[j * ldc + i] = gaussian();
+//   }
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < n; i++) {
-      float temp = 0.0f;
-      for (size_t l = 0; l < k; l++)
-        temp += C[i * ldc + l] * C[j * ldc + l];
-      A[j * lda + i] = temp;
+//       float temp = 0.0f;
+//       for (size_t l = 0; l < k; l++)
+//         temp += C[i * ldc + l] * C[j * ldc + l];
+      refA[j * lda + i] = A[j * lda + i] = gaussian();//temp;
     }
   }
-  free(C);
+//   free(C);
 
-  spotrf(uplo, n, A, lda, &info);
-  if (info != 0) {
-    fprintf(stderr, "Failed to compute Cholesky decomposition of A\n");
-    return (int)info;
-  }
+//   spotrf(uplo, n, A, lda, &info);
+//   if (info != 0) {
+//     fprintf(stderr, "Failed to compute Cholesky decomposition of A\n");
+//     return (int)info;
+//   }
 
-  for (size_t j = 0; j < n; j++)
-    memcpy(&refA[j * lda], &A[j * lda], n * sizeof(float));
+//   for (size_t j = 0; j < n; j++)
+//     memcpy(&refA[j * lda], &A[j * lda], n * sizeof(float));
 
-  spotri_ref(uplo, n, refA, lda, &rInfo);
-  CU_ERROR_CHECK(cuMultiGPUSpotri(handle, uplo, n, A, lda, &info));
+  strtri_ref(uplo, diag, n, refA, lda, &rInfo);
+  CU_ERROR_CHECK(cuMultiGPUStrtri(handle, uplo, diag, n, A, lda, &info));
   CU_ERROR_CHECK(cuMultiGPUSynchronize(mGPU));
 
   bool passed = (info == rInfo);
@@ -124,7 +137,7 @@ int main(int argc, char * argv[]) {
     return -4;
   }
   for (size_t i = 0; i < 20; i++)
-    CU_ERROR_CHECK(cuMultiGPUSpotri(handle, uplo, n, A, lda, &info));
+    CU_ERROR_CHECK(cuMultiGPUStrtri(handle, uplo, diag, n, A, lda, &info));
   CU_ERROR_CHECK(cuMultiGPUSynchronize(mGPU));
   if (gettimeofday(&stop, NULL) != 0) {
     fprintf(stderr, "gettimeofday failed at %s:%d\n", __FILE__, __LINE__);

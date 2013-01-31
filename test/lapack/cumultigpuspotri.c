@@ -38,8 +38,8 @@ int main(int argc, char * argv[]) {
 
   srand(0);
 
-  float * A, * refA, * C;
-  size_t lda, ldc, k = 5 * n;
+  float * A, * refA;//, * C;
+  size_t lda;//, ldc, k = 5 * n;
   long info, rInfo;
 
   CU_ERROR_CHECK(cuInit(0));
@@ -68,34 +68,34 @@ int main(int argc, char * argv[]) {
     return -2;
   }
 
-  ldc = (k + 3u) & ~3u;
-  if ((C = malloc(ldc * n * sizeof(float))) == NULL) {
-    fprintf(stderr, "Unable to allocate C\n");
-    return -3;
-  }
+//   ldc = (k + 3u) & ~3u;
+//   if ((C = malloc(ldc * n * sizeof(float))) == NULL) {
+//     fprintf(stderr, "Unable to allocate C\n");
+//     return -3;
+//   }
 
-  for (size_t j = 0; j < n; j++) {
-    for (size_t i = 0; i < k; i++)
-      C[j * ldc + i] = gaussian();
-  }
+//   for (size_t j = 0; j < n; j++) {
+//     for (size_t i = 0; i < k; i++)
+//       C[j * ldc + i] = gaussian();
+//   }
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < n; i++) {
-      float temp = 0.0f;
-      for (size_t l = 0; l < k; l++)
-        temp += C[i * ldc + l] * C[j * ldc + l];
-      A[j * lda + i] = temp;
+//       float temp = 0.0f;
+//       for (size_t l = 0; l < k; l++)
+//         temp += C[i * ldc + l] * C[j * ldc + l];
+      refA[j * lda + i] = A[j * lda + i] = gaussian();//temp;
     }
   }
-  free(C);
+//   free(C);
 
-  spotrf(uplo, n, A, lda, &info);
-  if (info != 0) {
-    fprintf(stderr, "Failed to compute Cholesky decomposition of A\n");
-    return (int)info;
-  }
+//   spotrf(uplo, n, A, lda, &info);
+//   if (info != 0) {
+//     fprintf(stderr, "Failed to compute Cholesky decomposition of A\n");
+//     return (int)info;
+//   }
 
-  for (size_t j = 0; j < n; j++)
-    memcpy(&refA[j * lda], &A[j * lda], n * sizeof(float));
+//   for (size_t j = 0; j < n; j++)
+//     memcpy(&refA[j * lda], &A[j * lda], n * sizeof(float));
 
   spotri_ref(uplo, n, refA, lda, &rInfo);
   CU_ERROR_CHECK(cuMultiGPUSpotri(handle, uplo, n, A, lda, &info));

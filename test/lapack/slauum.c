@@ -53,7 +53,7 @@ int main(int argc, char * argv[]) {
 
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < n; i++)
-      refA[j * lda + i] = A[j * lda + i] = (float)rand() / (float)RAND_MAX;
+      refA[j * lda + i] = A[j * lda + i] = gaussian();
   }
 
   slauum_ref(uplo, n, refA, lda, &rInfo);

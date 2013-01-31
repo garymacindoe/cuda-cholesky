@@ -6,7 +6,7 @@
 #include <string.h>
 #include <float.h>
 #include <math.h>
-#include "ref/dpotri_ref.c"
+#include "ref/dlauum_ref.c"
 
 int main(int argc, char * argv[]) {
   CBlasUplo uplo;
@@ -40,9 +40,9 @@ int main(int argc, char * argv[]) {
 
   srand(0);
 
-  double * A, * C, * refA;
+  double * A, * refA;//, * C;
   CUdeviceptr dA;
-  size_t lda, ldc, dlda, k = 5 * n;
+  size_t lda, dlda;//, ldc, k = 5 * n;
   long info, rInfo;
 
   CU_ERROR_CHECK(cuInit(0));
@@ -65,42 +65,42 @@ int main(int argc, char * argv[]) {
   CU_ERROR_CHECK(cuMemAllocPitch(&dA, &dlda, n * sizeof(double), n, sizeof(double)));
   dlda /= sizeof(double);
 
-  ldc = (k + 1u) & ~1u;
-  if ((C = malloc(ldc * n * sizeof(double))) == NULL) {
-    fprintf(stderr, "Unable to allocate C\n");
-    return -3;
-  }
+//   ldc = (k + 1u) & ~1u;
+//   if ((C = malloc(ldc * n * sizeof(double))) == NULL) {
+//     fprintf(stderr, "Unable to allocate C\n");
+//     return -3;
+//   }
 
-  for (size_t j = 0; j < n; j++) {
-    for (size_t i = 0; i < k; i++)
-      C[j * ldc + i] = gaussian();
-  }
+//   for (size_t j = 0; j < n; j++) {
+//     for (size_t i = 0; i < k; i++)
+//       C[j * ldc + i] = gaussian();
+//   }
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < n; i++) {
-      double temp = 0.0;
-      for (size_t l = 0; l < k; l++)
-        temp += C[i * ldc + l] * C[j * ldc + l];
+//       double temp = 0.0;
+//       for (size_t l = 0; l < k; l++)
+//         temp += C[i * ldc + l] * C[j * ldc + l];
       refA[j * lda + i] = A[j * lda + i] = temp;
     }
   }
-  free(C);
+//   free(C);
 
-  dpotrf(uplo, n, A, lda, &info);
-  if (info != 0) {
-    fprintf(stderr, "Failed to compute Cholesky decomposition of A\n");
-    return (int)info;
-  }
+//   dpotrf(uplo, n, A, lda, &info);
+//   if (info != 0) {
+//     fprintf(stderr, "Failed to compute Cholesky decomposition of A\n");
+//     return (int)info;
+//   }
 
-  for (size_t j = 0; j < n; j++)
-    memcpy(&refA[j * lda], &A[j * lda], n * sizeof(double));
+//   for (size_t j = 0; j < n; j++)
+//     memcpy(&refA[j * lda], &A[j * lda], n * sizeof(double));
 
   CUDA_MEMCPY2D copy = { 0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(double),
                          0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(double),
                          n * sizeof(double), n };
   CU_ERROR_CHECK(cuMemcpy2D(&copy));
 
-  dpotri_ref(uplo, n, refA, lda, &rInfo);
-  CU_ERROR_CHECK(cuDpotri(uplo, n, dA, dlda, &info));
+  dlauum_ref(uplo, n, refA, lda, &rInfo);
+  CU_ERROR_CHECK(cuDlauum(uplo, n, dA, dlda, &info));
 
   copy = (CUDA_MEMCPY2D){ 0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(double),
                           0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(double),
@@ -136,7 +136,7 @@ int main(int argc, char * argv[]) {
 
   CU_ERROR_CHECK(cuEventRecord(start, NULL));
   for (size_t i = 0; i < 20; i++)
-    CU_ERROR_CHECK(cuDpotri(uplo, n, dA, dlda, &info));
+    CU_ERROR_CHECK(cuDlauum(uplo, n, dA, dlda, &info));
   CU_ERROR_CHECK(cuEventRecord(stop, NULL));
   CU_ERROR_CHECK(cuEventSynchronize(stop));
 

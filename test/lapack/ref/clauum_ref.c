@@ -30,3 +30,13 @@ static void clauum_ref(CBlasUplo uplo, size_t n, float complex * restrict A, siz
     }
   }
 }
+
+static float complex gaussian() {
+  float u0 = ((float)rand() + 1.0f) / (float)RAND_MAX;
+  float u1 = ((float)rand() + 1.0f) / (float)RAND_MAX;
+  float r = sqrtf(-2.0f * logf(u0));
+  float phi = 2.0f * 3.1415926535f * u1;
+  float real = r * sinf(phi);
+  float imag = r * cosf(phi);
+  return real + imag * I;
+}

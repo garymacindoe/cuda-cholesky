@@ -39,8 +39,8 @@ int main(int argc, char * argv[]) {
 
   srand(0);
 
-  float complex * A, * refA, * C;
-  size_t lda, ldc, k = 5 * n;
+  float complex * A, * refA;//, * C;
+  size_t lda;//, ldc, k = 5 * n;
   long info, rInfo;
 
   int deviceCount;
@@ -67,34 +67,34 @@ int main(int argc, char * argv[]) {
     return -2;
   }
 
-  ldc = (k + 1u) & ~1u;
-  if ((C = malloc(ldc * n * sizeof(float complex))) == NULL) {
-    fprintf(stderr, "Unable to allocate C\n");
-    return -3;
-  }
+//   ldc = (k + 1u) & ~1u;
+//   if ((C = malloc(ldc * n * sizeof(float complex))) == NULL) {
+//     fprintf(stderr, "Unable to allocate C\n");
+//     return -3;
+//   }
 
-  for (size_t j = 0; j < n; j++) {
-    for (size_t i = 0; i < k; i++)
-      C[j * ldc + i] = gaussian();
-  }
+//   for (size_t j = 0; j < n; j++) {
+//     for (size_t i = 0; i < k; i++)
+//       C[j * ldc + i] = gaussian();
+//   }
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < n; i++) {
-      float complex temp = 0.0f + 0.0f * I;
-      for (size_t l = 0; l < k; l++)
-        temp += C[i * ldc + l] * C[j * ldc + l];
+//       float complex temp = 0.0f + 0.0f * I;
+//       for (size_t l = 0; l < k; l++)
+//         temp += conjf(C[i * ldc + l]) * C[j * ldc + l];
       refA[j * lda + i] = A[j * lda + i] = temp;
     }
   }
-  free(C);
+//   free(C);
 
-  cpotrf(uplo, n, A, lda, &info);
-  if (info != 0) {
-    fprintf(stderr, "Failed to compute Cholesky decomposition of A\n");
-    return (int)info;
-  }
+//   cpotrf(uplo, n, A, lda, &info);
+//   if (info != 0) {
+//     fprintf(stderr, "Failed to compute Cholesky decomposition of A\n");
+//     return (int)info;
+//   }
 
-  for (size_t j = 0; j < n; j++)
-    memcpy(&refA[j * lda], &A[j * lda], n * sizeof(float complex));
+//   for (size_t j = 0; j < n; j++)
+//     memcpy(&refA[j * lda], &A[j * lda], n * sizeof(float complex));
 
   cpotri_ref(uplo, n, refA, lda, &rInfo);
   CU_ERROR_CHECK(cuMultiGPUCpotri(handle, uplo, n, A, lda, &info));
@@ -126,7 +126,7 @@ int main(int argc, char * argv[]) {
     return -4;
   }
   for (size_t i = 0; i < 20; i++)
-    CU_ERROR_CHECK(cuMultiGPUCpotrf(handle, uplo, n, A, lda, &info));
+    CU_ERROR_CHECK(cuMultiGPUCpotri(handle, uplo, n, A, lda, &info));
   CU_ERROR_CHECK(cuMultiGPUSynchronize(mGPU));
   if (gettimeofday(&stop, NULL) != 0) {
     fprintf(stderr, "gettimeofday failed at %s:%d\n", __FILE__, __LINE__);

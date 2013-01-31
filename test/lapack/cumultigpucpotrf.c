@@ -80,7 +80,7 @@ int main(int argc, char * argv[]) {
     for (size_t i = 0; i < n; i++) {
       float complex temp = 0.0f + 0.0f * I;
       for (size_t l = 0; l < k; l++)
-        temp += C[i * ldc + l] * conjf(C[j * ldc + l]);
+        temp += conjf(C[i * ldc + l]) * C[j * ldc + l];
       refA[j * lda + i] = A[j * lda + i] = temp;
     }
   }

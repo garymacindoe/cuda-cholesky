@@ -12,6 +12,10 @@ CFLAGS = -march=native -O2 -pipe -std=c99 -pedantic -Wall -Wextra -Wconversion -
 
 NVCFLAGS = -O2 -use_fast_math -maxrregcount=32
 
+ifdef verbose
+  NVCFLAGS += -Xptxas=-v
+endif
+
 BIN2CFLAGS = -c -st
 
 TARGET = ../liblapack.a

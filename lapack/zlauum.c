@@ -119,7 +119,7 @@ void zlauum(CBlasUplo uplo,
               one, &A[i * lda + i + ib], lda, &A[i + ib], lda,
               one, &A[i], lda);
         zherk(CBlasLower, CBlasConjTrans, ib, n - i - ib,
-              one, &A[i], lda,
+              one, &A[i * lda + i + ib], lda,
               one, &A[i * lda + i], lda);
       }
     }
@@ -247,7 +247,7 @@ CUresult cuZlauum(CUblashandle handle,
       /* Perform the ZHERK on the same stream as the copy to ensure A has
        * finised copying back first. */
       CU_ERROR_CHECK(cuZherk(handle, CBlasLower, CBlasConjTrans, ib, n - i - ib,
-                             one, A + i * sizeof(double complex), lda,
+                             one, A + (i * lda + i + ib) * sizeof(double complex), lda,
                              one, A + (i * lda + i) * sizeof(double complex), lda, stream1));
       /* Ensure the ZHERK has finished before starting the ZTRMM from the next
        * iteration. (Only needed for devices that can execute multiple kernels
@@ -318,7 +318,7 @@ CUresult cuMultiGPUZlauum(CUmultiGPUBlasHandle handle,
                                        one, &A[i * lda + i + ib], lda, &A[i + ib], lda,
                                        one, &A[i], lda));
         CU_ERROR_CHECK(cuMultiGPUZherk(handle, CBlasLower, CBlasConjTrans, ib, n - i - ib,
-                                       one, &A[i], lda, one, &A[i * lda + i], lda));
+                                       one, &A[i * lda + i + ib], lda, one, &A[i * lda + i], lda));
       }
     }
   }

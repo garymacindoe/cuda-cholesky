@@ -7,17 +7,19 @@
 #include <float.h>
 #include <math.h>
 #include <complex.h>
-#include "ref/zpotri_ref.c"
+#include "ref/ztrtri_ref.c"
 
 int main(int argc, char * argv[]) {
   CBlasUplo uplo;
+  CBlasDiag diag;
   size_t n;
   int d = 0;
 
-  if (argc < 3 || argc > 4) {
+  if (argc < 4 || argc > 5) {
     fprintf(stderr, "Usage: %s <uplo> <n>\n"
                     "where:\n"
                     "  uplo    is 'u' or 'U' for CBlasUpper or 'l' or 'L' for CBlasLower\n"
+                    "  diag  is 'u' or 'U' for CBlasUnit or 'n' or 'N' for CBlasNonUnit\n"
                     "  n       is the size of the matrix\n"
                     "  device  is the GPU to use (default 0)\n", argv[0]);
     return 1;
@@ -34,16 +36,27 @@ int main(int argc, char * argv[]) {
     default: fprintf(stderr, "Unknown uplo '%c'\n", u); return 1;
   }
 
-  if (sscanf(argv[2], "%zu", &n) != 1) {
-    fprintf(stderr, "Unable to parse number from '%s'\n", argv[2]);
+  char di;
+  if (sscanf(argv[2], "%c", &di) != 1) {
+    fprintf(stderr, "Unable to read character from '%s'\n", argv[2]);
     return 2;
+  }
+  switch (di) {
+    case 'U': case 'u': diag = CBlasUnit; break;
+    case 'N': case 'n': diag = CBlasNonUnit; break;
+    default: fprintf(stderr, "Unknown diag '%c'\n", di); return 1;
+  }
+
+  if (sscanf(argv[3], "%zu", &n) != 1) {
+    fprintf(stderr, "Unable to parse number from '%s'\n", argv[3]);
+    return 3;
   }
 
   srand(0);
 
-  double complex * A, * C, * refA;
+  double complex * A, * refA;//, * C;
   CUdeviceptr dA;
-  size_t lda, ldc, dlda, k = 5 * n;
+  size_t lda, dlda;//, ldc, k = 5 * n;
   long info, rInfo;
 
   CU_ERROR_CHECK(cuInit(0));
@@ -66,42 +79,42 @@ int main(int argc, char * argv[]) {
   CU_ERROR_CHECK(cuMemAllocPitch(&dA, &dlda, n * sizeof(double complex), n, sizeof(double complex)));
   dlda /= sizeof(double complex);
 
-  ldc = k;
-  if ((C = malloc(ldc * n * sizeof(double complex))) == NULL) {
-    fprintf(stderr, "Unable to allocate C\n");
-    return -3;
-  }
+//   ldc = k;
+//   if ((C = malloc(ldc * n * sizeof(double complex))) == NULL) {
+//     fprintf(stderr, "Unable to allocate C\n");
+//     return -3;
+//   }
 
-  for (size_t j = 0; j < n; j++) {
-    for (size_t i = 0; i < k; i++)
-      C[j * ldc + i] = gaussian();
-  }
+//   for (size_t j = 0; j < n; j++) {
+//     for (size_t i = 0; i < k; i++)
+//       C[j * ldc + i] = gaussian();
+//   }
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < n; i++) {
-      double complex temp = 0.0 + 0.0 * I;
-      for (size_t l = 0; l < k; l++)
-        temp += C[i * ldc + l] * C[j * ldc + l];
-      refA[j * lda + i] = A[j * lda + i] = temp;
+//       double complex temp = 0.0 + 0.0 * I;
+//       for (size_t l = 0; l < k; l++)
+        temp += conj(C[i * ldc + l]) * C[j * ldc + l];
+      refA[j * lda + i] = A[j * lda + i] = gaussian();//temp;
     }
   }
-  free(C);
+//   free(C);
 
-  zpotrf(uplo, n, A, lda, &info);
-  if (info != 0) {
-    fprintf(stderr, "Failed to compute Cholesky decomposition of A\n");
-    return (int)info;
-  }
+//   zpotrf(uplo, n, A, lda, &info);
+//   if (info != 0) {
+//     fprintf(stderr, "Failed to compute Cholesky decomposition of A\n");
+//     return (int)info;
+//   }
 
-  for (size_t j = 0; j < n; j++)
-    memcpy(&refA[j * lda], &A[j * lda], n * sizeof(double complex));
+//   for (size_t j = 0; j < n; j++)
+//     memcpy(&refA[j * lda], &A[j * lda], n * sizeof(double complex));
 
   CUDA_MEMCPY2D copy = { 0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(double complex),
                          0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(double complex),
                          n * sizeof(double complex), n };
   CU_ERROR_CHECK(cuMemcpy2D(&copy));
 
-  zpotri_ref(uplo, n, refA, lda, &rInfo);
-  CU_ERROR_CHECK(cuZpotri(uplo, n, dA, dlda, &info));
+  ztrtri_ref(uplo, diag, n, refA, lda, &rInfo);
+  CU_ERROR_CHECK(cuZpotri(uplo, diag, n, dA, dlda, &info));
 
   copy = (CUDA_MEMCPY2D){ 0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(double complex),
                           0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(double complex),
@@ -139,7 +152,7 @@ int main(int argc, char * argv[]) {
 
   CU_ERROR_CHECK(cuEventRecord(start, NULL));
   for (size_t i = 0; i < 20; i++)
-    CU_ERROR_CHECK(cuZpotri(uplo, n, dA, dlda, &info));
+    CU_ERROR_CHECK(cuZtrtri(uplo, diag, n, dA, dlda, &info));
   CU_ERROR_CHECK(cuEventRecord(stop, NULL));
   CU_ERROR_CHECK(cuEventSynchronize(stop));
 

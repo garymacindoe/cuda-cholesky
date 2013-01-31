@@ -41,9 +41,9 @@ int main(int argc, char * argv[]) {
 
   srand(0);
 
-  double complex * A, * C, * refA;
+  double complex * A, * refA;//, * C;
   CUdeviceptr dA;
-  size_t lda, ldc, dlda, k = 5 * n;
+  size_t lda, dlda;//, ldc, k = 5 * n;
   long info, rInfo;
 
   CU_ERROR_CHECK(cuInit(0));
@@ -66,34 +66,34 @@ int main(int argc, char * argv[]) {
   CU_ERROR_CHECK(cuMemAllocPitch(&dA, &dlda, n * sizeof(double complex), n, sizeof(double complex)));
   dlda /= sizeof(double complex);
 
-  ldc = k;
-  if ((C = malloc(ldc * n * sizeof(double complex))) == NULL) {
-    fprintf(stderr, "Unable to allocate C\n");
-    return -3;
-  }
+//   ldc = k;
+//   if ((C = malloc(ldc * n * sizeof(double complex))) == NULL) {
+//     fprintf(stderr, "Unable to allocate C\n");
+//     return -3;
+//   }
 
-  for (size_t j = 0; j < n; j++) {
-    for (size_t i = 0; i < k; i++)
-      C[j * ldc + i] = gaussian();
-  }
+//   for (size_t j = 0; j < n; j++) {
+//     for (size_t i = 0; i < k; i++)
+//       C[j * ldc + i] = gaussian();
+//   }
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < n; i++) {
-      double complex temp = 0.0 + 0.0 * I;
-      for (size_t l = 0; l < k; l++)
-        temp += C[i * ldc + l] * C[j * ldc + l];
-      refA[j * lda + i] = A[j * lda + i] = temp;
+//       double complex temp = 0.0 + 0.0 * I;
+//       for (size_t l = 0; l < k; l++)
+//         temp += conj(C[i * ldc + l]) * C[j * ldc + l];
+      refA[j * lda + i] = A[j * lda + i] = gaussian();//temp;
     }
   }
-  free(C);
+//   free(C);
 
-  zpotrf(uplo, n, A, lda, &info);
-  if (info != 0) {
-    fprintf(stderr, "Failed to compute Cholesky decomposition of A\n");
-    return (int)info;
-  }
+//   zpotrf(uplo, n, A, lda, &info);
+//   if (info != 0) {
+//     fprintf(stderr, "Failed to compute Cholesky decomposition of A\n");
+//     return (int)info;
+//   }
 
-  for (size_t j = 0; j < n; j++)
-    memcpy(&refA[j * lda], &A[j * lda], n * sizeof(double complex));
+//   for (size_t j = 0; j < n; j++)
+//     memcpy(&refA[j * lda], &A[j * lda], n * sizeof(double complex));
 
   CUDA_MEMCPY2D copy = { 0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(double complex),
                          0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(double complex),

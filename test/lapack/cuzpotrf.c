@@ -79,7 +79,7 @@ int main(int argc, char * argv[]) {
     for (size_t i = 0; i < n; i++) {
       double complex temp = 0.0 + 0.0 * I;
       for (size_t l = 0; l < k; l++)
-        temp += C[i * ldc + l] * C[j * ldc + l];
+        temp += conj(C[i * ldc + l]) * C[j * ldc + l];
       refA[j * lda + i] = A[j * lda + i] = temp;
     }
   }

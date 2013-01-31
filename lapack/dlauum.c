@@ -120,7 +120,7 @@ void dlauum(CBlasUplo uplo,
               one, &A[i * lda + i + ib], lda, &A[i + ib], lda,
               one, &A[i], lda);
         dsyrk(CBlasLower, CBlasTrans, ib, n - i - ib,
-              one, &A[i], lda,
+              one, &A[i * lda + i + ib], lda,
               one, &A[i * lda + i], lda);
       }
     }
@@ -248,7 +248,7 @@ CUresult cuDlauum(CUblashandle handle,
       /* Perform the DSYRK on the same stream as the copy to ensure A has
        * finised copying back first. */
       CU_ERROR_CHECK(cuDsyrk(handle, CBlasLower, CBlasTrans, ib, n - i - ib,
-                             one, A + i * sizeof(double), lda,
+                             one, A + (i * lda + i + ib) * sizeof(double), lda,
                              one, A + (i * lda + i) * sizeof(double), lda, stream1));
       /* Ensure the DSYRK has finished before starting the DTRMM from the next
        * iteration. (Only needed for devices that can execute multiple kernels
@@ -319,7 +319,7 @@ CUresult cuMultiGPUDlauum(CUmultiGPUBlasHandle handle,
                                        one, &A[i * lda + i + ib], lda, &A[i + ib], lda,
                                        one, &A[i], lda));
         CU_ERROR_CHECK(cuMultiGPUDsyrk(handle, CBlasLower, CBlasTrans, ib, n - i - ib,
-                                       one, &A[i], lda, one, &A[i * lda + i], lda));
+                                       one, &A[i * lda + i + ib], lda, one, &A[i * lda + i], lda));
       }
     }
   }

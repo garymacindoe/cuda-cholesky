@@ -120,7 +120,7 @@ void clauum(CBlasUplo uplo,
               one, &A[i * lda + i + ib], lda, &A[i + ib], lda,
               one, &A[i], lda);
         cherk(CBlasLower, CBlasConjTrans, ib, n - i - ib,
-              one, &A[i], lda,
+              one, &A[i * lda + i + ib], lda,
               one, &A[i * lda + i], lda);
       }
     }
@@ -247,7 +247,7 @@ CUresult cuClauum(CUblashandle handle, CBlasUplo uplo,
       /* Perform the CHERK on the same stream as the copy to ensure A has
        * finised copying back first. */
       CU_ERROR_CHECK(cuCherk(handle, CBlasLower, CBlasConjTrans, ib, n - i - ib,
-                             one, A + i * sizeof(float complex), lda,
+                             one, A + (i * lda + i + ib) * sizeof(float complex), lda,
                              one, A + (i * lda + i) * sizeof(float complex), lda, stream1));
       /* Ensure the CHERK has finished before starting the CTRMM from the next
        * iteration. (Only needed for devices that can execute multiple kernels
@@ -317,7 +317,7 @@ CUresult cuMultiGPUClauum(CUmultiGPUBlasHandle handle,
                                        one, &A[i * lda + i + ib], lda, &A[i + ib], lda,
                                        one, &A[i], lda));
         CU_ERROR_CHECK(cuMultiGPUCherk(handle, CBlasLower, CBlasConjTrans, ib, n - i - ib,
-                                       one, &A[i], lda, one, &A[i * lda + i], lda));
+                                       one, &A[i * lda + i + ib], lda, one, &A[i * lda + i], lda));
       }
     }
   }

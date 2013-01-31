@@ -39,9 +39,9 @@ int main(int argc, char * argv[]) {
 
   srand(0);
 
-  float * A, * C, * refA;
+  float * A, * refA, * C;
   CUdeviceptr dA;
-  size_t lda, ldc, dlda, k = 5 * n;
+  size_t lda, dlda, ldc, k = 5 * n;
   long info, rInfo;
 
   CU_ERROR_CHECK(cuInit(0));

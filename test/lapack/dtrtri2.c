@@ -50,8 +50,8 @@ int main(int argc, char * argv[]) {
 
   srand(0);
 
-  double * A, * B, * refB, * C;
-  size_t lda, ldb, ldc, k = 5 * n;
+  double * A, * B, * refB;//, * C;
+  size_t lda, ldb;//, ldc, k = 5 * n;
   long info, rInfo;
 
   lda = (n + 1u) & ~1u;
@@ -71,34 +71,34 @@ int main(int argc, char * argv[]) {
     return -3;
   }
 
-  ldc = (k + 1u) & ~1u;
-  if ((C = malloc(ldc * n * sizeof(double))) == NULL) {
-    fprintf(stderr, "Unable to allocate C\n");
-    return -4;
-  }
+//   ldc = (k + 1u) & ~1u;
+//   if ((C = malloc(ldc * n * sizeof(double))) == NULL) {
+//     fprintf(stderr, "Unable to allocate C\n");
+//     return -4;
+//   }
 
-  for (size_t j = 0; j < n; j++) {
-    for (size_t i = 0; i < k; i++)
-      C[j * ldc + i] = gaussian();
-  }
+//   for (size_t j = 0; j < n; j++) {
+//     for (size_t i = 0; i < k; i++)
+//       C[j * ldc + i] = gaussian();
+//   }
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < n; i++) {
-      double temp = 0.0;
-      for (size_t l = 0; l < k; l++)
-        temp += C[i * ldc + l] * C[j * ldc + l];
-      A[j * lda + i] = temp;
+//       double temp = 0.0;
+//       for (size_t l = 0; l < k; l++)
+//         temp += C[i * ldc + l] * C[j * ldc + l];
+      refB[j * ldb + i] = A[j * lda + i] = gaussian();//temp;
     }
   }
-  free(C);
+//   free(C);
 
-  dpotrf(uplo, n, A, lda, &info);
-  if (info != 0) {
-    fprintf(stderr, "Failed to compute Cholesky decomposition of A\n");
-    return (int)info;
-  }
+//   dpotrf(uplo, n, A, lda, &info);
+//   if (info != 0) {
+//     fprintf(stderr, "Failed to compute Cholesky decomposition of A\n");
+//     return (int)info;
+//   }
 
-  for (size_t j = 0; j < n; j++)
-    memcpy(&refB[j * ldb], &A[j * lda], n * sizeof(double));
+//   for (size_t j = 0; j < n; j++)
+//     memcpy(&refB[j * ldb], &A[j * lda], n * sizeof(double));
 
   dtrtri_ref(uplo, diag, n, refB, ldb, &rInfo);
   dtrtri2(uplo, diag, n, A, lda, B, ldb, &info);

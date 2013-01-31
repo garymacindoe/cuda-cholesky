@@ -37,7 +37,7 @@ int main(int argc, char * argv[]) {
 
   srand(0);
 
-  double * A, * C, * refA;
+  double * A, * refA, * C;
   size_t lda, ldc, k = 5 * n;
   long info, rInfo;
 
