@@ -8,6 +8,7 @@
 #include <math.h>
 #include <sys/time.h>
 #include "ref/dpotri_ref.c"
+#include "util/dlatmc.c"
 
 int main(int argc, char * argv[]) {
   CBlasUplo uplo;
@@ -38,8 +39,8 @@ int main(int argc, char * argv[]) {
 
   srand(0);
 
-  double * A, * refA;//, * C;
-  size_t lda;//, ldc, k = 5 * n;
+  double * A, * refA;
+  size_t lda;
   long info, rInfo;
 
   CU_ERROR_CHECK(cuInit(0));
@@ -59,43 +60,28 @@ int main(int argc, char * argv[]) {
 
   lda = (n + 1u) & ~1u;
   if ((A = malloc(lda *  n * sizeof(double))) == NULL) {
-    fprintf(stderr, "Unable to allocate A\n");
+    fputs("Unable to allocate A\n", stderr);
     return -1;
   }
 
   if ((refA = malloc(lda * n * sizeof(double))) == NULL) {
-    fprintf(stderr, "Unable to allocate refA\n");
+    fputs("Unable to allocate refA\n", stderr);
     return -2;
   }
 
-//   ldc = (k + 1u) & ~1u;
-//   if ((C = malloc(ldc * n * sizeof(double))) == NULL) {
-//     fprintf(stderr, "Unable to allocate C\n");
-//     return -3;
-//   }
-
-//   for (size_t j = 0; j < n; j++) {
-//     for (size_t i = 0; i < k; i++)
-//       C[j * ldc + i] = gaussian();
-//   }
-  for (size_t j = 0; j < n; j++) {
-    for (size_t i = 0; i < n; i++) {
-//       double temp = 0.0;
-//       for (size_t l = 0; l < k; l++)
-//         temp += C[i * ldc + l] * C[j * ldc + l];
-      refA[j * lda + i] = A[j * lda + i] = gaussian();//temp;
-    }
+  if (dlatmc(n, 2.0, A, lda) != 0) {
+    fputs("Unable to initialise A\n", stderr);
+    return -1;
   }
-//   free(C);
 
 //   dpotrf(uplo, n, A, lda, &info);
 //   if (info != 0) {
-//     fprintf(stderr, "Failed to compute Cholesky decomposition of A\n");
+//     fputs("Failed to compute Cholesky decomposition of A\n", stderr);
 //     return (int)info;
 //   }
 
-//   for (size_t j = 0; j < n; j++)
-//     memcpy(&refA[j * lda], &A[j * lda], n * sizeof(double));
+  for (size_t j = 0; j < n; j++)
+    memcpy(&refA[j * lda], &A[j * lda], n * sizeof(double));
 
   dpotri_ref(uplo, n, refA, lda, &rInfo);
   CU_ERROR_CHECK(cuMultiGPUDpotri(handle, uplo, n, A, lda, &info));

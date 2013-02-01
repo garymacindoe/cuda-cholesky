@@ -61,9 +61,9 @@ zpotrf.o: lapack.h blas.h cumultigpu.h error.h config.h zpotrf.fatbin.c
 zpotri.o: lapack.h blas.h cumultigpu.h error.h
 ztrtri.o: lapack.h blas.h cumultigpu.h error.h config.h ztrtri.fatbin.c
 
-spotrf.fatbin slauum.fatbin strtri.fatbin: NVCFLAGS = -code=sm_11,sm_13 -arch=compute_11
-dpotrf.fatbin dlauum.fatbin dtrtri.fatbin: NVCFLAGS = -code=sm_13 -arch=compute_13
-cpotrf.fatbin clauum.fatbin ctrtri.fatbin: NVCFLAGS = -code=sm_11,sm_13 -arch=compute_11
-zpotrf.fatbin zlauum.fatbin ztrtri.fatbin: NVCFLAGS = -code=sm_13 -arch=compute_13
+spotrf.fatbin slauum.fatbin strtri.fatbin: NVCFLAGS += -code=sm_11,sm_13 -arch=compute_11
+dpotrf.fatbin dlauum.fatbin dtrtri.fatbin: NVCFLAGS += -code=sm_13 -arch=compute_13
+cpotrf.fatbin clauum.fatbin ctrtri.fatbin: NVCFLAGS += -code=sm_11,sm_13 -arch=compute_11
+zpotrf.fatbin zlauum.fatbin ztrtri.fatbin: NVCFLAGS += -code=sm_13 -arch=compute_13
 
 $(FATBINS): blas.h cumultigpu.h

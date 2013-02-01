@@ -146,26 +146,26 @@ void cpotrf(CBlasUplo uplo,
   }
 }
 
-// static inline CUresult cuCpotf2(CUmodule module, CBlasUplo uplo,
-//                                 size_t n,
-//                                 CUdeviceptr A, size_t lda,
-//                                 CUdeviceptr info, CUstream stream) {
-//   const unsigned int bx = 32;
-//
-//   char name[45];
-//   snprintf(name, 45, "_Z6cpotf2IL9CBlasUplo%dELj%uEEviP6float2iPi", uplo, bx);
-//
-//   CUfunction function;
-//   CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
-//
-//   void * params[] = { &n, &A, &lda, &info };
-//
-//   CU_ERROR_CHECK(cuLaunchKernel(function, 1, 1, 1, bx, 1, 1, 0, stream, params, NULL));
-//
-//   return CUDA_SUCCESS;
-// }
+static inline CUresult cuCpotf2(CUmodule module, CBlasUplo uplo,
+                                size_t n,
+                                CUdeviceptr A, size_t lda,
+                                CUdeviceptr info, CUstream stream) {
+  const unsigned int bx = 32;
 
-CUresult cuCpotrf(CUblashandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, long * info) {
+  char name[45];
+  snprintf(name, 45, "_Z6cpotf2IL9CBlasUplo%dELj%uEEvP6float2Piii", uplo, bx);
+
+  CUfunction function;
+  CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
+
+  void * params[] = { &A, &info, &lda, &n };
+
+  CU_ERROR_CHECK(cuLaunchKernel(function, 1, 1, 1, bx, 1, 1, 0, stream, params, NULL));
+
+  return CUDA_SUCCESS;
+}
+
+CUresult cuCpotrf(CUBLAShandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, long * info) {
   *info = 0;
   if (lda < n)
     *info = -4;
@@ -178,13 +178,13 @@ CUresult cuCpotrf(CUblashandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A, 
     return CUDA_SUCCESS;
 
   /**
-   * The CGEMM consumes most of the FLOPs in the Cholesky decomposition so the
+   * The SGEMM consumes most of the FLOPs in the Cholesky decomposition so the
    * block sizes are chosen to favour it.  In the upper triangular case it is
    * the row matrix to the right of the diagonal block that is updated via
-   * D = -A^T * C + D (i.e. the A argument to CGEMM is transposed) therefore the
-   * block size is CGEMM_C_MB.  For the lower triangular case it is the column
+   * D = -A^T * C + D (i.e. the A argument to SGEMM is transposed) therefore the
+   * block size is SGEMM_T_MB.  For the lower triangular case it is the column
    * matrix below the diagonal block that is updated via D = -C * A^T + D so the
-   * block size is CGEMM_N_NB.
+   * block size is SGEMM_N_NB.
    */
   const size_t nb = (uplo == CBlasUpper) ? CGEMM_C_MB : CGEMM_N_NB;
 
@@ -291,7 +291,7 @@ CUresult cuCpotrf(CUblashandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A, 
   return CUDA_SUCCESS;
 }
 
-CUresult cuMultiGPUCpotrf(CUmultiGPUBlasHandle handle, CBlasUplo uplo,
+CUresult cuMultiGPUCpotrf(CUmultiGPUBLAShandle handle, CBlasUplo uplo,
                           size_t n,
                           float complex * restrict A, size_t lda,
                           long * restrict info) {
@@ -306,6 +306,15 @@ CUresult cuMultiGPUCpotrf(CUmultiGPUBlasHandle handle, CBlasUplo uplo,
   if (n == 0)
     return CUDA_SUCCESS;
 
+  /**
+   * The CGEMM consumes most of the FLOPs in the Cholesky decomposition so the
+   * block sizes are chosen to favour it.  In the upper triangular case it is
+   * the row matrix to the right of the diagonal block that is updated via
+   * D = -A^T * C + D (i.e. the A argument to CGEMM is transposed) therefore the
+   * block size is CGEMM_C_MB.  For the lower triangular case it is the column
+   * matrix below the diagonal block that is updated via D = -C * A^T + D so the
+   * block size is CGEMM_N_NB.
+   */
   const size_t nb = (uplo == CBlasUpper) ? CGEMM_C_MB : CGEMM_N_NB;
 
   if (n < nb) {
@@ -319,7 +328,7 @@ CUresult cuMultiGPUCpotrf(CUmultiGPUBlasHandle handle, CBlasUplo uplo,
 
       CU_ERROR_CHECK(cuMultiGPUCherk(handle, CBlasUpper, CBlasConjTrans, jb, j,
                                      -one, &A[j * lda], lda, one, &A[j * lda + j], lda));
-      CU_ERROR_CHECK(cuMultiGPUBlasSynchronize(handle));
+      CU_ERROR_CHECK(cuMultiGPUBLASSynchronize(handle));
       cpotrf(CBlasUpper, jb, &A[j * lda + j], lda, info);
       if (*info != 0) {
         (*info) += (long)j;
@@ -341,7 +350,7 @@ CUresult cuMultiGPUCpotrf(CUmultiGPUBlasHandle handle, CBlasUplo uplo,
 
       CU_ERROR_CHECK(cuMultiGPUCherk(handle, CBlasLower, CBlasNoTrans, jb, j,
                                      -one, &A[j], lda, one, &A[j * lda + j], lda));
-      CU_ERROR_CHECK(cuMultiGPUBlasSynchronize(handle));
+      CU_ERROR_CHECK(cuMultiGPUBLASSynchronize(handle));
       cpotrf(CBlasLower, jb, &A[j * lda + j], lda, info);
       if (*info != 0) {
         (*info) += (long)j;

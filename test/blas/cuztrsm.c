@@ -7,6 +7,7 @@
 #include <math.h>
 #include <complex.h>
 #include "ref/ztrsm_ref.c"
+#include "util/zlatmc.c"
 
 int main(int argc, char * argv[]) {
   CBlasSide side;
@@ -92,9 +93,9 @@ int main(int argc, char * argv[]) {
 
   srand(0);
 
-  double complex alpha, * A, * B, * refB, * C;
+  double complex alpha, * A, * B, * refB;
   CUdeviceptr dA, dB;
-  size_t lda, ldb, ldc, dlda, dldb, * F, * G;
+  size_t lda, ldb, dlda, dldb, * F, * G;
 
   CU_ERROR_CHECK(cuInit(0));
 
@@ -104,8 +105,8 @@ int main(int argc, char * argv[]) {
   CUcontext context;
   CU_ERROR_CHECK(cuCtxCreate(&context, CU_CTX_SCHED_BLOCKING_SYNC, device));
 
-  CUblashandle handle;
-  CU_ERROR_CHECK(cuBlasHandleCreate(&handle));
+  CUBLAShandle handle;
+  CU_ERROR_CHECK(cuBLASCreate(&handle));
 
   alpha = ((double)rand() / (double)RAND_MAX) + ((double)rand() / (double)RAND_MAX) * I;
 
@@ -118,25 +119,10 @@ int main(int argc, char * argv[]) {
     CU_ERROR_CHECK(cuMemAllocPitch(&dA, &dlda, m * sizeof(double complex), m, sizeof(double complex)));
     dlda /= sizeof(double complex);
 
-    size_t k = m * 5;
-    ldc = k;
-    if ((C = malloc(ldc * m * sizeof(double complex))) == NULL) {
-      fputs("Unable to allocate C\n", stderr);
+    if (zlatmc(m, 2.0, A, lda) != 0) {
+      fputs("Unable to initialise A\n", stderr);
       return -1;
     }
-    for (size_t j = 0; j < m; j++) {
-      for (size_t i = 0; i < k; i++)
-        C[j * ldc + i] = ((double)rand() / (double)RAND_MAX) + ((double)rand() / (double)RAND_MAX) * I;
-    }
-    for (size_t j = 0; j < m; j++) {
-      for (size_t i = 0; i < m; i++) {
-        double complex temp = 0.0 + 0.0 * I;
-        for (size_t l = 0; l < k; l++)
-          temp += conj(C[i * ldc + l]) * C[j * ldc + l];
-        A[j * lda + i] = temp;
-      }
-    }
-    free(C);
 
     CUDA_MEMCPY2D copy = { 0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(double complex),
                            0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(double complex),
@@ -152,25 +138,10 @@ int main(int argc, char * argv[]) {
     CU_ERROR_CHECK(cuMemAllocPitch(&dA, &dlda, n * sizeof(double complex), n, sizeof(double complex)));
     dlda /= sizeof(double complex);
 
-    size_t k = n * 5;
-    ldc = k;
-    if ((C = malloc(ldc * n * sizeof(double complex))) == NULL) {
-      fputs("Unable to allocate C\n", stderr);
+    if (zlatmc(n, 2.0, A, lda) != 0) {
+      fputs("Unable to initialise A\n", stderr);
       return -1;
     }
-    for (size_t j = 0; j < n; j++) {
-      for (size_t i = 0; i < k; i++)
-        C[j * ldc + i] = ((double)rand() / (double)RAND_MAX) + ((double)rand() / (double)RAND_MAX) * I;
-    }
-    for (size_t j = 0; j < n; j++) {
-      for (size_t i = 0; i < n; i++) {
-        double complex temp = 0.0 + 0.0 * I;
-        for (size_t l = 0; l < k; l++)
-          temp += conj(C[i * ldc + l]) * C[j * ldc + l];
-        A[j * lda + i] = temp;
-      }
-    }
-    free(C);
 
     CUDA_MEMCPY2D copy = { 0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(double complex),
                            0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(double complex),
@@ -274,7 +245,7 @@ int main(int argc, char * argv[]) {
   CU_ERROR_CHECK(cuMemFree(dA));
   CU_ERROR_CHECK(cuMemFree(dB));
 
-  CU_ERROR_CHECK(cuBlasHandleDestroy(handle));
+  CU_ERROR_CHECK(cuBLASDestroy(handle));
 
   CU_ERROR_CHECK(cuCtxDestroy(context));
 

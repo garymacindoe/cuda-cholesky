@@ -160,7 +160,7 @@ void ssyrk(CBlasUplo uplo, CBlasTranspose trans,
   }
 }
 
-CUresult cuSsyrk(CUblashandle handle, CBlasUplo uplo, CBlasTranspose trans,
+CUresult cuSsyrk(CUBLAShandle handle, CBlasUplo uplo, CBlasTranspose trans,
                  size_t n, size_t k,
                  float alpha, CUdeviceptr A, size_t lda,
                  float beta, CUdeviceptr C, size_t ldc, CUstream stream) {
@@ -211,7 +211,7 @@ CUresult cuSsyrk(CUblashandle handle, CBlasUplo uplo, CBlasTranspose trans,
   return CUDA_SUCCESS;
 }
 
-CUresult cuMultiGPUSsyrk(CUmultiGPUBlasHandle handle,
+CUresult cuMultiGPUSsyrk(CUmultiGPUBLAShandle handle,
                          CBlasUplo uplo, CBlasTranspose trans,
                          size_t n, size_t k,
                          float alpha, const float * restrict A, size_t lda,

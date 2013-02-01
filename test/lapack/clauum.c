@@ -2,11 +2,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <string.h>
 #include <float.h>
 #include <math.h>
 #include <complex.h>
 #include <sys/time.h>
 #include "ref/clauum_ref.c"
+#include "util/clatmc.c"
 
 int main(int argc, char * argv[]) {
   CBlasUplo uplo;
@@ -15,8 +17,8 @@ int main(int argc, char * argv[]) {
   if (argc != 3) {
     fprintf(stderr, "Usage: %s <uplo> <n>\n"
                     "where:\n"
-                    "  uplo is 'u' or 'U' for CBlasUpper or 'l' or 'L' for CBlasLower\n"
-                    "  n                  is the size of the matrix\n", argv[0]);
+                    "  uplo  is 'u' or 'U' for CBlasUpper or 'l' or 'L' for CBlasLower\n"
+                    "  n     is the size of the matrix\n", argv[0]);
     return 1;
   }
 
@@ -44,19 +46,28 @@ int main(int argc, char * argv[]) {
 
   lda = (n + 1u) & ~1u;
   if ((A = malloc(lda *  n * sizeof(float complex))) == NULL) {
-    fprintf(stderr, "Unable to allocate A\n");
+    fputs("Unable to allocate A\n", stderr);
     return -1;
   }
 
   if ((refA = malloc(lda * n * sizeof(float complex))) == NULL) {
-    fprintf(stderr, "Unable to allocate refA\n");
+    fputs("Unable to allocate refA\n", stderr);
     return -2;
   }
 
-  for (size_t j = 0; j < n; j++) {
-    for (size_t i = 0; i < n; i++)
-      refA[j * lda + i] = A[j * lda + i] = gaussian();
+  if (clatmc(n, 2.0f, A, lda) != 0) {
+    fputs("Unable to initialise A\n", stderr);
+    return -1;
   }
+
+//   cpotrf(uplo, n, A, lda, &info);
+//   if (info != 0) {
+//     fprintf(stderr, "Failed to compute Cholesky decomposition of A\n");
+//     return (int)info;
+//   }
+
+  for (size_t j = 0; j < n; j++)
+    memcpy(&refA[j * lda], &A[j * lda], n * sizeof(float complex));
 
   clauum_ref(uplo, n, refA, lda, &rInfo);
   clauum(uplo, n, A, lda, &info);

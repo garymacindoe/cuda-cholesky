@@ -2,18 +2,21 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <string.h>
 #include <float.h>
 #include <math.h>
 #include <complex.h>
 #include <sys/time.h>
 #include "ref/zlauum_ref.c"
+#include "util/zlatmc.c"
 
 int main(int argc, char * argv[]) {
   CBlasUplo uplo;
   size_t n;
 
   if (argc != 3) {
-    fprintf(stderr, "Usage: %s <uplo> <diag> <n>\nwhere:\n"
+    fprintf(stderr, "Usage: %s <uplo> <n>\n"
+                    "where:\n"
                     "  uplo  is 'u' or 'U' for CBlasUpper or 'l' or 'L' for CBlasLower\n"
                     "  n     is the size of the matrix\n", argv[0]);
     return 1;
@@ -43,19 +46,28 @@ int main(int argc, char * argv[]) {
 
   lda = n;
   if ((A = malloc(lda *  n * sizeof(double complex))) == NULL) {
-    fprintf(stderr, "Unable to allocate A\n");
+    fputs("Unable to allocate A\n", stderr);
     return -1;
   }
 
   if ((refA = malloc(lda * n * sizeof(double complex))) == NULL) {
-    fprintf(stderr, "Unable to allocate refA\n");
+    fputs("Unable to allocate refA\n", stderr);
     return -2;
   }
 
-  for (size_t j = 0; j < n; j++) {
-    for (size_t i = 0; i < n; i++)
-      refA[j * lda + i] = A[j * lda + i] = gaussian();
+  if (zlatmc(n, 2.0, A, lda) != 0) {
+    fputs("Unable to initialise A\n", stderr);
+    return -1;
   }
+
+//   zpotrf(uplo, n, A, lda, &info);
+//   if (info != 0) {
+//     fprintf(stderr, "Failed to compute Cholesky decomposition of A\n");
+//     return (int)info;
+//   }
+
+  for (size_t j = 0; j < n; j++)
+    memcpy(&refA[j * lda], &A[j * lda], n * sizeof(double complex));
 
   zlauum_ref(uplo, n, refA, lda, &rInfo);
   zlauum(uplo, n, A, lda, &info);

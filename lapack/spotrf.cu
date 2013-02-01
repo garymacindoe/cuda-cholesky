@@ -20,7 +20,7 @@ __device__ int lower(int i, int j) {
 }
 
 template <CBlasUplo uplo, unsigned int bx>
-__global__ void spotf2(int n, float * A, int lda, int * info) {
+__global__ void spotf2(float * A, int * info, int lda, int n) {
   // info parameter cached in shared memory for fast access by all threads in the block
   __shared__ int sinfo;
 
@@ -147,5 +147,5 @@ __global__ void spotf2(int n, float * A, int lda, int * info) {
   }
 }
 
-template __global__ void spotf2<CBlasUpper, 64>(int, float *, int, int *);
-template __global__ void spotf2<CBlasLower, 64>(int, float *, int, int *);
+template __global__ void spotf2<CBlasUpper, 64>(float *, int *, int, int);
+template __global__ void spotf2<CBlasLower, 64>(float *, int *, int, int);

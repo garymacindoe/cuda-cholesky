@@ -7,6 +7,7 @@
 #include <math.h>
 #include <sys/time.h>
 #include "ref/strtri_ref.c"
+#include "util/slatmc.c"
 
 int main(int argc, char * argv[]) {
   CBlasUplo uplo;
@@ -50,55 +51,40 @@ int main(int argc, char * argv[]) {
 
   srand(0);
 
-  float * A, * B, * refB;//, * C;
-  size_t lda, ldb;//, ldc, k = 5 * n;
+  float * A, * B, * refB;
+  size_t lda, ldb;
   long info, rInfo;
 
   lda = (n + 3u) & ~3u;
   if ((A = malloc(lda *  n * sizeof(float))) == NULL) {
-    fprintf(stderr, "Unable to allocate A\n");
+    fputs("Unable to allocate A\n", stderr);
     return -1;
   }
 
   ldb = (n + 3u) & ~3u;
   if ((B = malloc(ldb *  n * sizeof(float))) == NULL) {
-    fprintf(stderr, "Unable to allocate B\n");
+    fputs("Unable to allocate B\n", stderr);
     return -2;
   }
 
   if ((refB = malloc(ldb * n * sizeof(float))) == NULL) {
-    fprintf(stderr, "Unable to allocate refB\n");
+    fputs("Unable to allocate refB\n", stderr);
     return -3;
   }
 
-//   ldc = (k + 3u) & ~3u;
-//   if ((C = malloc(ldc * n * sizeof(float))) == NULL) {
-//     fprintf(stderr, "Unable to allocate C\n");
-//     return -4;
-//   }
-
-//   for (size_t j = 0; j < n; j++) {
-//     for (size_t i = 0; i < k; i++)
-//       C[j * ldc + i] = gaussian();
-//   }
-  for (size_t j = 0; j < n; j++) {
-    for (size_t i = 0; i < n; i++) {
-//       float temp = 0.0f;
-//       for (size_t l = 0; l < k; l++)
-//         temp += C[i * ldc + l] * C[j * ldc + l];
-      refB[j * ldb + i ] = A[j * lda + i] = gaussian();//temp;
-    }
+  if (slatmc(n, 2.0f, A, lda) != 0) {
+    fputs("Unable to initialise A\n", stderr);
+    return -1;
   }
-//   free(C);
 
 //   spotrf(uplo, n, A, lda, &info);
 //   if (info != 0) {
-//     fprintf(stderr, "Failed to compute Cholesky decomposition of A\n");
+//     fputs("Failed to compute Cholesky decomposition of A\n", stderr);
 //     return (int)info;
 //   }
 
-//   for (size_t j = 0; j < n; j++)
-//     memcpy(&refB[j * ldb], &A[j * lda], n * sizeof(float));
+  for (size_t j = 0; j < n; j++)
+    memcpy(&refB[j * ldb], &A[j * lda], n * sizeof(float));
 
   strtri_ref(uplo, diag, n, refB, ldb, &rInfo);
   strtri2(uplo, diag, n, A, lda, B, ldb, &info);

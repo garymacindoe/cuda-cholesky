@@ -22,7 +22,7 @@ void cpotri(CBlasUplo uplo,
   clauum(uplo, n, A, lda, info);
 }
 
-CUresult cuCpotri(CUblashandle handle, CBlasUplo uplo,
+CUresult cuCpotri(CUBLAShandle handle, CBlasUplo uplo,
                   size_t n,
                   CUdeviceptr A, size_t lda,
                   long * info) {
@@ -44,7 +44,7 @@ CUresult cuCpotri(CUblashandle handle, CBlasUplo uplo,
   return CUDA_SUCCESS;
 }
 
-CUresult cuMultiGPUCpotri(CUmultiGPUBlasHandle handle,
+CUresult cuMultiGPUCpotri(CUmultiGPUBLAShandle handle,
                           CBlasUplo uplo,
                           size_t n,
                           float complex * restrict A, size_t lda,

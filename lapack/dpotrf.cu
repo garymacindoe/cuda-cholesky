@@ -20,7 +20,7 @@ __device__ int lower(int i, int j) {
 }
 
 template <CBlasUplo uplo, unsigned int bx>
-__global__ void dpotf2(int n, double * A, int lda, int * info) {
+__global__ void dpotf2(double * A, int * info, int lda, int n) {
   // info parameter cached in shared memory for fast access by all threads in the block
   __shared__ int sinfo;
 
@@ -147,5 +147,5 @@ __global__ void dpotf2(int n, double * A, int lda, int * info) {
   }
 }
 
-template __global__ void dpotf2<CBlasUpper, 32>(int, double *, int, int *);
-template __global__ void dpotf2<CBlasLower, 32>(int, double *, int, int *);
+template __global__ void dpotf2<CBlasUpper, 32>(double *, int *, int, int);
+template __global__ void dpotf2<CBlasLower, 32>(double *, int *, int, int);

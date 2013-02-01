@@ -20,7 +20,7 @@ __device__ int lower(int i, int j) {
 }
 
 template <CBlasUplo uplo, unsigned int bx>
-__global__ void slauu2(int n, float * A, int lda) {
+__global__ void slauu2(float * A, int lda, int n) {
   /*
    * For efficient data reuse A needs to be cached in shared memory.  In order
    * to get maximum instruction throughput 64 threads are needed but this would
@@ -90,8 +90,8 @@ __global__ void slauu2(int n, float * A, int lda) {
   }
 }
 
-template __global__ void slauu2<CBlasUpper, 64>(int, float *, int);
-template __global__ void slauu2<CBlasLower, 64>(int, float *, int);
+template __global__ void slauu2<CBlasUpper, 64>(float *, int, int);
+template __global__ void slauu2<CBlasLower, 64>(float *, int, int);
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -115,9 +115,9 @@ template __global__ void slauu2<CBlasLower, 64>(int, float *, int);
 extern "C" void slauu2_(const char *, const int *, float *, const int *, int *);
 static inline void slauu2(CBlasUplo uplo, int n, float * A, int lda) {
   if (uplo == CBlasUpper)
-    slauu2<CBlasUpper, 64><<<1,64>>>(n, A, lda);
+    slauu2<CBlasUpper, 64><<<1,64>>>(A, lda, n);
   else
-    slauu2<CBlasLower, 64><<<1,64>>>(n, A, lda);
+    slauu2<CBlasLower, 64><<<1,64>>>(A, lda, n);
 }
 
 static int cond(int, float, float *, size_t);
@@ -151,7 +151,7 @@ int main(int argc, char * argv[]) {
   }
 
   float * A, * dA, * refA;
-  size_t lda = (n + 3) & ~3, dlda;
+  size_t lda = (n + 3u) & ~3u, dlda;
   if ((A = (float *)malloc(lda * n * sizeof(float))) == NULL) {
     fprintf(stderr, "Failed to allocate A\n");
     return -1;
@@ -227,7 +227,7 @@ static int cond(int n, float c, float * A, size_t lda) {
   }
 
   float * u, * v, * w;
-  int offset = (n + 1) & ~1;
+  size_t offset = (n + 3u) & ~3u;
 
   if ((u = (float *)malloc(3 * offset * sizeof(float))) == NULL)
     return 1;

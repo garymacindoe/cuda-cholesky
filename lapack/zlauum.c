@@ -126,7 +126,25 @@ void zlauum(CBlasUplo uplo,
   }
 }
 
-CUresult cuZlauum(CUblashandle handle,
+static inline CUresult cuZlauu2(CUmodule module, CBlasUplo uplo,
+                                size_t n,
+                                CUdeviceptr A, size_t lda, CUstream stream) {
+  const unsigned int bx = 16;
+
+  char name[44];
+  snprintf(name, 44, "_Z6zlauu2IL9CBlasUplo%dELj%uEEvP7double2ii", uplo, bx);
+
+  CUfunction function;
+  CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
+
+  void * params[] = { &A, &lda, &n };
+
+  CU_ERROR_CHECK(cuLaunchKernel(function, 1, 1, 1, bx, 1, 1, 0, stream, params, NULL));
+
+  return CUDA_SUCCESS;
+}
+
+CUresult cuZlauum(CUBLAShandle handle,
                   CBlasUplo uplo,
                   size_t n,
                   CUdeviceptr A, size_t lda,
@@ -266,7 +284,7 @@ CUresult cuZlauum(CUblashandle handle,
   return CUDA_SUCCESS;
 }
 
-CUresult cuMultiGPUZlauum(CUmultiGPUBlasHandle handle,
+CUresult cuMultiGPUZlauum(CUmultiGPUBLAShandle handle,
                           CBlasUplo uplo,
                           size_t n,
                           double complex * restrict A, size_t lda,

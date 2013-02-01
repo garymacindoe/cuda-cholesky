@@ -74,8 +74,8 @@ int main(int argc, char * argv[]) {
   CUmultiGPU mGPU;
   CU_ERROR_CHECK(cuMultiGPUCreate(&mGPU, devices, deviceCount));
 
-  CUmultiGPUBlasHandle handle;
-  CU_ERROR_CHECK(cuMultiGPUBlasCreate(&handle, mGPU));
+  CUmultiGPUBLAShandle handle;
+  CU_ERROR_CHECK(cuMultiGPUBLASCreate(&handle, mGPU));
 
   alpha = (float)rand() / (float)RAND_MAX;
   beta = (float)rand() / (float)RAND_MAX;
@@ -193,7 +193,7 @@ int main(int argc, char * argv[]) {
   free(C);
   free(refC);
 
-  CU_ERROR_CHECK(cuMultiGPUBlasDestroy(handle));
+  CU_ERROR_CHECK(cuMultiGPUBLASDestroy(handle));
   CU_ERROR_CHECK(cuMultiGPUDestroy(mGPU));
 
   return (int)!passed;

@@ -59,22 +59,3 @@ static void strtri_ref(CBlasUplo uplo, CBlasDiag diag, size_t n,
     } while (j-- > 0);
   }
 }
-
-static float gaussian() {
-  static bool hasNext = false;
-  static float next;
-
-  if (hasNext) {
-    hasNext = false;
-    return next;
-  }
-
-  float u0 = ((float)rand() + 1.0f) / (float)RAND_MAX;
-  float u1 = ((float)rand() + 1.0f) / (float)RAND_MAX;
-  float r = sqrtf(-2.0f * logf(u0));
-  float phi = 2.0f * 3.1415926535f * u1;
-  next = r * sinf(phi);
-  hasNext = true;
-
-  return r * cosf(phi);
-}

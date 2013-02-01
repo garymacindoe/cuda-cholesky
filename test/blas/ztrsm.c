@@ -7,6 +7,7 @@
 #include <complex.h>
 #include <sys/time.h>
 #include "ref/ztrsm_ref.c"
+#include "util/zlatmc.c"
 
 int main(int argc, char * argv[]) {
   CBlasSide side;
@@ -83,8 +84,8 @@ int main(int argc, char * argv[]) {
 
   srand(0);
 
-  double complex alpha, * A, * B, * refB, * C;
-  size_t lda, ldb, ldc, * F, * G;
+  double complex alpha, * A, * B, * refB;
+  size_t lda, ldb, * F, * G;
 
   alpha = ((double)rand() / (double)RAND_MAX) + ((double)rand() / (double)RAND_MAX) * I;
 
@@ -95,25 +96,10 @@ int main(int argc, char * argv[]) {
       return -1;
     }
 
-    size_t k = m * 5;
-    ldc = k;
-    if ((C = malloc(ldc * m * sizeof(double complex))) == NULL) {
-      fputs("Unable to allocate C\n", stderr);
+    if (zlatmc(m, 2.0, A, lda) != 0) {
+      fputs("Unable to initialise A\n", stderr);
       return -1;
     }
-    for (size_t j = 0; j < m; j++) {
-      for (size_t i = 0; i < k; i++)
-        C[j * ldc + i] = ((double)rand() / (double)RAND_MAX) + ((double)rand() / (double)RAND_MAX) * I;
-    }
-    for (size_t j = 0; j < m; j++) {
-      for (size_t i = 0; i < m; i++) {
-        double complex temp = 0.0;
-        for (size_t l = 0; l < k; l++)
-          temp += conj(C[i * ldc + l]) * C[j * ldc + l];
-        A[j * lda + i] = temp;
-      }
-    }
-    free(C);
   }
   else {
     lda = n;
@@ -122,25 +108,10 @@ int main(int argc, char * argv[]) {
       return -1;
     }
 
-    size_t k = n * 5;
-    ldc = k;
-    if ((C = malloc(ldc * n * sizeof(double complex))) == NULL) {
-      fputs("Unable to allocate C\n", stderr);
+    if (zlatmc(n, 2.0, A, lda) != 0) {
+      fputs("Unable to initialise A\n", stderr);
       return -1;
     }
-    for (size_t j = 0; j < n; j++) {
-      for (size_t i = 0; i < k; i++)
-        C[j * ldc + i] = ((double)rand() / (double)RAND_MAX) + ((double)rand() / (double)RAND_MAX) * I;
-    }
-    for (size_t j = 0; j < n; j++) {
-      for (size_t i = 0; i < n; i++) {
-        double complex temp = 0.0;
-        for (size_t l = 0; l < k; l++)
-          temp += conj(C[i * ldc + l]) * C[j * ldc + l];
-        A[j * lda + i] = temp;
-      }
-    }
-    free(C);
   }
 
   ldb = m;

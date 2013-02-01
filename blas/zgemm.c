@@ -223,7 +223,7 @@ void zgemm(CBlasTranspose transA, CBlasTranspose transB,
   }
 }
 
-CUresult cuZgemm2(CUblashandle handle, CBlasTranspose transA, CBlasTranspose transB,
+CUresult cuZgemm2(CUBLAShandle handle, CBlasTranspose transA, CBlasTranspose transB,
                   size_t m, size_t n, size_t k,
                   double complex alpha, CUdeviceptr A, size_t lda, CUdeviceptr B, size_t ldb,
                   double complex beta, CUdeviceptr C, size_t ldc, CUdeviceptr D, size_t ldd,
@@ -285,7 +285,7 @@ CUresult cuZgemm2(CUblashandle handle, CBlasTranspose transA, CBlasTranspose tra
 }
 
 struct zgemm_args {
-  CUblashandle handle;
+  CUBLAShandle handle;
   const double complex * A, * B;
   double complex * C;
   size_t m, n, k, lda, ldb, ldc;
@@ -295,7 +295,7 @@ struct zgemm_args {
 
 static CUresult background_zgemm(const void * a) {
   struct zgemm_args * args = (struct zgemm_args *)a;
-  CUblashandle handle = args->handle;
+  CUBLAShandle handle = args->handle;
 
   const size_t mb = (args->transA == CBlasNoTrans) ? ZGEMM_N_MB : ((args->transB == CBlasNoTrans) ? ZGEMM_CN_MB : ZGEMM_CC_MB);
   const size_t nb = (args->transA == CBlasNoTrans) ? ZGEMM_N_NB : ((args->transB == CBlasNoTrans) ? ZGEMM_CN_NB : ZGEMM_CC_NB);
@@ -513,7 +513,7 @@ static CUresult background_zgemm(const void * a) {
   return CUDA_SUCCESS;
 }
 
-CUresult cuMultiGPUZgemm(CUmultiGPUBlasHandle handle,
+CUresult cuMultiGPUZgemm(CUmultiGPUBLAShandle handle,
                          CBlasTranspose transA, CBlasTranspose transB,
                          size_t m, size_t n, size_t k,
                          double complex alpha, const double complex * restrict A, size_t lda,

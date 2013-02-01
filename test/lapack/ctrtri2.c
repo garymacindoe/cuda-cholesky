@@ -8,6 +8,7 @@
 #include <complex.h>
 #include <sys/time.h>
 #include "ref/ctrtri_ref.c"
+#include "util/clatmc.c"
 
 int main(int argc, char * argv[]) {
   CBlasUplo uplo;
@@ -51,46 +52,31 @@ int main(int argc, char * argv[]) {
 
   srand(0);
 
-  float complex * A, * B, * refB;//, * C;
-  size_t lda, ldb;//, ldc, k = 5 * n;
+  float complex * A, * B, * refB;
+  size_t lda, ldb;
   long info, rInfo;
 
   lda = (n + 1u) & ~1u;
   if ((A = malloc(lda *  n * sizeof(float complex))) == NULL) {
-    fprintf(stderr, "Unable to allocate A\n");
+    fputs("Unable to allocate A\n", stderr);
     return -1;
   }
 
   ldb = (n + 1u) & ~1u;
   if ((B = malloc(ldb *  n * sizeof(float complex))) == NULL) {
-    fprintf(stderr, "Unable to allocate B\n");
+    fputs("Unable to allocate B\n", stderr);
     return -2;
   }
 
   if ((refB = malloc(ldb * n * sizeof(float complex))) == NULL) {
-    fprintf(stderr, "Unable to allocate refB\n");
+    fputs("Unable to allocate refB\n", stderr);
     return -3;
   }
 
-//   ldc = (k + 1u) & ~1u;
-//   if ((C = malloc(ldc * n * sizeof(float complex))) == NULL) {
-//     fprintf(stderr, "Unable to allocate C\n");
-//     return -4;
-//   }
-
-//   for (size_t j = 0; j < n; j++) {
-//     for (size_t i = 0; i < k; i++)
-//       C[j * ldc + i] = gaussian();
-//   }
-  for (size_t j = 0; j < n; j++) {
-    for (size_t i = 0; i < n; i++) {
-//       float complex temp = 0.0f + 0.0f * I;
-//       for (size_t l = 0; l < k; l++)
-//         temp += conjf(C[i * ldc + l]) * C[j * ldc + l];
-      refB[j * ldb + i] = A[j * lda + i] = gaussian();//temp;
-    }
+  if (clatmc(n, 2.0f, A, lda) != 0) {
+    fputs("Unable to initialise A\n", stderr);
+    return -1;
   }
-//   free(C);
 
 //   cpotrf(uplo, n, A, lda, &info);
 //   if (info != 0) {
@@ -98,8 +84,8 @@ int main(int argc, char * argv[]) {
 //     return (int)info;
 //   }
 
-//   for (size_t j = 0; j < n; j++)
-//     memcpy(&refB[j * ldb], &A[j * lda], n * sizeof(float complex));
+  for (size_t j = 0; j < n; j++)
+    memcpy(&refB[j * ldb], &A[j * lda], n * sizeof(float complex));
 
   ctrtri_ref(uplo, diag, n, refB, ldb, &rInfo);
   ctrtri2(uplo, diag, n, A, lda, B, ldb, &info);

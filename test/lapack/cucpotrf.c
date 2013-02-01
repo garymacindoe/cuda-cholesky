@@ -3,10 +3,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <string.h>
 #include <float.h>
 #include <math.h>
 #include <complex.h>
 #include "ref/cpotrf_ref.c"
+#include "util/clatmc.c"
 
 int main(int argc, char * argv[]) {
   CBlasUplo uplo;
@@ -40,9 +42,9 @@ int main(int argc, char * argv[]) {
 
   srand(0);
 
-  float complex * A, * C, * refA;
+  float complex * A, * refA;
   CUdeviceptr dA;
-  size_t lda, ldc, dlda, k = 5 * n;
+  size_t lda, dlda;
   long info, rInfo;
 
   CU_ERROR_CHECK(cuInit(0));
@@ -58,35 +60,23 @@ int main(int argc, char * argv[]) {
 
   lda = (n + 1u) & ~1u;
   if ((A = malloc(lda *  n * sizeof(float complex))) == NULL) {
-    fprintf(stderr, "Unable to allocate A\n");
+    fputs("Unable to allocate A\n", stderr);
     return -1;
   }
   if ((refA = malloc(lda * n * sizeof(float complex))) == NULL) {
-    fprintf(stderr, "Unable to allocate refA\n");
+    fputs("Unable to allocate refA\n", stderr);
     return -2;
   }
   CU_ERROR_CHECK(cuMemAllocPitch(&dA, &dlda, n * sizeof(float complex), n, sizeof(float complex)));
   dlda /= sizeof(float complex);
 
-  ldc = (k + 1u) & ~1u;
-  if ((C = malloc(ldc * n * sizeof(float complex))) == NULL) {
-    fprintf(stderr, "Unable to allocate C\n");
-    return -3;
+  if (clatmc(n, 2.0f, A, lda) != 0) {
+    fputs("Unable to initialise A\n", stderr);
+    return -1;
   }
 
-  for (size_t j = 0; j < n; j++) {
-    for (size_t i = 0; i < k; i++)
-      C[j * ldc + i] = gaussian();
-  }
-  for (size_t j = 0; j < n; j++) {
-    for (size_t i = 0; i < n; i++) {
-      float complex temp = 0.0f + 0.0f * I;
-      for (size_t l = 0; l < k; l++)
-        temp += conjf(C[i * ldc + l]) * C[j * ldc + l];
-      refA[j * lda + i] = A[j * lda + i] = temp;
-    }
-  }
-  free(C);
+  for (size_t j = 0; j < n; j++)
+    memcpy(&refA[j * lda], &A[j * lda], n * sizeof(float complex));
 
   CUDA_MEMCPY2D copy = { 0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(float complex),
                          0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(float complex),

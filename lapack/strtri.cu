@@ -20,7 +20,7 @@ __device__ int lower(int i, int j) {
 }
 
 template <CBlasUplo uplo, CBlasDiag diag, unsigned int bx>
-__global__ void strti2(int n, float * A, int lda, int * info) {
+__global__ void strti2(float * A, int * info, int lda, int n) {
   // info parameter cached in shared memory for fast access by all threads in the block
   __shared__ int sinfo;
 
@@ -166,11 +166,11 @@ __global__ void strti2(int n, float * A, int lda, int * info) {
   }
 }
 
-template __global__ void strti2<CBlasUpper, CBlasUnit, 64>(int, float *, int, int *);
-template __global__ void strti2<CBlasUpper, CBlasNonUnit, 64>(int, float *, int, int *);
-template __global__ void strti2<CBlasLower, CBlasUnit, 64>(int, float *, int, int *);
-template __global__ void strti2<CBlasLower, CBlasNonUnit, 64>(int, float *, int, int *);
-#if 0
+template __global__ void strti2<CBlasUpper, CBlasUnit, 64>(float *, int *, int, int);
+template __global__ void strti2<CBlasUpper, CBlasNonUnit, 64>(float *, int *, int, int);
+template __global__ void strti2<CBlasLower, CBlasUnit, 64>(float *, int *, int, int);
+template __global__ void strti2<CBlasLower, CBlasNonUnit, 64>(float *, int *, int, int);
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -194,15 +194,15 @@ extern "C" void strti2_(const char *, const char *, const int *, float *, const 
 static inline void strti2(CBlasUplo uplo, CBlasDiag diag, int n, float * A, int lda, int * info) {
   if (uplo == CBlasUpper) {
     if (diag == CBlasNonUnit)
-      strti2<CBlasUpper, CBlasNonUnit, 64><<<1,64>>>(n, A, lda, info);
+      strti2<CBlasUpper, CBlasNonUnit, 64><<<1,64>>>(A, info, lda, n);
     else
-      strti2<CBlasUpper, CBlasUnit, 64><<<1,64>>>(n, A, lda, info);
+      strti2<CBlasUpper, CBlasUnit, 64><<<1,64>>>(A, info, lda, n);
   }
   else {
     if (diag == CBlasNonUnit)
-      strti2<CBlasLower, CBlasNonUnit, 64><<<1,64>>>(n, A, lda, info);
+      strti2<CBlasLower, CBlasNonUnit, 64><<<1,64>>>(A, info, lda, n);
     else
-      strti2<CBlasLower, CBlasUnit, 64><<<1,64>>>(n, A, lda, info);
+      strti2<CBlasLower, CBlasUnit, 64><<<1,64>>>(A, info, lda, n);
   }
 }
 
@@ -330,7 +330,7 @@ static int cond(int n, float c, float * A, size_t lda) {
   }
 
   float * u, * v, * w;
-  int offset = (n + 1) & ~1;
+  size_t offset = (n + 3u) & ~3u;
 
   if ((u = (float *)malloc(3 * offset * sizeof(float))) == NULL)
     return 1;
@@ -378,4 +378,3 @@ static int cond(int n, float c, float * A, size_t lda) {
 
   return 0;
 }
-#endif

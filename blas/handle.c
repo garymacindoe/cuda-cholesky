@@ -81,32 +81,32 @@ static inline CUresult cublashandle_cleanup(struct __cublashandle_st * handle) {
   return CUDA_SUCCESS;
 }
 
-CUresult cuBlasHandleCreate(CUblashandle * handle) {
+CUresult cuBLASCreate(CUBLAShandle * handle) {
   if ((*handle = malloc(sizeof(struct __cublashandle_st))) == NULL)
     return CUDA_ERROR_OUT_OF_MEMORY;
   CU_ERROR_CHECK(cublashandle_init(*handle));
   return CUDA_SUCCESS;
 }
 
-CUresult cuBlasHandleDestroy(CUblashandle handle) {
+CUresult cuBLASDestroy(CUBLAShandle handle) {
   CU_ERROR_CHECK(cublashandle_cleanup(handle));
   free(handle);
   return CUDA_SUCCESS;
 }
 
 static CUresult init(const void * args) {
-  CUblashandle handle = (CUblashandle)args;
-  CU_ERROR_CHECK(cuBlasHandleCreate(&handle));
+  CUBLAShandle handle = (CUBLAShandle)args;
+  CU_ERROR_CHECK(cuBLASCreate(&handle));
   return CUDA_SUCCESS;
 }
 
 static CUresult cleanup(const void * args) {
-  CUblashandle handle = (CUblashandle)args;
-  CU_ERROR_CHECK(cuBlasHandleDestroy(handle));
+  CUBLAShandle handle = (CUBLAShandle)args;
+  CU_ERROR_CHECK(cuBLASDestroy(handle));
   return CUDA_SUCCESS;
 }
 
-CUresult cuMultiGPUBlasCreate(CUmultiGPUBlasHandle * handle, CUmultiGPU mGPU) {
+CUresult cuMultiGPUBLASCreate(CUmultiGPUBLAShandle * handle, CUmultiGPU mGPU) {
   if ((*handle = malloc(sizeof(struct __cumultigpublashandle_st))) == NULL)
     return CUDA_ERROR_OUT_OF_MEMORY;
 
@@ -117,10 +117,10 @@ CUresult cuMultiGPUBlasCreate(CUmultiGPUBlasHandle * handle, CUmultiGPU mGPU) {
     return CUDA_ERROR_OUT_OF_MEMORY;
 
   for (int i = 0; i < n; i++) {
-    CUblashandle h = &(*handle)->handles[i];
+    CUBLAShandle h = &(*handle)->handles[i];
 
     CUtask task;
-    CU_ERROR_CHECK(cuTaskCreate(&task, init, &h, sizeof(CUblashandle)));
+    CU_ERROR_CHECK(cuTaskCreate(&task, init, &h, sizeof(CUBLAShandle)));
     CU_ERROR_CHECK(cuMultiGPURunTask(mGPU, i, task));
 
     CUresult result;
@@ -132,11 +132,11 @@ CUresult cuMultiGPUBlasCreate(CUmultiGPUBlasHandle * handle, CUmultiGPU mGPU) {
   return CUDA_SUCCESS;
 }
 
-CUresult cuMultiGPUBlasDestroy(CUmultiGPUBlasHandle handle) {
+CUresult cuMultiGPUBLASDestroy(CUmultiGPUBLAShandle handle) {
   int n = cuMultiGPUGetContextCount(handle->mGPU);
   for (int i = 0; i < n; i++) {
     CUtask task;
-    CU_ERROR_CHECK(cuTaskCreate(&task, cleanup, &handle->handles[i], sizeof(CUblashandle)));
+    CU_ERROR_CHECK(cuTaskCreate(&task, cleanup, &handle->handles[i], sizeof(CUBLAShandle)));
     CU_ERROR_CHECK(cuMultiGPURunTask(handle->mGPU, i, task));
 
     CUresult result;
@@ -147,7 +147,7 @@ CUresult cuMultiGPUBlasDestroy(CUmultiGPUBlasHandle handle) {
   return CUDA_SUCCESS;
 }
 
-CUresult cuMultiGPUBlasSynchronize(CUmultiGPUBlasHandle handle) {
+CUresult cuMultiGPUBLASSynchronize(CUmultiGPUBLAShandle handle) {
   CU_ERROR_CHECK(cuMultiGPUSynchronize(handle->mGPU));
   return CUDA_SUCCESS;
 }

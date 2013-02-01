@@ -144,26 +144,26 @@ void dpotrf(CBlasUplo uplo,
   }
 }
 
-// static inline CUresult cuDpotf2(CUmodule module, CBlasUplo uplo,
-//                                 size_t n,
-//                                 CUdeviceptr A, size_t lda,
-//                                 CUdeviceptr info, CUstream stream) {
-//   const unsigned int bx = 32;
-//
-//   char name[39];
-//   snprintf(name, 39, "_Z6dpotf2IL9CBlasUplo%dELj%uEEviPdiPi", uplo, bx);
-//
-//   CUfunction function;
-//   CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
-//
-//   void * params[] = { &n, &A, &lda, &info };
-//
-//   CU_ERROR_CHECK(cuLaunchKernel(function, 1, 1, 1, bx, 1, 1, 0, stream, params, NULL));
-//
-//   return CUDA_SUCCESS;
-// }
+static inline CUresult cuDpotf2(CUmodule module, CBlasUplo uplo,
+                                size_t n,
+                                CUdeviceptr A, size_t lda,
+                                CUdeviceptr info, CUstream stream) {
+  const unsigned int bx = 32;
 
-CUresult cuDpotrf(CUblashandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, long * info) {
+  char name[39];
+  snprintf(name, 39, "_Z6dpotf2IL9CBlasUplo%dELj%uEEvPdPiii", uplo, bx);
+
+  CUfunction function;
+  CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
+
+  void * params[] = { &A, &info, &lda, &n };
+
+  CU_ERROR_CHECK(cuLaunchKernel(function, 1, 1, 1, bx, 1, 1, 0, stream, params, NULL));
+
+  return CUDA_SUCCESS;
+}
+
+CUresult cuDpotrf(CUBLAShandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, long * info) {
   *info = 0;
   if (lda < n)
     *info = -4;
@@ -289,7 +289,7 @@ CUresult cuDpotrf(CUblashandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A, 
   return CUDA_SUCCESS;
 }
 
-CUresult cuMultiGPUDpotrf(CUmultiGPUBlasHandle handle, CBlasUplo uplo,
+CUresult cuMultiGPUDpotrf(CUmultiGPUBLAShandle handle, CBlasUplo uplo,
                           size_t n,
                           double * restrict A, size_t lda,
                           long * restrict info) {
@@ -317,7 +317,7 @@ CUresult cuMultiGPUDpotrf(CUmultiGPUBlasHandle handle, CBlasUplo uplo,
 
       CU_ERROR_CHECK(cuMultiGPUDsyrk(handle, CBlasUpper, CBlasTrans, jb, j,
                                      -one, &A[j * lda], lda, one, &A[j * lda + j], lda));
-      CU_ERROR_CHECK(cuMultiGPUBlasSynchronize(handle));
+      CU_ERROR_CHECK(cuMultiGPUBLASSynchronize(handle));
       dpotrf(CBlasUpper, jb, &A[j * lda + j], lda, info);
       if (*info != 0) {
         (*info) += (long)j;
@@ -339,7 +339,7 @@ CUresult cuMultiGPUDpotrf(CUmultiGPUBlasHandle handle, CBlasUplo uplo,
 
       CU_ERROR_CHECK(cuMultiGPUDsyrk(handle, CBlasLower, CBlasNoTrans, jb, j,
                                      -one, &A[j], lda, one, &A[j * lda + j], lda));
-      CU_ERROR_CHECK(cuMultiGPUBlasSynchronize(handle));
+      CU_ERROR_CHECK(cuMultiGPUBLASSynchronize(handle));
       dpotrf(CBlasLower, jb, &A[j * lda + j], lda, info);
       if (*info != 0) {
         (*info) += (long)j;

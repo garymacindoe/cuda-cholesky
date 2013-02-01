@@ -146,26 +146,26 @@ void zpotrf(CBlasUplo uplo,
   }
 }
 
-// static inline CUresult cuZpotf2(CUmodule module, CBlasUplo uplo,
-//                                 size_t n,
-//                                 CUdeviceptr A, size_t lda,
-//                                 CUdeviceptr info, CUstream stream) {
-//   const unsigned int bx = 32;
-//
-//   char name[45];
-//   snprintf(name, 45, "_Z6zpotf2IL9CBlasUplo%dELj%uEEviP7double2iPi", uplo, bx);
-//
-//   CUfunction function;
-//   CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
-//
-//   void * params[] = { &n, &A, &lda, &info };
-//
-//   CU_ERROR_CHECK(cuLaunchKernel(function, 1, 1, 1, bx, 1, 1, 0, stream, params, NULL));
-//
-//   return CUDA_SUCCESS;
-// }
+static inline CUresult cuZpotf2(CUmodule module, CBlasUplo uplo,
+                                size_t n,
+                                CUdeviceptr A, size_t lda,
+                                CUdeviceptr info, CUstream stream) {
+  const unsigned int bx = 32;
 
-CUresult cuZpotrf(CUblashandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, long * info) {
+  char name[46];
+  snprintf(name, 46, "_Z6zpotf2IL9CBlasUplo%dELj%uEEvP7double2Piii", uplo, bx);
+
+  CUfunction function;
+  CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
+
+  void * params[] = { &A, &info, &lda, n };
+
+  CU_ERROR_CHECK(cuLaunchKernel(function, 1, 1, 1, bx, 1, 1, 0, stream, params, NULL));
+
+  return CUDA_SUCCESS;
+}
+
+CUresult cuZpotrf(CUBLAShandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, long * info) {
   *info = 0;
   if (lda < n)
     *info = -4;
@@ -291,7 +291,7 @@ CUresult cuZpotrf(CUblashandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A, 
   return (*info == 0) ? CUDA_SUCCESS : CUDA_ERROR_INVALID_VALUE;
 }
 
-CUresult cuMultiGPUZpotrf(CUmultiGPUBlasHandle handle, CBlasUplo uplo,
+CUresult cuMultiGPUZpotrf(CUmultiGPUBLAShandle handle, CBlasUplo uplo,
                           size_t n,
                           double complex * restrict A, size_t lda,
                           long * restrict info) {
@@ -319,7 +319,7 @@ CUresult cuMultiGPUZpotrf(CUmultiGPUBlasHandle handle, CBlasUplo uplo,
 
       CU_ERROR_CHECK(cuMultiGPUZherk(handle, CBlasUpper, CBlasConjTrans, jb, j,
                                      -one, &A[j * lda], lda, one, &A[j * lda + j], lda));
-      CU_ERROR_CHECK(cuMultiGPUBlasSynchronize(handle));
+      CU_ERROR_CHECK(cuMultiGPUBLASSynchronize(handle));
       zpotrf(CBlasUpper, jb, &A[j * lda + j], lda, info);
       if (*info != 0) {
         (*info) += (long)j;
@@ -341,7 +341,7 @@ CUresult cuMultiGPUZpotrf(CUmultiGPUBlasHandle handle, CBlasUplo uplo,
 
       CU_ERROR_CHECK(cuMultiGPUZherk(handle, CBlasLower, CBlasNoTrans, jb, j,
                                      -one, &A[j], lda, one, &A[j * lda + j], lda));
-      CU_ERROR_CHECK(cuMultiGPUBlasSynchronize(handle));
+      CU_ERROR_CHECK(cuMultiGPUBLASSynchronize(handle));
       zpotrf(CBlasLower, jb, &A[j * lda + j], lda, info);
       if (*info != 0) {
         (*info) += (long)j;

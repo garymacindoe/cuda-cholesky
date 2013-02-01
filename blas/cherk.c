@@ -187,7 +187,7 @@ void cherk(CBlasUplo uplo, CBlasTranspose trans,
   }
 }
 
-CUresult cuCherk(CUblashandle handle, CBlasUplo uplo, CBlasTranspose trans,
+CUresult cuCherk(CUBLAShandle handle, CBlasUplo uplo, CBlasTranspose trans,
                  size_t n, size_t k,
                  float alpha, CUdeviceptr A, size_t lda,
                  float beta, CUdeviceptr C, size_t ldc, CUstream stream) {
@@ -237,7 +237,7 @@ CUresult cuCherk(CUblashandle handle, CBlasUplo uplo, CBlasTranspose trans,
   return CUDA_SUCCESS;
 }
 
-CUresult cuMultiGPUCherk(CUmultiGPUBlasHandle handle,
+CUresult cuMultiGPUCherk(CUmultiGPUBLAShandle handle,
                          CBlasUplo uplo, CBlasTranspose trans,
                          size_t n, size_t k,
                          float alpha, const float complex * restrict A, size_t lda,

@@ -2,10 +2,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <string.h>
 #include <float.h>
 #include <math.h>
 #include <sys/time.h>
 #include "ref/dlauum_ref.c"
+#include "util/dlatmc.c"
 
 int main(int argc, char * argv[]) {
   CBlasUplo uplo;
@@ -42,19 +44,28 @@ int main(int argc, char * argv[]) {
 
   lda = (n + 1u) & ~1u;
   if ((A = malloc(lda *  n * sizeof(double))) == NULL) {
-    fprintf(stderr, "Unable to allocate A\n");
+    fputs("Unable to allocate A\n", stderr);
     return -1;
   }
 
   if ((refA = malloc(lda * n * sizeof(double))) == NULL) {
-    fprintf(stderr, "Unable to allocate refA\n");
+    fputs("Unable to allocate refA\n", stderr);
     return -2;
   }
 
-  for (size_t j = 0; j < n; j++) {
-    for (size_t i = 0; i < n; i++)
-      refA[j * lda + i] = A[j * lda + i] = gaussian();
+  if (dlatmc(n, 2.0, A, lda) != 0) {
+    fputs("Unable to initialise A\n", stderr);
+    return -1;
   }
+
+//   dpotrf(uplo, n, A, lda, &info);
+//   if (info != 0) {
+//     fputs("Failed to compute Cholesky decomposition of A\n", stderr);
+//     return (int)info;
+//   }
+
+  for (size_t j = 0; j < n; j++)
+    memcpy(&refA[j * lda], &A[j * lda], n * sizeof(double));
 
   dlauum_ref(uplo, n, refA, lda, &rInfo);
   dlauum(uplo, n, A, lda, &info);

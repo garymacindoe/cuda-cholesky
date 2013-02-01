@@ -187,7 +187,7 @@ void zherk(CBlasUplo uplo, CBlasTranspose trans,
   }
 }
 
-CUresult cuZherk(CUblashandle handle, CBlasUplo uplo, CBlasTranspose trans,
+CUresult cuZherk(CUBLAShandle handle, CBlasUplo uplo, CBlasTranspose trans,
                  size_t n, size_t k,
                  double alpha, CUdeviceptr A, size_t lda,
                  double beta, CUdeviceptr C, size_t ldc, CUstream stream) {
@@ -237,7 +237,7 @@ CUresult cuZherk(CUblashandle handle, CBlasUplo uplo, CBlasTranspose trans,
   return CUDA_SUCCESS;
 }
 
-CUresult cuMultiGPUZherk(CUmultiGPUBlasHandle handle,
+CUresult cuMultiGPUZherk(CUmultiGPUBLAShandle handle,
                          CBlasUplo uplo, CBlasTranspose trans,
                          size_t n, size_t k,
                          double alpha, const double complex * restrict A, size_t lda,

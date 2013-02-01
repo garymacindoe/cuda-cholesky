@@ -8,6 +8,7 @@
 #include <complex.h>
 #include <sys/time.h>
 #include "ref/ztrtri_ref.c"
+#include "util/zlatmc.c"
 
 int main(int argc, char * argv[]) {
   CBlasUplo uplo;
@@ -51,46 +52,31 @@ int main(int argc, char * argv[]) {
 
   srand(0);
 
-  double complex * A, * B, * refB;//, * C;
-  size_t lda, ldb;//, ldc, k = 5 * n;
+  double complex * A, * B, * refB;
+  size_t lda, ldb;
   long info, rInfo;
 
   lda = n;
   if ((A = malloc(lda *  n * sizeof(double complex))) == NULL) {
-    fprintf(stderr, "Unable to allocate A\n");
+    fputs("Unable to allocate A\n", stderr);
     return -1;
   }
 
   ldb = n;
   if ((B = malloc(ldb *  n * sizeof(double complex))) == NULL) {
-    fprintf(stderr, "Unable to allocate B\n");
+    fputs("Unable to allocate B\n", stderr);
     return -2;
   }
 
   if ((refB = malloc(ldb * n * sizeof(double complex))) == NULL) {
-    fprintf(stderr, "Unable to allocate refB\n");
+    fputs("Unable to allocate refB\n", stderr);
     return -3;
   }
 
-//   ldc = k;
-//   if ((C = malloc(ldc * n * sizeof(double complex))) == NULL) {
-//     fprintf(stderr, "Unable to allocate C\n");
-//     return -4;
-//   }
-
-//   for (size_t j = 0; j < n; j++) {
-//     for (size_t i = 0; i < k; i++)
-//       C[j * ldc + i] = gaussian();
-//   }
-  for (size_t j = 0; j < n; j++) {
-    for (size_t i = 0; i < n; i++) {
-//       double complex temp = 0.0 + 0.0 * I;
-//       for (size_t l = 0; l < k; l++)
-//         temp += conj(C[i * ldc + l]) * C[j * ldc + l];
-      refB[j * ldb + i] = A[j * lda + i] = gaussian();//temp;
-    }
+  if (zlatmc(n, 2.0, A, lda) != 0) {
+    fputs("Unable to initialise A\n", stderr);
+    return -1;
   }
-//   free(C);
 
 //   zpotrf(uplo, n, A, lda, &info);
 //   if (info != 0) {
@@ -98,8 +84,8 @@ int main(int argc, char * argv[]) {
 //     return (int)info;
 //   }
 
-//   for (size_t j = 0; j < n; j++)
-//     memcpy(&refB[j * ldb], &A[j * lda], n * sizeof(double complex));
+  for (size_t j = 0; j < n; j++)
+    memcpy(&refB[j * ldb], &A[j * lda], n * sizeof(double complex));
 
   ztrtri_ref(uplo, diag, n, refB, ldb, &rInfo);
   ztrtri2(uplo, diag, n, A, lda, B, ldb, &info);

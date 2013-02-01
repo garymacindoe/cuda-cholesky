@@ -297,7 +297,26 @@ void ctrtri2(CBlasUplo uplo, CBlasDiag diag,
   }
 }
 
-CUresult cuCtrtri(CUblashandle handle, CBlasUplo uplo, CBlasDiag diag,
+static inline CUresult cuCtrti2(CUmodule module, CBlasUplo uplo, CBlasDiag diag,
+                                size_t n,
+                                CUdeviceptr A, size_t lda,
+                                CUdeviceptr info, CUstream stream) {
+  const unsigned int bx = 32;
+
+  char name[59];
+  snprintf(name, 59, "_Z6ctrti2IL9CBlasUplo%dEL9CBlasDiag%dELj%uEEvP6float2Piii", uplo, diag, bx);
+
+  CUfunction function;
+  CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
+
+  void * params[] = { &A, &info, &lda, &n };
+
+  CU_ERROR_CHECK(cuLaunchKernel(function, 1, 1, 1, bx, 1, 1, 0, stream, params, NULL));
+
+  return CUDA_SUCCESS;
+}
+
+CUresult cuCtrtri(CUBLAShandle handle, CBlasUplo uplo, CBlasDiag diag,
                   size_t n,
                   CUdeviceptr A, size_t lda,
                   long * info) {
@@ -440,7 +459,7 @@ CUresult cuCtrtri(CUblashandle handle, CBlasUplo uplo, CBlasDiag diag,
   return CUDA_SUCCESS;
 }
 
-CUresult cuMultiGPUCtrtri(CUmultiGPUBlasHandle handle,
+CUresult cuMultiGPUCtrtri(CUmultiGPUBLAShandle handle,
                           CBlasUplo uplo, CBlasDiag diag,
                           size_t n,
                           float complex * restrict A, size_t lda,

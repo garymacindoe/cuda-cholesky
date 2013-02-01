@@ -61,9 +61,9 @@ zgemm.o: blas.h cumultigpu.h error.h handle.h config.h zgemm.fatbin.c
 ztrmm.o: blas.h cumultigpu.h error.h handle.h config.h ztrmm.fatbin.c
 ztrsm.o: blas.h cumultigpu.h error.h handle.h config.h ztrsm.fatbin.c
 
-sgemm.fatbin ssyrk.fatbin strmm.fatbin strsm.fatbin: NVCFLAGS = -code=sm_11,sm_13 -arch=compute_11
-dgemm.fatbin dsyrk.fatbin dtrmm.fatbin dtrsm.fatbin: NVCFLAGS = -code=sm_13 -arch=compute_13
-cgemm.fatbin cherk.fatbin ctrmm.fatbin ctrsm.fatbin: NVCFLAGS = -code=sm_11,sm_13 -arch=compute_11
-zgemm.fatbin zherk.fatbin ztrmm.fatbin ztrsm.fatbin: NVCFLAGS = -code=sm_13 -arch=compute_13
+sgemm.fatbin ssyrk.fatbin strmm.fatbin strsm.fatbin: NVCFLAGS += -code=sm_11,sm_13 -arch=compute_11
+dgemm.fatbin dsyrk.fatbin dtrmm.fatbin dtrsm.fatbin: NVCFLAGS += -code=sm_13 -arch=compute_13
+cgemm.fatbin cherk.fatbin ctrmm.fatbin ctrsm.fatbin: NVCFLAGS += -code=sm_11,sm_13 -arch=compute_11
+zgemm.fatbin zherk.fatbin ztrmm.fatbin ztrsm.fatbin: NVCFLAGS += -code=sm_13 -arch=compute_13
 
 $(FATBINS): blas.h cumultigpu.h

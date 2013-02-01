@@ -145,7 +145,7 @@ void dgemm(CBlasTranspose transA, CBlasTranspose transB,
   }
 }
 
-CUresult cuDgemm2(CUblashandle handle, CBlasTranspose transA, CBlasTranspose transB,
+CUresult cuDgemm2(CUBLAShandle handle, CBlasTranspose transA, CBlasTranspose transB,
                   size_t m, size_t n, size_t k,
                   double alpha, CUdeviceptr A, size_t lda, CUdeviceptr B, size_t ldb,
                   double beta, CUdeviceptr C, size_t ldc, CUdeviceptr D, size_t ldd,
@@ -200,7 +200,7 @@ CUresult cuDgemm2(CUblashandle handle, CBlasTranspose transA, CBlasTranspose tra
 }
 
 struct dgemm_args {
-  CUblashandle handle;
+  CUBLAShandle handle;
   const double * A, * B;
   double * C;
   size_t m, n, k, lda, ldb, ldc;
@@ -210,7 +210,7 @@ struct dgemm_args {
 
 static CUresult background_dgemm(const void * a) {
   struct dgemm_args * args = (struct dgemm_args *)a;
-  CUblashandle handle = args->handle;
+  CUBLAShandle handle = args->handle;
 
   // Block sizes
   const size_t mb = (args->transA == CBlasNoTrans) ? DGEMM_N_MB : DGEMM_T_MB;
@@ -429,7 +429,7 @@ static CUresult background_dgemm(const void * a) {
   return CUDA_SUCCESS;
 }
 
-CUresult cuMultiGPUDgemm(CUmultiGPUBlasHandle handle,
+CUresult cuMultiGPUDgemm(CUmultiGPUBLAShandle handle,
                          CBlasTranspose transA, CBlasTranspose transB,
                          size_t m, size_t n, size_t k,
                          double alpha, const double * restrict A, size_t lda,

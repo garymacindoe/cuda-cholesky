@@ -215,7 +215,7 @@ void strsm(CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag
   }
 }
 
-CUresult cuStrsm(CUblashandle handle,
+CUresult cuStrsm(CUBLAShandle handle,
                  CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag,
                  size_t m, size_t n,
                  float alpha, CUdeviceptr A, size_t lda,
@@ -264,7 +264,7 @@ CUresult cuStrsm(CUblashandle handle,
   return CUDA_SUCCESS;
 }
 
-CUresult cuMultiGPUStrsm(CUmultiGPUBlasHandle handle,
+CUresult cuMultiGPUStrsm(CUmultiGPUBLAShandle handle,
                          CBlasSide side, CBlasUplo uplo, CBlasTranspose transA, CBlasDiag diag,
                          size_t m, size_t n,
                          float alpha, const float * restrict A, size_t lda,
@@ -301,7 +301,7 @@ CUresult cuMultiGPUStrsm(CUmultiGPUBlasHandle handle,
           i -= mb;
           const size_t ib = min(mb, m - i);
           CU_ERROR_CHECK(cuMultiGPUSgemm(handle, CBlasNoTrans, CBlasNoTrans, ib, n, m - i - ib, -one, &A[(i + ib) * lda + i], lda, &B[i + ib], ldb, alpha, &B[i], ldb));
-          CU_ERROR_CHECK(cuMultiGPUBlasSynchronize(handle));
+          CU_ERROR_CHECK(cuMultiGPUBLASSynchronize(handle));
           strsm(CBlasLeft, CBlasUpper, CBlasNoTrans, diag, ib, n, one, &A[i * lda + i], lda, &B[i], ldb);
         } while (i > 0);
       }
@@ -309,7 +309,7 @@ CUresult cuMultiGPUStrsm(CUmultiGPUBlasHandle handle,
         for (size_t i = 0; i < m; i += mb) {
           const size_t ib = min(mb, m - i);
           CU_ERROR_CHECK(cuMultiGPUSgemm(handle, CBlasNoTrans, CBlasNoTrans, ib, n, i, -one, &A[i], lda, B, ldb, alpha, &B[i], ldb));
-          CU_ERROR_CHECK(cuMultiGPUBlasSynchronize(handle));
+          CU_ERROR_CHECK(cuMultiGPUBLASSynchronize(handle));
           strsm(CBlasLeft, CBlasLower, CBlasNoTrans, diag, ib, n, one, &A[i * lda + i], lda, &B[i], ldb);
         }
       }
@@ -320,7 +320,7 @@ CUresult cuMultiGPUStrsm(CUmultiGPUBlasHandle handle,
         for (size_t i = 0; i < m; i += mb) {
           const size_t ib = min(mb, m - i);
           CU_ERROR_CHECK(cuMultiGPUSgemm(handle, CBlasTrans, CBlasNoTrans, ib, n, i, -one, &A[i * lda], lda, B, ldb, alpha, &B[i], ldb));
-          CU_ERROR_CHECK(cuMultiGPUBlasSynchronize(handle));
+          CU_ERROR_CHECK(cuMultiGPUBLASSynchronize(handle));
           strsm(CBlasLeft, CBlasUpper, CBlasTrans, diag, ib, n, one, &A[i * lda + i], lda, &B[i], ldb);
         }
       }
@@ -331,7 +331,7 @@ CUresult cuMultiGPUStrsm(CUmultiGPUBlasHandle handle,
           i -= mb;
           const size_t ib = min(mb, m - i);
           CU_ERROR_CHECK(cuMultiGPUSgemm(handle, CBlasTrans, CBlasNoTrans, ib, n, m - i - ib, -one, &A[i * lda + i + ib], lda, &B[i + ib], ldb, alpha, &B[i], ldb));
-          CU_ERROR_CHECK(cuMultiGPUBlasSynchronize(handle));
+          CU_ERROR_CHECK(cuMultiGPUBLASSynchronize(handle));
           strsm(CBlasLeft, CBlasLower, CBlasTrans, diag, ib, n, one, &A[i * lda + i], lda, &B[i], ldb);
         } while (i > 0);
       }
@@ -344,7 +344,7 @@ CUresult cuMultiGPUStrsm(CUmultiGPUBlasHandle handle,
         for (size_t j = 0; j < n; j += nb) {
           const size_t jb = min(nb, n - j);
           CU_ERROR_CHECK(cuMultiGPUSgemm(handle, CBlasNoTrans, CBlasNoTrans, m, jb, j, -one, B, ldb, &A[j * lda], lda, alpha, &B[j * ldb], ldb));
-          CU_ERROR_CHECK(cuMultiGPUBlasSynchronize(handle));
+          CU_ERROR_CHECK(cuMultiGPUBLASSynchronize(handle));
           strsm(CBlasRight, CBlasUpper, CBlasNoTrans, diag, m, jb, one, &A[j * lda + j], lda, &B[j * ldb], ldb);
         }
       }
@@ -355,7 +355,7 @@ CUresult cuMultiGPUStrsm(CUmultiGPUBlasHandle handle,
           j -= nb;
           const size_t jb = min(nb, n - j);
           CU_ERROR_CHECK(cuMultiGPUSgemm(handle, CBlasNoTrans, CBlasNoTrans, m, jb, n - j - jb, -one, &B[(j + jb) * ldb], ldb, &A[j * lda + j + jb], lda, alpha, &B[j * ldb], ldb));
-          CU_ERROR_CHECK(cuMultiGPUBlasSynchronize(handle));
+          CU_ERROR_CHECK(cuMultiGPUBLASSynchronize(handle));
           strsm(CBlasRight, CBlasLower, CBlasNoTrans, diag, m, jb, one, &A[j * lda + j], lda, &B[j * ldb], ldb);
         } while (j > 0);
       }
@@ -369,7 +369,7 @@ CUresult cuMultiGPUStrsm(CUmultiGPUBlasHandle handle,
           j -= nb;
           const size_t jb = min(nb, n - j);
           CU_ERROR_CHECK(cuMultiGPUSgemm(handle, CBlasNoTrans, CBlasTrans, m, jb, n - j - jb, -one, &B[(j + jb) * ldb], ldb, &A[(j + jb) * lda + j], lda, alpha, &B[j * ldb], ldb));
-          CU_ERROR_CHECK(cuMultiGPUBlasSynchronize(handle));
+          CU_ERROR_CHECK(cuMultiGPUBLASSynchronize(handle));
           strsm(CBlasRight, CBlasUpper, CBlasTrans, diag, m, jb, one, &A[j * lda + j], lda, &B[j * ldb], ldb);
         } while (j > 0);
       }
@@ -377,7 +377,7 @@ CUresult cuMultiGPUStrsm(CUmultiGPUBlasHandle handle,
         for (size_t j = 0; j < n; j += nb) {
           const size_t jb = min(nb, n - j);
           CU_ERROR_CHECK(cuMultiGPUSgemm(handle, CBlasNoTrans, CBlasTrans, m, jb, j, -one, B, ldb, &A[j], lda, alpha, &B[j * ldb], ldb));
-          CU_ERROR_CHECK(cuMultiGPUBlasSynchronize(handle));
+          CU_ERROR_CHECK(cuMultiGPUBLASSynchronize(handle));
           strsm(CBlasRight, CBlasLower, CBlasTrans, diag, m, jb, one, &A[j * lda + j], lda, &B[j * ldb], ldb);
         }
       }

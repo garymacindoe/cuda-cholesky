@@ -7,6 +7,7 @@
 #include <math.h>
 #include <sys/time.h>
 #include "ref/strsm_ref.c"
+#include "util/slatmc.c"
 
 int main(int argc, char * argv[]) {
   CBlasSide side;
@@ -83,8 +84,8 @@ int main(int argc, char * argv[]) {
 
   srand(0);
 
-  float alpha, * A, * B, * refB, * C;
-  size_t lda, ldb, ldc, * F;
+  float alpha, * A, * B, * refB;
+  size_t lda, ldb, * F;
 
   CU_ERROR_CHECK(cuInit(0));
 
@@ -98,8 +99,8 @@ int main(int argc, char * argv[]) {
   CUmultiGPU mGPU;
   CU_ERROR_CHECK(cuMultiGPUCreate(&mGPU, devices, deviceCount));
 
-  CUmultiGPUBlasHandle handle;
-  CU_ERROR_CHECK(cuMultiGPUBlasCreate(&handle, mGPU));
+  CUmultiGPUBLAShandle handle;
+  CU_ERROR_CHECK(cuMultiGPUBLASCreate(&handle, mGPU));
 
   alpha = (float)rand() / (float)RAND_MAX;
 
@@ -110,25 +111,10 @@ int main(int argc, char * argv[]) {
       return -1;
     }
 
-    size_t k = m * 5;
-    ldc = (k + 3u) & ~3u;
-    if ((C = malloc(ldc * m * sizeof(float))) == NULL) {
-      fputs("Unable to allocate C\n", stderr);
+    if (slatmc(m, 2.0f, A, lda) != 0) {
+      fputs("Unable to initialise A\n", stderr);
       return -1;
     }
-    for (size_t j = 0; j < m; j++) {
-      for (size_t i = 0; i < k; i++)
-        C[j * ldc + i] = (float)rand() / (float)RAND_MAX;
-    }
-    for (size_t j = 0; j < m; j++) {
-      for (size_t i = 0; i < m; i++) {
-        float temp = 0.0f;
-        for (size_t l = 0; l < k; l++)
-          temp += C[i * ldc + l] * C[j * ldc + l];
-        A[j * lda + i] = temp;
-      }
-    }
-    free(C);
   }
   else {
     lda = (n + 3u) & ~3u;
@@ -137,25 +123,10 @@ int main(int argc, char * argv[]) {
       return -1;
     }
 
-    size_t k = n * 5;
-    ldc = (k + 3u) & ~3u;
-    if ((C = malloc(ldc * n * sizeof(float))) == NULL) {
-      fputs("Unable to allocate C\n", stderr);
+    if (slatmc(n, 2.0f, A, lda) != 0) {
+      fputs("Unable to initialise A\n", stderr);
       return -1;
     }
-    for (size_t j = 0; j < n; j++) {
-      for (size_t i = 0; i < k; i++)
-        C[j * ldc + i] = (float)rand() / (float)RAND_MAX;
-    }
-    for (size_t j = 0; j < n; j++) {
-      for (size_t i = 0; i < n; i++) {
-        float temp = 0.0f;
-        for (size_t l = 0; l < k; l++)
-          temp += C[i * ldc + l] * C[j * ldc + l];
-        A[j * lda + i] = temp;
-      }
-    }
-    free(C);
   }
 
   ldb = (m + 3u) & ~3u;
@@ -226,7 +197,7 @@ int main(int argc, char * argv[]) {
   free(B);
   free(refB);
 
-  CU_ERROR_CHECK(cuMultiGPUBlasDestroy(handle));
+  CU_ERROR_CHECK(cuMultiGPUBLASDestroy(handle));
   CU_ERROR_CHECK(cuMultiGPUDestroy(mGPU));
 
   return (int)!passed;

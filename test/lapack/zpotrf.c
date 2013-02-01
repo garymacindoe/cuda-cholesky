@@ -2,11 +2,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <string.h>
 #include <float.h>
 #include <math.h>
 #include <complex.h>
 #include <sys/time.h>
 #include "ref/zpotrf_ref.c"
+#include "util/zlatmc.c"
 
 int main(int argc, char * argv[]) {
   CBlasUplo uplo;
@@ -38,39 +40,27 @@ int main(int argc, char * argv[]) {
 
   srand(0);
 
-  double complex * A, * refA, * C;
-  size_t lda, ldc, k = 5 * n;
+  double complex * A, * refA;
+  size_t lda;
   long info, rInfo;
 
   lda = n;
   if ((A = malloc(lda *  n * sizeof(double complex))) == NULL) {
-    fprintf(stderr, "Unable to allocate A\n");
+    fputs("Unable to allocate A\n", stderr);
     return -1;
   }
   if ((refA = malloc(lda * n * sizeof(double complex))) == NULL) {
-    fprintf(stderr, "Unable to allocate refA\n");
+    fputs("Unable to allocate refA\n", stderr);
     return -2;
   }
 
-  ldc = k;
-  if ((C = malloc(ldc * n * sizeof(double complex))) == NULL) {
-    fprintf(stderr, "Unable to allocate C\n");
-    return -3;
+  if (zlatmc(n, 2.0, A, lda) != 0) {
+    fputs("Unable to initialise A\n", stderr);
+    return -1;
   }
 
-  for (size_t j = 0; j < n; j++) {
-    for (size_t i = 0; i < k; i++)
-      C[j * ldc + i] = gaussian();
-  }
-  for (size_t j = 0; j < n; j++) {
-    for (size_t i = 0; i < n; i++) {
-      double complex temp = 0.0 + 0.0 * I;
-      for (size_t l = 0; l < k; l++)
-        temp += conj(C[i * ldc + l]) * C[j * ldc + l];
-      refA[j * lda + i] = A[j * lda + i] = temp;
-    }
-  }
-  free(C);
+  for (size_t j = 0; j < n; j++)
+    memcpy(&refA[j * lda], &A[j * lda], n * sizeof(double complex));
 
   zpotrf_ref(uplo, n, refA, lda, &rInfo);
   zpotrf(uplo, n, A, lda, &info);

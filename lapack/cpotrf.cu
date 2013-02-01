@@ -48,7 +48,7 @@ __device__ int lower(int i, int j) {
 }
 
 template <CBlasUplo uplo, unsigned int bx>
-__global__ void cpotf2(int n, cuComplex * A, int lda, int * info) {
+__global__ void cpotf2(cuComplex * A, int * info, int lda, int n) {
   // info parameter cached in shared memory for fast access by all threads in the block
   __shared__ int sinfo;
 
@@ -175,5 +175,5 @@ __global__ void cpotf2(int n, cuComplex * A, int lda, int * info) {
   }
 }
 
-template __global__ void cpotf2<CBlasUpper, 32>(int, cuComplex *, int, int *);
-template __global__ void cpotf2<CBlasLower, 32>(int, cuComplex *, int, int *);
+template __global__ void cpotf2<CBlasUpper, 32>(cuComplex *, int *, int, int);
+template __global__ void cpotf2<CBlasLower, 32>(cuComplex *, int *, int, int);

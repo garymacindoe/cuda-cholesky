@@ -103,8 +103,8 @@ int main(int argc, char * argv[]) {
   CUcontext context;
   CU_ERROR_CHECK(cuCtxCreate(&context, CU_CTX_SCHED_BLOCKING_SYNC, device));
 
-  CUblashandle handle;
-  CU_ERROR_CHECK(cuBlasHandleCreate(&handle));
+  CUBLAShandle handle;
+  CU_ERROR_CHECK(cuBLASCreate(&handle));
 
 
   alpha = (float)rand() / (float)RAND_MAX;
@@ -234,7 +234,7 @@ int main(int argc, char * argv[]) {
   CU_ERROR_CHECK(cuMemFree(dB));
   CU_ERROR_CHECK(cuMemFree(dX));
 
-  CU_ERROR_CHECK(cuBlasHandleDestroy(handle));
+  CU_ERROR_CHECK(cuBLASDestroy(handle));
 
   CU_ERROR_CHECK(cuCtxDestroy(context));
 
