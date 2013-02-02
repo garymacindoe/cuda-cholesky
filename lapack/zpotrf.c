@@ -1,4 +1,5 @@
 #include "lapack.h"
+#include "handle.h"
 #include "error.h"
 #include <stdio.h>
 #include <math.h>
@@ -146,26 +147,31 @@ void zpotrf(CBlasUplo uplo,
   }
 }
 
-static inline CUresult cuZpotf2(CUmodule module, CBlasUplo uplo,
+static inline CUresult cuZpotf2(CULAPACKhandle handle, CBlasUplo uplo,
                                 size_t n,
                                 CUdeviceptr A, size_t lda,
                                 CUdeviceptr info, CUstream stream) {
   const unsigned int bx = 32;
+  if (n > bx)
+    return CUDA_ERROR_INVALID_VALUE;
+
+  if (handle->zpotrf == NULL)
+    CU_ERROR_CHECK(cuModuleLoadData(&handle->zpotrf, imageBytes));
 
   char name[46];
   snprintf(name, 46, "_Z6zpotf2IL9CBlasUplo%dELj%uEEvP7double2Piii", uplo, bx);
 
   CUfunction function;
-  CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
+  CU_ERROR_CHECK(cuModuleGetFunction(&function, handle->zpotrf, name));
 
-  void * params[] = { &A, &info, &lda, n };
+  void * params[] = { &A, &info, &lda, &n };
 
   CU_ERROR_CHECK(cuLaunchKernel(function, 1, 1, 1, bx, 1, 1, 0, stream, params, NULL));
 
   return CUDA_SUCCESS;
 }
 
-CUresult cuZpotrf(CUBLAShandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, long * info) {
+CUresult cuZpotrf(CULAPACKhandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, long * info) {
   *info = 0;
   if (lda < n)
     *info = -4;
@@ -204,11 +210,11 @@ CUresult cuZpotrf(CUBLAShandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A, 
       const size_t jb = min(nb, n - j);
 
       /* Rank-K update of diagonal block using column matrix above */
-      CU_ERROR_CHECK(cuZherk(handle, CBlasUpper, CBlasConjTrans, jb, j,
+      CU_ERROR_CHECK(cuZherk(handle->blas_handle, CBlasUpper, CBlasConjTrans, jb, j,
                              -one, A + j * lda * sizeof(double complex), lda,
                              one, A + (j * lda + j) * sizeof(double complex), lda, stream0));
       /* Overlap the ZHERK with a ZGEMM (on a different stream) */
-      CU_ERROR_CHECK(cuZgemm(handle, CBlasConjTrans, CBlasNoTrans, jb, n - j - jb, j,
+      CU_ERROR_CHECK(cuZgemm(handle->blas_handle, CBlasConjTrans, CBlasNoTrans, jb, n - j - jb, j,
                              -complex_one, A + j * lda * sizeof(double complex), lda,
                              A + (j + jb) * lda * sizeof(double complex), lda,
                              complex_one, A + ((j + jb) * lda + j) * sizeof(double complex), lda, stream1));
@@ -235,7 +241,7 @@ CUresult cuZpotrf(CUBLAShandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A, 
 //       CU_ERROR_CHECK(cuStreamSynchronize(stream1));
       /* Triangular solve of the diagonal block using the row matrix to the
        * right on the same stream as the copy to ensure it has completed first */
-      CU_ERROR_CHECK(cuZtrsm(handle, CBlasLeft, CBlasUpper, CBlasConjTrans, CBlasNonUnit,
+      CU_ERROR_CHECK(cuZtrsm(handle->blas_handle, CBlasLeft, CBlasUpper, CBlasConjTrans, CBlasNonUnit,
                              jb, n - j - jb, complex_one, A + (j * lda + j) * sizeof(double complex), lda,
                              A + ((j + jb) * lda + j) * sizeof(double complex), lda, stream0));
     }
@@ -245,11 +251,11 @@ CUresult cuZpotrf(CUBLAShandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A, 
       const size_t jb = min(nb, n - j);
 
       /* Rank-K update of diagonal block using row matrix to the left */
-      CU_ERROR_CHECK(cuZherk(handle, CBlasLower, CBlasNoTrans, jb, j,
+      CU_ERROR_CHECK(cuZherk(handle->blas_handle, CBlasLower, CBlasNoTrans, jb, j,
                              -one, A + j * sizeof(double complex), lda,
                              one, A + (j * lda + j) * sizeof(double complex), lda, stream0));
       /* Overlap the ZHERK with a ZGEMM (on a different stream) */
-      CU_ERROR_CHECK(cuZgemm(handle, CBlasNoTrans, CBlasConjTrans, n - j - jb, jb, j,
+      CU_ERROR_CHECK(cuZgemm(handle->blas_handle, CBlasNoTrans, CBlasConjTrans, n - j - jb, jb, j,
                              -complex_one, A + (j + jb) * sizeof(double complex), lda,
                              A + j * sizeof(double complex), lda,
                              complex_one, A + (j * lda + j + jb) * sizeof(double complex), lda, stream1));
@@ -276,7 +282,7 @@ CUresult cuZpotrf(CUBLAShandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A, 
 //       CU_ERROR_CHECK(cuStreamSynchronize(stream1));
       /* Triangular solve of the diagonal block using the column matrix below
        * on the same stream as the copy to ensure it has completed first */
-      CU_ERROR_CHECK(cuZtrsm(handle, CBlasRight, CBlasLower, CBlasConjTrans, CBlasNonUnit,
+      CU_ERROR_CHECK(cuZtrsm(handle->blas_handle, CBlasRight, CBlasLower, CBlasConjTrans, CBlasNonUnit,
                              n - j - jb, jb, complex_one, A + (j * lda + j) * sizeof(double complex), lda,
                              A + (j * lda + j + jb) * sizeof(double complex), lda, stream0));
     }
@@ -291,7 +297,7 @@ CUresult cuZpotrf(CUBLAShandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A, 
   return (*info == 0) ? CUDA_SUCCESS : CUDA_ERROR_INVALID_VALUE;
 }
 
-CUresult cuMultiGPUZpotrf(CUmultiGPUBLAShandle handle, CBlasUplo uplo,
+CUresult cuMultiGPUZpotrf(CUmultiGPULAPACKhandle handle, CBlasUplo uplo,
                           size_t n,
                           double complex * restrict A, size_t lda,
                           long * restrict info) {
@@ -317,9 +323,9 @@ CUresult cuMultiGPUZpotrf(CUmultiGPUBLAShandle handle, CBlasUplo uplo,
     for (size_t j = 0; j < n; j += nb) {
       const size_t jb = min(nb, n - j);
 
-      CU_ERROR_CHECK(cuMultiGPUZherk(handle, CBlasUpper, CBlasConjTrans, jb, j,
+      CU_ERROR_CHECK(cuMultiGPUZherk(handle->blas_handle, CBlasUpper, CBlasConjTrans, jb, j,
                                      -one, &A[j * lda], lda, one, &A[j * lda + j], lda));
-      CU_ERROR_CHECK(cuMultiGPUBLASSynchronize(handle));
+      CU_ERROR_CHECK(cuMultiGPUBLASSynchronize(handle->blas_handle));
       zpotrf(CBlasUpper, jb, &A[j * lda + j], lda, info);
       if (*info != 0) {
         (*info) += (long)j;
@@ -327,10 +333,10 @@ CUresult cuMultiGPUZpotrf(CUmultiGPUBLAShandle handle, CBlasUplo uplo,
       }
 
       if (j + jb < n) {
-        CU_ERROR_CHECK(cuMultiGPUZgemm(handle, CBlasConjTrans, CBlasNoTrans, jb, n - j - jb, j,
+        CU_ERROR_CHECK(cuMultiGPUZgemm(handle->blas_handle, CBlasConjTrans, CBlasNoTrans, jb, n - j - jb, j,
                                        -complex_one, &A[j * lda], lda, &A[(j + jb) * lda], lda,
                                        complex_one, &A[(j + jb) * lda + j], lda));
-        CU_ERROR_CHECK(cuMultiGPUZtrsm(handle, CBlasLeft, CBlasUpper, CBlasConjTrans, CBlasNonUnit, jb, n - j - jb,
+        CU_ERROR_CHECK(cuMultiGPUZtrsm(handle->blas_handle, CBlasLeft, CBlasUpper, CBlasConjTrans, CBlasNonUnit, jb, n - j - jb,
                                        complex_one, &A[j * lda + j], lda, &A[(j + jb) * lda + j], lda));
       }
     }
@@ -339,9 +345,9 @@ CUresult cuMultiGPUZpotrf(CUmultiGPUBLAShandle handle, CBlasUplo uplo,
     for (size_t j = 0; j < n; j += nb) {
       const size_t jb = min(nb, n - j);
 
-      CU_ERROR_CHECK(cuMultiGPUZherk(handle, CBlasLower, CBlasNoTrans, jb, j,
+      CU_ERROR_CHECK(cuMultiGPUZherk(handle->blas_handle, CBlasLower, CBlasNoTrans, jb, j,
                                      -one, &A[j], lda, one, &A[j * lda + j], lda));
-      CU_ERROR_CHECK(cuMultiGPUBLASSynchronize(handle));
+      CU_ERROR_CHECK(cuMultiGPUBLASSynchronize(handle->blas_handle));
       zpotrf(CBlasLower, jb, &A[j * lda + j], lda, info);
       if (*info != 0) {
         (*info) += (long)j;
@@ -349,10 +355,10 @@ CUresult cuMultiGPUZpotrf(CUmultiGPUBLAShandle handle, CBlasUplo uplo,
       }
 
       if (j + jb < n) {
-        CU_ERROR_CHECK(cuMultiGPUZgemm(handle, CBlasNoTrans, CBlasConjTrans, n - j - jb, jb, j,
+        CU_ERROR_CHECK(cuMultiGPUZgemm(handle->blas_handle, CBlasNoTrans, CBlasConjTrans, n - j - jb, jb, j,
                                        -complex_one, &A[j + jb], lda, &A[j], lda,
                                        complex_one, &A[j * lda + j + jb], lda));
-        CU_ERROR_CHECK(cuMultiGPUZtrsm(handle, CBlasRight, CBlasLower, CBlasConjTrans, CBlasNonUnit, n - j - jb, jb,
+        CU_ERROR_CHECK(cuMultiGPUZtrsm(handle->blas_handle, CBlasRight, CBlasLower, CBlasConjTrans, CBlasNonUnit, n - j - jb, jb,
                                        complex_one, &A[j * lda + j], lda, &A[j * lda + j + jb], lda));
       }
     }

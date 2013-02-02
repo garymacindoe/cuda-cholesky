@@ -54,8 +54,8 @@ int main(int argc, char * argv[]) {
   CUcontext context;
   CU_ERROR_CHECK(cuCtxCreate(&context, CU_CTX_SCHED_BLOCKING_SYNC, device));
 
-  CUblashandle handle;
-  CU_ERROR_CHECK(cuBlasHandleCreate(&handle));
+  CULAPACKhandle handle;
+  CU_ERROR_CHECK(cuLAPACKCreate(&handle));
 
   lda = (n + 1u) & ~1u;
   if ((A = malloc(lda *  n * sizeof(double))) == NULL) {
@@ -144,7 +144,7 @@ int main(int argc, char * argv[]) {
   free(refA);
   CU_ERROR_CHECK(cuMemFree(dA));
 
-  CU_ERROR_CHECK(cuBlasHandleDestroy(handle));
+  CU_ERROR_CHECK(cuLAPACKDestroy(handle));
 
   CU_ERROR_CHECK(cuCtxDestroy(context));
 

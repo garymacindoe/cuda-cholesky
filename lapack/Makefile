@@ -20,7 +20,8 @@ BIN2CFLAGS = -c -st
 
 TARGET = ../liblapack.a
 
-OBJECTS = slauum.o spotrf.o spotri.o strtri.o \
+OBJECTS = handle.o \
+          slauum.o spotrf.o spotri.o strtri.o \
           dlauum.o dpotrf.o dpotri.o dtrtri.o \
           clauum.o cpotrf.o cpotri.o ctrtri.o \
           zlauum.o zpotrf.o zpotri.o ztrtri.o
@@ -41,25 +42,27 @@ clean:
 
 $(TARGET): $(OBJECTS)
 
-slauum.o: lapack.h blas.h cumultigpu.h error.h config.h slauum.fatbin.c
-spotrf.o: lapack.h blas.h cumultigpu.h error.h config.h spotrf.fatbin.c
+handle.o: lapack.h blas.h cumultigpu.h handle.h error.h
+
+slauum.o: lapack.h blas.h cumultigpu.h handle.h error.h config.h slauum.fatbin.c
+spotrf.o: lapack.h blas.h cumultigpu.h handle.h error.h config.h spotrf.fatbin.c
 spotri.o: lapack.h blas.h cumultigpu.h error.h
-strtri.o: lapack.h blas.h cumultigpu.h error.h config.h strtri.fatbin.c
+strtri.o: lapack.h blas.h cumultigpu.h handle.h error.h config.h strtri.fatbin.c
 
-dlauum.o: lapack.h blas.h cumultigpu.h error.h config.h dlauum.fatbin.c
-dpotrf.o: lapack.h blas.h cumultigpu.h error.h config.h dpotrf.fatbin.c
+dlauum.o: lapack.h blas.h cumultigpu.h handle.h error.h config.h dlauum.fatbin.c
+dpotrf.o: lapack.h blas.h cumultigpu.h handle.h error.h config.h dpotrf.fatbin.c
 dpotri.o: lapack.h blas.h cumultigpu.h error.h
-dtrtri.o: lapack.h blas.h cumultigpu.h error.h config.h dtrtri.fatbin.c
+dtrtri.o: lapack.h blas.h cumultigpu.h handle.h error.h config.h dtrtri.fatbin.c
 
-clauum.o: lapack.h blas.h cumultigpu.h error.h config.h clauum.fatbin.c
-cpotrf.o: lapack.h blas.h cumultigpu.h error.h config.h cpotrf.fatbin.c
+clauum.o: lapack.h blas.h cumultigpu.h handle.h error.h config.h clauum.fatbin.c
+cpotrf.o: lapack.h blas.h cumultigpu.h handle.h error.h config.h cpotrf.fatbin.c
 cpotri.o: lapack.h blas.h cumultigpu.h error.h
-ctrtri.o: lapack.h blas.h cumultigpu.h error.h config.h ctrtri.fatbin.c
+ctrtri.o: lapack.h blas.h cumultigpu.h handle.h error.h config.h ctrtri.fatbin.c
 
-zlauum.o: lapack.h blas.h cumultigpu.h error.h config.h zlauum.fatbin.c
-zpotrf.o: lapack.h blas.h cumultigpu.h error.h config.h zpotrf.fatbin.c
+zlauum.o: lapack.h blas.h cumultigpu.h handle.h error.h config.h zlauum.fatbin.c
+zpotrf.o: lapack.h blas.h cumultigpu.h handle.h error.h config.h zpotrf.fatbin.c
 zpotri.o: lapack.h blas.h cumultigpu.h error.h
-ztrtri.o: lapack.h blas.h cumultigpu.h error.h config.h ztrtri.fatbin.c
+ztrtri.o: lapack.h blas.h cumultigpu.h handle.h error.h config.h ztrtri.fatbin.c
 
 spotrf.fatbin slauum.fatbin strtri.fatbin: NVCFLAGS += -code=sm_11,sm_13 -arch=compute_11
 dpotrf.fatbin dlauum.fatbin dtrtri.fatbin: NVCFLAGS += -code=sm_13 -arch=compute_13

@@ -22,7 +22,7 @@ void zpotri(CBlasUplo uplo,
   zlauum(uplo, n, A, lda, info);
 }
 
-CUresult cuZpotri(CUBLAShandle handle,
+CUresult cuZpotri(CULAPACKhandle handle,
                   CBlasUplo uplo,
                   size_t n,
                   CUdeviceptr A, size_t lda,
@@ -45,7 +45,7 @@ CUresult cuZpotri(CUBLAShandle handle,
   return CUDA_SUCCESS;
 }
 
-CUresult cuMultiGPUZpotri(CUmultiGPUBLAShandle handle,
+CUresult cuMultiGPUZpotri(CUmultiGPULAPACKhandle handle,
                           CBlasUplo uplo,
                           size_t n,
                           double complex * restrict A, size_t lda,

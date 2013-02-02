@@ -1,4 +1,5 @@
 #include "lapack.h"
+#include "handle.h"
 #include "error.h"
 #include <stdio.h>
 #include "config.h"
@@ -297,17 +298,22 @@ void ztrtri2(CBlasUplo uplo, CBlasDiag diag,
   }
 }
 
-static inline CUresult cuZtrti2(CUmodule module, CBlasUplo uplo, CBlasDiag diag,
+static inline CUresult cuZtrti2(CULAPACKhandle handle, CBlasUplo uplo, CBlasDiag diag,
                                 size_t n,
                                 CUdeviceptr A, size_t lda,
                                 CUdeviceptr info, CUstream stream) {
   const unsigned int bx = 16;
+  if (n > bx)
+    return CUDA_ERROR_INVALID_VALUE;
+
+  if (handle->ztrtri == NULL)
+    CU_ERROR_CHECK(cuModuleLoadData(&handle->ztrtri, imageBytes));
 
   char name[60];
   snprintf(name, 60, "_Z6ztrti2IL9CBlasUplo%dEL9CBlasDiag%dELj%uEEvP7double2Piii", uplo, diag, bx);
 
   CUfunction function;
-  CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
+  CU_ERROR_CHECK(cuModuleGetFunction(&function, handle->ztrtri, name));
 
   void * params[] = { &A, &info, &lda, &n };
 
@@ -316,7 +322,7 @@ static inline CUresult cuZtrti2(CUmodule module, CBlasUplo uplo, CBlasDiag diag,
   return CUDA_SUCCESS;
 }
 
-CUresult cuZtrtri(CUBLAShandle handle,
+CUresult cuZtrtri(CULAPACKhandle handle,
                   CBlasUplo uplo, CBlasDiag diag,
                   size_t n,
                   CUdeviceptr A, size_t lda,
@@ -366,13 +372,13 @@ CUresult cuZtrtri(CUBLAShandle handle,
       const size_t jb = min(nb, n - j);
 
       /* Update the current column using the big square matrix to the left */
-      CU_ERROR_CHECK(cuZtrmm2(handle, CBlasLeft, CBlasUpper, CBlasNoTrans, diag, j, jb,
+      CU_ERROR_CHECK(cuZtrmm2(handle->blas_handle, CBlasLeft, CBlasUpper, CBlasNoTrans, diag, j, jb,
                               one, A, lda, A + j * lda * sizeof(double complex), lda, X, ldx, stream0));
       /* GPU ZTRMM is out of place so copy back into place */
       CU_ERROR_CHECK(cuMemcpyDtoD2DAsync(A, lda, 0, j, X, ldx, 0, 0, j, jb, sizeof(double complex), stream0));
       /* Then update the column again using the small square matrix on the
        * diagonal below (on the same stream) */
-      CU_ERROR_CHECK(cuZtrsm(handle, CBlasRight, CBlasUpper, CBlasNoTrans, diag, j, jb,
+      CU_ERROR_CHECK(cuZtrsm(handle->blas_handle, CBlasRight, CBlasUpper, CBlasNoTrans, diag, j, jb,
                              -one, A + (j * lda + j) * sizeof(double complex), lda, A + j * lda * sizeof(double complex), lda, stream0));
       /* Overlap both the operations above with a copy of the diagonal block
        * onto the host.  There is a possibility of overwriting the result of the
@@ -417,14 +423,14 @@ CUresult cuZtrtri(CUBLAShandle handle,
       const size_t jb = min(nb, n - j);
 
       /* Update the current column using the big square matrix to the right */
-      CU_ERROR_CHECK(cuZtrmm2(handle, CBlasLeft, CBlasLower, CBlasNoTrans, diag, n - j - jb, jb,
+      CU_ERROR_CHECK(cuZtrmm2(handle->blas_handle, CBlasLeft, CBlasLower, CBlasNoTrans, diag, n - j - jb, jb,
                               one, A + ((j + jb) * lda + j + jb) * sizeof(double complex), lda,
                               A + (j * lda + j + jb) * sizeof(double complex), lda, X, ldx, stream0));
       /* GPU ZTRMM is out of place so copy back into place */
       CU_ERROR_CHECK(cuMemcpyDtoD2DAsync(A, lda, j + jb, j, X, ldx, 0, 0, j, jb, sizeof(double complex), stream0));
       /* Then update the column again using the small square matrix on the
        * diagonal above (on the same stream) */
-      CU_ERROR_CHECK(cuZtrsm(handle, CBlasRight, CBlasLower, CBlasNoTrans, diag, n - j - jb, jb,
+      CU_ERROR_CHECK(cuZtrsm(handle->blas_handle, CBlasRight, CBlasLower, CBlasNoTrans, diag, n - j - jb, jb,
                              -one, A + (j * lda + j) * sizeof(double complex), lda, A + (j * lda + j + jb) * sizeof(double complex), lda, stream0));
       /* Overlap both the operations above with a copy of the diagonal block
        * onto the host.  There is a possibility of overwriting the result of the
@@ -460,7 +466,7 @@ CUresult cuZtrtri(CUBLAShandle handle,
   return CUDA_SUCCESS;
 }
 
-CUresult cuMultiGPUZtrtri(CUmultiGPUBLAShandle handle,
+CUresult cuMultiGPUZtrtri(CUmultiGPULAPACKhandle handle,
                           CBlasUplo uplo, CBlasDiag diag,
                           size_t n,
                           double complex * restrict A, size_t lda,
@@ -482,9 +488,9 @@ CUresult cuMultiGPUZtrtri(CUmultiGPUBLAShandle handle,
     // Upper triangular ZTRTRI
     for (size_t j = 0; j < n; j += nb) {
       const size_t jb = min(nb, n - j);
-      CU_ERROR_CHECK(cuMultiGPUZtrmm(handle, CBlasLeft, CBlasUpper, CBlasNoTrans, diag,
+      CU_ERROR_CHECK(cuMultiGPUZtrmm(handle->blas_handle, CBlasLeft, CBlasUpper, CBlasNoTrans, diag,
                                      j, jb, one, A, lda, &A[j * lda], lda));
-      CU_ERROR_CHECK(cuMultiGPUZtrsm(handle, CBlasRight, CBlasUpper, CBlasNoTrans, diag,
+      CU_ERROR_CHECK(cuMultiGPUZtrsm(handle->blas_handle, CBlasRight, CBlasUpper, CBlasNoTrans, diag,
                                      j, jb, -one, &A[j * lda + j], lda, &A[j * lda], lda));
       ztrtri(CBlasUpper, diag, jb, &A[j * lda + j], lda, info);
       if (*info != 0) {
@@ -502,11 +508,11 @@ CUresult cuMultiGPUZtrtri(CUmultiGPUBLAShandle handle,
       j -= nb;
       const size_t jb = min(nb, n - j);
       if (j + jb < n) {
-        CU_ERROR_CHECK(cuMultiGPUZtrmm(handle, CBlasLeft, CBlasLower, CBlasNoTrans, diag,
+        CU_ERROR_CHECK(cuMultiGPUZtrmm(handle->blas_handle, CBlasLeft, CBlasLower, CBlasNoTrans, diag,
                                        n - j - jb, jb,
                                        one, &A[(j + jb) * lda + j + jb], lda,
                                        &A[j * lda + j + jb], lda));
-        CU_ERROR_CHECK(cuMultiGPUZtrsm(handle, CBlasRight, CBlasLower, CBlasNoTrans, diag,
+        CU_ERROR_CHECK(cuMultiGPUZtrsm(handle->blas_handle, CBlasRight, CBlasLower, CBlasNoTrans, diag,
                                        n - j - jb, jb,
                                        -one, &A[j * lda + j], lda,
                                        &A[j * lda + j + jb], lda));

@@ -1,4 +1,5 @@
 #include "lapack.h"
+#include "handle.h"
 #include "error.h"
 #include <stdio.h>
 #include "config.h"
@@ -297,17 +298,22 @@ void dtrtri2(CBlasUplo uplo, CBlasDiag diag,
   }
 }
 
-static inline CUresult cuDtrti2(CUmodule module, CBlasUplo uplo, CBlasDiag diag,
+static inline CUresult cuDtrti2(CULAPACKhandle handle, CBlasUplo uplo, CBlasDiag diag,
                                 size_t n,
                                 CUdeviceptr A, size_t lda,
                                 CUdeviceptr info, CUstream stream) {
   const unsigned int bx = 32;
+  if (n > bx)
+    return CUDA_ERROR_INVALID_VALUE;
+
+  if (handle->dtrtri == NULL)
+    CU_ERROR_CHECK(cuModuleLoadData(&handle->dtrtri, imageBytes));
 
   char name[53];
   snprintf(name, 53, "_Z6dtrti2IL9CBlasUplo%dEL9CBlasDiag%dELj%uEEvPdPiii", uplo, diag, bx);
 
   CUfunction function;
-  CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
+  CU_ERROR_CHECK(cuModuleGetFunction(&function, handle->dtrtri, name));
 
   void * params[] = { &A, &info, &lda, &n };
 
@@ -316,7 +322,7 @@ static inline CUresult cuDtrti2(CUmodule module, CBlasUplo uplo, CBlasDiag diag,
   return CUDA_SUCCESS;
 }
 
-CUresult cuDtrtri(CUBLAShandle handle,
+CUresult cuDtrtri(CULAPACKhandle handle,
                   CBlasUplo uplo, CBlasDiag diag,
                   size_t n,
                   CUdeviceptr A, size_t lda,
@@ -366,13 +372,13 @@ CUresult cuDtrtri(CUBLAShandle handle,
       const size_t jb = min(nb, n - j);
 
       /* Update the current column using the big square matrix to the left */
-      CU_ERROR_CHECK(cuDtrmm2(handle, CBlasLeft, CBlasUpper, CBlasNoTrans, diag, j, jb,
+      CU_ERROR_CHECK(cuDtrmm2(handle->blas_handle, CBlasLeft, CBlasUpper, CBlasNoTrans, diag, j, jb,
                               one, A, lda, A + j * lda * sizeof(double), lda, X, ldx, stream0));
       /* GPU DTRMM is out of place so copy back into place */
       CU_ERROR_CHECK(cuMemcpyDtoD2DAsync(A, lda, 0, j, X, ldx, 0, 0, j, jb, sizeof(double), stream0));
       /* Then update the column again using the small square matrix on the
        * diagonal below (on the same stream) */
-      CU_ERROR_CHECK(cuDtrsm(handle, CBlasRight, CBlasUpper, CBlasNoTrans, diag, j, jb,
+      CU_ERROR_CHECK(cuDtrsm(handle->blas_handle, CBlasRight, CBlasUpper, CBlasNoTrans, diag, j, jb,
                              -one, A + (j * lda + j) * sizeof(double), lda, A + j * lda * sizeof(double), lda, stream0));
       /* Overlap both the operations above with a copy of the diagonal block
        * onto the host.  There is a possibility of overwriting the result of the
@@ -417,14 +423,14 @@ CUresult cuDtrtri(CUBLAShandle handle,
       const size_t jb = min(nb, n - j);
 
       /* Update the current column using the big square matrix to the right */
-      CU_ERROR_CHECK(cuDtrmm2(handle, CBlasLeft, CBlasLower, CBlasNoTrans, diag, n - j - jb, jb,
+      CU_ERROR_CHECK(cuDtrmm2(handle->blas_handle, CBlasLeft, CBlasLower, CBlasNoTrans, diag, n - j - jb, jb,
                               one, A + ((j + jb) * lda + j + jb) * sizeof(double), lda,
                               A + (j * lda + j + jb) * sizeof(double), lda, X, ldx, stream0));
       /* GPU DTRMM is out of place so copy back into place */
       CU_ERROR_CHECK(cuMemcpyDtoD2DAsync(A, lda, j + jb, j, X, ldx, 0, 0, j, jb, sizeof(double), stream0));
       /* Then update the column again using the small square matrix on the
        * diagonal above (on the same stream) */
-      CU_ERROR_CHECK(cuDtrsm(handle, CBlasRight, CBlasLower, CBlasNoTrans, diag, n - j - jb, jb,
+      CU_ERROR_CHECK(cuDtrsm(handle->blas_handle, CBlasRight, CBlasLower, CBlasNoTrans, diag, n - j - jb, jb,
                              -one, A + (j * lda + j) * sizeof(double), lda, A + (j * lda + j + jb) * sizeof(double), lda, stream0));
       /* Overlap both the operations above with a copy of the diagonal block
        * onto the host.  There is a possibility of overwriting the result of the
@@ -460,7 +466,7 @@ CUresult cuDtrtri(CUBLAShandle handle,
   return CUDA_SUCCESS;
 }
 
-CUresult cuMultiGPUDtrtri(CUmultiGPUBLAShandle handle,
+CUresult cuMultiGPUDtrtri(CUmultiGPULAPACKhandle handle,
                           CBlasUplo uplo, CBlasDiag diag,
                           size_t n,
                           double * restrict A, size_t lda,
@@ -482,9 +488,9 @@ CUresult cuMultiGPUDtrtri(CUmultiGPUBLAShandle handle,
     // Upper triangular DTRTRI
     for (size_t j = 0; j < n; j += nb) {
       const size_t jb = min(nb, n - j);
-      CU_ERROR_CHECK(cuMultiGPUDtrmm(handle, CBlasLeft, CBlasUpper, CBlasNoTrans, diag,
+      CU_ERROR_CHECK(cuMultiGPUDtrmm(handle->blas_handle, CBlasLeft, CBlasUpper, CBlasNoTrans, diag,
                                      j, jb, one, A, lda, &A[j * lda], lda));
-      CU_ERROR_CHECK(cuMultiGPUDtrsm(handle, CBlasRight, CBlasUpper, CBlasNoTrans, diag,
+      CU_ERROR_CHECK(cuMultiGPUDtrsm(handle->blas_handle, CBlasRight, CBlasUpper, CBlasNoTrans, diag,
                                      j, jb, -one, &A[j * lda + j], lda, &A[j * lda], lda));
       dtrtri(CBlasUpper, diag, jb, &A[j * lda + j], lda, info);
       if (*info != 0) {
@@ -502,11 +508,11 @@ CUresult cuMultiGPUDtrtri(CUmultiGPUBLAShandle handle,
       j -= nb;
       const size_t jb = min(nb, n - j);
       if (j + jb < n) {
-        CU_ERROR_CHECK(cuMultiGPUDtrmm(handle, CBlasLeft, CBlasLower, CBlasNoTrans, diag,
+        CU_ERROR_CHECK(cuMultiGPUDtrmm(handle->blas_handle, CBlasLeft, CBlasLower, CBlasNoTrans, diag,
                                        n - j - jb, jb,
                                        one, &A[(j + jb) * lda + j + jb], lda,
                                        &A[j * lda + j + jb], lda));
-        CU_ERROR_CHECK(cuMultiGPUDtrsm(handle, CBlasRight, CBlasLower, CBlasNoTrans, diag,
+        CU_ERROR_CHECK(cuMultiGPUDtrsm(handle->blas_handle, CBlasRight, CBlasLower, CBlasNoTrans, diag,
                                        n - j - jb, jb,
                                        -one, &A[j * lda + j], lda,
                                        &A[j * lda + j + jb], lda));

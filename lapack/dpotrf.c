@@ -1,4 +1,5 @@
 #include "lapack.h"
+#include "handle.h"
 #include "error.h"
 #include <stdio.h>
 #include <math.h>
@@ -144,17 +145,22 @@ void dpotrf(CBlasUplo uplo,
   }
 }
 
-static inline CUresult cuDpotf2(CUmodule module, CBlasUplo uplo,
+static inline CUresult cuDpotf2(CULAPACKhandle handle, CBlasUplo uplo,
                                 size_t n,
                                 CUdeviceptr A, size_t lda,
                                 CUdeviceptr info, CUstream stream) {
   const unsigned int bx = 32;
+  if (n > bx)
+    return CUDA_ERROR_INVALID_VALUE;
+
+  if (handle->dpotrf == NULL)
+    CU_ERROR_CHECK(cuModuleLoadData(&handle->dpotrf, imageBytes));
 
   char name[39];
   snprintf(name, 39, "_Z6dpotf2IL9CBlasUplo%dELj%uEEvPdPiii", uplo, bx);
 
   CUfunction function;
-  CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
+  CU_ERROR_CHECK(cuModuleGetFunction(&function, handle->dpotrf, name));
 
   void * params[] = { &A, &info, &lda, &n };
 
@@ -163,7 +169,7 @@ static inline CUresult cuDpotf2(CUmodule module, CBlasUplo uplo,
   return CUDA_SUCCESS;
 }
 
-CUresult cuDpotrf(CUBLAShandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, long * info) {
+CUresult cuDpotrf(CULAPACKhandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, long * info) {
   *info = 0;
   if (lda < n)
     *info = -4;
@@ -202,11 +208,11 @@ CUresult cuDpotrf(CUBLAShandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A, 
       const size_t jb = min(nb, n - j);
 
       /* Rank-K update of diagonal block using column matrix above */
-      CU_ERROR_CHECK(cuDsyrk(handle, CBlasUpper, CBlasTrans, jb, j,
+      CU_ERROR_CHECK(cuDsyrk(handle->blas_handle, CBlasUpper, CBlasTrans, jb, j,
                              -one, A + j * lda * sizeof(double), lda,
                              one, A + (j * lda + j) * sizeof(double), lda, stream0));
       /* Overlap the DSYRK with a DGEMM (on a different stream) */
-      CU_ERROR_CHECK(cuDgemm(handle, CBlasTrans, CBlasNoTrans, jb, n - j - jb, j,
+      CU_ERROR_CHECK(cuDgemm(handle->blas_handle, CBlasTrans, CBlasNoTrans, jb, n - j - jb, j,
                              -one, A + j * lda * sizeof(double), lda,
                              A + (j + jb) * lda * sizeof(double), lda,
                              one, A + ((j + jb) * lda + j) * sizeof(double), lda, stream1));
@@ -233,7 +239,7 @@ CUresult cuDpotrf(CUBLAShandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A, 
 //       CU_ERROR_CHECK(cuStreamSynchronize(stream1));
       /* Triangular solve of the diagonal block using the row matrix to the
        * right on the same stream as the copy to ensure it has completed first */
-      CU_ERROR_CHECK(cuDtrsm(handle, CBlasLeft, CBlasUpper, CBlasTrans, CBlasNonUnit,
+      CU_ERROR_CHECK(cuDtrsm(handle->blas_handle, CBlasLeft, CBlasUpper, CBlasTrans, CBlasNonUnit,
                              jb, n - j - jb, one, A + (j * lda + j) * sizeof(double), lda,
                              A + ((j + jb) * lda + j) * sizeof(double), lda, stream0));
     }
@@ -243,11 +249,11 @@ CUresult cuDpotrf(CUBLAShandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A, 
       const size_t jb = min(nb, n - j);
 
       /* Rank-K update of diagonal block using row matrix to the left */
-      CU_ERROR_CHECK(cuDsyrk(handle, CBlasLower, CBlasNoTrans, jb, j,
+      CU_ERROR_CHECK(cuDsyrk(handle->blas_handle, CBlasLower, CBlasNoTrans, jb, j,
                              -one, A + j * sizeof(double), lda,
                              one, A + (j * lda + j) * sizeof(double), lda, stream0));
       /* Overlap the DSYRK with a DGEMM (on a different stream) */
-      CU_ERROR_CHECK(cuDgemm(handle, CBlasNoTrans, CBlasTrans, n - j - jb, jb, j,
+      CU_ERROR_CHECK(cuDgemm(handle->blas_handle, CBlasNoTrans, CBlasTrans, n - j - jb, jb, j,
                              -one, A + (j + jb) * sizeof(double), lda,
                              A + j * sizeof(double), lda,
                              one, A + (j * lda + j + jb) * sizeof(double), lda, stream1));
@@ -274,7 +280,7 @@ CUresult cuDpotrf(CUBLAShandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A, 
 //       CU_ERROR_CHECK(cuStreamSynchronize(stream1));
       /* Triangular solve of the diagonal block using the column matrix below
        * on the same stream as the copy to ensure it has completed first */
-      CU_ERROR_CHECK(cuDtrsm(handle, CBlasRight, CBlasLower, CBlasTrans, CBlasNonUnit,
+      CU_ERROR_CHECK(cuDtrsm(handle->blas_handle, CBlasRight, CBlasLower, CBlasTrans, CBlasNonUnit,
                              n - j - jb, jb, one, A + (j * lda + j) * sizeof(double), lda,
                              A + (j * lda + j + jb) * sizeof(double), lda, stream0));
     }
@@ -289,7 +295,7 @@ CUresult cuDpotrf(CUBLAShandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A, 
   return CUDA_SUCCESS;
 }
 
-CUresult cuMultiGPUDpotrf(CUmultiGPUBLAShandle handle, CBlasUplo uplo,
+CUresult cuMultiGPUDpotrf(CUmultiGPULAPACKhandle handle, CBlasUplo uplo,
                           size_t n,
                           double * restrict A, size_t lda,
                           long * restrict info) {
@@ -315,9 +321,9 @@ CUresult cuMultiGPUDpotrf(CUmultiGPUBLAShandle handle, CBlasUplo uplo,
     for (size_t j = 0; j < n; j += nb) {
       const size_t jb = min(nb, n - j);
 
-      CU_ERROR_CHECK(cuMultiGPUDsyrk(handle, CBlasUpper, CBlasTrans, jb, j,
+      CU_ERROR_CHECK(cuMultiGPUDsyrk(handle->blas_handle, CBlasUpper, CBlasTrans, jb, j,
                                      -one, &A[j * lda], lda, one, &A[j * lda + j], lda));
-      CU_ERROR_CHECK(cuMultiGPUBLASSynchronize(handle));
+      CU_ERROR_CHECK(cuMultiGPUBLASSynchronize(handle->blas_handle));
       dpotrf(CBlasUpper, jb, &A[j * lda + j], lda, info);
       if (*info != 0) {
         (*info) += (long)j;
@@ -325,10 +331,10 @@ CUresult cuMultiGPUDpotrf(CUmultiGPUBLAShandle handle, CBlasUplo uplo,
       }
 
       if (j + jb < n) {
-        CU_ERROR_CHECK(cuMultiGPUDgemm(handle, CBlasTrans, CBlasNoTrans, jb, n - j - jb, j,
+        CU_ERROR_CHECK(cuMultiGPUDgemm(handle->blas_handle, CBlasTrans, CBlasNoTrans, jb, n - j - jb, j,
                                        -one, &A[j * lda], lda, &A[(j + jb) * lda], lda,
                                        one, &A[(j + jb) * lda + j], lda));
-        CU_ERROR_CHECK(cuMultiGPUDtrsm(handle, CBlasLeft, CBlasUpper, CBlasTrans, CBlasNonUnit, jb, n - j - jb,
+        CU_ERROR_CHECK(cuMultiGPUDtrsm(handle->blas_handle, CBlasLeft, CBlasUpper, CBlasTrans, CBlasNonUnit, jb, n - j - jb,
                                        one, &A[j * lda + j], lda, &A[(j + jb) * lda + j], lda));
       }
     }
@@ -337,9 +343,9 @@ CUresult cuMultiGPUDpotrf(CUmultiGPUBLAShandle handle, CBlasUplo uplo,
     for (size_t j = 0; j < n; j += nb) {
       const size_t jb = min(nb, n - j);
 
-      CU_ERROR_CHECK(cuMultiGPUDsyrk(handle, CBlasLower, CBlasNoTrans, jb, j,
+      CU_ERROR_CHECK(cuMultiGPUDsyrk(handle->blas_handle, CBlasLower, CBlasNoTrans, jb, j,
                                      -one, &A[j], lda, one, &A[j * lda + j], lda));
-      CU_ERROR_CHECK(cuMultiGPUBLASSynchronize(handle));
+      CU_ERROR_CHECK(cuMultiGPUBLASSynchronize(handle->blas_handle));
       dpotrf(CBlasLower, jb, &A[j * lda + j], lda, info);
       if (*info != 0) {
         (*info) += (long)j;
@@ -347,10 +353,10 @@ CUresult cuMultiGPUDpotrf(CUmultiGPUBLAShandle handle, CBlasUplo uplo,
       }
 
       if (j + jb < n) {
-        CU_ERROR_CHECK(cuMultiGPUDgemm(handle, CBlasNoTrans, CBlasTrans, n - j - jb, jb, j,
+        CU_ERROR_CHECK(cuMultiGPUDgemm(handle->blas_handle, CBlasNoTrans, CBlasTrans, n - j - jb, jb, j,
                                        -one, &A[j + jb], lda, &A[j], lda,
                                        one, &A[j * lda + j + jb], lda));
-        CU_ERROR_CHECK(cuMultiGPUDtrsm(handle, CBlasRight, CBlasLower, CBlasTrans, CBlasNonUnit, n - j - jb, jb,
+        CU_ERROR_CHECK(cuMultiGPUDtrsm(handle->blas_handle, CBlasRight, CBlasLower, CBlasTrans, CBlasNonUnit, n - j - jb, jb,
                                        one, &A[j * lda + j], lda, &A[j * lda + j + jb], lda));
       }
     }

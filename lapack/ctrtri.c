@@ -1,4 +1,5 @@
 #include "lapack.h"
+#include "handle.h"
 #include "error.h"
 #include <stdio.h>
 #include "config.h"
@@ -297,17 +298,22 @@ void ctrtri2(CBlasUplo uplo, CBlasDiag diag,
   }
 }
 
-static inline CUresult cuCtrti2(CUmodule module, CBlasUplo uplo, CBlasDiag diag,
+static inline CUresult cuCtrti2(CULAPACKhandle handle, CBlasUplo uplo, CBlasDiag diag,
                                 size_t n,
                                 CUdeviceptr A, size_t lda,
                                 CUdeviceptr info, CUstream stream) {
   const unsigned int bx = 32;
+  if (n > bx)
+    return CUDA_ERROR_INVALID_VALUE;
+
+  if (handle->ctrtri == NULL)
+    CU_ERROR_CHECK(cuModuleLoadData(&handle->ctrtri, imageBytes));
 
   char name[59];
   snprintf(name, 59, "_Z6ctrti2IL9CBlasUplo%dEL9CBlasDiag%dELj%uEEvP6float2Piii", uplo, diag, bx);
 
   CUfunction function;
-  CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
+  CU_ERROR_CHECK(cuModuleGetFunction(&function, handle->ctrtri, name));
 
   void * params[] = { &A, &info, &lda, &n };
 
@@ -316,7 +322,7 @@ static inline CUresult cuCtrti2(CUmodule module, CBlasUplo uplo, CBlasDiag diag,
   return CUDA_SUCCESS;
 }
 
-CUresult cuCtrtri(CUBLAShandle handle, CBlasUplo uplo, CBlasDiag diag,
+CUresult cuCtrtri(CULAPACKhandle handle, CBlasUplo uplo, CBlasDiag diag,
                   size_t n,
                   CUdeviceptr A, size_t lda,
                   long * info) {
@@ -365,13 +371,13 @@ CUresult cuCtrtri(CUBLAShandle handle, CBlasUplo uplo, CBlasDiag diag,
       const size_t jb = min(nb, n - j);
 
       /* Update the current column using the big square matrix to the left */
-      CU_ERROR_CHECK(cuCtrmm2(handle, CBlasLeft, CBlasUpper, CBlasNoTrans, diag, j, jb,
+      CU_ERROR_CHECK(cuCtrmm2(handle->blas_handle, CBlasLeft, CBlasUpper, CBlasNoTrans, diag, j, jb,
                               one, A, lda, A + j * lda * sizeof(float complex), lda, X, ldx, stream0));
       /* GPU CTRMM is out of place so copy back into place */
       CU_ERROR_CHECK(cuMemcpyDtoD2DAsync(A, lda, 0, j, X, ldx, 0, 0, j, jb, sizeof(float complex), stream0));
       /* Then update the column again using the small square matrix on the
        * diagonal below (on the same stream) */
-      CU_ERROR_CHECK(cuCtrsm(handle, CBlasRight, CBlasUpper, CBlasNoTrans, diag, j, jb,
+      CU_ERROR_CHECK(cuCtrsm(handle->blas_handle, CBlasRight, CBlasUpper, CBlasNoTrans, diag, j, jb,
                              -one, A + (j * lda + j) * sizeof(float complex), lda, A + j * lda * sizeof(float complex), lda, stream0));
       /* Overlap both the operations above with a copy of the diagonal block
        * onto the host.  There is a possibility of overwriting the result of the
@@ -416,14 +422,14 @@ CUresult cuCtrtri(CUBLAShandle handle, CBlasUplo uplo, CBlasDiag diag,
       const size_t jb = min(nb, n - j);
 
       /* Update the current column using the big square matrix to the right */
-      CU_ERROR_CHECK(cuCtrmm2(handle, CBlasLeft, CBlasLower, CBlasNoTrans, diag, n - j - jb, jb,
+      CU_ERROR_CHECK(cuCtrmm2(handle->blas_handle, CBlasLeft, CBlasLower, CBlasNoTrans, diag, n - j - jb, jb,
                               one, A + ((j + jb) * lda + j + jb) * sizeof(float complex), lda,
                               A + (j * lda + j + jb) * sizeof(float complex), lda, X, ldx, stream0));
       /* GPU CTRMM is out of place so copy back into place */
       CU_ERROR_CHECK(cuMemcpyDtoD2DAsync(A, lda, j + jb, j, X, ldx, 0, 0, j, jb, sizeof(float complex), stream0));
       /* Then update the column again using the small square matrix on the
        * diagonal above (on the same stream) */
-      CU_ERROR_CHECK(cuCtrsm(handle, CBlasRight, CBlasLower, CBlasNoTrans, diag, n - j - jb, jb,
+      CU_ERROR_CHECK(cuCtrsm(handle->blas_handle, CBlasRight, CBlasLower, CBlasNoTrans, diag, n - j - jb, jb,
                              -one, A + (j * lda + j) * sizeof(float complex), lda, A + (j * lda + j + jb) * sizeof(float complex), lda, stream0));
       /* Overlap both the operations above with a copy of the diagonal block
        * onto the host.  There is a possibility of overwriting the result of the
@@ -459,7 +465,7 @@ CUresult cuCtrtri(CUBLAShandle handle, CBlasUplo uplo, CBlasDiag diag,
   return CUDA_SUCCESS;
 }
 
-CUresult cuMultiGPUCtrtri(CUmultiGPUBLAShandle handle,
+CUresult cuMultiGPUCtrtri(CUmultiGPULAPACKhandle handle,
                           CBlasUplo uplo, CBlasDiag diag,
                           size_t n,
                           float complex * restrict A, size_t lda,
@@ -481,9 +487,9 @@ CUresult cuMultiGPUCtrtri(CUmultiGPUBLAShandle handle,
     // Upper triangular CTRTRI
     for (size_t j = 0; j < n; j += nb) {
       const size_t jb = min(nb, n - j);
-      CU_ERROR_CHECK(cuMultiGPUCtrmm(handle, CBlasLeft, CBlasUpper, CBlasNoTrans, diag,
+      CU_ERROR_CHECK(cuMultiGPUCtrmm(handle->blas_handle, CBlasLeft, CBlasUpper, CBlasNoTrans, diag,
                                      j, jb, one, A, lda, &A[j * lda], lda));
-      CU_ERROR_CHECK(cuMultiGPUCtrsm(handle, CBlasRight, CBlasUpper, CBlasNoTrans, diag,
+      CU_ERROR_CHECK(cuMultiGPUCtrsm(handle->blas_handle, CBlasRight, CBlasUpper, CBlasNoTrans, diag,
                                      j, jb, -one, &A[j * lda + j], lda, &A[j * lda], lda));
       ctrtri(CBlasUpper, diag, jb, &A[j * lda + j], lda, info);
       if (*info != 0) {
@@ -501,11 +507,11 @@ CUresult cuMultiGPUCtrtri(CUmultiGPUBLAShandle handle,
       j -= nb;
       const size_t jb = min(nb, n - j);
       if (j + jb < n) {
-        CU_ERROR_CHECK(cuMultiGPUCtrmm(handle, CBlasLeft, CBlasLower, CBlasNoTrans, diag,
+        CU_ERROR_CHECK(cuMultiGPUCtrmm(handle->blas_handle, CBlasLeft, CBlasLower, CBlasNoTrans, diag,
                                        n - j - jb, jb,
                                        one, &A[(j + jb) * lda + j + jb], lda,
                                        &A[j * lda + j + jb], lda));
-        CU_ERROR_CHECK(cuMultiGPUCtrsm(handle, CBlasRight, CBlasLower, CBlasNoTrans, diag,
+        CU_ERROR_CHECK(cuMultiGPUCtrsm(handle->blas_handle, CBlasRight, CBlasLower, CBlasNoTrans, diag,
                                        n - j - jb, jb,
                                        -one, &A[j * lda + j], lda,
                                        &A[j * lda + j + jb], lda));

@@ -1,4 +1,5 @@
 #include "lapack.h"
+#include "handle.h"
 #include "error.h"
 #include <stdio.h>
 #include "config.h"
@@ -127,16 +128,21 @@ void slauum(CBlasUplo uplo,
   }
 }
 
-static inline CUresult cuSlauu2(CUmodule module, CBlasUplo uplo,
+static inline CUresult cuSlauu2(CULAPACKhandle handle, CBlasUplo uplo,
                                 size_t n,
                                 CUdeviceptr A, size_t lda, CUstream stream) {
   const unsigned int bx = 64;
+  if (n > bx)
+    return CUDA_ERROR_INVALID_VALUE;
+
+  if (handle->slauum == NULL)
+    CU_ERROR_CHECK(cuModuleLoadData(&handle->slauum, imageBytes));
 
   char name[37];
   snprintf(name, 37, "_Z6slauu2IL9CBlasUplo%dELj%uEEvPfii", uplo, bx);
 
   CUfunction function;
-  CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
+  CU_ERROR_CHECK(cuModuleGetFunction(&function, handle->slauum, name));
 
   void * params[] = { &A, &lda, &n };
 
@@ -145,7 +151,7 @@ static inline CUresult cuSlauu2(CUmodule module, CBlasUplo uplo,
   return CUDA_SUCCESS;
 }
 
-CUresult cuSlauum(CUBLAShandle handle,
+CUresult cuSlauum(CULAPACKhandle handle,
                   CBlasUplo uplo,
                   size_t n,
                   CUdeviceptr A, size_t lda,
@@ -195,11 +201,11 @@ CUresult cuSlauum(CUBLAShandle handle,
       const size_t ib = min(nb, n - i);
 
       /* Update the current column using the diagonal block */
-      CU_ERROR_CHECK(cuStrmm2(handle, CBlasRight, CBlasUpper, CBlasTrans, CBlasNonUnit, i, ib,
+      CU_ERROR_CHECK(cuStrmm2(handle->blas_handle, CBlasRight, CBlasUpper, CBlasTrans, CBlasNonUnit, i, ib,
                               one, A + (i * lda + i) * sizeof(float), lda,
                               A + i * lda * sizeof(float), lda, X, ldx, stream0));
       /* Update the current column using the big matrix to the right */
-      CU_ERROR_CHECK(cuSgemm2(handle, CBlasNoTrans, CBlasTrans, i, ib, n - i - ib,
+      CU_ERROR_CHECK(cuSgemm2(handle->blas_handle, CBlasNoTrans, CBlasTrans, i, ib, n - i - ib,
                               one, A + (i + ib) * lda * sizeof(float), lda,
                               A + ((i + ib) * lda + i) * sizeof(float), lda,
                               one, X, ldx, A + i * lda * sizeof(float), lda, stream0));
@@ -218,7 +224,7 @@ CUresult cuSlauum(CUBLAShandle handle,
                                          ib, ib, sizeof(float), stream1));
       /* Perform the SSYRK on the same stream as the copy to ensure A has
        * finised copying back first. */
-      CU_ERROR_CHECK(cuSsyrk(handle, CBlasUpper, CBlasNoTrans, ib, n - i - ib,
+      CU_ERROR_CHECK(cuSsyrk(handle->blas_handle, CBlasUpper, CBlasNoTrans, ib, n - i - ib,
                              one, A + ((i + ib) * lda + i) * sizeof(float), lda,
                              one, A + (i * lda + i) * sizeof(float), lda, stream1));
       /* Ensure the SSYRK has finished before starting the STRMM from the next
@@ -242,11 +248,11 @@ CUresult cuSlauum(CUBLAShandle handle,
       const size_t ib = min(mb, n - i);
 
       /* Update the current column using the diagonal block */
-      CU_ERROR_CHECK(cuStrmm2(handle, CBlasLeft, CBlasLower, CBlasTrans, CBlasNonUnit, ib, i,
+      CU_ERROR_CHECK(cuStrmm2(handle->blas_handle, CBlasLeft, CBlasLower, CBlasTrans, CBlasNonUnit, ib, i,
                               one, A + (i * lda + i) * sizeof(float), lda,
                               A + i * sizeof(float), lda, X, ldx, stream0));
       /* Update the current column using the big matrix to the right */
-      CU_ERROR_CHECK(cuSgemm2(handle, CBlasTrans, CBlasNoTrans, ib, i, n - i - ib,
+      CU_ERROR_CHECK(cuSgemm2(handle->blas_handle, CBlasTrans, CBlasNoTrans, ib, i, n - i - ib,
                               one, A + (i * lda + i + ib) * sizeof(float), lda,
                               A + (i + ib) * sizeof(float), lda,
                               one, X, ldx, A + i * sizeof(float), lda, stream0));
@@ -265,7 +271,7 @@ CUresult cuSlauum(CUBLAShandle handle,
                                          ib, ib, sizeof(float), stream1));
       /* Perform the SSYRK on the same stream as the copy to ensure A has
        * finised copying back first. */
-      CU_ERROR_CHECK(cuSsyrk(handle, CBlasLower, CBlasTrans, ib, n - i - ib,
+      CU_ERROR_CHECK(cuSsyrk(handle->blas_handle, CBlasLower, CBlasTrans, ib, n - i - ib,
                              one, A + (i * lda + i + ib) * sizeof(float), lda,
                              one, A + (i * lda + i) * sizeof(float), lda, stream1));
       /* Ensure the SSYRK has finished before starting the STRMM from the next
@@ -285,7 +291,7 @@ CUresult cuSlauum(CUBLAShandle handle,
   return CUDA_SUCCESS;
 }
 
-CUresult cuMultiGPUSlauum(CUmultiGPUBLAShandle handle,
+CUresult cuMultiGPUSlauum(CUmultiGPULAPACKhandle handle,
                           CBlasUplo uplo,
                           size_t n,
                           float * restrict A, size_t lda,
@@ -308,15 +314,15 @@ CUresult cuMultiGPUSlauum(CUmultiGPUBLAShandle handle,
     for (size_t i = 0; i < n; i += nb) {
       const size_t ib = min(nb, n - i);
 
-      CU_ERROR_CHECK(cuMultiGPUStrmm(handle, CBlasRight, CBlasUpper, CBlasTrans, CBlasNonUnit,
+      CU_ERROR_CHECK(cuMultiGPUStrmm(handle->blas_handle, CBlasRight, CBlasUpper, CBlasTrans, CBlasNonUnit,
                                      i, ib, one, &A[i * lda + i], lda, &A[i * lda], lda));
       slauu2(CBlasUpper, ib, &A[i * lda + i], lda);
 
       if (i + ib < n) {
-        CU_ERROR_CHECK(cuMultiGPUSgemm(handle, CBlasNoTrans, CBlasTrans, i, ib, n - i - ib,
+        CU_ERROR_CHECK(cuMultiGPUSgemm(handle->blas_handle, CBlasNoTrans, CBlasTrans, i, ib, n - i - ib,
                                        one, &A[(i + ib) * lda], lda, &A[(i + ib) * lda + i], lda,
                                        one, &A[i * lda], lda));
-        CU_ERROR_CHECK(cuMultiGPUSsyrk(handle, CBlasUpper, CBlasNoTrans, ib, n - i - ib,
+        CU_ERROR_CHECK(cuMultiGPUSsyrk(handle->blas_handle, CBlasUpper, CBlasNoTrans, ib, n - i - ib,
                                        one, &A[(i + ib) * lda + i], lda, one, &A[i * lda + i], lda));
       }
     }
@@ -328,15 +334,15 @@ CUresult cuMultiGPUSlauum(CUmultiGPUBLAShandle handle,
     for (size_t i = 0; i < n; i += mb) {
       const size_t ib = min(mb, n - i);
 
-      CU_ERROR_CHECK(cuMultiGPUStrmm(handle, CBlasLeft, CBlasLower, CBlasTrans, CBlasNonUnit, ib, i,
+      CU_ERROR_CHECK(cuMultiGPUStrmm(handle->blas_handle, CBlasLeft, CBlasLower, CBlasTrans, CBlasNonUnit, ib, i,
                                      one, &A[i * lda + i], lda, &A[i], lda));
       slauu2(CBlasLower, ib, &A[i * lda + i], lda);
 
       if (i + ib < n) {
-        CU_ERROR_CHECK(cuMultiGPUSgemm(handle, CBlasTrans, CBlasNoTrans, ib, i, n - i - ib,
+        CU_ERROR_CHECK(cuMultiGPUSgemm(handle->blas_handle, CBlasTrans, CBlasNoTrans, ib, i, n - i - ib,
                                        one, &A[i * lda + i + ib], lda, &A[i + ib], lda,
                                        one, &A[i], lda));
-        CU_ERROR_CHECK(cuMultiGPUSsyrk(handle, CBlasLower, CBlasTrans, ib, n - i - ib,
+        CU_ERROR_CHECK(cuMultiGPUSsyrk(handle->blas_handle, CBlasLower, CBlasTrans, ib, n - i - ib,
                                        one, &A[i * lda + i + ib], lda, one, &A[i * lda + i], lda));
       }
     }
