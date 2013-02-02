@@ -33,6 +33,23 @@ static inline CUresult cublashandle_init(struct __cublashandle_st * handle) {
   handle->ztrmm = NULL;
   handle->ztrsm = NULL;
 
+  // Stick the LAPACK kernels in here for now too
+  handle->spotrf = NULL;
+  handle->strtri = NULL;
+  handle->slauum = NULL;
+
+  handle->cpotrf = NULL;
+  handle->ctrtri = NULL;
+  handle->clauum = NULL;
+
+  handle->dpotrf = NULL;
+  handle->dtrtri = NULL;
+  handle->dlauum = NULL;
+
+  handle->zpotrf = NULL;
+  handle->ztrtri = NULL;
+  handle->zlauum = NULL;
+
   return CUDA_SUCCESS;
 }
 
@@ -74,6 +91,34 @@ static inline CUresult cublashandle_cleanup(struct __cublashandle_st * handle) {
     CU_ERROR_CHECK(cuModuleUnload(handle->ztrmm));
   if (handle->ztrsm != NULL)
     CU_ERROR_CHECK(cuModuleUnload(handle->ztrsm));
+
+  if (handle->spotrf != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->spotrf));
+  if (handle->strtri != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->strtri));
+  if (handle->slauum != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->slauum));
+
+  if (handle->cpotrf != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->cpotrf));
+  if (handle->ctrtri != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->ctrtri));
+  if (handle->clauum != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->clauum));
+
+  if (handle->dpotrf != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->dpotrf));
+  if (handle->dtrtri != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->dtrtri));
+  if (handle->dlauum != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->dlauum));
+
+  if (handle->zpotrf != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->zpotrf));
+  if (handle->ztrtri != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->ztrtri));
+  if (handle->zlauum != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->zlauum));
 
   if (handle->contextOwner)
     CU_ERROR_CHECK(cuCtxDestroy(handle->context));
