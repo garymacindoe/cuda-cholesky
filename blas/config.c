@@ -249,6 +249,23 @@ int main() {
     fprintf(stdout, "#define ZGEMM_CC_NB %d\n", nb);
     fprintf(stdout, "#define ZGEMM_CC_KB %d\n\n", kb);
   }
+  else {
+    fputs("#define DGEMM_N_MB 32\n", stdout);
+    fputs("#define DGEMM_N_NB 32\n", stdout);
+    fputs("#define DGEMM_N_KB 32\n\n", stdout);
+    fputs("#define DGEMM_T_MB 32\n", stdout);
+    fputs("#define DGEMM_T_NB 32\n", stdout);
+    fputs("#define DGEMM_T_KB 32\n\n", stdout);
+    fputs("#define ZGEMM_N_MB 32\n", stdout);
+    fputs("#define ZGEMM_N_NB 32\n", stdout);
+    fputs("#define ZGEMM_N_KB 32\n\n", stdout);
+    fputs("#define ZGEMM_CN_MB 32\n", stdout);
+    fputs("#define ZGEMM_CN_NB 32\n", stdout);
+    fputs("#define ZGEMM_CN_KB 32\n\n", stdout);
+    fputs("#define ZGEMM_CC_MB 32\n", stdout);
+    fputs("#define ZGEMM_CC_NB 32\n", stdout);
+    fputs("#define ZGEMM_CC_KB 32\n\n", stdout);
+  }
 
   return 0;
 }
@@ -287,6 +304,7 @@ static CUresult cuFuncMaxBlocksPerMP(CUfunction function, CUdevice device, unsig
   int numRegs, sharedSizeBytes;
   CU_ERROR_CHECK(cuFuncGetAttribute(&numRegs, CU_FUNC_ATTRIBUTE_NUM_REGS, function));
   CU_ERROR_CHECK(cuFuncGetAttribute(&sharedSizeBytes, CU_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES, function));
+  numRegs *= (int)threads;
 
   // Work out the maximum number of thread blocks per multiprocessor
   unsigned int maxBlocksByThread = (unsigned int)maxThreadsPerBlock / threads;
@@ -302,7 +320,7 @@ static void getMaxGFLOPsSize(unsigned int blocks, unsigned int mb, unsigned int 
   // Find all factors of the number of blocks required
   double reduction = 0.0;
   unsigned int limit = (unsigned int)floor(sqrt((double)blocks));
-  for (unsigned int x = 1; x < limit; x++) {
+  for (unsigned int x = 1; x <= limit; x++) {
     if (blocks % x == 0) {
       // Work out the cofactor
       unsigned int y = blocks / x;

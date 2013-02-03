@@ -38,6 +38,7 @@ FATBINS = sgemm.fatbin ssyrk.fatbin strmm.fatbin strsm.fatbin \
 
 VPATH = ../include
 
+.NOTPARALLEL: ../include/config.h
 .PHONY: all clean
 
 all: $(TARGET)
@@ -51,10 +52,10 @@ config: config.c error.h blas.h cumultigpu.h | sgemm.fatbin dgemm.fatbin cgemm.f
 	$(CC) $(CPPFLAGS) $(CFLAGS) -o $(@) $(<) $(LOADLIBES) $(LDLIBS)
 
 ../include/config.h: config
-	echo "#ifndef CONFIG_H" > $(@)
-	echo "#define CONFIG_H" >> $(@)
+	@echo "#ifndef CONFIG_H" > $(@)
+	@echo "#define CONFIG_H" >> $(@)
 	./$(<) >> $(@)
-	echo "#endif" >> $(@)
+	@echo "#endif" >> $(@)
 
 handle.o: blas.h cumultigpu.h handle.h error.h
 xerbla.o: blas.h cumultigpu.h
