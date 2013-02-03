@@ -10,7 +10,16 @@ CFLAGS = -march=native -O2 -pipe -std=c99 -pedantic -Wall -Wextra -Wconversion -
 # CC = icc
 # CFLAGS = -xHost -O2 -pipe -std=c99 -Wall -openmp
 
+LOADLIBES = ../libcumultigpu.a
+LDLIBS = -lcuda
+
 NVCFLAGS = -O2 -use_fast_math -maxrregcount=32
+
+ifdef verbose
+  NVCFLAGS += -Xptxas=-v
+  CFLAGS += -ftree-vectorizer-verbose=$(verbose)
+#   CFLAGS += -vec-report=$(verbose)
+endif
 
 BIN2CFLAGS = -c -st
 
@@ -34,9 +43,18 @@ VPATH = ../include
 all: $(TARGET)
 
 clean:
-	$(RM) $(OBJECTS) $(FATBINS) $(addsuffix .c,$(FATBINS))
+	$(RM) config $(OBJECTS) $(FATBINS) $(addsuffix .c,$(FATBINS))
 
 $(TARGET): $(OBJECTS)
+
+config: config.c error.h blas.h cumultigpu.h | sgemm.fatbin dgemm.fatbin cgemm.fatbin zgemm.fatbin
+	$(CC) $(CPPFLAGS) $(CFLAGS) -o $(@) $(<) $(LOADLIBES) $(LDLIBS)
+
+../include/config.h: config
+	echo "#ifndef CONFIG_H" > $(@)
+	echo "#define CONFIG_H" >> $(@)
+	./$(<) >> $(@)
+	echo "#endif" >> $(@)
 
 handle.o: blas.h cumultigpu.h handle.h error.h
 xerbla.o: blas.h cumultigpu.h

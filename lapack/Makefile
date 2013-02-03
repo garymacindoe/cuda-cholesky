@@ -14,6 +14,8 @@ NVCFLAGS = -O2 -use_fast_math -maxrregcount=32
 
 ifdef verbose
   NVCFLAGS += -Xptxas=-v
+  CFLAGS += -ftree-vectorizer-verbose=$(verbose)
+#   CFLAGS += -vec-report=$(verbose)
 endif
 
 BIN2CFLAGS = -c -st
