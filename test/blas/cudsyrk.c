@@ -178,13 +178,13 @@ int main(int argc, char * argv[]) {
   CU_ERROR_CHECK(cuEventDestroy(start));
   CU_ERROR_CHECK(cuEventDestroy(stop));
 
-  size_t flops = 2 * k - 1;
+  size_t flops = 2 * k - 1;     // k multiplies and k - 1 adds per element
   if (alpha != 1.0)
-    flops += 1;
+    flops += 1;                 // additional multiply by alpha
   if (beta != 0.0)
-    flops += 2;
-  double error = (double)flops * 2.0 * DBL_EPSILON;
-  flops *= n * (n + 1) / 2;
+    flops += 2;                 // additional multiply and add by beta
+  double error = (double)flops * DBL_EPSILON;   // maximum per element error
+  flops *= n * (n + 1) / 2;     // n(n + 1) / 2 elements
 
   bool passed = (diff <= error);
   fprintf(stdout, "%.3es %.3gGFlops/s Error: %.3e\n%sED!\n", time * 1.e-3f,

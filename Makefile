@@ -15,7 +15,7 @@ VPATH = include
 
 all: libcumultigpu.a libcumultigpu_seq.a libblas.a liblapack.a
 
-test:
+test: libcumultigpu.a libcumultigpu_seq.a libblas.a liblapack.a
 	cd test && $(MAKE)
 
 clean:

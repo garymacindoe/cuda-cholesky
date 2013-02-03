@@ -224,11 +224,23 @@ int main(int argc, char * argv[]) {
   CU_ERROR_CHECK(cuEventDestroy(start));
   CU_ERROR_CHECK(cuEventDestroy(stop));
 
-  size_t flops = 6 * m * n;
-  if (alpha != 0.0 + 0.0 * I) {
-    flops += (side == CBlasLeft) ? 2 * m * n * (2 * m - 1) : 2 * m * n * (2 * n - 1);
-    if (diag == CBlasNonUnit) flops += 18 * m * n;
+  size_t flops;
+  if (side == CBlasLeft) {
+    // matrix is m-by-m triangular multiplying m-by-n
+    // if non-unit then equivalent to using (m-1)-by-(m-1) matrix
+    // number of adds is one less per element than multiplies
+    flops = 6 * n * ((((m - 1) * m) / 2) + 2 * (((m - 2) * (m - 1)) / 2));
   }
+  else {
+    // matrix is m-by-n multiplying n-by-n triangular
+    // if non-unit then equivalent to using (n-1)-by-(n-1) matrix
+    // number of adds is one less per element than multiplies
+    flops = 6 * m * ((((n - 1) * n) / 2) + 2 * (((n - 2) * (n - 1)) / 2));
+  }
+  if (alpha != 1.0 + 0.0 * I)
+    flops += 6 * m * n;     // each element is additionally multiplied by alpha
+  if (diag == CBlasNonUnit)
+    flops += 8 * m * n; // each element is additionally multiplied and added by the diagonal
 
   fprintf(stdout, "%.3es %.3gGFlops/s Error: %.3e + %.3ei\n%sED!\n", time * 1.e-3f,
           ((float)flops * 1.e-6f) / time, rdiff, idiff, (passed) ? "PASS" : "FAIL");

@@ -130,7 +130,7 @@ int main(int argc, char * argv[]) {
   CU_ERROR_CHECK(cuEventDestroy(start));
   CU_ERROR_CHECK(cuEventDestroy(stop));
 
-  size_t flops = ((n * n * n) / 3) + ((n * n) / 2) + (n / 6);
+  const size_t flops = ((n * n * n) / 3) + ((n * n) / 2) + (n / 6);
   fprintf(stdout, "%.3es %.3gGFlops/s Error: %.3e\n%sED!\n", time,
           ((float)flops * 1.e-6f) / time, diff, (passed) ? "PASS" : "FAIL");
 
