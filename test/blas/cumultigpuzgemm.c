@@ -178,13 +178,13 @@ int main(int argc, char * argv[]) {
   double time = ((double)(stop.tv_sec - start.tv_sec) +
                  (double)(stop.tv_usec - start.tv_usec) * 1.e-6) / 20.0;
 
-  size_t flops = 8 * k - 2;
+  size_t flops = k * 6 + (k - 1) * 2;   // k multiplies and k - 1 adds per element
   if (alpha != 1.0 + 0.0 * I)
-    flops += 6;
+    flops += 6;                 // additional multiply by alpha
   if (beta != 0.0 + 0.0 * I)
-    flops += 8;
-  double error = (double)flops * DBL_EPSILON;
-  flops *= m * n;
+    flops += 8;                 // additional multiply and add by beta
+  double error = (double)flops * DBL_EPSILON;   // maximum per element error
+  flops *= m * n;               // m * n elements
 
   bool passed = (rdiff <= error) && (idiff <= error);
   fprintf(stdout, "%.3es %.3gGFlops/s Error: %.3e + %.3ei\n%sED!\n", time,
