@@ -9,18 +9,22 @@ static inline CUresult culapackhandle_init(struct __culapackhandle_st * handle) 
   handle->spotrf = NULL;
   handle->strtri = NULL;
   handle->slauum = NULL;
+  handle->slogdet = NULL;
 
   handle->cpotrf = NULL;
   handle->ctrtri = NULL;
   handle->clauum = NULL;
+  handle->clogdet = NULL;
 
   handle->dpotrf = NULL;
   handle->dtrtri = NULL;
   handle->dlauum = NULL;
+  handle->dlogdet = NULL;
 
   handle->zpotrf = NULL;
   handle->ztrtri = NULL;
   handle->zlauum = NULL;
+  handle->zlogdet = NULL;
 
   return CUDA_SUCCESS;
 }
@@ -34,6 +38,8 @@ static inline CUresult culapackhandle_cleanup(struct __culapackhandle_st * handl
     CU_ERROR_CHECK(cuModuleUnload(handle->strtri));
   if (handle->slauum != NULL)
     CU_ERROR_CHECK(cuModuleUnload(handle->slauum));
+  if (handle->slogdet != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->slogdet));
 
   if (handle->cpotrf != NULL)
     CU_ERROR_CHECK(cuModuleUnload(handle->cpotrf));
@@ -41,6 +47,8 @@ static inline CUresult culapackhandle_cleanup(struct __culapackhandle_st * handl
     CU_ERROR_CHECK(cuModuleUnload(handle->ctrtri));
   if (handle->clauum != NULL)
     CU_ERROR_CHECK(cuModuleUnload(handle->clauum));
+  if (handle->clogdet != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->clogdet));
 
   if (handle->dpotrf != NULL)
     CU_ERROR_CHECK(cuModuleUnload(handle->dpotrf));
@@ -48,6 +56,8 @@ static inline CUresult culapackhandle_cleanup(struct __culapackhandle_st * handl
     CU_ERROR_CHECK(cuModuleUnload(handle->dtrtri));
   if (handle->dlauum != NULL)
     CU_ERROR_CHECK(cuModuleUnload(handle->dlauum));
+  if (handle->dlogdet != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->dlogdet));
 
   if (handle->zpotrf != NULL)
     CU_ERROR_CHECK(cuModuleUnload(handle->zpotrf));
@@ -55,6 +65,8 @@ static inline CUresult culapackhandle_cleanup(struct __culapackhandle_st * handl
     CU_ERROR_CHECK(cuModuleUnload(handle->ztrtri));
   if (handle->zlauum != NULL)
     CU_ERROR_CHECK(cuModuleUnload(handle->zlauum));
+  if (handle->zlogdet != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->zlogdet));
 
   CU_ERROR_CHECK(cuCtxPopCurrent(&handle->context));
   CU_ERROR_CHECK(cuBLASDestroy(handle->blas_handle));

@@ -39,6 +39,13 @@ int main(int argc, char * argv[]) {
     return 2;
   }
 
+  if (argc > 3) {
+    if (sscanf(argv[3], "%d", &d) != 1) {
+      fprintf(stderr, "Unable to parse number from '%s'\n", argv[3]);
+      return 3;
+    }
+  }
+
   srand(0);
 
   double * A, * refA;

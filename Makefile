@@ -30,7 +30,7 @@ distclean: clean
 libblas.a:
 	cd blas && $(MAKE) all
 
-liblapack.a:
+liblapack.a: libblas.a
 	cd lapack && $(MAKE) all
 
 libcumultigpu.a libcumultigpu_seq.a:

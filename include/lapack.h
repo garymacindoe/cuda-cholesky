@@ -143,6 +143,17 @@ CUresult cuMultiGPUCpotri(CUmultiGPULAPACKhandle, CBlasUplo, size_t,  float comp
 // Double precision complex inverse from Cholesky decomposition
 CUresult cuMultiGPUZpotri(CUmultiGPULAPACKhandle, CBlasUplo, size_t, double complex * restrict, size_t, long * restrict);
 
+/** Calculating log determinant - CPU and GPU only*/
+float slogdet(const float *, size_t, size_t);
+double dlogdet(const double *, size_t, size_t);
+float clogdet(const float complex *, size_t, size_t);
+double zlogdet(const double complex *, size_t, size_t);
+
+CUresult cuSlogdet(CULAPACKhandle, CUdeviceptr, size_t, size_t,  float *, CUstream);
+CUresult cuDlogdet(CULAPACKhandle, CUdeviceptr, size_t, size_t, double *, CUstream);
+CUresult cuClogdet(CULAPACKhandle, CUdeviceptr, size_t, size_t,  float *, CUstream);
+CUresult cuZlogdet(CULAPACKhandle, CUdeviceptr, size_t, size_t, double *, CUstream);
+
 #ifdef __cplusplus
 }
 #endif
