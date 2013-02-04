@@ -78,7 +78,7 @@ __global__ void reduce(const cuComplex * x, float * temp, int incx, int n) {
 
   // write result for this block to global mem
   if (threadIdx.x == 0)
-    temp[blockIdx.x] = shared[0];
+    temp[blockIdx.x] = 2.0f * shared[0];     // calculate 2 * sum(log(x))
 
   //
   // PHASE 2: Last block finished will process all partial sums
@@ -109,7 +109,7 @@ __global__ void reduce(const cuComplex * x, float * temp, int incx, int n) {
       reduceBlock<bs>(shared, sum);
 
       if (threadIdx.x == 0) {
-        temp[0] = 2.0f * shared[0];     // calculate 2 * sum(log(x))
+        temp[0] = shared[0];
 
         // reset retirement count so that next run succeeds
         retirementCount = 0;

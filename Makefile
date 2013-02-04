@@ -1,17 +1,4 @@
-include make.inc
-
-CUDA_HOME = /opt/cuda
-
-CPPFLAGS = -Iinclude -I$(CUDA_HOME)/include
-
-CC = gcc
-CFLAGS = -march=native -O2 -pipe -std=c99 -pedantic -Wall -Wextra -Wconversion
-# CC = icc
-# CFLAGS = -xHost -O2 -pipe -std=c99 -Wall
-
 .PHONY: all test clean distclean
-
-VPATH = include
 
 all: libcumultigpu.a libcumultigpu_seq.a libblas.a liblapack.a
 
