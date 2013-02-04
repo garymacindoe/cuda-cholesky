@@ -184,23 +184,7 @@ int main(int argc, char * argv[]) {
   double time = ((double)(stop.tv_sec - start.tv_sec) +
                  (double)(stop.tv_usec - start.tv_usec) * 1.e-6) / 20.0;
 
-  size_t flops;
-  if (side == CBlasLeft) {
-    // matrix is m-by-m triangular multiplying m-by-n
-    // if non-unit then equivalent to using (m-1)-by-(m-1) matrix
-    // number of adds is one less per element than multiplies
-    flops = n * ((((m - 1) * m) / 2) + (((m - 2) * (m - 1)) / 2));
-  }
-  else {
-    // matrix is m-by-n multiplying n-by-n triangular
-    // if non-unit then equivalent to using (n-1)-by-(n-1) matrix
-    // number of adds is one less per element than multiplies
-    flops = m * ((((n - 1) * n) / 2) + (((n - 2) * (n - 1)) / 2));
-  }
-  if (alpha != 1.0f)
-    flops += m * n;     // each element is additionally multiplied by alpha
-  if (diag == CBlasNonUnit)
-    flops += 2 * m * n; // each element is additionally multiplied and added by the diagonal
+  const size_t flops = (side == CBlasLeft) ? n * m * m : m * n * n;
 
   fprintf(stdout, "%.3es %.3gGFlops/s Error: %.3e\n%sED!\n", time,
           ((double)flops * 1.e-9) / time, diff, (passed) ? "PASS" : "FAIL");

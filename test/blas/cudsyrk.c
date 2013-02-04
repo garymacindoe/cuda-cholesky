@@ -183,7 +183,7 @@ int main(int argc, char * argv[]) {
     flops += 1;                 // additional multiply by alpha
   if (beta != 0.0)
     flops += 2;                 // additional multiply and add by beta
-  double error = (double)flops * DBL_EPSILON;   // maximum per element error
+  double error = (double)flops * 2.0 * DBL_EPSILON;   // maximum per element error
   flops *= n * (n + 1) / 2;     // n(n + 1) / 2 elements
 
   bool passed = (diff <= error);

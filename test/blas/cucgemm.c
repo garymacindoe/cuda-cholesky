@@ -229,7 +229,7 @@ int main(int argc, char * argv[]) {
     flops += 6;                 // additional multiply by alpha
   if (beta != 0.0f + 0.0f * I)
     flops += 8;                 // additional multiply and add by beta
-  float error = (float)flops * FLT_EPSILON;     // maximum per element error
+  float error = (float)flops * 2.0f * FLT_EPSILON;     // maximum per element error
   flops *= m * n;               // m * n elements
 
   bool passed = (rdiff <= error) && (idiff <= error);
