@@ -305,6 +305,8 @@ static CUresult cuFuncMaxBlocksPerMP(CUfunction function, CUdevice device, unsig
   CU_ERROR_CHECK(cuFuncGetAttribute(&numRegs, CU_FUNC_ATTRIBUTE_NUM_REGS, function));
   CU_ERROR_CHECK(cuFuncGetAttribute(&sharedSizeBytes, CU_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES, function));
   numRegs *= (int)threads;
+  numRegs = (numRegs + 511) & ~511;
+  sharedSizeBytes = (sharedSizeBytes + 511) & ~511;
 
   // Work out the maximum number of thread blocks per multiprocessor
   unsigned int maxBlocksByThread = (unsigned int)maxThreadsPerBlock / threads;
@@ -795,7 +797,7 @@ static CUresult cuZgemmBenchmark(CUfunction function, CBlasTranspose transA, CBl
   CU_ERROR_CHECK(cuEventCreate(&start, CU_EVENT_BLOCKING_SYNC));
   CU_ERROR_CHECK(cuEventCreate(&stop, CU_EVENT_BLOCKING_SYNC));
 
-  void * params[] = { &dA, &dB, &dC, &dD, &alpha, &beta, &dlda, &dldb, &dldc, &dldd, &m, &n, &k };
+  void * params[] = { &alpha, &beta, &dA, &dB, &dC, &dD, &dlda, &dldb, &dldc, &dldd, &m, &n, &k };
 
   CU_ERROR_CHECK(cuEventRecord(start, 0));
   for (size_t i = 0; i < 2000; i++) {
