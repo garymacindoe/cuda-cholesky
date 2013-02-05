@@ -47,13 +47,12 @@ static void spotri_ref(CBlasUplo uplo, size_t n,
       A[j * lda + j] = 1.0f / A[j * lda + j];
       float ajj = -A[j * lda + j];
 
-      size_t i = n - 1;
-      do {
+      for (size_t i = n - 1; i > j; i--) {
         float temp = A[j * lda + i] * A[i * lda + i];
         for (size_t k = j + 1; k < i; k++)
           temp += A[k * lda + i] * A[j * lda + k];
         A[j * lda + i] = temp * ajj;
-      } while (i-- > j);
+      }
     } while (j-- > 0);
 
     for (size_t i = 0; i < n; i++) {

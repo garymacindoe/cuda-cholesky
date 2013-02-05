@@ -413,7 +413,7 @@ CUresult cuStrtri(CULAPACKhandle handle,
                               one, A + ((j + jb) * lda + j + jb) * sizeof(float), lda,
                               A + (j * lda + j + jb) * sizeof(float), lda, X, ldx, stream0));
       /* GPU STRMM is out of place so copy back into place */
-      CU_ERROR_CHECK(cuMemcpyDtoD2DAsync(A, lda, j + jb, j, X, ldx, 0, 0, j, jb, sizeof(float), stream0));
+      CU_ERROR_CHECK(cuMemcpyDtoD2DAsync(A, lda, j + jb, j, X, ldx, 0, 0, n - j - jb, jb, sizeof(float), stream0));
       /* Then update the column again using the small square matrix on the
        * diagonal above (on the same stream) */
       CU_ERROR_CHECK(cuStrsm(handle->blas_handle, CBlasRight, CBlasLower, CBlasNoTrans, diag, n - j - jb, jb,
