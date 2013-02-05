@@ -361,7 +361,7 @@ CUresult cuDtrtri(CULAPACKhandle handle,
     const size_t nb = DGEMM_N_MB;
 
     // Allocate page-locked host memory for diagonal block
-    CU_ERROR_CHECK(cuMemAllocHost((void **)&B, (ldb = (nb + 1u) & ~1u) * sizeof(double)));
+    CU_ERROR_CHECK(cuMemAllocHost((void **)&B, (ldb = (nb + 1u) & ~1u) * nb * sizeof(double)));
 
     // Allocate temporary column for out of place DTRMM
     CU_ERROR_CHECK(cuMemAllocPitch(&X, &ldx, n * sizeof(double), nb, sizeof(double)));
@@ -408,7 +408,7 @@ CUresult cuDtrtri(CULAPACKhandle handle,
     const size_t nb = DGEMM_N_MB;
 
     // Allocate page-locked host memory for diagonal block
-    CU_ERROR_CHECK(cuMemAllocHost((void **)&B, (ldb = (nb + 1u) & ~1u) * sizeof(double)));
+    CU_ERROR_CHECK(cuMemAllocHost((void **)&B, (ldb = (nb + 1u) & ~1u) * nb * sizeof(double)));
 
     // Allocate temporary column for out of place DTRMM in DTRTRI
     CU_ERROR_CHECK(cuMemAllocPitch(&X, &ldx, n * sizeof(double), nb, sizeof(double)));

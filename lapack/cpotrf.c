@@ -199,7 +199,7 @@ CUresult cuCpotrf(CULAPACKhandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A
   CUstream stream0, stream1;
 
   // Allocate page-locked host memory for diagonal block
-  CU_ERROR_CHECK(cuMemAllocHost((void **)&B, (ldb = (nb + 1u) & ~1u) * sizeof(float complex)));
+  CU_ERROR_CHECK(cuMemAllocHost((void **)&B, (ldb = (nb + 1u) & ~1u) * nb * sizeof(float complex)));
 
   // Create two streams for asynchronous copy and compute
   CU_ERROR_CHECK(cuStreamCreate(&stream0, 0));

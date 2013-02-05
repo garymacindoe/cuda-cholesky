@@ -189,7 +189,7 @@ CUresult cuClauum(CULAPACKhandle handle, CBlasUplo uplo,
     const size_t nb = CGEMM_N_MB;
 
     // Allocate page-locked host memory for diagonal block
-    CU_ERROR_CHECK(cuMemAllocHost((void **)&B, (ldb = (nb + 1u) & ~1u) * sizeof(float complex)));
+    CU_ERROR_CHECK(cuMemAllocHost((void **)&B, (ldb = (nb + 1u) & ~1u) * nb * sizeof(float complex)));
 
     // Allocate temporary column for out of place CTRMM
     CU_ERROR_CHECK(cuMemAllocPitch(&X, &ldx, n * sizeof(float complex), nb, sizeof(float complex)));
@@ -237,7 +237,7 @@ CUresult cuClauum(CULAPACKhandle handle, CBlasUplo uplo,
     const size_t mb = CGEMM_C_MB;
 
     // Allocate page-locked host memory for diagonal block
-    CU_ERROR_CHECK(cuMemAllocHost((void **)&B, (ldb = (mb + 1u) & ~1u) * sizeof(float complex)));
+    CU_ERROR_CHECK(cuMemAllocHost((void **)&B, (ldb = (mb + 1u) & ~1u) * mb * sizeof(float complex)));
 
     // Allocate temporary row for out of place CTRMM
     CU_ERROR_CHECK(cuMemAllocPitch(&X, &ldx, mb * sizeof(float complex), n, sizeof(float complex)));

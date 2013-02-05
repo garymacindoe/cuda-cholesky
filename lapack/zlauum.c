@@ -189,7 +189,7 @@ CUresult cuZlauum(CULAPACKhandle handle,
     const size_t nb = ZGEMM_N_MB;
 
     // Allocate page-locked host memory for diagonal block
-    CU_ERROR_CHECK(cuMemAllocHost((void **)&B, (ldb = (nb + 1u) & ~1u) * sizeof(double complex)));
+    CU_ERROR_CHECK(cuMemAllocHost((void **)&B, (ldb = (nb + 1u) & ~1u) * nb * sizeof(double complex)));
 
     // Allocate temporary column for out of place ZTRMM
     CU_ERROR_CHECK(cuMemAllocPitch(&X, &ldx, n * sizeof(double complex), nb, sizeof(double complex)));
@@ -237,7 +237,7 @@ CUresult cuZlauum(CULAPACKhandle handle,
     const size_t mb = ZGEMM_CN_MB;
 
     // Allocate page-locked host memory for diagonal block
-    CU_ERROR_CHECK(cuMemAllocHost((void **)&B, (ldb = (mb + 1u) & ~1u) * sizeof(double complex)));
+    CU_ERROR_CHECK(cuMemAllocHost((void **)&B, (ldb = (mb + 1u) & ~1u) * mb * sizeof(double complex)));
 
     // Allocate temporary row for out of place ZTRMM in ZTRTRI
     CU_ERROR_CHECK(cuMemAllocPitch(&X, &ldx, mb * sizeof(double complex), n, sizeof(double complex)));
