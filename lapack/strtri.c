@@ -343,15 +343,7 @@ CUresult cuStrtri(CULAPACKhandle handle,
   size_t ldb, ldx;
   CUstream stream0, stream1;
 
-  /**
-   * In both loops for STRTRI and SLAUUM A is updated column by column whether
-   * upper or lower triangular.  The STRMM consumes most of the FLOPS in STRTRI
-   * while the SGEMM consumes most of the FLOPS in SLAUUM.  STRMM is always
-   * called with transA == CBlasNoTrans as is SGEMM except in the lower
-   * triangular SLAUUM.  This means that the size of B in host memory changes
-   * between loops when A is lower triangular.
-   */
-  const size_t nb = 32;// (uplo == CBlasUpper) ? SGEMM_N_MB : SGEMM_N_MB;
+  const size_t nb = 128;
 
   // Allocate page-locked host memory for diagonal block
   CU_ERROR_CHECK(cuMemAllocHost((void **)&B, (ldb = (nb + 3u) & ~3u) * nb * sizeof(float)));
