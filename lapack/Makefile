@@ -6,7 +6,7 @@ CPPFLAGS = -I../include -I$(CUDA_HOME)/include
 NVCPPFLAGS = -I../include
 
 CC = gcc
-CFLAGS = -march=native -O2 -pipe -std=c99 -pedantic -Wall -Wextra -Wconversion -ftree-vectorize -ffast-math -fopenmp
+CFLAGS = -march=native -ggdb -pipe -std=c99 -pedantic -Wall -Wextra -Wconversion -ftree-vectorize -ffast-math -fopenmp
 # CC = icc
 # CFLAGS = -xHost -O2 -pipe -std=c99 -Wall -openmp
 

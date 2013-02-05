@@ -351,23 +351,20 @@ CUresult cuStrtri(CULAPACKhandle handle,
    * triangular SLAUUM.  This means that the size of B in host memory changes
    * between loops when A is lower triangular.
    */
+  const size_t nb = 32;// (uplo == CBlasUpper) ? SGEMM_N_MB : SGEMM_N_MB;
+
+  // Allocate page-locked host memory for diagonal block
+  CU_ERROR_CHECK(cuMemAllocHost((void **)&B, (ldb = (nb + 3u) & ~3u) * nb * sizeof(float)));
+
+  // Allocate temporary column for out of place STRMM in STRTRI
+  CU_ERROR_CHECK(cuMemAllocPitch(&X, &ldx, n * sizeof(float), nb, sizeof(float)));
+  ldx /= sizeof(float);
 
   // Create two streams for asynchronous copy and compute
   CU_ERROR_CHECK(cuStreamCreate(&stream0, 0));
   CU_ERROR_CHECK(cuStreamCreate(&stream1, 0));
 
   if (uplo == CBlasUpper) {
-    // Block size for upper triangular STRTRI and SLAUUM
-    const size_t nb = SGEMM_N_MB;
-
-    // Allocate page-locked host memory for diagonal block
-    CU_ERROR_CHECK(cuMemAllocHost((void **)&B, (ldb = (nb + 3u) & ~3u) * nb * sizeof(float)));
-
-    // Allocate temporary column for out of place STRMM
-    CU_ERROR_CHECK(cuMemAllocPitch(&X, &ldx, n * sizeof(float), nb, sizeof(float)));
-    ldx /= sizeof(float);
-
-    // Loop for STRTRI
     for (size_t j = 0; j < n; j += nb) {
       const size_t jb = min(nb, n - j);
 
@@ -404,17 +401,6 @@ CUresult cuStrtri(CULAPACKhandle handle,
     }
   }
   else {
-    // Block size for upper triangular STRTRI
-    const size_t nb = SGEMM_N_MB;
-
-    // Allocate page-locked host memory for diagonal block
-    CU_ERROR_CHECK(cuMemAllocHost((void **)&B, (ldb = (nb + 3u) & ~3u) * nb * sizeof(float)));
-
-    // Allocate temporary column for out of place STRMM in STRTRI
-    CU_ERROR_CHECK(cuMemAllocPitch(&X, &ldx, n * sizeof(float), nb, sizeof(float)));
-    ldx /= sizeof(float);
-
-    // Loop for STRTRI
     const size_t r = n % nb;
     size_t j = (r == 0) ? n : n + nb - r;
     do {

@@ -6,14 +6,14 @@ CPPFLAGS = -I../include -I$(CUDA_HOME)/include
 NVCPPFLAGS = -I../include
 
 CC = gcc
-CFLAGS = -march=native -O2 -pipe -std=c99 -pedantic -Wall -Wextra -Wconversion -ftree-vectorize -ffast-math -fopenmp
+CFLAGS = -march=native -ggdb -pipe -std=c99 -pedantic -Wall -Wextra -Wconversion -ftree-vectorize -ffast-math -fopenmp
 # CC = icc
 # CFLAGS = -xHost -O2 -pipe -std=c99 -Wall -openmp
 
 LOADLIBES = ../libcumultigpu.a
 LDLIBS = -lcuda
 
-NVCFLAGS = -O2 -use_fast_math -maxrregcount=32
+NVCFLAGS = -G -use_fast_math -maxrregcount=32
 
 ifdef verbose
   NVCFLAGS += -Xptxas=-v

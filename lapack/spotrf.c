@@ -190,7 +190,7 @@ CUresult cuSpotrf(CULAPACKhandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A
    * matrix below the diagonal block that is updated via D = -C * A^T + D so the
    * block size is SGEMM_N_NB.
    */
-  const size_t nb = (uplo == CBlasUpper) ? SGEMM_T_MB : SGEMM_N_NB;
+  const size_t nb = 32;//(uplo == CBlasUpper) ? SGEMM_T_MB : SGEMM_N_NB;
 
   float * B;
   size_t ldb;
