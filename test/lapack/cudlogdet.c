@@ -86,6 +86,7 @@ int main(int argc, char * argv[]) {
   float time;
   CU_ERROR_CHECK(cuEventElapsedTime(&time, start, stop));
   time /= 20;
+  time *= 1.e-3f;
 
   CU_ERROR_CHECK(cuEventDestroy(start));
   CU_ERROR_CHECK(cuEventDestroy(stop));
