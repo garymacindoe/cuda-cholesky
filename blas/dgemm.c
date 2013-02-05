@@ -167,7 +167,7 @@ CUresult cuDgemm2(CUBLAShandle handle, CBlasTranspose transA, CBlasTranspose tra
     return CUDA_ERROR_INVALID_VALUE;
   }
 
-  if (m == 0 || n == 0 || ((alpha == zero || k == 0) && beta == one))
+  if (m == 0 || n == 0 || (C == D && (alpha == zero || k == 0) && beta == one))
     return CUDA_SUCCESS;
 
   CU_ERROR_CHECK(cuCtxPushCurrent(handle->context));
