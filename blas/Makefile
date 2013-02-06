@@ -38,7 +38,6 @@ FATBINS = sgemm.fatbin ssyrk.fatbin strmm.fatbin strsm.fatbin \
 
 VPATH = ../include
 
-.NOTPARALLEL: ../include/config.h
 .PHONY: all clean
 
 all: $(TARGET)

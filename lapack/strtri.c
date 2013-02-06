@@ -343,31 +343,20 @@ CUresult cuStrtri(CULAPACKhandle handle,
   size_t ldb, ldx;
   CUstream stream0, stream1;
 
-  /**
-   * In both loops for STRTRI and SLAUUM A is updated column by column whether
-   * upper or lower triangular.  The STRMM consumes most of the FLOPS in STRTRI
-   * while the SGEMM consumes most of the FLOPS in SLAUUM.  STRMM is always
-   * called with transA == CBlasNoTrans as is SGEMM except in the lower
-   * triangular SLAUUM.  This means that the size of B in host memory changes
-   * between loops when A is lower triangular.
-   */
+  const size_t nb = 128;
+
+  // Allocate page-locked host memory for diagonal block
+  CU_ERROR_CHECK(cuMemAllocHost((void **)&B, (ldb = (nb + 3u) & ~3u) * nb * sizeof(float)));
+
+  // Allocate temporary column for out of place STRMM in STRTRI
+  CU_ERROR_CHECK(cuMemAllocPitch(&X, &ldx, n * sizeof(float), nb, sizeof(float)));
+  ldx /= sizeof(float);
 
   // Create two streams for asynchronous copy and compute
   CU_ERROR_CHECK(cuStreamCreate(&stream0, 0));
   CU_ERROR_CHECK(cuStreamCreate(&stream1, 0));
 
   if (uplo == CBlasUpper) {
-    // Block size for upper triangular STRTRI and SLAUUM
-    const size_t nb = SGEMM_N_MB;
-
-    // Allocate page-locked host memory for diagonal block
-    CU_ERROR_CHECK(cuMemAllocHost((void **)&B, (ldb = (nb + 3u) & ~3u) * nb * sizeof(float)));
-
-    // Allocate temporary column for out of place STRMM
-    CU_ERROR_CHECK(cuMemAllocPitch(&X, &ldx, n * sizeof(float), nb, sizeof(float)));
-    ldx /= sizeof(float);
-
-    // Loop for STRTRI
     for (size_t j = 0; j < n; j += nb) {
       const size_t jb = min(nb, n - j);
 
@@ -404,17 +393,6 @@ CUresult cuStrtri(CULAPACKhandle handle,
     }
   }
   else {
-    // Block size for upper triangular STRTRI
-    const size_t nb = SGEMM_N_MB;
-
-    // Allocate page-locked host memory for diagonal block
-    CU_ERROR_CHECK(cuMemAllocHost((void **)&B, (ldb = (nb + 3u) & ~3u) * nb * sizeof(float)));
-
-    // Allocate temporary column for out of place STRMM in STRTRI
-    CU_ERROR_CHECK(cuMemAllocPitch(&X, &ldx, n * sizeof(float), nb, sizeof(float)));
-    ldx /= sizeof(float);
-
-    // Loop for STRTRI
     const size_t r = n % nb;
     size_t j = (r == 0) ? n : n + nb - r;
     do {
@@ -427,7 +405,7 @@ CUresult cuStrtri(CULAPACKhandle handle,
                               one, A + ((j + jb) * lda + j + jb) * sizeof(float), lda,
                               A + (j * lda + j + jb) * sizeof(float), lda, X, ldx, stream0));
       /* GPU STRMM is out of place so copy back into place */
-      CU_ERROR_CHECK(cuMemcpyDtoD2DAsync(A, lda, j + jb, j, X, ldx, 0, 0, j, jb, sizeof(float), stream0));
+      CU_ERROR_CHECK(cuMemcpyDtoD2DAsync(A, lda, j + jb, j, X, ldx, 0, 0, n - j - jb, jb, sizeof(float), stream0));
       /* Then update the column again using the small square matrix on the
        * diagonal above (on the same stream) */
       CU_ERROR_CHECK(cuStrsm(handle->blas_handle, CBlasRight, CBlasLower, CBlasNoTrans, diag, n - j - jb, jb,

@@ -181,16 +181,7 @@ CUresult cuSpotrf(CULAPACKhandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A
   if (n == 0)
     return CUDA_SUCCESS;
 
-  /**
-   * The SGEMM consumes most of the FLOPs in the Cholesky decomposition so the
-   * block sizes are chosen to favour it.  In the upper triangular case it is
-   * the row matrix to the right of the diagonal block that is updated via
-   * D = -A^T * C + D (i.e. the A argument to SGEMM is transposed) therefore the
-   * block size is SGEMM_T_MB.  For the lower triangular case it is the column
-   * matrix below the diagonal block that is updated via D = -C * A^T + D so the
-   * block size is SGEMM_N_NB.
-   */
-  const size_t nb = (uplo == CBlasUpper) ? SGEMM_T_MB : SGEMM_N_NB;
+  const size_t nb = (uplo == CBlasUpper) ? 128 : 64;
 
   float * B;
   size_t ldb;

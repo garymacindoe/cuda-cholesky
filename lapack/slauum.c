@@ -180,23 +180,20 @@ CUresult cuSlauum(CULAPACKhandle handle,
    * triangular SLAUUM.  This means that the size of B in host memory changes
    * between loops when A is lower triangular.
    */
+  const size_t nb = 512;
+
+  // Allocate page-locked host memory for diagonal block
+  CU_ERROR_CHECK(cuMemAllocHost((void **)&B, (ldb = (nb + 3u) & ~3u) * nb * sizeof(float)));
 
   // Create two streams for asynchronous copy and compute
   CU_ERROR_CHECK(cuStreamCreate(&stream0, 0));
   CU_ERROR_CHECK(cuStreamCreate(&stream1, 0));
 
   if (uplo == CBlasUpper) {
-    // Block size for upper triangular STRTRI and SLAUUM
-    const size_t nb = SGEMM_N_MB;
-
-    // Allocate page-locked host memory for diagonal block
-    CU_ERROR_CHECK(cuMemAllocHost((void **)&B, (ldb = (nb + 3u) & ~3u) * nb * sizeof(float)));
-
-    // Allocate temporary column for out of place STRMM
+    // Upper triangular requires a temporary column for out of place STRMM
     CU_ERROR_CHECK(cuMemAllocPitch(&X, &ldx, n * sizeof(float), nb, sizeof(float)));
     ldx /= sizeof(float);
 
-    // Loop for SLAUUM
     for (size_t i = 0; i < n; i += nb) {
       const size_t ib = min(nb, n - i);
 
@@ -234,18 +231,12 @@ CUresult cuSlauum(CULAPACKhandle handle,
     }
   }
   else {
-    // Block size for lower triangular SLAUUM
-    const size_t mb = SGEMM_T_MB;
+    // Lower triangular requires a temporary row for out of place STRMM
+    CU_ERROR_CHECK(cuMemAllocPitch(&X, &ldx, nb * sizeof(float), n, sizeof(float)));
+    ldx /= sizeof(float);
 
-    // Allocate page-locked host memory for diagonal block
-    CU_ERROR_CHECK(cuMemAllocHost((void **)&B, (ldb = (mb + 3u) & ~3u) * mb * sizeof(float)));
-
-    // Allocate temporary column for out of place STRMM in STRTRI
-    CU_ERROR_CHECK(cuMemAllocPitch(&X, &ldx, mb * sizeof(float), n, sizeof(float)));
-
-    // Loop for SLAUUM
-    for (size_t i = 0; i < n; i += mb) {
-      const size_t ib = min(mb, n - i);
+    for (size_t i = 0; i < n; i += nb) {
+      const size_t ib = min(nb, n - i);
 
       /* Update the current column using the diagonal block */
       CU_ERROR_CHECK(cuStrmm2(handle->blas_handle, CBlasLeft, CBlasLower, CBlasTrans, CBlasNonUnit, ib, i,
@@ -263,7 +254,7 @@ CUresult cuSlauum(CULAPACKhandle handle,
       /* Wait until the diagonal block has been copied */
       CU_ERROR_CHECK(cuStreamSynchronize(stream1));
       /* Form the multiplication of the diagonal block using the CPU */
-      slauum(CBlasUpper, ib, B, ldb, info);
+      slauum(CBlasLower, ib, B, ldb, info);
       /* Ensure the STRMM has finished before copying the block back */
       CU_ERROR_CHECK(cuStreamSynchronize(stream0));
       /* Copy the diagonal block back onto the device */
