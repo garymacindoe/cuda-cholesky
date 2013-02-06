@@ -26,15 +26,15 @@ BIN2CFLAGS = -c -st
 TARGET = ../libblas.a
 
 OBJECTS = handle.o xerbla.o \
-          sgemm.o ssyrk.o strmm.o strsm.o
-#           dgemm.o dsyrk.o dtrmm.o dtrsm.o \
-#           cgemm.o cherk.o ctrmm.o ctrsm.o \
-#           zgemm.o zherk.o ztrmm.o ztrsm.o
+          sgemm.o ssyrk.o strmm.o strsm.o \
+          dgemm.o dsyrk.o dtrmm.o dtrsm.o \
+          cgemm.o cherk.o ctrmm.o ctrsm.o \
+          zgemm.o zherk.o ztrmm.o ztrsm.o
 
-FATBINS = sgemm.fatbin ssyrk.fatbin strmm.fatbin strsm.fatbin
-#           dgemm.fatbin dsyrk.fatbin dtrmm.fatbin dtrsm.fatbin \
-#           cgemm.fatbin cherk.fatbin ctrmm.fatbin ctrsm.fatbin \
-#           zgemm.fatbin zherk.fatbin ztrmm.fatbin ztrsm.fatbin
+FATBINS = sgemm.fatbin ssyrk.fatbin strmm.fatbin strsm.fatbin \
+          dgemm.fatbin dsyrk.fatbin dtrmm.fatbin dtrsm.fatbin \
+          cgemm.fatbin cherk.fatbin ctrmm.fatbin ctrsm.fatbin \
+          zgemm.fatbin zherk.fatbin ztrmm.fatbin ztrsm.fatbin
 
 VPATH = ../include
 
@@ -47,7 +47,7 @@ clean:
 
 $(TARGET): $(OBJECTS)
 
-config: config.c error.h blas.h cumultigpu.h | sgemm.fatbin# dgemm.fatbin cgemm.fatbin zgemm.fatbin
+config: config.c error.h blas.h cumultigpu.h | sgemm.fatbin dgemm.fatbin cgemm.fatbin zgemm.fatbin
 	$(CC) $(CPPFLAGS) $(CFLAGS) -o $(@) $(<) $(LOADLIBES) $(LDLIBS)
 
 ../include/config.h: config

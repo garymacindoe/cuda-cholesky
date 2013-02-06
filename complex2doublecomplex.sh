@@ -1,0 +1,53 @@
+#!/bin/bash
+
+sed -e 's/float complex/double complex/g' \
+    -e 's/0.0f + 0.0f * I/0.0 + 0.0 * I/g' \
+    -e 's/1.0f + 0.0f * I/1.0 + 0.0 * I/g' \
+    -e 's/2.0f/2.0/g' \
+    -e 's/FLT_EPSILON/DBL_EPSILON/g' \
+    -e 's/float/double/g' \
+    -e 's/double.h/float.h/g' \
+    -e 's/0.0f/0.0/g' \
+    -e 's/1.0f/1.0/g' \
+    -e 's/conjf/conj/g' \
+    -e 's/crealf/creal/g' \
+    -e 's/cimagf/cimag/g' \
+    -e 's/sqrtf/sqrt/g' \
+    -e 's/fabsf/fabs/g' \
+    -e 's/sinf/sin/g' \
+    -e 's/cosf/cos/g' \
+    -e 's/logf/log/g' \
+    -e 's/(m + 1u) & ~1u/m/g' \
+    -e 's/(n + 1u) & ~1u/n/g' \
+    -e 's/(k + 1u) & ~1u/k/g' \
+    -e 's/cgemm/zgemm/g' \
+    -e 's/cherk/zherk/g' \
+    -e 's/ctrmm/ztrmm/g' \
+    -e 's/ctrsm/ztrsm/g' \
+    -e 's/cuCgemm/cuZgemm/g' \
+    -e 's/cuCherk/cuZherk/g' \
+    -e 's/cuCtrmm/cuZtrmm/g' \
+    -e 's/cuCtrsm/cuZtrsm/g' \
+    -e 's/cuMultiGPUCgemm/cuMultiGPUZgemm/g' \
+    -e 's/cuMultiGPUCherk/cuMultiGPUZherk/g' \
+    -e 's/cuMultiGPUCtrmm/cuMultiGPUZtrmm/g' \
+    -e 's/cuMultiGPUCtrsm/cuMultiGPUZtrsm/g' \
+    -e 's/CGEMM/ZGEMM/g' \
+    -e 's/CHERK/ZHERK/g' \
+    -e 's/CTRMM/ZTRMM/g' \
+    -e 's/CTRSM/ZTRSM/g' \
+    -e 's/cpotf2/zpotf2/g' \
+    -e 's/cpotrf/zpotrf/g' \
+    -e 's/cpotri/zpotri/g' \
+    -e 's/ctrti2/ztrti2/g' \
+    -e 's/ctrtri/ztrtri/g' \
+    -e 's/clauu2/zlauu2/g' \
+    -e 's/clauum/zlauum/g' \
+    -e 's/cuCpotf2/cuZpotf2/g' \
+    -e 's/cuCpotrf/cuZpotrf/g' \
+    -e 's/cuCpotri/cuZpotri/g' \
+    -e 's/cuMultiGPUCpotrf/cuMultiGPUZpotrf/g' \
+    -e 's/cuMultiGPUCpotri/cuMultiGPUZpotri/g' \
+    -e 's/CTRTRI/ZTRTRI/g' \
+    -e 's/CLAUUM/ZLAUUM/g' \
+    ${1}
