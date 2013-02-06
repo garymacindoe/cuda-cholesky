@@ -343,7 +343,7 @@ CUresult cuStrtri(CULAPACKhandle handle,
   size_t ldb, ldx;
   CUstream stream0, stream1;
 
-  const size_t nb = 128;
+  const size_t nb = 512;
 
   // Allocate page-locked host memory for diagonal block
   CU_ERROR_CHECK(cuMemAllocHost((void **)&B, (ldb = (nb + 3u) & ~3u) * nb * sizeof(float)));
@@ -363,17 +363,8 @@ CUresult cuStrtri(CULAPACKhandle handle,
       /* Update the current column using the big square matrix to the left */
       CU_ERROR_CHECK(cuStrmm2(handle->blas_handle, CBlasLeft, CBlasUpper, CBlasNoTrans, diag, j, jb,
                               one, A, lda, A + j * lda * sizeof(float), lda, X, ldx, stream0));
-      /* GPU STRMM is out of place so copy back into place */
-      CU_ERROR_CHECK(cuMemcpyDtoD2DAsync(A, lda, 0, j, X, ldx, 0, 0, j, jb, sizeof(float), stream0));
-      /* Then update the column again using the small square matrix on the
-       * diagonal below (on the same stream) */
-      CU_ERROR_CHECK(cuStrsm(handle->blas_handle, CBlasRight, CBlasUpper, CBlasNoTrans, diag, j, jb,
-                             -one, A + (j * lda + j) * sizeof(float), lda, A + j * lda * sizeof(float), lda, stream0));
-      /* Overlap both the operations above with a copy of the diagonal block
-       * onto the host.  There is a possibility of overwriting the result of the
-       * previous iteration's block inverse in host memory before it has been
-       * copied back to the GPU if the GPU can do more than one copy at once (CC
-       * 2.x). */
+      /* Overlap the first STRMM with a copy of the diagonal block onto the
+       * host. */
       CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(B, ldb, 0, 0, A, lda, j, j,
                                          jb, jb, sizeof(float), stream1));
       /* Wait until the diagonal block has been copied */
@@ -385,11 +376,15 @@ CUresult cuStrtri(CULAPACKhandle handle,
         *info += (long)j;
         break;
       }
-      /* Copy the diagonal block back onto the device using the same stream as
-       * the STRSM to ensure it is finished reading the diagonal block before
-       * the new one is copied */
+      /* Copy the diagonal block back onto the device */
       CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A, lda, j, j, B, ldb, 0, 0,
-                                         jb, jb, sizeof(float), stream0));
+                                         jb, jb, sizeof(float), stream1));
+      /* Wait until the diagonal block has been copied back */
+      CU_ERROR_CHECK(cuStreamSynchronize(stream1));
+      /* Then update the column again using the small square matrix on the
+       * diagonal below */
+      CU_ERROR_CHECK(cuStrmm2(handle->blas_handle, CBlasRight, CBlasUpper, CBlasNoTrans, diag, j, jb,
+                              -one, A + (j * lda + j) * sizeof(float), lda, X, ldx, A + j * lda * sizeof(float), lda, stream0));
     }
   }
   else {
@@ -404,17 +399,8 @@ CUresult cuStrtri(CULAPACKhandle handle,
       CU_ERROR_CHECK(cuStrmm2(handle->blas_handle, CBlasLeft, CBlasLower, CBlasNoTrans, diag, n - j - jb, jb,
                               one, A + ((j + jb) * lda + j + jb) * sizeof(float), lda,
                               A + (j * lda + j + jb) * sizeof(float), lda, X, ldx, stream0));
-      /* GPU STRMM is out of place so copy back into place */
-      CU_ERROR_CHECK(cuMemcpyDtoD2DAsync(A, lda, j + jb, j, X, ldx, 0, 0, n - j - jb, jb, sizeof(float), stream0));
-      /* Then update the column again using the small square matrix on the
-       * diagonal above (on the same stream) */
-      CU_ERROR_CHECK(cuStrsm(handle->blas_handle, CBlasRight, CBlasLower, CBlasNoTrans, diag, n - j - jb, jb,
-                             -one, A + (j * lda + j) * sizeof(float), lda, A + (j * lda + j + jb) * sizeof(float), lda, stream0));
-      /* Overlap both the operations above with a copy of the diagonal block
-       * onto the host.  There is a possibility of overwriting the result of the
-       * previous iteration's block inverse in host memory before it has been
-       * copied back to the GPU if the GPU can do more than one copy at once (CC
-       * 2.x). */
+      /* Overlap the first STRMM with a copy of the diagonal block onto the
+       * host. */
       CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(B, ldb, 0, 0, A, lda, j, j,
                                          jb, jb, sizeof(float), stream1));
       /* Wait until the diagonal block has been copied */
@@ -426,11 +412,15 @@ CUresult cuStrtri(CULAPACKhandle handle,
         *info += (long)j;
         break;
       }
-      /* Copy the diagonal block back onto the device using the same stream as
-       * the STRSM to ensure it is finished reading the diagonal block before
-       * the new one is copied */
+      /* Copy the diagonal block back onto the device */
       CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A, lda, j, j, B, ldb, 0, 0,
-                                         jb, jb, sizeof(float), stream0));
+                                         jb, jb, sizeof(float), stream1));
+      /* Wait until the diagonal block has been copied back */
+      CU_ERROR_CHECK(cuStreamSynchronize(stream1));
+      /* Then update the column again using the small square matrix on the
+       * diagonal above (on the same stream) */
+      CU_ERROR_CHECK(cuStrmm2(handle->blas_handle, CBlasRight, CBlasLower, CBlasNoTrans, diag, n - j - jb, jb,
+                              -one, A + (j * lda + j) * sizeof(float), lda, X, ldx, A + (j * lda + j + jb) * sizeof(float), lda, stream0));
     } while (j > 0);
   }
 

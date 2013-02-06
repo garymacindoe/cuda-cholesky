@@ -4,6 +4,7 @@
 #include <string.h>
 #include <math.h>
 #include <cuda.h>
+#include <sys/time.h>
 #include "error.h"
 #include "blas.h"
 
@@ -16,6 +17,7 @@ static CUresult cuSgemmBenchmark(CUfunction, CBlasTranspose, CBlasTranspose, siz
 static CUresult cuCgemmBenchmark(CUfunction, CBlasTranspose, CBlasTranspose, size_t, size_t, size_t, float *);
 static CUresult cuDgemmBenchmark(CUfunction, CBlasTranspose, CBlasTranspose, size_t, size_t, size_t, float *);
 static CUresult cuZgemmBenchmark(CUfunction, CBlasTranspose, CBlasTranspose, size_t, size_t, size_t, float *);
+static CUresult bandwidth_test(double *, double *, double *, double *);
 
 int main() {
   CU_ERROR_CHECK(cuInit(0));
@@ -26,7 +28,6 @@ int main() {
   int major, minor;
   CU_ERROR_CHECK(cuDeviceGetAttribute(&major, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR, device));
   CU_ERROR_CHECK(cuDeviceGetAttribute(&minor, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR, device));
-  minor = 1;
 
   int multiProcessorCount;
   CU_ERROR_CHECK(cuDeviceGetAttribute(&multiProcessorCount, CU_DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT, device));
@@ -34,38 +35,17 @@ int main() {
   CUcontext context;
   CU_ERROR_CHECK(cuCtxCreate(&context, CU_CTX_SCHED_AUTO, device));
 
-  CUmodule sgemm, cgemm, dgemm, zgemm;
-  CU_ERROR_CHECK(cuModuleLoad(&sgemm, "sgemm.fatbin"));
-  CU_ERROR_CHECK(cuModuleLoad(&cgemm, "cgemm.fatbin"));
-  if (major >= 1 && minor >= 3) {
-    CU_ERROR_CHECK(cuModuleLoad(&dgemm, "dgemm.fatbin"));
-    CU_ERROR_CHECK(cuModuleLoad(&zgemm, "zgemm.fatbin"));
-  }
+  unsigned int maxBlocks, mb, nb, kb;
+  float prevGFlops;
 
-  CUfunction sgemmN, sgemmT, cgemmN, cgemmC, dgemmN, dgemmT, zgemmN, zgemmCN, zgemmCC;
+  CUmodule sgemm;
+  CU_ERROR_CHECK(cuModuleLoad(&sgemm, "sgemm.fatbin"));
+
+  CUfunction sgemmN, sgemmT;
   CU_ERROR_CHECK(cuModuleGetFunction(&sgemmN, sgemm,
   "_Z5sgemmIL14CBlasTranspose78ELS0_84ELj64ELj16ELj16ELj16ELj4EEvPKfS2_S2_Pfffiiiiiii"));
   CU_ERROR_CHECK(cuModuleGetFunction(&sgemmT, sgemm,
   "_Z5sgemmIL14CBlasTranspose84ELS0_78ELj32ELj32ELj8ELj8ELj8EEvPKfS2_S2_Pfffiiiiiii"));
-  CU_ERROR_CHECK(cuModuleGetFunction(&cgemmN, cgemm,
-  "_Z5cgemmIL14CBlasTranspose78ELS0_67ELj64ELj8ELj16ELj8ELj8EEvPK6float2S3_S3_PS1_S1_S1_iiiiiii"));
-  CU_ERROR_CHECK(cuModuleGetFunction(&cgemmC, cgemm,
-  "_Z5cgemmIL14CBlasTranspose67ELS0_78ELj32ELj16ELj8ELj8ELj8EEvPK6float2S3_S3_PS1_S1_S1_iiiiiii"));
-  if (major >= 1 && minor >= 3) {
-    CU_ERROR_CHECK(cuModuleGetFunction(&dgemmN, dgemm,
-    "_Z5dgemmIL14CBlasTranspose78ELS0_84ELj64ELj8ELj16ELj8ELj8EEvPKdS2_S2_Pdddiiiiiii"));
-    CU_ERROR_CHECK(cuModuleGetFunction(&dgemmT, dgemm,
-    "_Z5dgemmIL14CBlasTranspose84ELS0_78ELj32ELj16ELj8ELj8ELj8EEvPKdS2_S2_Pdddiiiiiii"));
-    CU_ERROR_CHECK(cuModuleGetFunction(&zgemmN, zgemm,
-    "_Z6zgemmNIL14CBlasTranspose67ELj64ELj4ELj16ELj4ELj16EEv7double2S1_PKS1_S3_S3_PS1_iiiiiii"));
-    CU_ERROR_CHECK(cuModuleGetFunction(&zgemmCN, zgemm,
-    "_Z6zgemmTIL14CBlasTranspose67ELS0_78ELj8ELj8ELj4ELj4ELj8EEv7double2S1_PKS1_S3_S3_PS1_iiiiiii"));
-    CU_ERROR_CHECK(cuModuleGetFunction(&zgemmCC, zgemm,
-    "_Z6zgemmTIL14CBlasTranspose67ELS0_67ELj8ELj16ELj8ELj8ELj8EEv7double2S1_PKS1_S3_S3_PS1_iiiiiii"));
-  }
-
-  unsigned int maxBlocks, mb, nb, kb;
-  float prevGFlops;
 
   CU_ERROR_CHECK(cuFuncMaxBlocksPerMP(sgemmN, device, 64, &maxBlocks));
   getMaxGFLOPsSize((unsigned int)multiProcessorCount * maxBlocks, 64, 16, &mb, &nb);
@@ -107,6 +87,17 @@ int main() {
   fprintf(stdout, "#define SGEMM_T_NB %d\n", nb);
   fprintf(stdout, "#define SGEMM_T_KB %d\n\n", kb);
 
+  CU_ERROR_CHECK(cuModuleUnload(sgemm));
+
+
+  CUmodule cgemm;
+  CU_ERROR_CHECK(cuModuleLoad(&cgemm, "cgemm.fatbin"));
+
+  CUfunction cgemmN, cgemmC;
+  CU_ERROR_CHECK(cuModuleGetFunction(&cgemmN, cgemm,
+  "_Z5cgemmIL14CBlasTranspose78ELS0_67ELj64ELj8ELj16ELj8ELj8EEvPK6float2S3_S3_PS1_S1_S1_iiiiiii"));
+  CU_ERROR_CHECK(cuModuleGetFunction(&cgemmC, cgemm,
+  "_Z5cgemmIL14CBlasTranspose67ELS0_78ELj32ELj16ELj8ELj8ELj8EEvPK6float2S3_S3_PS1_S1_S1_iiiiiii"));
 
   CU_ERROR_CHECK(cuFuncMaxBlocksPerMP(cgemmN, device, 64, &maxBlocks));
   getMaxGFLOPsSize((unsigned int)multiProcessorCount * maxBlocks, 64, 8, &mb, &nb);
@@ -148,7 +139,19 @@ int main() {
   fprintf(stdout, "#define CGEMM_C_NB %d\n", nb);
   fprintf(stdout, "#define CGEMM_C_KB %d\n\n", kb);
 
+  CU_ERROR_CHECK(cuModuleUnload(cgemm));
+
+
   if (major >= 1 && minor >= 3) {
+    CUmodule dgemm;
+    CU_ERROR_CHECK(cuModuleLoad(&dgemm, "dgemm.fatbin"));
+
+    CUfunction dgemmN, dgemmT;
+    CU_ERROR_CHECK(cuModuleGetFunction(&dgemmN, dgemm,
+    "_Z5dgemmIL14CBlasTranspose78ELS0_84ELj64ELj8ELj16ELj8ELj8EEvPKdS2_S2_Pdddiiiiiii"));
+    CU_ERROR_CHECK(cuModuleGetFunction(&dgemmT, dgemm,
+    "_Z5dgemmIL14CBlasTranspose84ELS0_78ELj32ELj16ELj8ELj8ELj8EEvPKdS2_S2_Pdddiiiiiii"));
+
     CU_ERROR_CHECK(cuFuncMaxBlocksPerMP(dgemmN, device, 64, &maxBlocks));
     getMaxGFLOPsSize((unsigned int)multiProcessorCount * maxBlocks, 64, 8, &mb, &nb);
 
@@ -189,6 +192,19 @@ int main() {
     fprintf(stdout, "#define DGEMM_T_NB %d\n", nb);
     fprintf(stdout, "#define DGEMM_T_KB %d\n\n", kb);
 
+    CU_ERROR_CHECK(cuModuleUnload(dgemm));
+
+
+    CUmodule zgemm;
+    CU_ERROR_CHECK(cuModuleLoad(&zgemm, "zgemm.fatbin"));
+
+    CUfunction zgemmN, zgemmCN, zgemmCC;
+    CU_ERROR_CHECK(cuModuleGetFunction(&zgemmN, zgemm,
+    "_Z6zgemmNIL14CBlasTranspose67ELj64ELj4ELj16ELj4ELj16EEv7double2S1_PKS1_S3_S3_PS1_iiiiiii"));
+    CU_ERROR_CHECK(cuModuleGetFunction(&zgemmCN, zgemm,
+    "_Z6zgemmTIL14CBlasTranspose67ELS0_78ELj8ELj8ELj4ELj4ELj8EEv7double2S1_PKS1_S3_S3_PS1_iiiiiii"));
+    CU_ERROR_CHECK(cuModuleGetFunction(&zgemmCC, zgemm,
+    "_Z6zgemmTIL14CBlasTranspose67ELS0_67ELj8ELj16ELj8ELj8ELj8EEv7double2S1_PKS1_S3_S3_PS1_iiiiiii"));
 
     CU_ERROR_CHECK(cuFuncMaxBlocksPerMP(zgemmN, device, 64, &maxBlocks));
     getMaxGFLOPsSize((unsigned int)multiProcessorCount * maxBlocks, 64, 4, &mb, &nb);
@@ -249,6 +265,8 @@ int main() {
     fprintf(stdout, "#define ZGEMM_CC_MB %d\n", mb);
     fprintf(stdout, "#define ZGEMM_CC_NB %d\n", nb);
     fprintf(stdout, "#define ZGEMM_CC_KB %d\n\n", kb);
+
+    CU_ERROR_CHECK(cuModuleUnload(zgemm));
   }
   else {
     fputs("#define DGEMM_N_MB 32\n", stdout);
@@ -267,6 +285,17 @@ int main() {
     fputs("#define ZGEMM_CC_NB 32\n", stdout);
     fputs("#define ZGEMM_CC_KB 32\n\n", stdout);
   }
+
+  double bandwidth_htod, overhead_htod, bandwidth_dtoh, overhead_dtoh;
+  CU_ERROR_CHECK(bandwidth_test(&bandwidth_htod, &overhead_htod,
+                                &bandwidth_dtoh, &overhead_dtoh));
+
+  fprintf(stdout, "#define BANDWIDTH_HTOD %.10e\n", bandwidth_htod);
+  fprintf(stdout, "#define OVERHEAD_HTOD %.10e\n", overhead_htod);
+  fprintf(stdout, "#define BANDWIDTH_DTOH %.10e\n", bandwidth_dtoh);
+  fprintf(stdout, "#define OVERHEAD_DTOH %.10e\n", overhead_dtoh);
+
+  CU_ERROR_CHECK(cuCtxDestroy(context));
 
   return 0;
 }
@@ -825,6 +854,89 @@ static CUresult cuZgemmBenchmark(CUfunction function, CBlasTranspose transA, CBl
   CU_ERROR_CHECK(cuMemFreeHost(A));
   CU_ERROR_CHECK(cuMemFreeHost(B));
   CU_ERROR_CHECK(cuMemFreeHost(C));
+
+  return CUDA_SUCCESS;
+}
+
+static CUresult bandwidth_test(double * bandwidth_htod, double * overhead_htod,
+                               double * bandwidth_dtoh, double * overhead_dtoh) {
+  CUstream stream;
+  CU_ERROR_CHECK(cuStreamCreate(&stream, 0));
+
+  CUdeviceptr dPointer;
+  CU_ERROR_CHECK(cuMemAlloc(&dPointer, 134217728));
+
+  void * hPointer;
+  CU_ERROR_CHECK(cuMemAllocHost(&hPointer, 134217728));
+
+  double sumX = 0.0, sumXX = 0.0, sumY = 0.0, sumXY = 0.0;
+  const size_t n = 128;
+  for (size_t j = 1; j <= n; j++) {
+    size_t size = j * 1048576;
+    struct timeval start, stop;
+
+    int error;
+    if ((error = gettimeofday(&start, NULL)) != 0) {
+      fprintf(stderr, "Unable to get start time: %s\n", strerror(error));
+      return error;
+    }
+    for (size_t k = 0; k < 20; k++)
+      CU_ERROR_CHECK(cuMemcpyHtoDAsync(dPointer, hPointer, size, stream));
+    CU_ERROR_CHECK(cuStreamSynchronize(stream));
+    if ((error = gettimeofday(&stop, NULL)) != 0) {
+      fprintf(stderr, "Unable to get stop time: %s\n", strerror(error));
+      return error;
+    }
+    double time = ((double)(stop.tv_sec - start.tv_sec) + ((double)(stop.tv_usec - start.tv_usec) * 1.E-6)) / 20.0;
+
+    sumX += (double)size;
+    sumXX += (double)size * (double)size;
+    sumY += time;
+    sumXY += time * (double)size;
+  }
+  double sxx = sumXX - (sumX * sumX) / (double)n;
+  double sxy = sumXY - (sumX * sumY) / (double)n;
+  double xbar = sumX / (double)n;
+  double ybar = sumY / (double)n;
+
+  *bandwidth_htod = sxy / sxx;
+  *overhead_htod = ybar - *bandwidth_htod * xbar;
+
+  sumY = 0.0, sumXY = 0.0;
+  for (size_t j = 1; j <= n; j++) {
+    size_t size = j * 1048576;
+    struct timeval start, stop;
+
+    int error;
+    if ((error = gettimeofday(&start, NULL)) != 0) {
+      fprintf(stderr, "Unable to get start time: %s\n", strerror(error));
+      return error;
+    }
+    for (size_t k = 0; k < 20; k++)
+      CU_ERROR_CHECK(cuMemcpyDtoHAsync(hPointer, dPointer, size, stream));
+    CU_ERROR_CHECK(cuStreamSynchronize(stream));
+    if ((error = gettimeofday(&stop, NULL)) != 0) {
+      fprintf(stderr, "Unable to get stop time: %s\n", strerror(error));
+      return error;
+    }
+    double time = ((double)(stop.tv_sec - start.tv_sec) + ((double)(stop.tv_usec - start.tv_usec) * 1.E-6)) / 20.0;
+
+    sumY += time;
+    sumXY += time * (double)size;
+  }
+  sxx = sumXX - (sumX * sumX) / (double)n;
+  sxy = sumXY - (sumX * sumY) / (double)n;
+  xbar = sumX / (double)n;
+  ybar = sumY / (double)n;
+
+  *bandwidth_dtoh = sxy / sxx;
+  *overhead_dtoh = ybar - *bandwidth_dtoh * xbar;
+
+  CU_ERROR_CHECK(cuMemFreeHost(hPointer));
+
+  CU_ERROR_CHECK(cuMemFree(dPointer));
+
+  CU_ERROR_CHECK(cuStreamDestroy(stream));
 
   return CUDA_SUCCESS;
 }
