@@ -181,47 +181,45 @@ CUresult cuSpotrf(CULAPACKhandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A
   if (n == 0)
     return CUDA_SUCCESS;
 
-  const size_t nb = (uplo == CBlasUpper) ? 128 : 64;
-//   const size_t nb = (uplo == CBlasUpper) ? 256 : 64;
-//
-//   /*
-//    * Using the block size, work out if it is more worthwhile to use block column
-//    * copy for upload and download.
-//    *
-//    * This requires the following symbols to be declared in config.h
-//    * BANDWIDTH_HTOD: double - host to device bandwidth in seconds per byte
-//    * BANDWIDTH_DTOH: double - device to host bandwidth in seconds per byte
-//    * OVERHEAD_HTOD: double - host to device overhead in seconds
-//    * OVERHEAD_DTOH: double - device to host overhead in seconds
-//    *
-//    * Block column copy can only be used on matrices that aren't padded (lda == n).
-//    */
-//   const double column_dtoh = (double)(n * nb * sizeof(float)) * BANDWIDTH_DTOH + OVERHEAD_DTOH;
-//   const double block_dtoh = (double)nb * ((double)(nb * sizeof(float)) * BANDWIDTH_DTOH + OVERHEAD_DTOH);
-//   const bool bcc_dtoh = (lda == n && column_dtoh < block_dtoh);
-//
-//   const double column_htod = (double)(n * nb * sizeof(float)) * BANDWIDTH_HTOD + OVERHEAD_HTOD;
-//   const double block_htod = (double)nb * ((double)(nb * sizeof(float)) * BANDWIDTH_HTOD + OVERHEAD_HTOD);
-//   // Can only copy column back if the column was copied in the first place
-//   const bool bcc_htod = bcc_dtoh && (lda == n && column_htod < block_htod);
+  const size_t nb = (uplo == CBlasUpper) ? 256 : 64;
 
-  float * B, * C;//, * X;
+  /*
+   * Using the block size, work out if it is more worthwhile to use block column
+   * copy for upload and download.
+   *
+   * This requires the following symbols to be declared in config.h
+   * BANDWIDTH_HTOD: double - host to device bandwidth in seconds per byte
+   * BANDWIDTH_DTOH: double - device to host bandwidth in seconds per byte
+   * OVERHEAD_HTOD: double - host to device overhead in seconds
+   * OVERHEAD_DTOH: double - device to host overhead in seconds
+   *
+   * Block column copy can only be used on matrices that aren't padded (lda == n).
+   */
+  const double column_dtoh = (double)(n * nb * sizeof(float)) * BANDWIDTH_DTOH + OVERHEAD_DTOH;
+  const double block_dtoh = (double)nb * ((double)(nb * sizeof(float)) * BANDWIDTH_DTOH + OVERHEAD_DTOH);
+  const bool bcc_dtoh = (lda == n && column_dtoh < block_dtoh);
+
+  const double column_htod = (double)(n * nb * sizeof(float)) * BANDWIDTH_HTOD + OVERHEAD_HTOD;
+  const double block_htod = (double)nb * ((double)(nb * sizeof(float)) * BANDWIDTH_HTOD + OVERHEAD_HTOD);
+  // Can only copy column back if the column was copied in the first place
+  const bool bcc_htod = bcc_dtoh && (lda == n && column_htod < block_htod);
+
+  float * B, * C, * X;
   size_t ldb, ldc;
   CUdeviceptr D;
   size_t ldd;
   CUstream stream0, stream1;
 
-//   if (bcc_dtoh || bcc_htod) {
-//     // Allocate page-locked host memory for diagonal block column
-//     // (assume alignment for GPU >= alignment for CPU)
-//     CU_ERROR_CHECK(cuMemAllocHost((void **)&X, (ldb = n) * nb * sizeof(float)));
-//   }
-//   else {
-//     // Allocate page-locked host memory for diagonal block
-//     CU_ERROR_CHECK(cuMemAllocHost((void **)&X, (ldb = (nb + 3u) & ~3u) * nb * sizeof(float)));
-//     B = X;
-//   }
-  CU_ERROR_CHECK(cuMemAllocHost((void **)&B, (ldb = (nb + 3u) & ~3u) * nb * sizeof(float)));
+  if (bcc_dtoh || bcc_htod) {
+    // Allocate page-locked host memory for diagonal block column
+    // (assume alignment for GPU >= alignment for CPU)
+    CU_ERROR_CHECK(cuMemAllocHost((void **)&X, (ldb = n) * nb * sizeof(float)));
+  }
+  else {
+    // Allocate page-locked host memory for diagonal block
+    CU_ERROR_CHECK(cuMemAllocHost((void **)&X, (ldb = (nb + 3u) & ~3u) * nb * sizeof(float)));
+    B = X;
+  }
   CU_ERROR_CHECK(cuMemAllocHost((void **)&C, (ldc = (nb + 3u) & ~3u) * nb * sizeof(float)));
 
   // Create two streams for asynchronous copy and compute
@@ -250,14 +248,13 @@ CUresult cuSpotrf(CULAPACKhandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A
       /* Start copying diagonal block onto host asynchronously on the same
        * stream as the SSYRK above to ensure it has finised updating the block
        * before it is copied */
-//       if (bcc_dtoh) {
-//         CU_ERROR_CHECK(cuMemcpyDtoHAsync(X, A + j * lda * sizeof(float), n * jb * sizeof(float), stream0));
-//         B = &X[j];
-//       }
-//       else {
+      if (bcc_dtoh) {
+        CU_ERROR_CHECK(cuMemcpyDtoHAsync(X, A + j * lda * sizeof(float), n * jb * sizeof(float), stream0));
+        B = &X[j];
+      }
+      else
         CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(B, ldb, 0, 0, A, lda, j, j,
                                           jb, jb, sizeof(float), stream0));
-//       }
       /* Wait until the diagonal block has been copied */
       CU_ERROR_CHECK(cuStreamSynchronize(stream0));
       /* Perform the diagonal block decomposition using the CPU */
@@ -268,13 +265,11 @@ CUresult cuSpotrf(CULAPACKhandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A
         break;
       }
       /* Copy the diagonal block back onto the device */
-//       if (bcc_htod) {
-//         CU_ERROR_CHECK(cuMemcpyHtoDAsync(A + j * lda * sizeof(float), X, n * jb * sizeof(float), stream0));
-//       }
-//       else {
+      if (bcc_htod)
+        CU_ERROR_CHECK(cuMemcpyHtoDAsync(A + j * lda * sizeof(float), X, n * jb * sizeof(float), stream0));
+      else
         CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A, lda, j, j, B, ldb, 0, 0,
                                            jb, jb, sizeof(float), stream0));
-//       }
       /* Calculate the inverse out of place on the CPU while the diagonal block
        * is being copied by the device */
       strtri2(CBlasUpper, CBlasNonUnit, jb, B, ldb, C, ldc, info);
@@ -319,14 +314,13 @@ CUresult cuSpotrf(CULAPACKhandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A
       /* Start copying diagonal block onto host asynchronously on the same
        * stream as the SSYRK above to ensure it has finised updating the block
        * before it is copied */
-//       if (bcc_dtoh) {
-//         CU_ERROR_CHECK(cuMemcpyDtoHAsync(X, A + j * lda * sizeof(float), n * jb * sizeof(float), stream0));
-//         B = &X[j];
-//       }
-//       else {
+      if (bcc_dtoh) {
+        CU_ERROR_CHECK(cuMemcpyDtoHAsync(X, A + j * lda * sizeof(float), n * jb * sizeof(float), stream0));
+        B = &X[j];
+      }
+      else
         CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(B, ldb, 0, 0, A, lda, j, j,
                                           jb, jb, sizeof(float), stream0));
-//       }
       /* Wait until the diagonal block has been copied */
       CU_ERROR_CHECK(cuStreamSynchronize(stream0));
       /* Perform the diagonal block decomposition using the CPU */
@@ -337,8 +331,11 @@ CUresult cuSpotrf(CULAPACKhandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A
         break;
       }
       /* Copy the diagonal block back onto the device */
-      CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A, lda, j, j, B, ldb, 0, 0,
-                                         jb, jb, sizeof(float), stream0));
+      if (bcc_htod)
+        CU_ERROR_CHECK(cuMemcpyHtoDAsync(A + j * lda * sizeof(float), X, n * jb * sizeof(float), stream0));
+      else
+        CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A, lda, j, j, B, ldb, 0, 0,
+                                          jb, jb, sizeof(float), stream0));
       /* Calculate the inverse out of place on the CPU while the diagonal block
        * is being copied by the device */
       strtri2(CBlasLower, CBlasNonUnit, jb, B, ldb, C, ldc, info);
@@ -365,8 +362,7 @@ CUresult cuSpotrf(CULAPACKhandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A
   }
 
   // Clean up resources
-//   CU_ERROR_CHECK(cuMemFreeHost(X));
-  CU_ERROR_CHECK(cuMemFreeHost(B));
+  CU_ERROR_CHECK(cuMemFreeHost(X));
   CU_ERROR_CHECK(cuMemFreeHost(C));
   CU_ERROR_CHECK(cuMemFree(D));
 
