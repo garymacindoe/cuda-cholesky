@@ -7,6 +7,7 @@
 #include "spotrf.fatbin.c"
 
 static inline size_t min(size_t a, size_t b) { return (a < b) ? a : b; }
+static inline size_t max(size_t a, size_t b) { return (a > b) ? a : b; }
 
 static inline CUresult cuMemcpyHtoD2DAsync(CUdeviceptr A, size_t lda, size_t ai, size_t aj,
                                            const void * B, size_t ldb, size_t bi, size_t bj,
@@ -181,28 +182,9 @@ CUresult cuSpotrf(CULAPACKhandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A
   if (n == 0)
     return CUDA_SUCCESS;
 
-  const size_t nb = (uplo == CBlasUpper) ? 256 : 64;
-
-  /*
-   * Using the block size, work out if it is more worthwhile to use block column
-   * copy for upload and download.
-   *
-   * This requires the following symbols to be declared in config.h
-   * BANDWIDTH_HTOD: double - host to device bandwidth in seconds per byte
-   * BANDWIDTH_DTOH: double - device to host bandwidth in seconds per byte
-   * OVERHEAD_HTOD: double - host to device overhead in seconds
-   * OVERHEAD_DTOH: double - device to host overhead in seconds
-   *
-   * Block column copy can only be used on matrices that aren't padded (lda == n).
-   */
-  const double column_dtoh = (double)(n * nb * sizeof(float)) * BANDWIDTH_DTOH + OVERHEAD_DTOH;
-  const double block_dtoh = (double)nb * ((double)(nb * sizeof(float)) * BANDWIDTH_DTOH + OVERHEAD_DTOH);
-  const bool bcc_dtoh = (lda == n && column_dtoh < block_dtoh);
-
-  const double column_htod = (double)(n * nb * sizeof(float)) * BANDWIDTH_HTOD + OVERHEAD_HTOD;
-  const double block_htod = (double)nb * ((double)(nb * sizeof(float)) * BANDWIDTH_HTOD + OVERHEAD_HTOD);
-  // Can only copy column back if the column was copied in the first place
-  const bool bcc_htod = bcc_dtoh && (lda == n && column_htod < block_htod);
+  // nb needs to be initialised to the maximum it will ever be for upper or
+  // lower triangular
+  size_t nb = 256;//n / 2;//(uplo == CBlasUpper) ? 256 : 64;
 
   float * B, * C, * X;
   size_t ldb, ldc;
@@ -210,16 +192,9 @@ CUresult cuSpotrf(CULAPACKhandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A
   size_t ldd;
   CUstream stream0, stream1;
 
-  if (bcc_dtoh || bcc_htod) {
-    // Allocate page-locked host memory for diagonal block column
-    // (assume alignment for GPU >= alignment for CPU)
-    CU_ERROR_CHECK(cuMemAllocHost((void **)&X, (ldb = n) * nb * sizeof(float)));
-  }
-  else {
-    // Allocate page-locked host memory for diagonal block
-    CU_ERROR_CHECK(cuMemAllocHost((void **)&X, (ldb = (nb + 3u) & ~3u) * nb * sizeof(float)));
-    B = X;
-  }
+  // Allocate memory for the block column
+  CU_ERROR_CHECK(cuMemAllocHost((void **)&X, (ldb = n) * nb * sizeof(float)));
+  B = X;
   CU_ERROR_CHECK(cuMemAllocHost((void **)&C, (ldc = (nb + 3u) & ~3u) * nb * sizeof(float)));
 
   // Create two streams for asynchronous copy and compute
@@ -231,8 +206,24 @@ CUresult cuSpotrf(CULAPACKhandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A
     CU_ERROR_CHECK(cuMemAllocPitch(&D, &ldd, nb * sizeof(float), n, sizeof(float)));
     ldd /= sizeof(float);
 
+    // Upper and lower limits for which the block size is changed
+    const size_t lower = n / 8;
+    const size_t upper = n - lower;
+
     for (size_t j = 0; j < n; j += nb) {
+      // Work out the block size for this iteration
+      nb = (j < lower || j > upper) ? 128 : 256;
       const size_t jb = min(nb, n - j);
+
+      // Work out whether it is worthwhile to do block column copy for the block size
+      const double column_dtoh = (double)(n * jb * sizeof(float)) * BANDWIDTH_DTOH + OVERHEAD_DTOH;
+      const double block_dtoh = (double)jb * ((double)(jb * sizeof(float)) * BANDWIDTH_DTOH + OVERHEAD_DTOH);
+      const bool bcc_dtoh = (lda == n && column_dtoh < block_dtoh);
+
+      const double column_htod = (double)(n * jb * sizeof(float)) * BANDWIDTH_HTOD + OVERHEAD_HTOD;
+      const double block_htod = (double)jb * ((double)(jb * sizeof(float)) * BANDWIDTH_HTOD + OVERHEAD_HTOD);
+      // Can only copy column back if the column was copied in the first place
+      const bool bcc_htod = bcc_dtoh && (lda == n && column_htod < block_htod);
 
       /* Rank-K update of diagonal block using column matrix above */
       CU_ERROR_CHECK(cuSsyrk(handle->blas_handle, CBlasUpper, CBlasTrans, jb, j,
@@ -297,8 +288,24 @@ CUresult cuSpotrf(CULAPACKhandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A
     CU_ERROR_CHECK(cuMemAllocPitch(&D, &ldd, n * sizeof(float), nb, sizeof(float)));
     ldd /= sizeof(float);
 
+    // Upper and lower limits for which the block size is changed
+    const size_t lower = n / 4;
+    const size_t upper = n - lower;
+
     for (size_t j = 0; j < n; j += nb) {
+      // Work out the block size for this iteration
+      nb = (j < lower || j > upper) ? 128 : 64;
       const size_t jb = min(nb, n - j);
+
+      // Work out whether it is worthwhile to do block column copy for the block size
+      const double column_dtoh = (double)(n * jb * sizeof(float)) * BANDWIDTH_DTOH + OVERHEAD_DTOH;
+      const double block_dtoh = (double)jb * ((double)(jb * sizeof(float)) * BANDWIDTH_DTOH + OVERHEAD_DTOH);
+      const bool bcc_dtoh = (lda == n && column_dtoh < block_dtoh);
+
+      const double column_htod = (double)(n * jb * sizeof(float)) * BANDWIDTH_HTOD + OVERHEAD_HTOD;
+      const double block_htod = (double)jb * ((double)(jb * sizeof(float)) * BANDWIDTH_HTOD + OVERHEAD_HTOD);
+      // Can only copy column back if the column was copied in the first place
+      const bool bcc_htod = bcc_dtoh && (lda == n && column_htod < block_htod);
 
       /* Rank-K update of diagonal block using row matrix to the left */
       CU_ERROR_CHECK(cuSsyrk(handle->blas_handle, CBlasLower, CBlasNoTrans, jb, j,
