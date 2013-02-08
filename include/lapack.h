@@ -82,6 +82,20 @@ CUresult cuCtrtri(CULAPACKhandle, CBlasUplo, CBlasDiag, size_t, CUdeviceptr, siz
 // Double precision complex triangular inverse from Cholesky decomposition
 CUresult cuZtrtri(CULAPACKhandle, CBlasUplo, CBlasDiag, size_t, CUdeviceptr, size_t, long *);
 
+#define cuStrti2(handle, uplo, diag, n, A, lda, info) cuStrti22(handle, uplo, diag, n, A, lda, A, lda, info)
+#define cuDtrti2(handle, uplo, diag, n, A, lda, info) cuDtrti22(handle, uplo, diag, n, A, lda, A, lda, info)
+#define cuCtrti2(handle, uplo, diag, n, A, lda, info) cuCtrti22(handle, uplo, diag, n, A, lda, A, lda, info)
+#define cuZtrti2(handle, uplo, diag, n, A, lda, info) cuZtrti22(handle, uplo, diag, n, A, lda, A, lda, info)
+
+// Single precision triangular inverse from Cholesky decomposition
+CUresult cuStrti22(CULAPACKhandle, CBlasUplo, CBlasDiag, size_t, CUdeviceptr, size_t, CUdeviceptr, size_t, CUdeviceptr, CUstream);
+// Double precision triangular inverse from Cholesky decomposition
+CUresult cuDtrti22(CULAPACKhandle, CBlasUplo, CBlasDiag, size_t, CUdeviceptr, size_t, CUdeviceptr, size_t, CUdeviceptr, CUstream);
+// Single precision complex triangular inverse from Cholesky decomposition
+CUresult cuCtrti22(CULAPACKhandle, CBlasUplo, CBlasDiag, size_t, CUdeviceptr, size_t, CUdeviceptr, size_t, CUdeviceptr, CUstream);
+// Double precision complex triangular inverse from Cholesky decomposition
+CUresult cuZtrti22(CULAPACKhandle, CBlasUplo, CBlasDiag, size_t, CUdeviceptr, size_t, CUdeviceptr, size_t, CUdeviceptr, CUstream);
+
 // Single precision triangular square
 CUresult cuSlauum(CULAPACKhandle, CBlasUplo, size_t, CUdeviceptr, size_t, long *);
 // Double precision triangular square

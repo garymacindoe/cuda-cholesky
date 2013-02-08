@@ -298,9 +298,10 @@ void ctrtri2(CBlasUplo uplo, CBlasDiag diag,
   }
 }
 
-static inline CUresult cuCtrti2(CULAPACKhandle handle, CBlasUplo uplo, CBlasDiag diag,
+CUresult cuCtrti22(CULAPACKhandle handle, CBlasUplo uplo, CBlasDiag diag,
                                 size_t n,
                                 CUdeviceptr A, size_t lda,
+                                CUdeviceptr B, size_t ldb,
                                 CUdeviceptr info, CUstream stream) {
   const unsigned int bx = 32;
   if (n > bx)

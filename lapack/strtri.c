@@ -298,24 +298,26 @@ void strtri2(CBlasUplo uplo, CBlasDiag diag,
   }
 }
 
-static inline CUresult cuStrti2(CULAPACKhandle handle, CBlasUplo uplo, CBlasDiag diag,
-                                size_t n,
-                                CUdeviceptr A, size_t lda,
-                                CUdeviceptr info, CUstream stream) {
+CUresult cuStrti22(CULAPACKhandle handle, CBlasUplo uplo, CBlasDiag diag,
+                   size_t n,
+                   CUdeviceptr A, size_t lda,
+                   CUdeviceptr B, size_t ldb,
+                   CUdeviceptr info, CUstream stream) {
   const unsigned int bx = 64;
-  if (n > bx)
+
+  if (n > bx || lda < n)
     return CUDA_ERROR_INVALID_VALUE;
 
   if (handle->strtri == NULL)
     CU_ERROR_CHECK(cuModuleLoadData(&handle->strtri, imageBytes));
 
-  char name[53];
-  snprintf(name, 53, "_Z6strti2IL9CBlasUplo%dEL9CBlasDiag%dELj%uEEvPfPiii", uplo, diag, bx);
+  char name[57];
+  snprintf(name, 57, "_Z6strti2IL9CBlasUplo%dEL9CBlasDiag%dELj%uEEvPKfPfPiiii", uplo, diag, bx);
 
   CUfunction function;
   CU_ERROR_CHECK(cuModuleGetFunction(&function, handle->strtri, name));
 
-  void * params[] = { &A, &info, &lda, &n };
+  void * params[] = { &A, &B, &info, &lda, &ldb, &n };
 
   CU_ERROR_CHECK(cuLaunchKernel(function, 1, 1, 1, bx, 1, 1, 0, stream, params, NULL));
 

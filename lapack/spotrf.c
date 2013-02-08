@@ -188,9 +188,12 @@ CUresult cuSpotrf(CULAPACKhandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A
 
   float * B, * C, * X;
   size_t ldb, ldc;
-  CUdeviceptr D;
+  CUdeviceptr D, dinfo;
   size_t ldd;
   CUstream stream0, stream1;
+
+  // Allocate the info parameter on the device
+  CU_ERROR_CHECK(cuMemAlloc(&dinfo, sizeof(long)));
 
   // Allocate memory for the block column
   CU_ERROR_CHECK(cuMemAllocHost((void **)&X, (ldb = n) * nb * sizeof(float)));
@@ -236,42 +239,60 @@ CUresult cuSpotrf(CULAPACKhandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A
                               A + (j + jb) * lda * sizeof(float), lda,
                               one, A + ((j + jb) * lda + j) * sizeof(float), lda,
                               D + nb * ldd * sizeof(float), ldd, stream1));
-      /* Start copying diagonal block onto host asynchronously on the same
-       * stream as the SSYRK above to ensure it has finised updating the block
-       * before it is copied */
-      if (bcc_dtoh) {
-        CU_ERROR_CHECK(cuMemcpyDtoHAsync(X, A + j * lda * sizeof(float), n * jb * sizeof(float), stream0));
-        B = &X[j];
-      }
-      else
-        CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(B, ldb, 0, 0, A, lda, j, j,
+      if (nb > 64) {
+        /* Start copying diagonal block onto host asynchronously on the same
+        * stream as the SSYRK above to ensure it has finised updating the block
+        * before it is copied */
+        if (bcc_dtoh) {
+          CU_ERROR_CHECK(cuMemcpyDtoHAsync(X, A + j * lda * sizeof(float), n * jb * sizeof(float), stream0));
+          B = &X[j];
+        }
+        else
+          CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(B, ldb, 0, 0, A, lda, j, j,
+                                            jb, jb, sizeof(float), stream0));
+        /* Wait until the diagonal block has been copied */
+        CU_ERROR_CHECK(cuStreamSynchronize(stream0));
+        /* Perform the diagonal block decomposition using the CPU */
+        spotrf(CBlasUpper, jb, B, ldb, info);
+        /* Check for positive definite matrix */
+        if (*info != 0) {
+          *info += (long)j;
+          break;
+        }
+        /* Copy the diagonal block back onto the device */
+        if (bcc_htod)
+          CU_ERROR_CHECK(cuMemcpyHtoDAsync(A + j * lda * sizeof(float), X, n * jb * sizeof(float), stream0));
+        else
+          CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A, lda, j, j, B, ldb, 0, 0,
+                                            jb, jb, sizeof(float), stream0));
+        /* Calculate the inverse out of place on the CPU while the diagonal block
+        * is being copied by the device */
+        strtri2(CBlasUpper, CBlasNonUnit, jb, B, ldb, C, ldc, info);
+        /* Check for singular matrix */
+        if (*info != 0) {
+          *info += (long)j;
+          break;
+        }
+        /* Copy the inverse back onto the device into a temporary matrix */
+        CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(D, ldd, 0, 0, C, ldc, 0, 0,
                                           jb, jb, sizeof(float), stream0));
-      /* Wait until the diagonal block has been copied */
-      CU_ERROR_CHECK(cuStreamSynchronize(stream0));
-      /* Perform the diagonal block decomposition using the CPU */
-      spotrf(CBlasUpper, jb, B, ldb, info);
-      /* Check for positive definite matrix */
-      if (*info != 0) {
-        *info += (long)j;
-        break;
       }
-      /* Copy the diagonal block back onto the device */
-      if (bcc_htod)
-        CU_ERROR_CHECK(cuMemcpyHtoDAsync(A + j * lda * sizeof(float), X, n * jb * sizeof(float), stream0));
-      else
-        CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A, lda, j, j, B, ldb, 0, 0,
-                                           jb, jb, sizeof(float), stream0));
-      /* Calculate the inverse out of place on the CPU while the diagonal block
-       * is being copied by the device */
-      strtri2(CBlasUpper, CBlasNonUnit, jb, B, ldb, C, ldc, info);
-      /* Check for singular matrix */
-      if (*info != 0) {
-        *info += (long)j;
-        break;
+      else {
+        CU_ERROR_CHECK(cuSpotf2(handle, CBlasUpper, jb, A + (j * lda + j) * sizeof(float), lda, dinfo, stream0));
+        CU_ERROR_CHECK(cuMemcpyDtoH(info, dinfo, sizeof(long)));
+        /* Check for positive definite matrix */
+        if (*info != 0) {
+          *info += (long)j;
+          break;
+        }
+        CU_ERROR_CHECK(cuStrti22(handle, CBlasUpper, CBlasNonUnit, jb, A + (j * lda + j) * sizeof(float), lda, D, ldd, dinfo, stream0));
+        CU_ERROR_CHECK(cuMemcpyDtoH(info, dinfo, sizeof(long)));
+        /* Check for singular matrix */
+        if (*info != 0) {
+          *info += (long)j;
+          break;
+        }
       }
-      /* Copy the inverse back onto the device into a temporary matrix */
-      CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(D, ldd, 0, 0, C, ldc, 0, 0,
-                                         jb, jb, sizeof(float), stream0));
       /* Wait until the SGEMM has finished updating the row to the right (this
        * is unnecessary on devices that cannot execute multiple kernels
        * simultaneously */
@@ -294,7 +315,7 @@ CUresult cuSpotrf(CULAPACKhandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A
 
     for (size_t j = 0; j < n; j += nb) {
       // Work out the block size for this iteration
-      nb = (j < lower || j > upper) ? 128 : 64;
+      nb = (j < lower || j > upper) ? 64 : 64;
       const size_t jb = min(nb, n - j);
 
       // Work out whether it is worthwhile to do block column copy for the block size
@@ -318,42 +339,60 @@ CUresult cuSpotrf(CULAPACKhandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A
                               A + j * sizeof(float), lda,
                               one, A + (j * lda + j + jb) * sizeof(float), lda,
                               D + nb * sizeof(float), ldd, stream1));
-      /* Start copying diagonal block onto host asynchronously on the same
-       * stream as the SSYRK above to ensure it has finised updating the block
-       * before it is copied */
-      if (bcc_dtoh) {
-        CU_ERROR_CHECK(cuMemcpyDtoHAsync(X, A + j * lda * sizeof(float), n * jb * sizeof(float), stream0));
-        B = &X[j];
-      }
-      else
-        CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(B, ldb, 0, 0, A, lda, j, j,
+      if (nb > 64) {
+        /* Start copying diagonal block onto host asynchronously on the same
+        * stream as the SSYRK above to ensure it has finised updating the block
+        * before it is copied */
+        if (bcc_dtoh) {
+          CU_ERROR_CHECK(cuMemcpyDtoHAsync(X, A + j * lda * sizeof(float), n * jb * sizeof(float), stream0));
+          B = &X[j];
+        }
+        else
+          CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(B, ldb, 0, 0, A, lda, j, j,
+                                            jb, jb, sizeof(float), stream0));
+        /* Wait until the diagonal block has been copied */
+        CU_ERROR_CHECK(cuStreamSynchronize(stream0));
+        /* Perform the diagonal block decomposition using the CPU */
+        spotrf(CBlasLower, jb, B, ldb, info);
+        /* Check for positive definite matrix */
+        if (*info != 0) {
+          *info += (long)j;
+          break;
+        }
+        /* Copy the diagonal block back onto the device */
+        if (bcc_htod)
+          CU_ERROR_CHECK(cuMemcpyHtoDAsync(A + j * lda * sizeof(float), X, n * jb * sizeof(float), stream0));
+        else
+          CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A, lda, j, j, B, ldb, 0, 0,
+                                            jb, jb, sizeof(float), stream0));
+        /* Calculate the inverse out of place on the CPU while the diagonal block
+        * is being copied by the device */
+        strtri2(CBlasLower, CBlasNonUnit, jb, B, ldb, C, ldc, info);
+        /* Check for singular matrix */
+        if (*info != 0) {
+          *info += (long)j;
+          break;
+        }
+        /* Copy the inverse back onto the device into a temporary matrix */
+        CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(D, ldd, 0, 0, C, ldc, 0, 0,
                                           jb, jb, sizeof(float), stream0));
-      /* Wait until the diagonal block has been copied */
-      CU_ERROR_CHECK(cuStreamSynchronize(stream0));
-      /* Perform the diagonal block decomposition using the CPU */
-      spotrf(CBlasLower, jb, B, ldb, info);
-      /* Check for positive definite matrix */
-      if (*info != 0) {
-        *info += (long)j;
-        break;
       }
-      /* Copy the diagonal block back onto the device */
-      if (bcc_htod)
-        CU_ERROR_CHECK(cuMemcpyHtoDAsync(A + j * lda * sizeof(float), X, n * jb * sizeof(float), stream0));
-      else
-        CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A, lda, j, j, B, ldb, 0, 0,
-                                          jb, jb, sizeof(float), stream0));
-      /* Calculate the inverse out of place on the CPU while the diagonal block
-       * is being copied by the device */
-      strtri2(CBlasLower, CBlasNonUnit, jb, B, ldb, C, ldc, info);
-      /* Check for singular matrix */
-      if (*info != 0) {
-        *info += (long)j;
-        break;
+      else {
+        CU_ERROR_CHECK(cuSpotf2(handle, CBlasLower, jb, A + (j * lda + j) * sizeof(float), lda, dinfo, stream0));
+//         CU_ERROR_CHECK(cuMemcpyDtoH(info, dinfo, sizeof(long)));
+        /* Check for positive definite matrix */
+        if (*info != 0) {
+          *info += (long)j;
+          break;
+        }
+        CU_ERROR_CHECK(cuStrti22(handle, CBlasLower, CBlasNonUnit, jb, A + (j * lda + j) * sizeof(float), lda, D, ldd, dinfo, stream0));
+//         CU_ERROR_CHECK(cuMemcpyDtoH(info, dinfo, sizeof(long)));
+        /* Check for singular matrix */
+        if (*info != 0) {
+          *info += (long)j;
+          break;
+        }
       }
-      /* Copy the inverse back onto the device into a temporary matrix */
-      CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(D, ldd, 0, 0, C, ldc, 0, 0,
-                                         jb, jb, sizeof(float), stream0));
       /* Wait until the SGEMM has finished updating the row to the right (this
        * is unnecessary on devices that cannot execute multiple kernels
        * simultaneously */
@@ -372,6 +411,7 @@ CUresult cuSpotrf(CULAPACKhandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A
   CU_ERROR_CHECK(cuMemFreeHost(X));
   CU_ERROR_CHECK(cuMemFreeHost(C));
   CU_ERROR_CHECK(cuMemFree(D));
+  CU_ERROR_CHECK(cuMemFree(dinfo));
 
   CU_ERROR_CHECK(cuStreamDestroy(stream0));
   CU_ERROR_CHECK(cuStreamDestroy(stream1));

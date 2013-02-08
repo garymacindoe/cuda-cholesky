@@ -20,7 +20,7 @@ __device__ int lower(int i, int j) {
 }
 
 template <CBlasUplo uplo, CBlasDiag diag, unsigned int bx>
-__global__ void strti2(float * A, int * info, int lda, int n) {
+__global__ void strti2(const float * A, float * B, int * info, int lda, int ldb, int n) {
   // info parameter cached in shared memory for fast access by all threads in the block
   __shared__ int sinfo;
 
@@ -97,10 +97,10 @@ __global__ void strti2(float * A, int * info, int lda, int n) {
       __syncthreads();
     }
 
-    // Write the upper triangle of A back to global memory
+    // Write the upper triangle of A back to B in global memory
     for (int j = 0; j < n; j++) {
       if (threadIdx.x <= j)
-        A[j * lda + threadIdx.x] = a[upper(threadIdx.x, j)];
+        B[j * ldb + threadIdx.x] = a[upper(threadIdx.x, j)];
     }
   }
   else {
@@ -158,18 +158,18 @@ __global__ void strti2(float * A, int * info, int lda, int n) {
       __syncthreads();
     }
 
-    // Write the lower triangle of A back to global memory
+    // Write the lower triangle of A back to B in global memory
     for (int j = 0; j < n; j++) {
       if (threadIdx.x >= j)
-        A[j * lda + threadIdx.x] = a[lower<bx>(threadIdx.x, j)];
+        B[j * ldb + threadIdx.x] = a[lower<bx>(threadIdx.x, j)];
     }
   }
 }
 
-template __global__ void strti2<CBlasUpper, CBlasUnit, 64>(float *, int *, int, int);
-template __global__ void strti2<CBlasUpper, CBlasNonUnit, 64>(float *, int *, int, int);
-template __global__ void strti2<CBlasLower, CBlasUnit, 64>(float *, int *, int, int);
-template __global__ void strti2<CBlasLower, CBlasNonUnit, 64>(float *, int *, int, int);
+template __global__ void strti2<CBlasUpper, CBlasUnit, 64>(const float * __restrict__, float * __restrict__, int * __restrict__, int, int, int);
+template __global__ void strti2<CBlasUpper, CBlasNonUnit, 64>(const float * __restrict__, float * __restrict__, int * __restrict__, int, int, int);
+template __global__ void strti2<CBlasLower, CBlasUnit, 64>(const float * __restrict__, float * __restrict__, int * __restrict__, int, int, int);
+template __global__ void strti2<CBlasLower, CBlasNonUnit, 64>(const float * __restrict__, float * __restrict__, int * __restrict__, int, int, int);
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -194,15 +194,15 @@ extern "C" void strti2_(const char *, const char *, const int *, float *, const 
 static inline void strti2(CBlasUplo uplo, CBlasDiag diag, int n, float * A, int lda, int * info) {
   if (uplo == CBlasUpper) {
     if (diag == CBlasNonUnit)
-      strti2<CBlasUpper, CBlasNonUnit, 64><<<1,64>>>(A, info, lda, n);
+      strti2<CBlasUpper, CBlasNonUnit, 64><<<1,64>>>(A, A, info, lda, lda, n);
     else
-      strti2<CBlasUpper, CBlasUnit, 64><<<1,64>>>(A, info, lda, n);
+      strti2<CBlasUpper, CBlasUnit, 64><<<1,64>>>(A, A, info, lda, lda, n);
   }
   else {
     if (diag == CBlasNonUnit)
-      strti2<CBlasLower, CBlasNonUnit, 64><<<1,64>>>(A, info, lda, n);
+      strti2<CBlasLower, CBlasNonUnit, 64><<<1,64>>>(A, A, info, lda, lda, n);
     else
-      strti2<CBlasLower, CBlasUnit, 64><<<1,64>>>(A, info, lda, n);
+      strti2<CBlasLower, CBlasUnit, 64><<<1,64>>>(A, A, info, lda, lda, n);
   }
 }
 

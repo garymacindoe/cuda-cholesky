@@ -66,11 +66,22 @@ int main(int argc, char * argv[]) {
 
   bool passed = (info == rInfo);
   float diff = 0.0f;
-  for (size_t j = 0; j < n; j++) {
-    for (size_t i = 0; i < n; i++) {
-      float d = fabsf(A[j * lda + i] - refA[j * lda + i]);
-      if (d > diff)
-        diff = d;
+  if (uplo == CBlasUpper) {
+    for (size_t j = 0; j < n; j++) {
+      for (size_t i = 0; i <= j; i++) {
+        float d = fabsf(A[j * lda + i] - refA[j * lda + i]);
+        if (d > diff)
+          diff = d;
+      }
+    }
+  }
+  else {
+    for (size_t j = 0; j < n; j++) {
+      for (size_t i = j; i < n; i++) {
+        float d = fabsf(A[j * lda + i] - refA[j * lda + i]);
+        if (d > diff)
+          diff = d;
+      }
     }
   }
 

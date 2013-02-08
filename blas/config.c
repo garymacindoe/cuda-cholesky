@@ -864,13 +864,13 @@ static CUresult bandwidth_test(double * bandwidth_htod, double * overhead_htod,
   CU_ERROR_CHECK(cuStreamCreate(&stream, 0));
 
   CUdeviceptr dPointer;
-  CU_ERROR_CHECK(cuMemAlloc(&dPointer, 134217728));
+  CU_ERROR_CHECK(cuMemAlloc(&dPointer, 16777216));
 
   void * hPointer;
   CU_ERROR_CHECK(cuMemAllocHost(&hPointer, 134217728));
 
   double sumX = 0.0, sumXX = 0.0, sumY = 0.0, sumXY = 0.0;
-  const size_t n = 128;
+  const size_t n = 16;
   for (size_t j = 1; j <= n; j++) {
     size_t size = j * 1048576;
     struct timeval start, stop;
