@@ -28,11 +28,13 @@ __device__ void saxpy(float alpha, const float * __restrict__ x, float * __restr
 template <CBlasTranspose transA, CBlasTranspose transB,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void sgemm(const float * __restrict__ A, const float * __restrict__ B,
-                      const float * __restrict__ C, float * __restrict__ D,
-                      float alpha, float beta,
-                      int lda, int ldb, int ldc, int ldd,
-                      int m, int n, int k) {
+__device__ void sgemm2(int m, int n, int k,
+                       float alpha,
+                       const float * __restrict__ A, int lda,
+                       const float * __restrict__ B, int ldb,
+                       float beta,
+                       const float * __restrict__ C, int ldc,
+                       float * __restrict__ D, int ldd) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of C/D
   const int bj = blockIdx.y * nb;       // Starting column of block of C/D
@@ -170,6 +172,16 @@ __global__ void sgemm(const float * __restrict__ A, const float * __restrict__ B
     D[0] = alpha * d[14] + beta * C[0]; if (15 >= n) return; C += ldc; D += ldd;
     D[0] = alpha * d[15] + beta * C[0];
   }
+}
+
+template <CBlasTranspose transA, CBlasTranspose transB,
+          unsigned int mb, unsigned int nb, unsigned int kb,
+          unsigned int bx, unsigned int by>
+__global__ void sgemm(const float * __restrict__ A, const float * __restrict__ B, const float * __restrict__ C, float * __restrict__ D,
+                      float alpha, float beta,
+                      int lda, int ldb, int ldc, int ldd,
+                      int m, int n, int k) {
+  sgemm2<transA, transB, mb, nb, kb, bx, by>(m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, D, ldd);
 }
 
 /**

@@ -19,14 +19,124 @@ __device__ int lower(int i, int j) {
   return ((2 * bx - j - 1) * j) / 2 + i;
 }
 
+/**
+ * In-place triangular packed unblocked triangular inverse device function.
+ *
+ * @param n     the size of the matrix
+ * @param A     the matrix stored using upper or lower triangular packed storage
+ *                mode
+ * @param info  info
+ *
+ * A and info are expected to be in shared memory but may still work (slower) if
+ * in global memory.
+ */
+template <CBlasUplo uplo, CBlasDiag diag, unsigned int bx>
+__device__ void stpti2(int n, float * __restrict__ A, int * __restrict__ info) {
+  // thread 0 is the only thread to write to info in global memory
+  if (threadIdx.x == 0)
+    *info = 0;  // initialise info to zero
+
+  // Copy of diagonal element in shared memory prior to updating
+  __shared__ float ajj;
+
+  if (uplo == CBlasUpper) {
+    // Perform the triangular inverse
+    // Accesses do not have to be coalesced or aligned as they would if A were
+    // in global memory.  Using triangular packed storage also neatly avoids
+    // bank conflicts.
+    for (int j = 0; j < n; j++) {
+      float temp;
+      // Read current column into registers
+      if (threadIdx.x <= j)
+        temp = A[upper(threadIdx.x, j)];
+
+      // Thread j calculates the diagonal element
+      if (threadIdx.x == j) {
+        if (diag == CBlasNonUnit) {
+          if (temp == 0.0f)
+            *info = j + 1;
+          else {
+            A[upper(threadIdx.x, j)] = 1.0f / temp;
+            ajj = -A[upper(threadIdx.x, j)];
+          }
+        }
+        else
+          ajj = -1.0f;
+      }
+
+      __syncthreads();
+
+      // If info != 0 return (matrix is singular)
+      if (*info != 0)
+        return;
+
+      if (threadIdx.x < j) {
+        if (diag == CBlasNonUnit)
+          temp *= A[upper(threadIdx.x, threadIdx.x)];
+        for (int k = threadIdx.x + 1; k < j; k++)
+          temp += A[upper(threadIdx.x, k)] * A[upper(k, j)];
+      }
+
+      __syncthreads();
+
+      if (threadIdx.x < j)
+        A[upper(threadIdx.x, j)] = temp * ajj;
+
+      __syncthreads();
+    }
+  }
+  else {
+    // Perform the triangular inverse
+    // Accesses do not have to be coalesced or aligned as they would if A were
+    // in global memory.  Using triangular packed storage also avoids bank
+    // conflicts.
+    for (int j = n - 1; j >= 0; j--) {
+      float temp;
+      // Read current column into registers
+      if (threadIdx.x >= j)
+        temp = A[lower<bx>(threadIdx.x, j)];
+
+      // Thread j calculates the diagonal element
+      if (threadIdx.x == j) {
+        if (diag == CBlasNonUnit) {
+          if (temp == 0.0f)
+            *info = j + 1;
+          else {
+            A[lower<bx>(threadIdx.x, j)] = 1.0f / temp;
+            ajj = -A[lower<bx>(threadIdx.x, j)];
+          }
+        }
+        else
+          ajj = -1.0f;
+      }
+
+      __syncthreads();
+
+      // If info != 0 return (matrix is singular)
+      if (*info != 0)
+        return;
+
+      if (threadIdx.x > j) {
+        if (diag == CBlasNonUnit)
+          temp *= A[lower<bx>(threadIdx.x, threadIdx.x)];
+        for (int k = j + 1; k < threadIdx.x; k++)
+          temp += A[lower<bx>(threadIdx.x, k)] * A[lower<bx>(k, j)];
+      }
+
+      __syncthreads();
+
+      if (threadIdx.x > j)
+        A[lower<bx>(threadIdx.x, j)] = temp * ajj;
+
+      __syncthreads();
+    }
+  }
+}
+
 template <CBlasUplo uplo, CBlasDiag diag, unsigned int bx>
 __global__ void strti2(const float * A, float * B, int * info, int lda, int ldb, int n) {
   // info parameter cached in shared memory for fast access by all threads in the block
   __shared__ int sinfo;
-
-  // thread 0 is the only thread to write to info in shared or global memory
-  if (threadIdx.x == 0)
-    *info = sinfo = 0;  // initialise info to zero and cache
 
   /*
    * For efficient data reuse A needs to be cached in shared memory.  In order
@@ -40,62 +150,23 @@ __global__ void strti2(const float * A, float * B, int * info, int lda, int ldb,
    * thread blocks onto each multiprocessor.
    */
   __shared__ float a[(bx * (bx + 1)) / 2];
-  __shared__ float ajj;
 
   if (uplo == CBlasUpper) {
     // Read upper triangle of A into shared memory
     #pragma unroll
-    for (int j = 0; j < bx; j++) {
+    for (int j = 0; j < n; j++) {
       if (threadIdx.x <= j)
         a[upper(threadIdx.x, j)] = A[j * lda + threadIdx.x];
     }
 
     __syncthreads();
 
-    // Perform the triangular inverse
-    // Accesses do not have to be coalesced or aligned as they would if A were
-    // in global memory.  Using triangular packed storage also neatly avoids
-    // bank conflicts.
-    for (int j = 0; j < n; j++) {
-      float temp;
-      // Read current column into registers
-      if (threadIdx.x <= j)
-        temp = a[upper(threadIdx.x, j)];
+    // Perform the triangular inverse using the packed device function
+    stpti2<CBlasUpper, diag, bx>(n, a, &sinfo);
 
-      // Thread j calculates the diagonal element
-      if (threadIdx.x == j) {
-        if (diag == CBlasNonUnit) {
-          if (temp == 0.0f) {
-            *info = sinfo = j + 1;        // update info in shared and global memory
-            break;
-          }
-          a[upper(threadIdx.x, j)] = 1.0f / temp;
-          ajj = -a[upper(threadIdx.x, j)];
-        }
-        else
-          ajj = -1.0f;
-      }
-
-      __syncthreads();
-
-      // If info != 0 return (matrix is singular)
-      if (sinfo != 0)
-        return;
-
-      if (threadIdx.x < j) {
-        if (diag == CBlasNonUnit)
-          temp *= a[upper(threadIdx.x, threadIdx.x)];
-        for (int k = threadIdx.x + 1; k < j; k++)
-          temp += a[upper(threadIdx.x, k)] * a[upper(k, j)];
-      }
-
-      __syncthreads();
-
-      if (threadIdx.x < j)
-        a[upper(threadIdx.x, j)] = temp * ajj;
-
-      __syncthreads();
-    }
+    // Write info back to global memory
+    if (threadIdx.x == 0)
+      *info = sinfo;
 
     // Write the upper triangle of A back to B in global memory
     for (int j = 0; j < n; j++) {
@@ -106,57 +177,19 @@ __global__ void strti2(const float * A, float * B, int * info, int lda, int ldb,
   else {
     // Read lower triangle of A into shared memory
     #pragma unroll
-    for (int j = 0; j < bx; j++) {
+    for (int j = 0; j < n; j++) {
       if (threadIdx.x >= j)
         a[lower<bx>(threadIdx.x, j)] = A[j * lda + threadIdx.x];
     }
 
     __syncthreads();
 
-    // Perform the triangular inverse
-    // Accesses do not have to be coalesced or aligned as they would if A were
-    // in global memory.  Using triangular packed storage also neatly avoids
-    // bank conflicts.
-    for (int j = n - 1; j >= 0; j--) {
-      float temp;
-      // Read current column into registers
-      if (threadIdx.x >= j)
-        temp = a[lower<bx>(threadIdx.x, j)];
+    // Perform the triangular inverse using the packed device function
+    stpti2<CBlasLower, diag, bx>(n, a, &sinfo);
 
-      // Thread j calculates the diagonal element
-      if (threadIdx.x == j) {
-        if (diag == CBlasNonUnit) {
-          if (temp == 0.0f) {
-            *info = sinfo = j + 1;        // update info in shared and global memory
-            break;
-          }
-          a[lower<bx>(threadIdx.x, j)] = 1.0f / temp;
-          ajj = -a[lower<bx>(threadIdx.x, j)];
-        }
-        else
-          ajj = -1.0f;
-      }
-
-      __syncthreads();
-
-      // If info != 0 return (matrix is singular)
-      if (sinfo != 0)
-        return;
-
-      if (threadIdx.x > j) {
-        if (diag == CBlasNonUnit)
-          temp *= a[lower<bx>(threadIdx.x, threadIdx.x)];
-        for (int k = j + 1; k < threadIdx.x; k++)
-          temp += a[lower<bx>(threadIdx.x, k)] * a[lower<bx>(k, j)];
-      }
-
-      __syncthreads();
-
-      if (threadIdx.x > j)
-        a[lower<bx>(threadIdx.x, j)] = temp * ajj;
-
-      __syncthreads();
-    }
+    // Write info back to global memory
+    if (threadIdx.x == 0)
+      *info = sinfo;
 
     // Write the lower triangle of A back to B in global memory
     for (int j = 0; j < n; j++) {
