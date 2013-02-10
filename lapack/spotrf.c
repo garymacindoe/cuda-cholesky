@@ -206,6 +206,7 @@ static inline CUresult cuSpotfimm2(CULAPACKhandle handle, CBlasUplo uplo,
 
 static CUresult hybridSpotrf(CBlasUplo uplo,
                              CUdeviceptr A, size_t lda, float * B, size_t ldb,
+                             float * C, size_t ldc, CUdeviceptr D, size_t ldd,
                              size_t j, size_t jb, long * info, CUstream stream) {
   /* Start copying diagonal block onto host asynchronously */
   CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(B, ldb, 0, 0, A, lda, j, j,
@@ -216,6 +217,14 @@ static CUresult hybridSpotrf(CBlasUplo uplo,
   spotrf(uplo, jb, B, ldb, info);
   /* Copy the diagonal block back onto the device */
   CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A, lda, j, j, B, ldb, 0, 0,
+                                     jb, jb, sizeof(float), stream));
+  /* If the matrix is not positive definite don't bother with the inverse */
+  if (*info != 0)
+    return CUDA_SUCCESS;
+  /* Overlap the asynchronous copy calculating the inverse out of place */
+  strtri2(uplo, CBlasNonUnit, jb, B, ldb, C, ldc, info);
+  /* Copy the inverse into the top/left of the column/row for out of place STRMM */
+  CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(D, ldd, 0, 0, C, ldc, 0, 0,
                                      jb, jb, sizeof(float), stream));
   return CUDA_SUCCESS;
 }
@@ -259,26 +268,28 @@ CUresult cuSpotrf(CULAPACKhandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A
   // dynamic block sizing
 //   size_t nb = n / 4;
 
-  float * B;//, * C, * X;
-  size_t ldb;//, ldc;
-//   CUdeviceptr D;
-//   size_t ldd;
+  float * B, * C;//, * X;
+  size_t ldb, ldc;
+  CUdeviceptr D;
+  size_t ldd;
   CUstream stream0, stream1;
 
+  // Allocate memory on host for diagonal block
   CU_ERROR_CHECK(cuMemAllocHost((void **)&B, (ldb = (nb + 3u) & ~3u) * nb * sizeof(float)));
 //   // Allocate memory for the block column
 //   CU_ERROR_CHECK(cuMemAllocHost((void **)&X, (ldb = n) * nb * sizeof(float)));
 //   B = X;
-//   CU_ERROR_CHECK(cuMemAllocHost((void **)&C, (ldc = (nb + 3u) & ~3u) * nb * sizeof(float)));
+  // Allocate memory on host for out of place inverse
+  CU_ERROR_CHECK(cuMemAllocHost((void **)&C, (ldc = (nb + 3u) & ~3u) * nb * sizeof(float)));
 
   // Create two streams for asynchronous copy and compute
   CU_ERROR_CHECK(cuStreamCreate(&stream0, 0));
   CU_ERROR_CHECK(cuStreamCreate(&stream1, 0));
 
   if (uplo == CBlasUpper) {
-//     // Allocate a temporary row matrix for out of place STRTRI, SGEMM and STRMM */
-//     CU_ERROR_CHECK(cuMemAllocPitch(&D, &ldd, nb * sizeof(float), n, sizeof(float)));
-//     ldd /= sizeof(float);
+    // Allocate a temporary row matrix for out of place STRTRI, SGEMM and STRMM */
+    CU_ERROR_CHECK(cuMemAllocPitch(&D, &ldd, nb * sizeof(float), n, sizeof(float)));
+    ldd /= sizeof(float);
 
     // Static block sizing
     for (size_t j = 0; j < n; j += nb) {
@@ -292,28 +303,28 @@ CUresult cuSpotrf(CULAPACKhandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A
                              one, A + (j * lda + j) * sizeof(float), lda, stream0));
       /* Out of place SGEMM (on a different stream) which copies the row to the
        * right of the diagonal into D(0,nb) */
-      CU_ERROR_CHECK(cuSgemm(handle->blas_handle, CBlasTrans, CBlasNoTrans,
+      CU_ERROR_CHECK(cuSgemm2(handle->blas_handle, CBlasTrans, CBlasNoTrans,
                               jb, n - j - jb, j,
                               -one, A + j * lda * sizeof(float), lda,
                               A + (j + jb) * lda * sizeof(float), lda,
                               one, A + ((j + jb) * lda + j) * sizeof(float), lda,
-                              /*D + nb * ldd * sizeof(float), ldd,*/ stream1));
-      CU_ERROR_CHECK(hybridSpotrf(uplo, A, lda, B, ldb, j, jb, info, stream0));
+                              D + nb * ldd * sizeof(float), ldd, stream1));
+      CU_ERROR_CHECK(hybridSpotrf(uplo, A, lda, B, ldb, C, ldc, D, ldd, j, jb, info, stream0));
       /* Check for positive definite matrix */
       if (*info != 0) {
         *info += (long)j;
         break;
       }
       /* Perform the triangular solve */
-      CU_ERROR_CHECK(cuStrsm(handle->blas_handle, CBlasLeft, CBlasUpper, CBlasTrans, CBlasNonUnit,
-                             jb, n - j - jb, one, A + (j * lda + j) * sizeof(float), lda, /*D, ldd, D + nb * ldd * sizeof(float), ldd,*/
-                             A + ((j + jb) * lda + j) * sizeof(float), lda, stream0));
+      CU_ERROR_CHECK(cuStrmm2(handle->blas_handle, CBlasLeft, CBlasUpper, CBlasTrans, CBlasNonUnit,
+                              jb, n - j - jb, one, D, ldd, D + nb * ldd * sizeof(float), ldd,
+                              A + ((j + jb) * lda + j) * sizeof(float), lda, stream0));
     }
   }
   else {
     // Allocate a temporary column matrix for out of place STRTRI, SGEMM and STRMM */
-//     CU_ERROR_CHECK(cuMemAllocPitch(&D, &ldd, n * sizeof(float), nb, sizeof(float)));
-//     ldd /= sizeof(float);
+    CU_ERROR_CHECK(cuMemAllocPitch(&D, &ldd, n * sizeof(float), nb, sizeof(float)));
+    ldd /= sizeof(float);
 
     // Static block sizing
     for (size_t j = 0; j < n; j += nb) {
@@ -327,12 +338,12 @@ CUresult cuSpotrf(CULAPACKhandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A
                              one, A + (j * lda + j) * sizeof(float), lda, stream0));
       /* Out of place SGEMM (on a different stream)
        * which copies the column under of the diagonal into D(nb,0) */
-      CU_ERROR_CHECK(cuSgemm(handle->blas_handle, CBlasNoTrans, CBlasTrans, n - j - jb, jb, j,
+      CU_ERROR_CHECK(cuSgemm2(handle->blas_handle, CBlasNoTrans, CBlasTrans, n - j - jb, jb, j,
                               -one, A + (j + jb) * sizeof(float), lda,
                               A + j * sizeof(float), lda,
                               one, A + (j * lda + j + jb) * sizeof(float), lda,
-                              /*D + nb * sizeof(float), ldd,*/ stream1));
-      CU_ERROR_CHECK(hybridSpotrf(uplo, A, lda, B, ldb, j, jb, info, stream0));
+                              D + nb * sizeof(float), ldd, stream1));
+      CU_ERROR_CHECK(hybridSpotrf(uplo, A, lda, B, ldb, C, ldc, D, ldd, j, jb, info, stream0));
       /* Check for positive definite matrix */
       if (*info != 0) {
         *info += (long)j;
@@ -342,8 +353,8 @@ CUresult cuSpotrf(CULAPACKhandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A
        * on the same stream as the copy to ensure it has completed first */
       /* Perform the out of place triangular matrix multiply to copy D back into
        * the correct place */
-      CU_ERROR_CHECK(cuStrsm(handle->blas_handle, CBlasRight, CBlasLower, CBlasTrans, CBlasNonUnit,
-                              n - j - jb, jb, one, A + (j * lda + j) * sizeof(float), lda, /*D, ldd, D + nb * sizeof(float), ldd,*/
+      CU_ERROR_CHECK(cuStrmm2(handle->blas_handle, CBlasRight, CBlasLower, CBlasTrans, CBlasNonUnit,
+                              n - j - jb, jb, one, D, ldd, D + nb * sizeof(float), ldd,
                               A + (j * lda + j + jb) * sizeof(float), lda, stream0));
     }
   }
@@ -351,8 +362,8 @@ CUresult cuSpotrf(CULAPACKhandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A
   // Clean up resources
   CU_ERROR_CHECK(cuMemFreeHost(B));
 //   CU_ERROR_CHECK(cuMemFreeHost(X));
-//   CU_ERROR_CHECK(cuMemFreeHost(C));
-//   CU_ERROR_CHECK(cuMemFree(D));
+  CU_ERROR_CHECK(cuMemFreeHost(C));
+  CU_ERROR_CHECK(cuMemFree(D));
 //   CU_ERROR_CHECK(cuMemFree(dinfo));
 
   CU_ERROR_CHECK(cuStreamDestroy(stream0));
