@@ -151,6 +151,23 @@ static inline CUresult cuSlauu2(CULAPACKhandle handle, CBlasUplo uplo,
   return CUDA_SUCCESS;
 }
 
+static CUresult hybridSlauum(CBlasUplo uplo,
+                             CUdeviceptr A, size_t lda, float * B, size_t ldb,
+                             size_t i, size_t ib, long * info, CUstream stream) {
+  /* Overlap both the operations above with a copy of the diagonal block
+    * onto the host. */
+  CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(B, ldb, 0, 0, A, lda, i, i,
+                                      ib, ib, sizeof(float), stream));
+  /* Wait until the diagonal block has been copied */
+  CU_ERROR_CHECK(cuStreamSynchronize(stream));
+  /* Form the multiplication of the diagonal block using the CPU */
+  slauum(uplo, ib, B, ldb, info);
+  /* Copy the diagonal block back onto the device */
+  CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A, lda, i, i, B, ldb, 0, 0,
+                                      ib, ib, sizeof(float), stream));
+  return CUDA_SUCCESS;
+}
+
 CUresult cuSlauum(CULAPACKhandle handle,
                   CBlasUplo uplo,
                   size_t n,
@@ -201,29 +218,19 @@ CUresult cuSlauum(CULAPACKhandle handle,
       CU_ERROR_CHECK(cuStrmm2(handle->blas_handle, CBlasRight, CBlasUpper, CBlasTrans, CBlasNonUnit, i, ib,
                               one, A + (i * lda + i) * sizeof(float), lda,
                               A + i * lda * sizeof(float), lda, X, ldx, stream0));
+      /* Ensure the STRMM has finished before starting the SGEMM on a different stream */
+//       CU_ERROR_CHECK(cuStreamSynchronize(stream0));
       /* Update the current column using the big matrix to the right */
       CU_ERROR_CHECK(cuSgemm2(handle->blas_handle, CBlasNoTrans, CBlasTrans, i, ib, n - i - ib,
                               one, A + (i + ib) * lda * sizeof(float), lda,
                               A + ((i + ib) * lda + i) * sizeof(float), lda,
-                              one, X, ldx, A + i * lda * sizeof(float), lda, stream0));
-      /* Overlap both the operations above with a copy of the diagonal block
-       * onto the host. */
-      CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(B, ldb, 0, 0, A, lda, i, i,
-                                         ib, ib, sizeof(float), stream1));
-      /* Wait until the diagonal block has been copied */
-      CU_ERROR_CHECK(cuStreamSynchronize(stream1));
-      /* Form the multiplication of the diagonal block using the CPU */
-      slauum(CBlasUpper, ib, B, ldb, info);
-      /* Ensure the STRMM has finished before copying the block back */
-      CU_ERROR_CHECK(cuStreamSynchronize(stream0));
-      /* Copy the diagonal block back onto the device */
-      CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A, lda, i, i, B, ldb, 0, 0,
-                                         ib, ib, sizeof(float), stream1));
+                              one, X, ldx, A + i * lda * sizeof(float), lda, stream1));
+      CU_ERROR_CHECK(hybridSlauum(uplo, A, lda, B, ldb, i, ib, info, stream0));
       /* Perform the SSYRK on the same stream as the copy to ensure A has
        * finised copying back first. */
       CU_ERROR_CHECK(cuSsyrk(handle->blas_handle, CBlasUpper, CBlasNoTrans, ib, n - i - ib,
                              one, A + ((i + ib) * lda + i) * sizeof(float), lda,
-                             one, A + (i * lda + i) * sizeof(float), lda, stream1));
+                             one, A + (i * lda + i) * sizeof(float), lda, stream0));
       /* Ensure the SSYRK has finished before starting the STRMM from the next
        * iteration. (Only needed for devices that can execute multiple kernels
        * simultaneously.) */
@@ -242,24 +249,14 @@ CUresult cuSlauum(CULAPACKhandle handle,
       CU_ERROR_CHECK(cuStrmm2(handle->blas_handle, CBlasLeft, CBlasLower, CBlasTrans, CBlasNonUnit, ib, i,
                               one, A + (i * lda + i) * sizeof(float), lda,
                               A + i * sizeof(float), lda, X, ldx, stream0));
+      /* Ensure the STRMM has finished before starting the SGEMM on a different stream */
+//       CU_ERROR_CHECK(cuStreamSynchronize(stream0));
       /* Update the current column using the big matrix to the right */
       CU_ERROR_CHECK(cuSgemm2(handle->blas_handle, CBlasTrans, CBlasNoTrans, ib, i, n - i - ib,
                               one, A + (i * lda + i + ib) * sizeof(float), lda,
                               A + (i + ib) * sizeof(float), lda,
-                              one, X, ldx, A + i * sizeof(float), lda, stream0));
-      /* Overlap both the operations above with a copy of the diagonal block
-       * onto the host. */
-      CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(B, ldb, 0, 0, A, lda, i, i,
-                                         ib, ib, sizeof(float), stream1));
-      /* Wait until the diagonal block has been copied */
-      CU_ERROR_CHECK(cuStreamSynchronize(stream1));
-      /* Form the multiplication of the diagonal block using the CPU */
-      slauum(CBlasLower, ib, B, ldb, info);
-      /* Ensure the STRMM has finished before copying the block back */
-      CU_ERROR_CHECK(cuStreamSynchronize(stream0));
-      /* Copy the diagonal block back onto the device */
-      CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A, lda, i, i, B, ldb, 0, 0,
-                                         ib, ib, sizeof(float), stream1));
+                              one, X, ldx, A + i * sizeof(float), lda, stream1));
+      CU_ERROR_CHECK(hybridSlauum(uplo, A, lda, B, ldb, i, ib, info, stream0));
       /* Perform the SSYRK on the same stream as the copy to ensure A has
        * finised copying back first. */
       CU_ERROR_CHECK(cuSsyrk(handle->blas_handle, CBlasLower, CBlasTrans, ib, n - i - ib,

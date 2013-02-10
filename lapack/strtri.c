@@ -362,7 +362,7 @@ CUresult cuStrtri(CULAPACKhandle handle,
   size_t ldb, ldx;
   CUstream stream0, stream1;
 
-  const size_t nb = 64;//512;
+  const size_t nb = 512;
 
   // Allocate page-locked host memory for diagonal block
   CU_ERROR_CHECK(cuMemAllocHost((void **)&B, (ldb = (nb + 3u) & ~3u) * nb * sizeof(float)));
