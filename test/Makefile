@@ -5,7 +5,7 @@ CUDA_HOME = /opt/cuda
 CPPFLAGS = -I../include -I$(CUDA_HOME)/include
 
 CC = gcc
-CFLAGS = -O0 -pipe -std=c99 -pedantic -Wall -Wextra -Wconversion
+CFLAGS = -ggdb -O0 -pipe -std=c99 -pedantic -Wall -Wextra -Wconversion
 # CC = icc
 # CFLAGS = -O0 -pipe -std=c99 -Wall -openmp
 

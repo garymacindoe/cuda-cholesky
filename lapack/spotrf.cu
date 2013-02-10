@@ -245,6 +245,8 @@ __global__ void spotfimm2(float * __restrict__ A, float * __restrict__ B,
         for (int k = 0; k < jb; k++) {
           if (i <= k)
             B[k * ldb + i] = a[upper(i, k)];
+          else if (i < jb)
+            B[k * ldb + i] = A[k * lda + j + i];
         }
       }
     }
