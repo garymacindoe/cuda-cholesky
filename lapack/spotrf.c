@@ -170,6 +170,40 @@ static inline CUresult cuSpotf2(CULAPACKhandle handle, CBlasUplo uplo,
   return CUDA_SUCCESS;
 }
 
+static inline CUresult cuSpotfimm2(CULAPACKhandle handle, CBlasUplo uplo,
+                                   size_t j, size_t jb, size_t n,
+                                   CUdeviceptr A, size_t lda,
+                                   CUdeviceptr B, size_t ldb,
+                                   CUdeviceptr info, CUstream stream) {
+  if (handle->spotrf == NULL)
+    CU_ERROR_CHECK(cuModuleLoadData(&handle->spotrf, imageBytes));
+
+  /* For uplo == CBlasUpper m = jb, n = n - j - jb, k = j and an extra column
+   * of blocks is needed to compute the cholesky
+   * For uplo == CBlasLower m = n - j - jb, n = jb, k = j and an extra row of
+   * blocks is needed to compute the cholesky */
+  const unsigned int mb = (uplo == CBlasUpper) ? 32 : 64;
+  const unsigned int nb = (uplo == CBlasUpper) ? 32 : 16;
+  const unsigned int kb = (uplo == CBlasUpper) ?  8 : 16;
+  const unsigned int bx = (uplo == CBlasUpper) ?  8 : 16;
+  const unsigned int by = (uplo == CBlasUpper) ?  8 :  4;
+
+  char name[67];
+  snprintf(name, 67, "_Z9spotfimm2IL9CBlasUplo%dELj%uELj%uELj%uELj%uELj%uEEvPfS1_Piiiiii", uplo, mb, nb, kb, bx, by);
+
+  CUfunction function;
+  CU_ERROR_CHECK(cuModuleGetFunction(&function, handle->spotrf, name));
+
+  void * params[] = { &A, &B, &info, &lda, &ldb, &j, &jb, &n };
+
+  const unsigned int gx = (uplo == CBlasUpper) ? ((unsigned int)jb + mb - 1) / mb : (unsigned int)(n - j - jb + mb - 1) / mb + 1;
+  const unsigned int gy = (uplo == CBlasUpper) ? (unsigned int)(n - j - jb + nb - 1) / nb + 1 : ((unsigned int)jb + nb - 1) / nb;
+
+  CU_ERROR_CHECK(cuLaunchKernel(function, gx, gy, 1, bx, by, 1, 0, stream, params, NULL));
+
+  return CUDA_SUCCESS;
+}
+
 CUresult cuSpotrf(CULAPACKhandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, long * info) {
   *info = 0;
   if (lda < n)
@@ -182,18 +216,38 @@ CUresult cuSpotrf(CULAPACKhandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A
   if (n == 0)
     return CUDA_SUCCESS;
 
-  // nb needs to be initialised to the maximum it will ever be for upper or
-  // lower triangular
-  size_t nb = 256;//n / 2;//(uplo == CBlasUpper) ? 256 : 64;
+  // Allocate the info parameter on the device
+  CUdeviceptr dinfo;
+  CU_ERROR_CHECK(cuMemAlloc(&dinfo, sizeof(long)));
+
+  // If n <= 64 call the unblocked algorithm
+  if (n <= 64) {
+    CU_ERROR_CHECK(cuSpotf2(handle, uplo, n, A, lda, dinfo, NULL));
+    CU_ERROR_CHECK(cuMemcpyDtoH(info, dinfo, sizeof(long)));
+    CU_ERROR_CHECK(cuMemFree(dinfo));
+    return CUDA_SUCCESS;
+  }
+
+  // Find out what the current GPU can do
+  CUdevice device;
+  CU_ERROR_CHECK(cuCtxGetDevice(&device));
+
+  int concurrentCopies, concurrentKernels;
+  // Find out if the current GPU can overlap memory copies with kernel execution
+  CU_ERROR_CHECK(cuDeviceGetAttribute(&concurrentCopies, CU_DEVICE_ATTRIBUTE_GPU_OVERLAP, device));
+  // Find out if the current GPU can execute multiple kernels simultaneously
+  CU_ERROR_CHECK(cuDeviceGetAttribute(&concurrentKernels, CU_DEVICE_ATTRIBUTE_CONCURRENT_KERNELS, device));
+
+  // static block size
+//   const size_t nb = (uplo == CBlasUpper) ? 256 : 128;
+  // dynamic block sizing
+  size_t nb = n / 4;
 
   float * B, * C, * X;
   size_t ldb, ldc;
-  CUdeviceptr D, dinfo;
+  CUdeviceptr D;
   size_t ldd;
   CUstream stream0, stream1;
-
-  // Allocate the info parameter on the device
-  CU_ERROR_CHECK(cuMemAlloc(&dinfo, sizeof(long)));
 
   // Allocate memory for the block column
   CU_ERROR_CHECK(cuMemAllocHost((void **)&X, (ldb = n) * nb * sizeof(float)));
@@ -209,43 +263,86 @@ CUresult cuSpotrf(CULAPACKhandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A
     CU_ERROR_CHECK(cuMemAllocPitch(&D, &ldd, nb * sizeof(float), n, sizeof(float)));
     ldd /= sizeof(float);
 
-    // Upper and lower limits for which the block size is changed
-    const size_t lower = n / 8;
-    const size_t upper = n - lower;
-
-    for (size_t j = 0; j < n; j += nb) {
-      // Work out the block size for this iteration
-      nb = (j < lower || j > upper) ? 128 : 256;
+    // Static block sizing
+//     for (size_t j = 0; j < n; j += nb) {
+    // Dynamic block sizing - nb = nb/2 up to n / 2 then nb = n*2 up to n
+    for (size_t j = 0; j < n; j += nb, nb = (j < n / 2) ? max(1, nb / 2) : min(n, nb * 2)) {
       const size_t jb = min(nb, n - j);
-
-      // Work out whether it is worthwhile to do block column copy for the block size
-      const double column_dtoh = (double)(n * jb * sizeof(float)) * BANDWIDTH_DTOH + OVERHEAD_DTOH;
-      const double block_dtoh = (double)jb * ((double)(jb * sizeof(float)) * BANDWIDTH_DTOH + OVERHEAD_DTOH);
-      const bool bcc_dtoh = (lda == n && column_dtoh < block_dtoh);
-
-      const double column_htod = (double)(n * jb * sizeof(float)) * BANDWIDTH_HTOD + OVERHEAD_HTOD;
-      const double block_htod = (double)jb * ((double)(jb * sizeof(float)) * BANDWIDTH_HTOD + OVERHEAD_HTOD);
-      // Can only copy column back if the column was copied in the first place
-      const bool bcc_htod = bcc_dtoh && (lda == n && column_htod < block_htod);
 
       /* Rank-K update of diagonal block using column matrix above */
       CU_ERROR_CHECK(cuSsyrk(handle->blas_handle, CBlasUpper, CBlasTrans, jb, j,
                              -one, A + j * lda * sizeof(float), lda,
                              one, A + (j * lda + j) * sizeof(float), lda, stream0));
+      /* If nb <= 32 then the entire iteration can be performed on the GPU */
+      /* (the SGEMM kernel processes D in blocks of 32x32 for D = -CA^T + D) */
+      if (nb <= 32) {
+        if (concurrentKernels != 0) {
+          /* If the GPU supports concurrent kernels execute the two kernels on
+           * different streams and have the GPU execute them simultaneously */
+          CU_ERROR_CHECK(cuSgemm2(handle->blas_handle, CBlasTrans, CBlasNoTrans,
+                                  jb, n - j - jb, j,
+                                  -one, A + j * lda * sizeof(float), lda,
+                                  A + (j + jb) * lda * sizeof(float), lda,
+                                  one, A + ((j + jb) * lda + j) * sizeof(float), lda,
+                                  D + nb * ldd * sizeof(float), ldd, stream1));
+          /* Do the SPOTF2 and STRTI2 on the same stream as the SSYRK and STRMM */
+          CU_ERROR_CHECK(cuSpotf2(handle, uplo, jb, A, lda, dinfo, stream0));
+          CU_ERROR_CHECK(cuMemcpyDtoHAsync(info, dinfo, sizeof(long), stream0));
+          CU_ERROR_CHECK(cuStreamSynchronize(stream0));
+          /* Check for positive definite matrix */
+          if (*info != 0) {
+            *info += (long)j;
+            break;
+          }
+          CU_ERROR_CHECK(cuStrti22(handle, uplo, CBlasNonUnit, jb, A, lda, D, ldd, dinfo, stream0));
+          CU_ERROR_CHECK(cuMemcpyDtoHAsync(info, dinfo, sizeof(long), stream0));
+          CU_ERROR_CHECK(cuStreamSynchronize(stream0));
+          /* Check for non-singular matrix */
+          if (*info != 0) {
+            *info += (long)j;
+            break;
+          }
+        }
+        else {
+          /* Call a combined kernel which overlaps the unblocked cholesky and
+           * inverse with matrix multply on the GPU */
+          CU_ERROR_CHECK(cuSpotfimm2(handle, uplo, j, jb, n, A + j * lda * sizeof(float), lda, D, ldd, dinfo, stream0));
+          CU_ERROR_CHECK(cuMemcpyDtoHAsync(info, dinfo, sizeof(long), stream0));
+          CU_ERROR_CHECK(cuStreamSynchronize(stream0));
+          /* Check for positive definite/non-singular matrix */
+          if (*info != 0) {
+            *info += (long)j;
+            break;
+          }
+        }
+      }
+      else {
       /* Overlap the SSYRK with an out of place SGEMM (on a different stream)
        * which copies the row to the right of the diagonal into D(0,nb) */
-      CU_ERROR_CHECK(cuSgemm2(handle->blas_handle, CBlasTrans, CBlasNoTrans, jb, n - j - jb, j,
+      CU_ERROR_CHECK(cuSgemm2(handle->blas_handle, CBlasTrans, CBlasNoTrans,
+                              jb, n - j - jb, j,
                               -one, A + j * lda * sizeof(float), lda,
                               A + (j + jb) * lda * sizeof(float), lda,
                               one, A + ((j + jb) * lda + j) * sizeof(float), lda,
                               D + nb * ldd * sizeof(float), ldd, stream1));
-      if (nb > 64) {
+
+        // Work out whether it is worthwhile to do block column copy for the block size
+        const double column_dtoh = (double)(n * jb * sizeof(float)) * BANDWIDTH_DTOH + OVERHEAD_DTOH;
+        const double block_dtoh = (double)jb * ((double)(jb * sizeof(float)) * BANDWIDTH_DTOH + OVERHEAD_DTOH);
+        const bool bcc_dtoh = (lda == n && column_dtoh < block_dtoh);
+
+        const double column_htod = (double)(n * jb * sizeof(float)) * BANDWIDTH_HTOD + OVERHEAD_HTOD;
+        const double block_htod = (double)jb * ((double)(jb * sizeof(float)) * BANDWIDTH_HTOD + OVERHEAD_HTOD);
+        // Can only copy column back if the column was copied in the first place
+        const bool bcc_htod = bcc_dtoh && (column_htod < block_htod);
+
         /* Start copying diagonal block onto host asynchronously on the same
-        * stream as the SSYRK above to ensure it has finised updating the block
+        * stream as the SSYRK to ensure it has finised updating the block
         * before it is copied */
         if (bcc_dtoh) {
+          // Copy the entire column
           CU_ERROR_CHECK(cuMemcpyDtoHAsync(X, A + j * lda * sizeof(float), n * jb * sizeof(float), stream0));
-          B = &X[j];
+          B = &X[j];    // The diagonal block is half-way down
         }
         else
           CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(B, ldb, 0, 0, A, lda, j, j,
@@ -273,30 +370,15 @@ CUresult cuSpotrf(CULAPACKhandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A
           *info += (long)j;
           break;
         }
-        /* Copy the inverse back onto the device into a temporary matrix */
+        /* Copy the inverse back onto the device into the left block of D */
         CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(D, ldd, 0, 0, C, ldc, 0, 0,
                                           jb, jb, sizeof(float), stream0));
-      }
-      else {
-        CU_ERROR_CHECK(cuSpotf2(handle, CBlasUpper, jb, A + (j * lda + j) * sizeof(float), lda, dinfo, stream0));
-        CU_ERROR_CHECK(cuMemcpyDtoH(info, dinfo, sizeof(long)));
-        /* Check for positive definite matrix */
-        if (*info != 0) {
-          *info += (long)j;
-          break;
-        }
-        CU_ERROR_CHECK(cuStrti22(handle, CBlasUpper, CBlasNonUnit, jb, A + (j * lda + j) * sizeof(float), lda, D, ldd, dinfo, stream0));
-        CU_ERROR_CHECK(cuMemcpyDtoH(info, dinfo, sizeof(long)));
-        /* Check for singular matrix */
-        if (*info != 0) {
-          *info += (long)j;
-          break;
-        }
       }
       /* Wait until the SGEMM has finished updating the row to the right (this
        * is unnecessary on devices that cannot execute multiple kernels
        * simultaneously */
-//       CU_ERROR_CHECK(cuStreamSynchronize(stream1));
+      if (concurrentKernels != 0)
+        CU_ERROR_CHECK(cuStreamSynchronize(stream1));
       /* Perform the out of place triangular matrix multiply to copy D back into
        * the correct place */
       CU_ERROR_CHECK(cuStrmm2(handle->blas_handle, CBlasLeft, CBlasUpper, CBlasTrans, CBlasNonUnit,
@@ -309,43 +391,85 @@ CUresult cuSpotrf(CULAPACKhandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A
     CU_ERROR_CHECK(cuMemAllocPitch(&D, &ldd, n * sizeof(float), nb, sizeof(float)));
     ldd /= sizeof(float);
 
-    // Upper and lower limits for which the block size is changed
-    const size_t lower = n / 4;
-    const size_t upper = n - lower;
-
-    for (size_t j = 0; j < n; j += nb) {
-      // Work out the block size for this iteration
-      nb = (j < lower || j > upper) ? 64 : 64;
+    // Static block sizing
+//     for (size_t j = 0; j < n; j += nb) {
+    // Dynamic block sizing - nb = nb/2 up to n / 2 then nb = n*2 up to n
+    for (size_t j = 0; j < n; j += nb, nb = (j < n / 2) ? max(1, nb / 2) : min(n, nb * 2)) {
       const size_t jb = min(nb, n - j);
-
-      // Work out whether it is worthwhile to do block column copy for the block size
-      const double column_dtoh = (double)(n * jb * sizeof(float)) * BANDWIDTH_DTOH + OVERHEAD_DTOH;
-      const double block_dtoh = (double)jb * ((double)(jb * sizeof(float)) * BANDWIDTH_DTOH + OVERHEAD_DTOH);
-      const bool bcc_dtoh = (lda == n && column_dtoh < block_dtoh);
-
-      const double column_htod = (double)(n * jb * sizeof(float)) * BANDWIDTH_HTOD + OVERHEAD_HTOD;
-      const double block_htod = (double)jb * ((double)(jb * sizeof(float)) * BANDWIDTH_HTOD + OVERHEAD_HTOD);
-      // Can only copy column back if the column was copied in the first place
-      const bool bcc_htod = bcc_dtoh && (lda == n && column_htod < block_htod);
 
       /* Rank-K update of diagonal block using row matrix to the left */
       CU_ERROR_CHECK(cuSsyrk(handle->blas_handle, CBlasLower, CBlasNoTrans, jb, j,
                              -one, A + j * sizeof(float), lda,
                              one, A + (j * lda + j) * sizeof(float), lda, stream0));
-      /* Overlap the SSYRK with an out of place SGEMM (on a different stream)
-       * which copies the column under of the diagonal into D(nb,0) */
-      CU_ERROR_CHECK(cuSgemm2(handle->blas_handle, CBlasNoTrans, CBlasTrans, n - j - jb, jb, j,
-                              -one, A + (j + jb) * sizeof(float), lda,
-                              A + j * sizeof(float), lda,
-                              one, A + (j * lda + j + jb) * sizeof(float), lda,
-                              D + nb * sizeof(float), ldd, stream1));
-      if (nb > 64) {
+
+      /* If nb <= 16 then the entire iteration can be performed on the GPU */
+      /* (the SGEMM kernel processes D in blocks of 64x16 for D = -AC^T + D) */
+      if (nb <= 16) {
+        if (concurrentKernels != 0) {
+          /* If the GPU supports concurrent kernels execute the two kernels on
+           * different streams and have the GPU execute them simultaneously */
+          CU_ERROR_CHECK(cuSgemm2(handle->blas_handle, CBlasNoTrans, CBlasTrans, n - j - jb, jb, j,
+                                  -one, A + (j + jb) * sizeof(float), lda,
+                                  A + j * sizeof(float), lda,
+                                  one, A + (j * lda + j + jb) * sizeof(float), lda,
+                                  D + nb * sizeof(float), ldd, stream1));
+          /* Do the SPOTF2 and STRTI2 on the same stream as the SSYRK and STRMM */
+          CU_ERROR_CHECK(cuSpotf2(handle, uplo, jb, A, lda, dinfo, stream0));
+          CU_ERROR_CHECK(cuMemcpyDtoHAsync(info, dinfo, sizeof(long), stream0));
+          CU_ERROR_CHECK(cuStreamSynchronize(stream0));
+          /* Check for positive definite matrix */
+          if (*info != 0) {
+            *info += (long)j;
+            break;
+          }
+          CU_ERROR_CHECK(cuStrti22(handle, uplo, CBlasNonUnit, jb, A, lda, D, ldd, dinfo, stream0));
+          CU_ERROR_CHECK(cuMemcpyDtoHAsync(info, dinfo, sizeof(long), stream0));
+          CU_ERROR_CHECK(cuStreamSynchronize(stream0));
+          /* Check for non-singular matrix */
+          if (*info != 0) {
+            *info += (long)j;
+            break;
+          }
+        }
+        else {
+          /* Call a combined kernel which overlaps the unblocked cholesky and
+           * inverse with matrix multply on the GPU */
+          CU_ERROR_CHECK(cuSpotfimm2(handle, uplo, j, jb, n, A + j * sizeof(float), lda, D, ldd, dinfo, stream0));
+          CU_ERROR_CHECK(cuMemcpyDtoHAsync(info, dinfo, sizeof(long), stream0));
+          CU_ERROR_CHECK(cuStreamSynchronize(stream0));
+          /* Check for positive definite/non-singular matrix */
+          if (*info != 0) {
+            *info += (long)j;
+            break;
+          }
+        }
+      }
+      else {
+        /* Overlap the SSYRK with an out of place SGEMM (on a different stream)
+        * which copies the column under of the diagonal into D(nb,0) */
+        CU_ERROR_CHECK(cuSgemm2(handle->blas_handle, CBlasNoTrans, CBlasTrans, n - j - jb, jb, j,
+                                -one, A + (j + jb) * sizeof(float), lda,
+                                A + j * sizeof(float), lda,
+                                one, A + (j * lda + j + jb) * sizeof(float), lda,
+                                D + nb * sizeof(float), ldd, stream1));
+
+        // Work out whether it is worthwhile to do block column copy for the block size
+        const double column_dtoh = (double)(n * jb * sizeof(float)) * BANDWIDTH_DTOH + OVERHEAD_DTOH;
+        const double block_dtoh = (double)jb * ((double)(jb * sizeof(float)) * BANDWIDTH_DTOH + OVERHEAD_DTOH);
+        const bool bcc_dtoh = (lda == n && column_dtoh < block_dtoh);
+
+        const double column_htod = (double)(n * jb * sizeof(float)) * BANDWIDTH_HTOD + OVERHEAD_HTOD;
+        const double block_htod = (double)jb * ((double)(jb * sizeof(float)) * BANDWIDTH_HTOD + OVERHEAD_HTOD);
+        // Can only copy column back if the column was copied in the first place
+        const bool bcc_htod = bcc_dtoh && (column_htod < block_htod);
+
         /* Start copying diagonal block onto host asynchronously on the same
-        * stream as the SSYRK above to ensure it has finised updating the block
+        * stream as the SSYRK to ensure it has finised updating the block
         * before it is copied */
         if (bcc_dtoh) {
+          // Copy the entire column
           CU_ERROR_CHECK(cuMemcpyDtoHAsync(X, A + j * lda * sizeof(float), n * jb * sizeof(float), stream0));
-          B = &X[j];
+          B = &X[j];    // The diagonal block is half-way down
         }
         else
           CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(B, ldb, 0, 0, A, lda, j, j,
@@ -373,30 +497,15 @@ CUresult cuSpotrf(CULAPACKhandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A
           *info += (long)j;
           break;
         }
-        /* Copy the inverse back onto the device into a temporary matrix */
+        /* Copy the inverse back onto the device into the left block of D */
         CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(D, ldd, 0, 0, C, ldc, 0, 0,
                                           jb, jb, sizeof(float), stream0));
-      }
-      else {
-        CU_ERROR_CHECK(cuSpotf2(handle, CBlasLower, jb, A + (j * lda + j) * sizeof(float), lda, dinfo, stream0));
-//         CU_ERROR_CHECK(cuMemcpyDtoH(info, dinfo, sizeof(long)));
-        /* Check for positive definite matrix */
-        if (*info != 0) {
-          *info += (long)j;
-          break;
-        }
-        CU_ERROR_CHECK(cuStrti22(handle, CBlasLower, CBlasNonUnit, jb, A + (j * lda + j) * sizeof(float), lda, D, ldd, dinfo, stream0));
-//         CU_ERROR_CHECK(cuMemcpyDtoH(info, dinfo, sizeof(long)));
-        /* Check for singular matrix */
-        if (*info != 0) {
-          *info += (long)j;
-          break;
-        }
       }
       /* Wait until the SGEMM has finished updating the row to the right (this
        * is unnecessary on devices that cannot execute multiple kernels
        * simultaneously */
-//       CU_ERROR_CHECK(cuStreamSynchronize(stream1));
+      if (concurrentKernels != 0)
+        CU_ERROR_CHECK(cuStreamSynchronize(stream1));
       /* Triangular solve of the diagonal block using the column matrix below
        * on the same stream as the copy to ensure it has completed first */
       /* Perform the out of place triangular matrix multiply to copy D back into
@@ -416,7 +525,7 @@ CUresult cuSpotrf(CULAPACKhandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A
   CU_ERROR_CHECK(cuStreamDestroy(stream0));
   CU_ERROR_CHECK(cuStreamDestroy(stream1));
 
-  return (*info == 0) ? CUDA_SUCCESS : CUDA_ERROR_INVALID_VALUE;
+  return CUDA_SUCCESS;
 }
 
 CUresult cuMultiGPUSpotrf(CUmultiGPULAPACKhandle handle, CBlasUplo uplo,

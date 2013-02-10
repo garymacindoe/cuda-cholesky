@@ -177,7 +177,8 @@ __device__ void sgemm2(int m, int n, int k,
 template <CBlasTranspose transA, CBlasTranspose transB,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void sgemm(const float * __restrict__ A, const float * __restrict__ B, const float * __restrict__ C, float * __restrict__ D,
+__global__ void sgemm(const float * __restrict__ A, const float * __restrict__ B,
+                      const float * __restrict__ C, float * __restrict__ D,
                       float alpha, float beta,
                       int lda, int ldb, int ldc, int ldd,
                       int m, int n, int k) {
@@ -225,7 +226,9 @@ __global__ void sgemm(const float * __restrict__ A, const float * __restrict__ B
  * kb is chosen to be the largest multiple of 16 such that the number of blocks
  * per multiprocessor is limited by the register usage.
  */
+#ifndef __DEVICE_ONLY
 template __global__ void sgemm<CBlasNoTrans, CBlasNoTrans, 64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, const float * __restrict__, float * __restrict__, float, float, int, int, int, int, int, int, int);
 template __global__ void sgemm<CBlasNoTrans, CBlasTrans,   64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, const float * __restrict__, float * __restrict__, float, float, int, int, int, int, int, int, int);
 template __global__ void sgemm<CBlasTrans,   CBlasNoTrans, 32, 32,  8,  8,  8>(const float * __restrict__, const float * __restrict__, const float * __restrict__, float * __restrict__, float, float, int, int, int, int, int, int, int);
 template __global__ void sgemm<CBlasTrans,   CBlasTrans,   32, 32,  8,  8,  8>(const float * __restrict__, const float * __restrict__, const float * __restrict__, float * __restrict__, float, float, int, int, int, int, int, int, int);
+#endif

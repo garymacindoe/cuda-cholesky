@@ -19,6 +19,42 @@ __device__ int lower(int i, int j) {
   return ((2 * bx - j - 1) * j) / 2 + i;
 }
 
+template <CBlasUplo uplo, unsigned int nb, unsigned int bx>
+__device__ void splau2(float * A, int n) {
+  if (uplo == CBlasUpper) {
+    const int i = threadIdx.y * bx + threadIdx.x;
+    // Perform the upper triangular multiply
+    // Accesses do not have to be coalesced or aligned as they would if A were
+    // in global memory.  Using triangular packed storage also avoids bank
+    // conflicts.
+    for (int j = 0; j < n; j++) {
+      if (i <= j) {
+        float temp = A[upper(i, j)] * A[upper(j, j)];
+        for (int k = j + 1; k < n; k++)
+          temp += A[upper(i, k)] * A[upper(j, k)];
+        A[upper(i, j)] = temp;
+      }
+      __syncthreads();
+    }
+  }
+  else {
+    const int j = threadIdx.y * bx + threadIdx.x;
+    // Perform the lower triangular multiply
+    // Accesses do not have to be coalesced or aligned as they would if A were
+    // in global memory.  Using triangular packed storage also avoids bank
+    // conflicts.
+    for (int i = 0; i < n; i++) {
+      if (i >= j) {
+        float temp = A[lower<bx>(i, j)] * A[lower<bx>(i, i)];
+        for (int k = i + 1; k < n; k++)
+          temp += A[lower<bx>(k, i)] * A[lower<bx>(k, j)];
+        A[lower<bx>(i, j)] = temp;
+      }
+      __syncthreads();
+    }
+  }
+}
+
 template <CBlasUplo uplo, unsigned int bx>
 __global__ void slauu2(float * A, int lda, int n) {
   /*
@@ -36,51 +72,32 @@ __global__ void slauu2(float * A, int lda, int n) {
 
   if (uplo == CBlasUpper) {
     // Read upper triangle of A into shared memory
-    #pragma unroll
-    for (int j = 0; j < bx; j++) {
+    for (int j = 0; j < n; j++) {
       if (threadIdx.x <= j)
         a[upper(threadIdx.x, j)] = A[j * lda + threadIdx.x];
     }
 
     __syncthreads();
 
-    // Perform the cholesky decomposition
-    // Accesses do not have to be coalesced or aligned as they would if A were
-    // in global memory.  Using triangular packed storage also neatly avoids
-    // bank conflicts.
+    splau2<CBlasUpper, bx, bx>(a, n);
+
+    // Write upper triangle of A into global memory
     for (int j = 0; j < n; j++) {
-      if (threadIdx.x <= j) {
-        float temp = a[upper(threadIdx.x, j)] * a[upper(j, j)];
-        for (int k = j + 1; k < n; k++)
-          temp += a[upper(threadIdx.x, k)] * a[upper(j, k)];
-        A[j * lda + threadIdx.x] = temp;
-      }
-      __syncthreads();
+      if (threadIdx.x <= j)
+        A[j * lda + threadIdx.x] = a[upper(threadIdx.x, j)];
     }
+
   }
   else {
     // Read lower triangle of A into shared memory
-    #pragma unroll
-    for (int j = 0; j < bx; j++) {
+    for (int j = 0; j < n; j++) {
       if (threadIdx.x >= j)
         a[lower<bx>(threadIdx.x, j)] = A[j * lda + threadIdx.x];
     }
 
     __syncthreads();
 
-    // Perform the cholesky decomposition
-    // Accesses do not have to be coalesced or aligned as they would if A were
-    // in global memory.  Using triangular packed storage also neatly avoids
-    // bank conflicts.
-    for (int i = 0; i < n; i++) {
-      if (threadIdx.x <= i) {
-        float temp = a[lower<bx>(i, threadIdx.x)] * a[lower<bx>(i, i)];
-        for (int k = i + 1; k < n; k++)
-          temp += a[lower<bx>(k, i)] * a[lower<bx>(k, threadIdx.x)];
-        a[lower<bx>(i, threadIdx.x)] = temp;
-      }
-      __syncthreads();
-    }
+    splau2<CBlasLower, bx, bx>(a, n);
 
     // Write the lower triangle of A back to global memory
     for (int j = 0; j < n; j++) {
@@ -90,9 +107,12 @@ __global__ void slauu2(float * A, int lda, int n) {
   }
 }
 
+#ifndef __DEVICE_ONLY
 template __global__ void slauu2<CBlasUpper, 64>(float *, int, int);
 template __global__ void slauu2<CBlasLower, 64>(float *, int, int);
+#endif
 
+#if 0
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -275,3 +295,4 @@ static int cond(int n, float c, float * A, size_t lda) {
 
   return 0;
 }
+#endif

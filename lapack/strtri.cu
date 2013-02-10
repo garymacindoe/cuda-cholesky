@@ -30,7 +30,7 @@ __device__ int lower(int i, int j) {
  * A and info are expected to be in shared memory but may still work (slower) if
  * in global memory.
  */
-template <CBlasUplo uplo, CBlasDiag diag, unsigned int bx>
+template <CBlasUplo uplo, CBlasDiag diag, unsigned int nb, unsigned int bx>
 __device__ void stpti2(int n, float * __restrict__ A, int * __restrict__ info) {
   // thread 0 is the only thread to write to info in global memory
   if (threadIdx.x == 0)
@@ -38,6 +38,8 @@ __device__ void stpti2(int n, float * __restrict__ A, int * __restrict__ info) {
 
   // Copy of diagonal element in shared memory prior to updating
   __shared__ float ajj;
+
+  const int i = threadIdx.y * bx + threadIdx.x;
 
   if (uplo == CBlasUpper) {
     // Perform the triangular inverse
@@ -47,17 +49,17 @@ __device__ void stpti2(int n, float * __restrict__ A, int * __restrict__ info) {
     for (int j = 0; j < n; j++) {
       float temp;
       // Read current column into registers
-      if (threadIdx.x <= j)
-        temp = A[upper(threadIdx.x, j)];
+      if (i <= j)
+        temp = A[upper(i, j)];
 
       // Thread j calculates the diagonal element
-      if (threadIdx.x == j) {
+      if (i == j) {
         if (diag == CBlasNonUnit) {
           if (temp == 0.0f)
             *info = j + 1;
           else {
-            A[upper(threadIdx.x, j)] = 1.0f / temp;
-            ajj = -A[upper(threadIdx.x, j)];
+            A[upper(j, j)] = 1.0f / temp;
+            ajj = -A[upper(j, j)];
           }
         }
         else
@@ -70,17 +72,17 @@ __device__ void stpti2(int n, float * __restrict__ A, int * __restrict__ info) {
       if (*info != 0)
         return;
 
-      if (threadIdx.x < j) {
+      if (i < j) {
         if (diag == CBlasNonUnit)
-          temp *= A[upper(threadIdx.x, threadIdx.x)];
-        for (int k = threadIdx.x + 1; k < j; k++)
-          temp += A[upper(threadIdx.x, k)] * A[upper(k, j)];
+          temp *= A[upper(i, i)];
+        for (int k = i + 1; k < j; k++)
+          temp += A[upper(i, k)] * A[upper(k, j)];
       }
 
       __syncthreads();
 
-      if (threadIdx.x < j)
-        A[upper(threadIdx.x, j)] = temp * ajj;
+      if (i < j)
+        A[upper(i, j)] = temp * ajj;
 
       __syncthreads();
     }
@@ -93,17 +95,17 @@ __device__ void stpti2(int n, float * __restrict__ A, int * __restrict__ info) {
     for (int j = n - 1; j >= 0; j--) {
       float temp;
       // Read current column into registers
-      if (threadIdx.x >= j)
-        temp = A[lower<bx>(threadIdx.x, j)];
+      if (i >= j)
+        temp = A[lower<nb>(i, j)];
 
       // Thread j calculates the diagonal element
-      if (threadIdx.x == j) {
+      if (i == j) {
         if (diag == CBlasNonUnit) {
           if (temp == 0.0f)
             *info = j + 1;
           else {
-            A[lower<bx>(threadIdx.x, j)] = 1.0f / temp;
-            ajj = -A[lower<bx>(threadIdx.x, j)];
+            A[lower<nb>(j, j)] = 1.0f / temp;
+            ajj = -A[lower<nb>(j, j)];
           }
         }
         else
@@ -116,17 +118,17 @@ __device__ void stpti2(int n, float * __restrict__ A, int * __restrict__ info) {
       if (*info != 0)
         return;
 
-      if (threadIdx.x > j) {
+      if (i > j) {
         if (diag == CBlasNonUnit)
-          temp *= A[lower<bx>(threadIdx.x, threadIdx.x)];
-        for (int k = j + 1; k < threadIdx.x; k++)
-          temp += A[lower<bx>(threadIdx.x, k)] * A[lower<bx>(k, j)];
+          temp *= A[lower<nb>(i, i)];
+        for (int k = j + 1; k < i; k++)
+          temp += A[lower<nb>(i, k)] * A[lower<nb>(k, j)];
       }
 
       __syncthreads();
 
-      if (threadIdx.x > j)
-        A[lower<bx>(threadIdx.x, j)] = temp * ajj;
+      if (i > j)
+        A[lower<nb>(i, j)] = temp * ajj;
 
       __syncthreads();
     }
@@ -162,7 +164,7 @@ __global__ void strti2(const float * A, float * B, int * info, int lda, int ldb,
     __syncthreads();
 
     // Perform the triangular inverse using the packed device function
-    stpti2<CBlasUpper, diag, bx>(n, a, &sinfo);
+    stpti2<CBlasUpper, diag, bx, bx>(n, a, &sinfo);
 
     // Write info back to global memory
     if (threadIdx.x == 0)
@@ -185,7 +187,7 @@ __global__ void strti2(const float * A, float * B, int * info, int lda, int ldb,
     __syncthreads();
 
     // Perform the triangular inverse using the packed device function
-    stpti2<CBlasLower, diag, bx>(n, a, &sinfo);
+    stpti2<CBlasLower, diag, bx, bx>(n, a, &sinfo);
 
     // Write info back to global memory
     if (threadIdx.x == 0)
@@ -199,11 +201,14 @@ __global__ void strti2(const float * A, float * B, int * info, int lda, int ldb,
   }
 }
 
+#ifndef __DEVICE_ONLY
 template __global__ void strti2<CBlasUpper, CBlasUnit, 64>(const float * __restrict__, float * __restrict__, int * __restrict__, int, int, int);
 template __global__ void strti2<CBlasUpper, CBlasNonUnit, 64>(const float * __restrict__, float * __restrict__, int * __restrict__, int, int, int);
 template __global__ void strti2<CBlasLower, CBlasUnit, 64>(const float * __restrict__, float * __restrict__, int * __restrict__, int, int, int);
 template __global__ void strti2<CBlasLower, CBlasNonUnit, 64>(const float * __restrict__, float * __restrict__, int * __restrict__, int, int, int);
+#endif
 
+#if 0
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -411,3 +416,4 @@ static int cond(int n, float c, float * A, size_t lda) {
 
   return 0;
 }
+#endif
