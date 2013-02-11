@@ -302,8 +302,10 @@ __global__ void spotfimm2(float * __restrict__ A, float * __restrict__ B,
 
           // Write the lower triangle of A back to global memory in the top block of B
           for (int k = 0; k < jb; k++) {
+            if (i < k)
+              B[k * ldb + i] = A[(j + k) * lda + i];
             if (i >= k)
-              B[(j + k) * ldb + i] = a[lower<nb>(i, k)];
+              B[k * ldb + i] = a[lower<nb>(i, k)];
           }
         }
       }
@@ -540,10 +542,10 @@ extern "C" void strti2_(const char *, const char *, const int *, float *, const 
 
 static inline void spotfimm2(CBlasUplo uplo, int j, int jb, int n, float * A, int lda, float * B, int ldb, int * info) {
   if (uplo == CBlasUpper) {
-    spotfimm2<CBlasUpper, 32, 32,  8,  8,  8><<<dim3(((unsigned int)jb + 31) / 32, (unsigned int)(n - j - jb + 31) / 32 + 1), dim3(8, 8)>>>(A, B, info, lda, ldb, j, jb, n);
+    spotfimm2<CBlasUpper, 32, 32,  8,  8,  8><<<dim3(((unsigned int)jb + 31) / 32 + 1, (unsigned int)(n - j - jb + 31) / 32), dim3(8, 8)>>>(A, B, info, lda, ldb, j, jb, n);
   }
   else {
-    spotfimm2<CBlasLower, 64, 16, 16, 16,  4><<<dim3((unsigned int)(n - j - jb + 63) / 64 + 1, ((unsigned int)jb + 15) / 16), dim3(16, 4)>>>(A, B, info, lda, ldb, j, jb, n);
+    spotfimm2<CBlasLower, 64, 16, 16, 16,  4><<<dim3((unsigned int)(n - j - jb + 63) / 64, ((unsigned int)jb + 15) / 16 + 1), dim3(16, 4)>>>(A, B, info, lda, ldb, j, jb, n);
   }
 }
 
@@ -560,8 +562,8 @@ static void spotfimm2_(CBlasUplo uplo, int j, int jb, int n, float * A, int lda,
   else {
     spotf2_("Lower", &jb, &A[j * lda], &lda, info);
     for (int k = 0; k < jb; k++)
-      memcpy(&B[k * ldb], &A[k * lda + j], (n - j) * sizeof(float));
-    sgemm_("No Transpose", "Transpose", &n_j_jb, &jb, &j, &mone, A, &lda, &A[jb], &lda, &one, &B[jb], &ldb);
+      memcpy(&B[k * ldb], &A[(j + k) * lda], (n - j) * sizeof(float));
+    sgemm_("No Transpose", "Transpose", &n_j_jb, &jb, &j, &mone, &A[jb], &lda, A, &lda, &one, &B[jb], &ldb);
     strti2_("Lower", "Non-Unit", &jb, B, &ldb, info);
   }
 }
@@ -623,7 +625,7 @@ int main(int argc, char * argv[]) {
       fprintf(stderr, "Failed to allocate A\n");
       return -1;
     }
-    if ((B = (float *)malloc((ldb = (jb + 3u) & ~3u) * (n - j) * sizeof(float))) == NULL) {
+    if ((B = (float *)calloc((ldb = (jb + 3u) & ~3u), (n - j) * sizeof(float))) == NULL) {
       fprintf(stderr, "Failed to allocate B\n");
       return -2;
     }
@@ -631,7 +633,7 @@ int main(int argc, char * argv[]) {
       fprintf(stderr, "Failed to allocate refA\n");
       return -3;
     }
-    if ((refB = (float *)malloc(ldb * (n - j) * sizeof(float))) == NULL) {
+    if ((refB = (float *)calloc(ldb, (n - j) * sizeof(float))) == NULL) {
       fprintf(stderr, "Failed to allocate refB\n");
       return -4;
     }
@@ -652,6 +654,7 @@ int main(int argc, char * argv[]) {
       memcpy(&refA[k * lda], &A[k * lda], (j + jb) * sizeof(float));
 
     CUDA_ERROR_CHECK(cudaMemcpy2D(dA, dlda * sizeof(float), A, lda * sizeof(float), (j + jb) * sizeof(float), n - j, cudaMemcpyHostToDevice));
+    CUDA_ERROR_CHECK(cudaMemcpy2D(dB, dldb * sizeof(float), B, ldb * sizeof(float), jb * sizeof(float), n - j, cudaMemcpyHostToDevice));
 
     for (int i = 0; i < j + jb; i++) {
       for (int k = 0; k < n - j; k++)
@@ -664,7 +667,7 @@ int main(int argc, char * argv[]) {
       fprintf(stderr, "Failed to allocate A\n");
       return -1;
     }
-    if ((B = (float *)malloc((ldb = ((n - j) + 3u) & ~3u) * jb * sizeof(float))) == NULL) {
+    if ((B = (float *)calloc((ldb = ((n - j) + 3u) & ~3u), jb * sizeof(float))) == NULL) {
       fprintf(stderr, "Failed to allocate B\n");
       return -2;
     }
@@ -672,7 +675,7 @@ int main(int argc, char * argv[]) {
       fprintf(stderr, "Failed to allocate refA\n");
       return -3;
     }
-    if ((refB = (float *)malloc(ldb * jb * sizeof(float))) == NULL) {
+    if ((refB = (float *)calloc(ldb, jb * sizeof(float))) == NULL) {
       fprintf(stderr, "Failed to allocate refB\n");
       return -4;
     }
@@ -687,12 +690,13 @@ int main(int argc, char * argv[]) {
         A[k * lda + i] = (float)rand() / (float)RAND_MAX;
     }
 
-    cond(jb, 2.0f, &A[j], lda);
+    cond(jb, 2.0f, &A[j * lda], lda);
 
     for (int k = 0; k < j + jb; k++)
       memcpy(&refA[k * lda], &A[k * lda], (n - j) * sizeof(float));
 
     CUDA_ERROR_CHECK(cudaMemcpy2D(dA, dlda * sizeof(float), A, lda * sizeof(float), (n - j) * sizeof(float), j + jb, cudaMemcpyHostToDevice));
+    CUDA_ERROR_CHECK(cudaMemcpy2D(dB, dldb * sizeof(float), B, ldb * sizeof(float), (n - j) * sizeof(float), jb, cudaMemcpyHostToDevice));
 
     for (int i = 0; i < n - j; i++) {
       for (int k = 0; k < j + jb; k++)
@@ -711,71 +715,94 @@ int main(int argc, char * argv[]) {
     CUDA_ERROR_CHECK(cudaMemcpy2D(A, lda * sizeof(float), dA, dlda * sizeof(float), (j + jb) * sizeof(float), n - j, cudaMemcpyDeviceToHost));
     CUDA_ERROR_CHECK(cudaMemcpy2D(B, ldb * sizeof(float), dB, dldb * sizeof(float), jb * sizeof(float), n - j, cudaMemcpyDeviceToHost));
 
-    fprintf(stderr, "\n");
+    fputs("\nrefA:\n", stderr);
     for (int i = 0; i < j + jb; i++) {
       for (int k = 0; k < n - j; k++)
         fprintf(stderr, "%15.6f", refA[k * lda + i]);
       fprintf(stderr, "\n");
     }
-    fprintf(stderr, "\n");
+    fputs("\nrefB:\n", stderr);
     for (int i = 0; i < jb; i++) {
       for (int k = 0; k < n - j; k++)
         fprintf(stderr, "%15.6f", refB[k * ldb + i]);
       fprintf(stderr, "\n");
     }
 
-    fprintf(stderr, "\n");
+    fputs("\nA:\n", stderr);
     for (int i = 0; i < j + jb; i++) {
       for (int k = 0; k < n - j; k++)
         fprintf(stderr, "%15.6f", A[k * lda + i]);
       fprintf(stderr, "\n");
     }
-    fprintf(stderr, "\n");
+    fputs("\nB:\n", stderr);
     for (int i = 0; i < jb; i++) {
       for (int k = 0; k < n - j; k++)
         fprintf(stderr, "%15.6f", B[k * ldb + i]);
       fprintf(stderr, "\n");
+    }
+
+    for (int k = 0; k < n - j; k++) {
+      for (int i = 0; i < j + jb; i++) {
+        float diff = fabsf(A[k * lda + i] - refA[k * lda + i]);
+        if (diff > error)
+          error = diff;
+      }
+    }
+
+    for (int k = 0; k < n - j; k++) {
+      for (int i = 0; i < jb; i++) {
+        float diff = fabsf(B[k * ldb + i] - refB[k * ldb + i]);
+        if (diff > error)
+          error = diff;
+      }
     }
   }
   else {
     CUDA_ERROR_CHECK(cudaMemcpy2D(A, lda * sizeof(float), dA, dlda * sizeof(float), (n - j) * sizeof(float), j + jb, cudaMemcpyDeviceToHost));
     CUDA_ERROR_CHECK(cudaMemcpy2D(B, ldb * sizeof(float), dB, dldb * sizeof(float), (n - j) * sizeof(float), jb, cudaMemcpyDeviceToHost));
 
-    fprintf(stderr, "\n");
+    fputs("\nrefA:\n", stderr);
     for (int i = 0; i < n - j; i++) {
       for (int k = 0; k < j + jb; k++)
         fprintf(stderr, "%15.6f", refA[k * lda + i]);
       fprintf(stderr, "\n");
     }
-    fprintf(stderr, "\n");
+    fputs("\nrefB:\n", stderr);
     for (int i = 0; i < n - j; i++) {
       for (int k = 0; k < jb; k++)
         fprintf(stderr, "%15.6f", refB[k * ldb + i]);
       fprintf(stderr, "\n");
     }
 
-    fprintf(stderr, "\n");
+    fputs("\nA:\n", stderr);
     for (int i = 0; i < n - j; i++) {
       for (int k = 0; k < j + jb; k++)
         fprintf(stderr, "%15.6f", A[k * lda + i]);
       fprintf(stderr, "\n");
     }
-    fprintf(stderr, "\n");
+    fputs("\nB:\n", stderr);
     for (int i = 0; i < n - j; i++) {
       for (int k = 0; k < jb; k++)
         fprintf(stderr, "%15.6f", B[k * ldb + i]);
       fprintf(stderr, "\n");
     }
-  }
 
-//   float error = 0.0f;
-//   for (int j = 0; j < n; j++) {
-//     for (int i = 0; i < n; i++) {
-//       float diff = fabsf(refA[j * lda + i] - A[j * lda + i]);
-//       if (diff > error)
-//         error = diff;
-//     }
-//   }
+    for (int k = 0; k < j + jb; k++) {
+      for (int i = 0; i < n - j; i++) {
+        float diff = fabsf(A[k * lda + i] - refA[k * lda + i]);
+        if (diff > error)
+          error = diff;
+      }
+    }
+
+    for (int k = 0; k < jb; k++) {
+      for (int i = 0; i < n - j; i++) {
+        float diff = fabsf(B[k * ldb + i] - refB[k * ldb + i]);
+        if (diff > error)
+          error = diff;
+      }
+    }
+  }
 
   fprintf(stdout, "Info = %d, refInfo = %d, Error = %6.3e\n", info, refInfo, error);
 

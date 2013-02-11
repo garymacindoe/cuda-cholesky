@@ -1,4 +1,6 @@
-#include "blas.h"
+#define __DEVICE_ONLY
+#include "../blas/strmm.cu"
+#undef __DEVICE_ONLY
 
 /*
  * Indexing function for upper triangular packed storage mode.  Only works when
@@ -201,11 +203,99 @@ __global__ void strti2(const float * A, float * B, int * info, int lda, int ldb,
   }
 }
 
+template <CBlasUplo uplo,
+          unsigned int mb, unsigned int nb, unsigned int kb,
+          unsigned int bx, unsigned int by>
+__global__ void strtimm2(float * __restrict__ A, float * __restrict__ B,
+                         int * __restrict__ info, int lda, int ldb, int j, int jb, int n) {
+  // info parameter cached in shared memory for fast access by all threads in the block
+  __shared__ int sinfo;
+
+  /*
+   * For efficient data reuse A needs to be cached in shared memory.  In order
+   * to get maximum instruction throughput 64 threads are needed but this would
+   * use all 16384 bytes (64 * 64 * sizeof(float)) of shared memory to store A.
+   * Triangular packed storage mode is therefore used to store only the
+   * triangle of A being updated using 8320 bytes((64 * (64 + 1)) / 2 * sizeof(float))
+   * of shared memory.
+   * Since this is only ever going to be run using one thread block shared
+   * memory and register use can be higher than when trying to fit multiple
+   * thread blocks onto each multiprocessor.
+   */
+  __shared__ float a[(nb * (nb + 1)) / 2];
+
+  const int i = threadIdx.y * bx + threadIdx.x;
+
+  if (uplo == CBlasUpper) {
+    if (blockIdx.y == gridDim.y - 1) {
+      if (blockIdx.x == 0) {
+        // Read upper triangle of A into shared memory
+        #pragma unroll
+        for (int k = 0; k < jb; k++) {
+          if (i <= k)
+            a[upper(i, k)] = A[(j + k) * lda + j + i];
+        }
+
+        __syncthreads();
+
+        // Perform the triangular inverse using the packed device function
+        stpti2<CBlasUpper, CBlasNonUnit, nb, bx>(jb, a, &sinfo);
+
+        // Write info back to global memory
+        if (i == 0)
+          *info = sinfo;
+
+        // Write the upper triangle of A back to global memory
+        for (int k = 0; k < jb; k++) {
+          if (i <= k)
+            A[(j + k) * lda + j + i] = a[upper(i, j)];
+        }
+      }
+    }
+    else
+      strmm2LUN<CBlasNonUnit, mb, nb, kb, bx, by>(j, jb, 1.0f, A, lda, &A[j * lda], lda, B, ldb);
+  }
+  else {
+    if (blockIdx.y == gridDim.y - 1) {
+      if (blockIdx.x == 0) {
+        // Read lower triangle of A into shared memory
+        #pragma unroll
+        for (int k = 0; k < jb; k++) {
+          if (i >= k)
+            a[lower<bx>(i, k)] = A[(j + k) * lda + j + i];
+        }
+
+        __syncthreads();
+
+        // Perform the triangular inverse using the packed device function
+        stpti2<CBlasLower, CBlasNonUnit, nb, bx>(jb, a, &sinfo);
+
+        // Write info back to global memory
+        if (i == 0)
+          *info = sinfo;
+
+        // Write the lower triangle of A back to global memory
+        for (int k = 0; k < n; k++) {
+          if (i >= k)
+            A[(j + k) * lda + j + i] = a[lower<bx>(i, k)];
+        }
+      }
+    }
+    else
+      strmm2LLN<CBlasNonUnit, mb, nb, kb, bx, by>(n - j - jb, jb, 1.0f,
+                                                  &A[(j + jb) * lda + j + jb], lda,
+                                                  &A[j * lda + j + jb], lda, B, ldb);
+  }
+}
+
 #ifndef __DEVICE_ONLY
 template __global__ void strti2<CBlasUpper, CBlasUnit, 64>(const float * __restrict__, float * __restrict__, int * __restrict__, int, int, int);
 template __global__ void strti2<CBlasUpper, CBlasNonUnit, 64>(const float * __restrict__, float * __restrict__, int * __restrict__, int, int, int);
 template __global__ void strti2<CBlasLower, CBlasUnit, 64>(const float * __restrict__, float * __restrict__, int * __restrict__, int, int, int);
 template __global__ void strti2<CBlasLower, CBlasNonUnit, 64>(const float * __restrict__, float * __restrict__, int * __restrict__, int, int, int);
+
+template __global__ void strtimm2<CBlasUpper, 64, 16, 16, 16, 4>(float * __restrict__, float * __restrict__, int * __restrict__, int, int, int, int, int);
+template __global__ void strtimm2<CBlasLower, 64, 16, 16, 16, 4>(float * __restrict__, float * __restrict__, int * __restrict__, int, int, int, int, int);
 #endif
 
 #if 0

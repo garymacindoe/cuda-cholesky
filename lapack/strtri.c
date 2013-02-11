@@ -325,18 +325,43 @@ CUresult cuStrti22(CULAPACKhandle handle, CBlasUplo uplo, CBlasDiag diag,
 }
 
 static CUresult hybridStrtri(CBlasUplo uplo, CBlasDiag diag,
-                             CUdeviceptr A, size_t lda, float * B, size_t ldb,
-                             size_t j, size_t jb, long * info, CUstream stream) {
-  /* Overlap the first STRMM with a copy of the diagonal block onto the
-    * host. */
-  CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(B, ldb, 0, 0, A, lda, j, j,
+                             CUdeviceptr A, size_t lda, float * X, size_t ldb,
+                             size_t j, size_t jb, size_t n, long * info, CUstream stream) {
+
+  // Work out whether it is worthwhile to do block column copy for the block size
+  const double column_dtoh = (double)(n * jb * sizeof(float)) * BANDWIDTH_DTOH + OVERHEAD_DTOH;
+  const double block_dtoh = (double)jb * ((double)(jb * sizeof(float)) * BANDWIDTH_DTOH + OVERHEAD_DTOH);
+  const bool bcc_dtoh = (lda == n && column_dtoh < block_dtoh);
+
+  const double column_htod = (double)(n * jb * sizeof(float)) * BANDWIDTH_HTOD + OVERHEAD_HTOD;
+  const double block_htod = (double)jb * ((double)(jb * sizeof(float)) * BANDWIDTH_HTOD + OVERHEAD_HTOD);
+  // Can only copy column back if the column was copied in the first place
+  const bool bcc_htod = bcc_dtoh && (column_htod < block_htod);
+
+  /* Start copying diagonal block onto host asynchronously */
+  float * B;
+  if (bcc_dtoh) {
+    // Copy the entire column in one go
+    CU_ERROR_CHECK(cuMemcpyDtoHAsync(X, A + j * lda * sizeof(float), n * jb * sizeof(float), stream));
+    B = &X[j];    // The diagonal block is half-way down
+  }
+  else {
+    // Copy each column of the diagonal block separately
+    CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(X, ldb, 0, 0, A, lda, j, j,
                                       jb, jb, sizeof(float), stream));
+    B = X;      // The diagonal block is at the top of the column
+  }
+
   /* Wait until the diagonal block has been copied */
   CU_ERROR_CHECK(cuStreamSynchronize(stream));
   /* Form the inverse of the diagonal block using the CPU */
   strtri(uplo, diag, jb, B, ldb, info);
+
   /* Copy the diagonal block back onto the device */
-  CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A, lda, j, j, B, ldb, 0, 0,
+  if (bcc_htod)
+    CU_ERROR_CHECK(cuMemcpyHtoDAsync(A + j * lda * sizeof(float), X, n * jb * sizeof(float), stream));
+  else
+    CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A, lda, j, j, B, ldb, 0, 0,
                                       jb, jb, sizeof(float), stream));
   return CUDA_SUCCESS;
 }
@@ -358,25 +383,25 @@ CUresult cuStrtri(CULAPACKhandle handle,
     return CUDA_SUCCESS;
 
   float * B;
-  CUdeviceptr X;
-  size_t ldb, ldx;
+  CUdeviceptr D;
+  size_t ldb, ldd;
   CUstream stream0, stream1;
 
   const size_t nb = 512;
 
-  // Allocate page-locked host memory for diagonal block
-  CU_ERROR_CHECK(cuMemAllocHost((void **)&B, (ldb = (nb + 3u) & ~3u) * nb * sizeof(float)));
+  // Allocate page-locked host memory for diagonal block column
+  CU_ERROR_CHECK(cuMemAllocHost((void **)&B, (ldb = (n + 3u) & ~3u) * nb * sizeof(float)));
 
   // Allocate temporary column for out of place STRMM in STRTRI
-  CU_ERROR_CHECK(cuMemAllocPitch(&X, &ldx, n * sizeof(float), nb, sizeof(float)));
-  ldx /= sizeof(float);
+  CU_ERROR_CHECK(cuMemAllocPitch(&D, &ldd, n * sizeof(float), nb, sizeof(float)));
+  ldd /= sizeof(float);
 
   // Create two streams for asynchronous copy and compute
   CU_ERROR_CHECK(cuStreamCreate(&stream0, 0));
   CU_ERROR_CHECK(cuStreamCreate(&stream1, 0));
 
   if (uplo == CBlasUpper) {
-    CU_ERROR_CHECK(hybridStrtri(uplo, diag, A, lda, B, ldb,  0, min(nb, n), info, stream1));
+    CU_ERROR_CHECK(hybridStrtri(uplo, diag, A, lda, B, ldb,  0, min(nb, n), n, info, stream1));
     /* Wait until the diagonal block has been copied back */
     CU_ERROR_CHECK(cuStreamSynchronize(stream1));
     if (*info == 0) {
@@ -385,8 +410,8 @@ CUresult cuStrtri(CULAPACKhandle handle,
 
         /* Update the current column using the big square matrix to the left */
         CU_ERROR_CHECK(cuStrmm2(handle->blas_handle, CBlasLeft, CBlasUpper, CBlasNoTrans, diag, j, jb,
-                                one, A, lda, A + j * lda * sizeof(float), lda, X, ldx, stream0));
-        CU_ERROR_CHECK(hybridStrtri(uplo, diag, A, lda, B, ldb, j + jb, min(nb, n - j - jb), info, stream1));
+                                one, A, lda, A + j * lda * sizeof(float), lda, D, ldd, stream0));
+        CU_ERROR_CHECK(hybridStrtri(uplo, diag, A, lda, B, ldb, j + jb, min(nb, n - j - jb), n, info, stream1));
         if (*info != 0) {
           *info += (long)(j + jb);
           break;
@@ -396,7 +421,7 @@ CUresult cuStrtri(CULAPACKhandle handle,
         /* Then update the column again using the small square matrix on the
         * diagonal below */
         CU_ERROR_CHECK(cuStrmm2(handle->blas_handle, CBlasRight, CBlasUpper, CBlasNoTrans, diag, j, jb,
-                                -one, A + (j * lda + j) * sizeof(float), lda, X, ldx, A + j * lda * sizeof(float), lda, stream0));
+                                -one, A + (j * lda + j) * sizeof(float), lda, D, ldd, A + j * lda * sizeof(float), lda, stream0));
       }
     }
   }
@@ -404,7 +429,7 @@ CUresult cuStrtri(CULAPACKhandle handle,
     const size_t r = n % nb;
     size_t j = (r == 0) ? n - nb : n - r;
     size_t jb = min(nb, n - j);
-    CU_ERROR_CHECK(hybridStrtri(uplo, diag, A, lda, B, ldb, j, jb, info, stream1));
+    CU_ERROR_CHECK(hybridStrtri(uplo, diag, A, lda, B, ldb, j, jb, n, info, stream1));
     /* Wait until the diagonal block has been copied back */
     CU_ERROR_CHECK(cuStreamSynchronize(stream1));
     if (*info == 0) {
@@ -412,9 +437,9 @@ CUresult cuStrtri(CULAPACKhandle handle,
         /* Update the current column using the big square matrix to the right */
         CU_ERROR_CHECK(cuStrmm2(handle->blas_handle, CBlasLeft, CBlasLower, CBlasNoTrans, diag, n - j - jb, jb,
                                 one, A + ((j + jb) * lda + j + jb) * sizeof(float), lda,
-                                A + (j * lda + j + jb) * sizeof(float), lda, X, ldx, stream0));
+                                A + (j * lda + j + jb) * sizeof(float), lda, D, ldd, stream0));
         if (j >= nb) {
-          CU_ERROR_CHECK(hybridStrtri(uplo, diag, A, lda, B, ldb, j - nb, nb, info, stream1));
+          CU_ERROR_CHECK(hybridStrtri(uplo, diag, A, lda, B, ldb, j - nb, nb, n, info, stream1));
           if (*info != 0) {
             *info += (long)(j - nb);
             break;
@@ -425,7 +450,7 @@ CUresult cuStrtri(CULAPACKhandle handle,
         /* Then update the column again using the small square matrix on the
         * diagonal above (on the same stream) */
         CU_ERROR_CHECK(cuStrmm2(handle->blas_handle, CBlasRight, CBlasLower, CBlasNoTrans, diag, n - j - jb, jb,
-                                -one, A + (j * lda + j) * sizeof(float), lda, X, ldx, A + (j * lda + j + jb) * sizeof(float), lda, stream0));
+                                -one, A + (j * lda + j) * sizeof(float), lda, D, ldd, A + (j * lda + j + jb) * sizeof(float), lda, stream0));
         if (j == 0)
           break;
         j -= nb;
@@ -438,7 +463,7 @@ CUresult cuStrtri(CULAPACKhandle handle,
 
   // Clean up resources
   CU_ERROR_CHECK(cuMemFreeHost(B));
-  CU_ERROR_CHECK(cuMemFree(X));
+  CU_ERROR_CHECK(cuMemFree(D));
 
   CU_ERROR_CHECK(cuStreamDestroy(stream0));
   CU_ERROR_CHECK(cuStreamDestroy(stream1));

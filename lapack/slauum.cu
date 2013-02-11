@@ -1,4 +1,6 @@
-#include "blas.h"
+#define __DEVICE_ONLY
+#include "../blas/sgemm.cu"
+#undef __DEVICE_ONLY
 
 /*
  * Indexing function for upper triangular packed storage mode.  Only works when
@@ -20,7 +22,7 @@ __device__ int lower(int i, int j) {
 }
 
 template <CBlasUplo uplo, unsigned int nb, unsigned int bx>
-__device__ void splau2(float * A, int n) {
+__device__ void splau2(int n, float * A) {
   if (uplo == CBlasUpper) {
     const int i = threadIdx.y * bx + threadIdx.x;
     // Perform the upper triangular multiply
@@ -79,7 +81,7 @@ __global__ void slauu2(float * A, int lda, int n) {
 
     __syncthreads();
 
-    splau2<CBlasUpper, bx, bx>(a, n);
+    splau2<CBlasUpper, bx, bx>(n, a);
 
     // Write upper triangle of A into global memory
     for (int j = 0; j < n; j++) {
@@ -97,7 +99,7 @@ __global__ void slauu2(float * A, int lda, int n) {
 
     __syncthreads();
 
-    splau2<CBlasLower, bx, bx>(a, n);
+    splau2<CBlasLower, bx, bx>(n, a);
 
     // Write the lower triangle of A back to global memory
     for (int j = 0; j < n; j++) {
@@ -107,9 +109,83 @@ __global__ void slauu2(float * A, int lda, int n) {
   }
 }
 
+template <CBlasUplo uplo,
+          unsigned int mb, unsigned int nb, unsigned int kb,
+          unsigned int bx, unsigned int by>
+__global__ void slaumm2(float * __restrict__ A, float * __restrict__ B,
+                        int lda, int ldb, int j, int jb, int n) {
+  if (uplo == CBlasUpper) {
+    if (blockIdx.x == gridDim.x - 1) {
+      if (blockIdx.y == 0) {
+        __shared__ float a[(nb * (nb + 1)) / 2];
+
+        const int i = threadIdx.y * bx + threadIdx.x;
+
+        // Read upper triangle of A into shared memory
+        for (int k = 0; k < jb; k++) {
+          if (i <= k)
+            a[upper(i, k)] = A[k * lda + j + i];
+        }
+
+        __syncthreads();
+
+        // Perform the matrix square using the packed device function
+        splau2<CBlasUpper, nb, bx>(jb, a);
+
+        // Write the upper triangle of A back to global memory
+        for (int k = 0; k < jb; k++) {
+          if (i <= k)
+            A[k * lda + j + i] = a[upper(i, k)];
+        }
+      }
+    }
+    else
+      sgemm2<CBlasNoTrans, CBlasTrans, mb, nb, kb, bx, by>(j, jb, n - j - jb,
+              1.0f, &A[jb * lda], lda, &A[jb * lda + j], lda,
+              1.0f, B, ldb, A, lda);
+  }
+  else {
+    if (blockIdx.y == gridDim.y - 1) {
+      if (blockIdx.x == 0) {
+        __shared__ float a[(nb * (nb + 1)) / 2];
+
+        const int i = threadIdx.y * bx + threadIdx.x;
+
+        // Read lower triangle of A into shared memory
+        if (i < jb) {
+          for (int k = 0; k < jb; k++) {
+            if (i >= k)
+              a[lower<nb>(i, k)] = A[(j + k) * lda + i];
+          }
+        }
+
+        __syncthreads();
+
+        if (i < jb) {
+          // Perform the triangular multiply using the packed device function
+          splau2<CBlasLower, nb, bx>(jb, a);
+
+          // Write the lower triangle of A back to global memory
+          for (int k = 0; k < jb; k++) {
+            if (i >= k)
+              A[(j + k) * lda + i] = a[lower<nb>(i, k)];
+          }
+        }
+      }
+    }
+    else
+      sgemm2<CBlasTrans, CBlasNoTrans, mb, nb, kb, bx, by>(jb, j, n - j - jb,
+              1.0f, &A[j * lda + jb], lda, &A[jb], lda,
+              1.0f, B, ldb, A, lda);
+  }
+}
+
 #ifndef __DEVICE_ONLY
 template __global__ void slauu2<CBlasUpper, 64>(float *, int, int);
 template __global__ void slauu2<CBlasLower, 64>(float *, int, int);
+
+template __global__ void slaumm2<CBlasUpper, 64, 16, 16, 16, 4>(float * __restrict__, float * __restrict__, int, int, int, int, int);
+template __global__ void slaumm2<CBlasLower, 32, 32,  8,  8, 8>(float * __restrict__, float * __restrict__, int, int, int, int, int);
 #endif
 
 #if 0

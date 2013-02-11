@@ -205,27 +205,56 @@ static inline CUresult cuSpotfimm2(CULAPACKhandle handle, CBlasUplo uplo,
 }
 
 static CUresult hybridSpotrf(CBlasUplo uplo,
-                             CUdeviceptr A, size_t lda, float * B, size_t ldb,
+                             CUdeviceptr A, size_t lda, float * X, size_t ldb,
                              float * C, size_t ldc, CUdeviceptr D, size_t ldd,
-                             size_t j, size_t jb, long * info, CUstream stream) {
+                             size_t j, size_t jb, size_t n, long * info, CUstream stream) {
+
+  // Work out whether it is worthwhile to do block column copy for the block size
+  const double column_dtoh = (double)(n * jb * sizeof(float)) * BANDWIDTH_DTOH + OVERHEAD_DTOH;
+  const double block_dtoh = (double)jb * ((double)(jb * sizeof(float)) * BANDWIDTH_DTOH + OVERHEAD_DTOH);
+  const bool bcc_dtoh = (lda == n && column_dtoh < block_dtoh);
+
+  const double column_htod = (double)(n * jb * sizeof(float)) * BANDWIDTH_HTOD + OVERHEAD_HTOD;
+  const double block_htod = (double)jb * ((double)(jb * sizeof(float)) * BANDWIDTH_HTOD + OVERHEAD_HTOD);
+  // Can only copy column back if the column was copied in the first place
+  const bool bcc_htod = bcc_dtoh && (column_htod < block_htod);
+
   /* Start copying diagonal block onto host asynchronously */
-  CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(B, ldb, 0, 0, A, lda, j, j,
-                                     jb, jb, sizeof(float), stream));
+  float * B;
+  if (bcc_dtoh) {
+    // Copy the entire column in one go
+    CU_ERROR_CHECK(cuMemcpyDtoHAsync(X, A + j * lda * sizeof(float), n * jb * sizeof(float), stream));
+    B = &X[j];    // The diagonal block is half-way down
+  }
+  else {
+    // Copy each column of the diagonal block separately
+    CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(X, ldb, 0, 0, A, lda, j, j,
+                                      jb, jb, sizeof(float), stream));
+    B = X;      // The diagonal block is at the top of the column
+  }
+
   /* Wait until the diagonal block has been copied */
   CU_ERROR_CHECK(cuStreamSynchronize(stream));
   /* Perform the diagonal block decomposition using the CPU */
   spotrf(uplo, jb, B, ldb, info);
+
   /* Copy the diagonal block back onto the device */
-  CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A, lda, j, j, B, ldb, 0, 0,
-                                     jb, jb, sizeof(float), stream));
+  if (bcc_htod)
+    CU_ERROR_CHECK(cuMemcpyHtoDAsync(A + j * lda * sizeof(float), X, n * jb * sizeof(float), stream));
+  else
+    CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A, lda, j, j, B, ldb, 0, 0,
+                                      jb, jb, sizeof(float), stream));
+
   /* If the matrix is not positive definite don't bother with the inverse */
   if (*info != 0)
     return CUDA_SUCCESS;
+
   /* Overlap the asynchronous copy calculating the inverse out of place */
   strtri2(uplo, CBlasNonUnit, jb, B, ldb, C, ldc, info);
   /* Copy the inverse into the top/left of the column/row for out of place STRMM */
   CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(D, ldd, 0, 0, C, ldc, 0, 0,
                                      jb, jb, sizeof(float), stream));
+
   return CUDA_SUCCESS;
 }
 
@@ -268,17 +297,14 @@ CUresult cuSpotrf(CULAPACKhandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A
   // dynamic block sizing
 //   size_t nb = n / 4;
 
-  float * B, * C;//, * X;
+  float * B, * C;
   size_t ldb, ldc;
   CUdeviceptr D;
   size_t ldd;
   CUstream stream0, stream1;
 
-  // Allocate memory on host for diagonal block
-  CU_ERROR_CHECK(cuMemAllocHost((void **)&B, (ldb = (nb + 3u) & ~3u) * nb * sizeof(float)));
-//   // Allocate memory for the block column
-//   CU_ERROR_CHECK(cuMemAllocHost((void **)&X, (ldb = n) * nb * sizeof(float)));
-//   B = X;
+  // Allocate memory for the block column
+  CU_ERROR_CHECK(cuMemAllocHost((void **)&B, (ldb = (n + 3u) & ~3u) * nb * sizeof(float)));
   // Allocate memory on host for out of place inverse
   CU_ERROR_CHECK(cuMemAllocHost((void **)&C, (ldc = (nb + 3u) & ~3u) * nb * sizeof(float)));
 
@@ -309,7 +335,7 @@ CUresult cuSpotrf(CULAPACKhandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A
                               A + (j + jb) * lda * sizeof(float), lda,
                               one, A + ((j + jb) * lda + j) * sizeof(float), lda,
                               D + nb * ldd * sizeof(float), ldd, stream1));
-      CU_ERROR_CHECK(hybridSpotrf(uplo, A, lda, B, ldb, C, ldc, D, ldd, j, jb, info, stream0));
+      CU_ERROR_CHECK(hybridSpotrf(uplo, A, lda, B, ldb, C, ldc, D, ldd, j, jb, n, info, stream0));
       /* Check for positive definite matrix */
       if (*info != 0) {
         *info += (long)j;
@@ -343,7 +369,7 @@ CUresult cuSpotrf(CULAPACKhandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A
                               A + j * sizeof(float), lda,
                               one, A + (j * lda + j + jb) * sizeof(float), lda,
                               D + nb * sizeof(float), ldd, stream1));
-      CU_ERROR_CHECK(hybridSpotrf(uplo, A, lda, B, ldb, C, ldc, D, ldd, j, jb, info, stream0));
+      CU_ERROR_CHECK(hybridSpotrf(uplo, A, lda, B, ldb, C, ldc, D, ldd, j, jb, n, info, stream0));
       /* Check for positive definite matrix */
       if (*info != 0) {
         *info += (long)j;
@@ -361,7 +387,6 @@ CUresult cuSpotrf(CULAPACKhandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A
 
   // Clean up resources
   CU_ERROR_CHECK(cuMemFreeHost(B));
-//   CU_ERROR_CHECK(cuMemFreeHost(X));
   CU_ERROR_CHECK(cuMemFreeHost(C));
   CU_ERROR_CHECK(cuMemFree(D));
 //   CU_ERROR_CHECK(cuMemFree(dinfo));
