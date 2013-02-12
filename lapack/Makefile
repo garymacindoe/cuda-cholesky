@@ -22,7 +22,11 @@ BIN2CFLAGS = -c -st
 
 TARGET = ../liblapack.a
 
-OBJECTS = slauum.o spotrf.o spotri.o strtri.o slogdet.o
+OBJECTS = handle.o \
+          slauum.o spotrf.o spotri.o strtri.o \
+          slogdet.o
+
+FATBINS = slogdet.fatbin
 
 VPATH = ../include
 
@@ -31,15 +35,18 @@ VPATH = ../include
 all: $(TARGET)
 
 clean:
-	$(RM) $(OBJECTS) slogdet.fatbin slogdet.fatbin.c
+	$(RM) $(OBJECTS) $(FATBINS) $(addsuffix .c,$(FATBINS))
 
 $(TARGET): $(OBJECTS)
 
-slauum.o: lapack.h blas.h cumultigpu.h error.h config.h
-spotrf.o: lapack.h blas.h cumultigpu.h error.h config.h
-spotri.o: lapack.h blas.h cumultigpu.h error.h
-strtri.o: lapack.h blas.h cumultigpu.h error.h config.h
+handle.o: lapack.h blas.h cumultigpu.h handle.h error.h
 
-slogdet.o: lapack.h blas.h cumultigpu.h error.h slogdet.fatbin.c
+slauum.o: lapack.h blas.h cumultigpu.h handle.h error.h config.h
+spotrf.o: lapack.h blas.h cumultigpu.h handle.h error.h config.h
+spotri.o: lapack.h blas.h cumultigpu.h error.h
+strtri.o: lapack.h blas.h cumultigpu.h handle.h error.h config.h
+ztrtri.o: lapack.h blas.h cumultigpu.h handle.h error.h config.h
+
+slogdet.o: lapack.h blas.h cumultigpu.h handle.h error.h slogdet.fatbin.c
 
 slogdet.fatbin: NVCFLAGS += -maxrregcount=10 -code=sm_11,sm_13 -arch=compute_11

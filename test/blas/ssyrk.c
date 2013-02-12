@@ -4,7 +4,7 @@
 #include <stdbool.h>
 #include <float.h>
 #include <math.h>
-#include <sys/time.h>
+#include <time.h>
 #include "ref/ssyrk_ref.c"
 
 int main(int argc, char * argv[]) {
@@ -114,20 +114,20 @@ int main(int argc, char * argv[]) {
     }
   }
 
-  struct timeval start, stop;
-  if (gettimeofday(&start, NULL) != 0) {
-    fputs("gettimeofday failed\n", stderr);
+  struct timespec start, stop;
+  if (clock_gettime(CLOCK_REALTIME, &start) != 0) {
+    fputs("clock_gettime failed\n", stderr);
     return -5;
   }
   for (size_t i = 0; i < 20; i++)
     ssyrk(uplo, trans, n, k, alpha, A, lda, beta, C, ldc);
-  if (gettimeofday(&stop, NULL) != 0) {
-    fputs("gettimeofday failed\n", stderr);
+  if (clock_gettime(CLOCK_REALTIME, &stop) != 0) {
+    fputs("clock_gettime failed\n", stderr);
     return -6;
   }
 
   double time = ((double)(stop.tv_sec - start.tv_sec) +
-                 (double)(stop.tv_usec - start.tv_usec) * 1.e-6) / 20.0;
+                 (double)(stop.tv_nsec - start.tv_nsec) * 1.e-6) / 20.0;
 
   size_t flops = 2 * k - 1;     // k multiplies and k - 1 adds per element
   if (alpha != 1.0f)

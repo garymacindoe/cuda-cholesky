@@ -2,6 +2,7 @@
 #include "error.h"
 #include <stdio.h>
 #include "config.h"
+#include "handle.h"
 
 static inline size_t min(size_t a, size_t b) { return (a < b) ? a : b; }
 
@@ -151,7 +152,7 @@ void strtri(CBlasUplo uplo, CBlasDiag diag,
   }
 }
 
-CUresult cuStrtri(CUBLAShandle handle,
+CUresult cuStrtri(CULAPACKhandle handle,
                   CBlasUplo uplo, CBlasDiag diag,
                   size_t n,
                   CUdeviceptr A, size_t lda,
@@ -186,13 +187,13 @@ CUresult cuStrtri(CUBLAShandle handle,
       const size_t jb = min(nb, n - j);
 
       /* Update the current column using the big square matrix to the left */
-      CU_ERROR_CHECK(cuStrmm(handle,
+      CU_ERROR_CHECK(cuStrmm(handle->blas_handle,
                              CBlasLeft, CBlasUpper, CBlasNoTrans, diag, j, jb,
                              one, A, lda, A + j * lda * sizeof(float), lda, stream0));
 
       /* Then update the column again using the small square matrix on the
        * diagonal below */
-      CU_ERROR_CHECK(cuStrsm(handle,
+      CU_ERROR_CHECK(cuStrsm(handle->blas_handle,
                              CBlasRight, CBlasUpper, CBlasNoTrans, diag, j, jb,
                              -one, A + (j * lda + j) * sizeof(float), lda,
                              A + j * lda * sizeof(float), lda, stream0));
@@ -226,14 +227,14 @@ CUresult cuStrtri(CUBLAShandle handle,
       const size_t jb = min(nb, n - j);
 
       /* Update the current column using the big square matrix to the right */
-      CU_ERROR_CHECK(cuStrmm(handle,
+      CU_ERROR_CHECK(cuStrmm(handle->blas_handle,
                              CBlasLeft, CBlasLower, CBlasNoTrans, diag, n - j - jb, jb,
                              one, A + ((j + jb) * lda + j + jb) * sizeof(float), lda,
                              A + (j * lda + j + jb) * sizeof(float), lda, stream0));
 
       /* Then update the column again using the small square matrix on the
        * diagonal above (on the same stream) */
-      CU_ERROR_CHECK(cuStrsm(handle,
+      CU_ERROR_CHECK(cuStrsm(handle->blas_handle,
                              CBlasRight, CBlasLower, CBlasNoTrans, diag, n - j - jb, jb,
                              -one, A + (j * lda + j) * sizeof(float), lda,
                              A + (j * lda + j + jb) * sizeof(float), lda, stream0));
@@ -269,7 +270,7 @@ CUresult cuStrtri(CUBLAShandle handle,
   return CUDA_SUCCESS;
 }
 
-CUresult cuMultiGPUStrtri(CUmultiGPUBLAShandle handle,
+CUresult cuMultiGPUStrtri(CUmultiGPULAPACKhandle handle,
                           CBlasUplo uplo, CBlasDiag diag,
                           size_t n,
                           float * restrict A, size_t lda,
@@ -291,9 +292,9 @@ CUresult cuMultiGPUStrtri(CUmultiGPUBLAShandle handle,
     // Upper triangular STRTRI
     for (size_t j = 0; j < n; j += nb) {
       const size_t jb = min(nb, n - j);
-      CU_ERROR_CHECK(cuMultiGPUStrmm(handle, CBlasLeft, CBlasUpper, CBlasNoTrans, diag,
+      CU_ERROR_CHECK(cuMultiGPUStrmm(handle->blas_handle, CBlasLeft, CBlasUpper, CBlasNoTrans, diag,
                                      j, jb, one, A, lda, &A[j * lda], lda));
-      CU_ERROR_CHECK(cuMultiGPUStrsm(handle, CBlasRight, CBlasUpper, CBlasNoTrans, diag,
+      CU_ERROR_CHECK(cuMultiGPUStrsm(handle->blas_handle, CBlasRight, CBlasUpper, CBlasNoTrans, diag,
                                      j, jb, -one, &A[j * lda + j], lda, &A[j * lda], lda));
       strtri(CBlasUpper, diag, jb, &A[j * lda + j], lda, info);
       if (*info != 0) {
@@ -311,11 +312,11 @@ CUresult cuMultiGPUStrtri(CUmultiGPUBLAShandle handle,
       j -= nb;
       const size_t jb = min(nb, n - j);
       if (j + jb < n) {
-        CU_ERROR_CHECK(cuMultiGPUStrmm(handle, CBlasLeft, CBlasLower, CBlasNoTrans, diag,
+        CU_ERROR_CHECK(cuMultiGPUStrmm(handle->blas_handle, CBlasLeft, CBlasLower, CBlasNoTrans, diag,
                                        n - j - jb, jb,
                                        one, &A[(j + jb) * lda + j + jb], lda,
                                        &A[j * lda + j + jb], lda));
-        CU_ERROR_CHECK(cuMultiGPUStrsm(handle, CBlasRight, CBlasLower, CBlasNoTrans, diag,
+        CU_ERROR_CHECK(cuMultiGPUStrsm(handle->blas_handle, CBlasRight, CBlasLower, CBlasNoTrans, diag,
                                        n - j - jb, jb,
                                        -one, &A[j * lda + j], lda,
                                        &A[j * lda + j + jb], lda));

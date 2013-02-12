@@ -6,6 +6,7 @@
 #include <string.h>
 #include <float.h>
 #include <math.h>
+#include <time.h>
 #include "ref/strtri_ref.c"
 #include "util/slatmc.c"
 
@@ -74,8 +75,8 @@ int main(int argc, char * argv[]) {
   CUcontext context;
   CU_ERROR_CHECK(cuCtxCreate(&context, CU_CTX_SCHED_BLOCKING_SYNC, device));
 
-  CUBLAShandle handle;
-  CU_ERROR_CHECK(cuBLASCreate(&handle));
+  CULAPACKhandle handle;
+  CU_ERROR_CHECK(cuLAPACKCreate(&handle));
 
   lda = (n + 3u) & ~3u;
   if ((A = malloc(lda *  n * sizeof(float))) == NULL) {
@@ -139,32 +140,30 @@ int main(int argc, char * argv[]) {
                           n * sizeof(float), n };
   CU_ERROR_CHECK(cuMemcpy2D(&copy));
 
-  CUevent start, stop;
-  CU_ERROR_CHECK(cuEventCreate(&start, CU_EVENT_BLOCKING_SYNC));
-  CU_ERROR_CHECK(cuEventCreate(&stop, CU_EVENT_BLOCKING_SYNC));
-
-  CU_ERROR_CHECK(cuEventRecord(start, NULL));
+  struct timespec start, stop;
+  if (clock_gettime(CLOCK_REALTIME, &start) != 0) {
+    fprintf(stderr, "clock_gettime failed at %s:%d\n", __FILE__, __LINE__);
+    return -4;
+  }
   for (size_t i = 0; i < 20; i++)
     CU_ERROR_CHECK(cuStrtri(handle, uplo, diag, n, dA, dlda, &info));
-  CU_ERROR_CHECK(cuEventRecord(stop, NULL));
-  CU_ERROR_CHECK(cuEventSynchronize(stop));
+  if (clock_gettime(CLOCK_REALTIME, &stop) != 0) {
+    fprintf(stderr, "clock_gettime failed at %s:%d\n", __FILE__, __LINE__);
+    return -5;
+  }
 
-  float time;
-  CU_ERROR_CHECK(cuEventElapsedTime(&time, start, stop));
-  time /= 20;
-
-  CU_ERROR_CHECK(cuEventDestroy(start));
-  CU_ERROR_CHECK(cuEventDestroy(stop));
+  double time = ((double)(stop.tv_sec - start.tv_sec) +
+                 (double)(stop.tv_nsec - start.tv_nsec) * 1.e-9) / 20.0;
 
   const size_t flops = ((n * n * n) / 3) + ((2 * n) / 3);
-  fprintf(stdout, "%.3es %.3gGFlops/s Error: %.3e\n%sED!\n", time * 1.e-3f,
-          ((float)flops * 1.e-6f) / time, diff, (passed) ? "PASS" : "FAIL");
+  fprintf(stdout, "%.3es %.3gGFlops/s Error: %.3e\n%sED!\n", time,
+          ((double)flops * 1.e-9) / time, diff, (passed) ? "PASS" : "FAIL");
 
   free(A);
   free(refA);
   CU_ERROR_CHECK(cuMemFree(dA));
 
-  CU_ERROR_CHECK(cuBLASDestroy(handle));
+  CU_ERROR_CHECK(cuLAPACKDestroy(handle));
 
   CU_ERROR_CHECK(cuCtxDestroy(context));
 

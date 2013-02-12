@@ -1,6 +1,7 @@
 #include "lapack.h"
 #include "error.h"
 #include <stdio.h>
+#include "handle.h"
 #include "config.h"
 
 static inline size_t min(size_t a, size_t b) { return (a < b) ? a : b; }
@@ -116,7 +117,7 @@ void slauum(CBlasUplo uplo,
   }
 }
 
-CUresult cuSlauum(CUBLAShandle handle,
+CUresult cuSlauum(CULAPACKhandle handle,
                   CBlasUplo uplo,
                   size_t n,
                   CUdeviceptr A, size_t lda,
@@ -151,11 +152,11 @@ CUresult cuSlauum(CUBLAShandle handle,
       const size_t ib = min(nb, n - i);
 
       /* Update the current column using the diagonal block */
-      CU_ERROR_CHECK(cuStrmm(handle, CBlasRight, CBlasUpper, CBlasTrans, CBlasNonUnit, i, ib,
+      CU_ERROR_CHECK(cuStrmm(handle->blas_handle, CBlasRight, CBlasUpper, CBlasTrans, CBlasNonUnit, i, ib,
                              one, A + (i * lda + i) * sizeof(float), lda,
                              A + i * lda * sizeof(float), lda, stream0));
       /* Update the current column using the big matrix to the right */
-      CU_ERROR_CHECK(cuSgemm(handle, CBlasNoTrans, CBlasTrans, i, ib, n - i - ib,
+      CU_ERROR_CHECK(cuSgemm(handle->blas_handle, CBlasNoTrans, CBlasTrans, i, ib, n - i - ib,
                              one, A + (i + ib) * lda * sizeof(float), lda,
                              A + ((i + ib) * lda + i) * sizeof(float), lda,
                              one, A + i * lda * sizeof(float), lda, stream1));
@@ -175,7 +176,7 @@ CUresult cuSlauum(CUBLAShandle handle,
 
       /* Perform the SSYRK on the same stream as the copy to ensure A has
        * finised copying back first. */
-      CU_ERROR_CHECK(cuSsyrk(handle, CBlasUpper, CBlasNoTrans, ib, n - i - ib,
+      CU_ERROR_CHECK(cuSsyrk(handle->blas_handle, CBlasUpper, CBlasNoTrans, ib, n - i - ib,
                              one, A + ((i + ib) * lda + i) * sizeof(float), lda,
                              one, A + (i * lda + i) * sizeof(float), lda, stream0));
     }
@@ -185,11 +186,11 @@ CUresult cuSlauum(CUBLAShandle handle,
       const size_t ib = min(nb, n - i);
 
       /* Update the current column using the diagonal block */
-      CU_ERROR_CHECK(cuStrmm(handle, CBlasLeft, CBlasLower, CBlasTrans, CBlasNonUnit, ib, i,
+      CU_ERROR_CHECK(cuStrmm(handle->blas_handle, CBlasLeft, CBlasLower, CBlasTrans, CBlasNonUnit, ib, i,
                              one, A + (i * lda + i) * sizeof(float), lda,
                              A + i * sizeof(float), lda, stream0));
       /* Update the current column using the big matrix to the right */
-      CU_ERROR_CHECK(cuSgemm(handle, CBlasTrans, CBlasNoTrans, ib, i, n - i - ib,
+      CU_ERROR_CHECK(cuSgemm(handle->blas_handle, CBlasTrans, CBlasNoTrans, ib, i, n - i - ib,
                              one, A + (i * lda + i + ib) * sizeof(float), lda,
                              A + (i + ib) * sizeof(float), lda,
                              one, A + i * sizeof(float), lda, stream1));
@@ -209,7 +210,7 @@ CUresult cuSlauum(CUBLAShandle handle,
 
       /* Perform the SSYRK on the same stream as the copy to ensure A has
        * finised copying back first. */
-      CU_ERROR_CHECK(cuSsyrk(handle, CBlasLower, CBlasTrans, ib, n - i - ib,
+      CU_ERROR_CHECK(cuSsyrk(handle->blas_handle, CBlasLower, CBlasTrans, ib, n - i - ib,
                              one, A + (i * lda + i + ib) * sizeof(float), lda,
                              one, A + (i * lda + i) * sizeof(float), lda, stream1));
     }
@@ -224,7 +225,7 @@ CUresult cuSlauum(CUBLAShandle handle,
   return CUDA_SUCCESS;
 }
 
-CUresult cuMultiGPUSlauum(CUmultiGPUBLAShandle handle,
+CUresult cuMultiGPUSlauum(CUmultiGPULAPACKhandle handle,
                           CBlasUplo uplo,
                           size_t n,
                           float * restrict A, size_t lda,
@@ -251,15 +252,15 @@ CUresult cuMultiGPUSlauum(CUmultiGPUBLAShandle handle,
     for (size_t i = 0; i < n; i += nb) {
       const size_t ib = min(nb, n - i);
 
-      CU_ERROR_CHECK(cuMultiGPUStrmm(handle, CBlasRight, CBlasUpper, CBlasTrans, CBlasNonUnit,
+      CU_ERROR_CHECK(cuMultiGPUStrmm(handle->blas_handle, CBlasRight, CBlasUpper, CBlasTrans, CBlasNonUnit,
                                      i, ib, one, &A[i * lda + i], lda, &A[i * lda], lda));
       slauu2(CBlasUpper, ib, &A[i * lda + i], lda);
 
       if (i + ib < n) {
-        CU_ERROR_CHECK(cuMultiGPUSgemm(handle, CBlasNoTrans, CBlasTrans, i, ib, n - i - ib,
+        CU_ERROR_CHECK(cuMultiGPUSgemm(handle->blas_handle, CBlasNoTrans, CBlasTrans, i, ib, n - i - ib,
                                        one, &A[(i + ib) * lda], lda, &A[(i + ib) * lda + i], lda,
                                        one, &A[i * lda], lda));
-        CU_ERROR_CHECK(cuMultiGPUSsyrk(handle, CBlasUpper, CBlasNoTrans, ib, n - i - ib,
+        CU_ERROR_CHECK(cuMultiGPUSsyrk(handle->blas_handle, CBlasUpper, CBlasNoTrans, ib, n - i - ib,
                                        one, &A[(i + ib) * lda + i], lda, one, &A[i * lda + i], lda));
       }
     }
@@ -268,15 +269,15 @@ CUresult cuMultiGPUSlauum(CUmultiGPUBLAShandle handle,
     for (size_t i = 0; i < n; i += nb) {
       const size_t ib = min(nb, n - i);
 
-      CU_ERROR_CHECK(cuMultiGPUStrmm(handle, CBlasLeft, CBlasLower, CBlasTrans, CBlasNonUnit, ib, i,
+      CU_ERROR_CHECK(cuMultiGPUStrmm(handle->blas_handle, CBlasLeft, CBlasLower, CBlasTrans, CBlasNonUnit, ib, i,
                                      one, &A[i * lda + i], lda, &A[i], lda));
       slauu2(CBlasLower, ib, &A[i * lda + i], lda);
 
       if (i + ib < n) {
-        CU_ERROR_CHECK(cuMultiGPUSgemm(handle, CBlasTrans, CBlasNoTrans, ib, i, n - i - ib,
+        CU_ERROR_CHECK(cuMultiGPUSgemm(handle->blas_handle, CBlasTrans, CBlasNoTrans, ib, i, n - i - ib,
                                        one, &A[i * lda + i + ib], lda, &A[i + ib], lda,
                                        one, &A[i], lda));
-        CU_ERROR_CHECK(cuMultiGPUSsyrk(handle, CBlasLower, CBlasTrans, ib, n - i - ib,
+        CU_ERROR_CHECK(cuMultiGPUSsyrk(handle->blas_handle, CBlasLower, CBlasTrans, ib, n - i - ib,
                                        one, &A[i * lda + i + ib], lda, one, &A[i * lda + i], lda));
       }
     }
