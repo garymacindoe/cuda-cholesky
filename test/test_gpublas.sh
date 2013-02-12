@@ -27,33 +27,6 @@ if [ -x cusgemm ]
   done | tee cusgemm_t_n_384_480.txt
 fi
 
-if [ -x cusgemm2 ]
-  then
-  for k in {0..1024..16}
-    do
-    echo cusgemm2 n n 512 480 ${k}
-    ./cusgemm2 n n 512 480 ${k} 1
-  done | tee cusgemm2_n_n_512_480.txt
-
-  for k in {0..1024..16}
-    do
-    echo cusgemm2 n t 512 480 ${k}
-    ./cusgemm2 n t 512 480 ${k} 1
-  done | tee cusgemm2_n_t_512_480.txt
-
-  for k in {0..1024..8}
-    do
-    echo cusgemm2 t n 384 480 ${k}
-    ./cusgemm2 t n 384 480 ${k} 1
-  done | tee cusgemm2_t_n_384_480.txt
-
-  for k in {0..1024..8}
-    do
-    echo cusgemm2 t t 384 480 ${k}
-    ./cusgemm2 t t 384 480 ${k} 1
-  done | tee cusgemm2_t_n_384_480.txt
-fi
-
 if [ -x cussyrk ]
   then
   for k in {16..1024..16}
@@ -114,7 +87,7 @@ if [ -x custrsm ]
   done
 fi
 
-if [ -x custrmm2 ]
+if [ -x custrmm ]
   then
   for u in u l
     do
@@ -122,17 +95,17 @@ if [ -x custrmm2 ]
       do
       for m in {16..1024..16}
         do
-        echo custrmm2 l ${u} n ${d} ${m} 480
-        ./custrmm2 l ${u} n ${d} ${m} 480 1
-      done | tee custrmm2_l_${u}_n_${d}_480.txt
+        echo custrmm l ${u} n ${d} ${m} 480
+        ./custrmm l ${u} n ${d} ${m} 480 1
+      done | tee custrmm_l_${u}_n_${d}_480.txt
     done
     for d in u n
       do
       for m in {8..1024..8}
         do
-        echo custrmm2 l ${u} t ${d} ${m} 480
-        ./custrmm2 l ${u} t ${d} ${m} 480 1
-      done | tee custrmm2_l_${u}_t_${d}_480.txt
+        echo custrmm l ${u} t ${d} ${m} 480
+        ./custrmm l ${u} t ${d} ${m} 480 1
+      done | tee custrmm_l_${u}_t_${d}_480.txt
     done
   done
 
@@ -142,17 +115,17 @@ if [ -x custrmm2 ]
       do
       for n in {16..1024..16}
         do
-        echo custrmm2 r ${u} n ${d} 512 ${n}
-        ./custrmm2 r ${u} n ${d} 512 ${n} 1
-      done | tee custrmm2_r_${u}_n_${d}_512.txt
+        echo custrmm r ${u} n ${d} 512 ${n}
+        ./custrmm r ${u} n ${d} 512 ${n} 1
+      done | tee custrmm_r_${u}_n_${d}_512.txt
     done
     for d in u n
       do
       for n in {8..1024..8}
         do
-        echo custrmm2 r ${u} t ${d} 384 ${n}
-        ./custrmm2 r ${u} t ${d} 384 ${n} 1
-      done | tee custrmm2_r_${u}_t_${d}_384.txt
+        echo custrmm r ${u} t ${d} 384 ${n}
+        ./custrmm r ${u} t ${d} 384 ${n} 1
+      done | tee custrmm_r_${u}_t_${d}_384.txt
     done
   done
 fi
