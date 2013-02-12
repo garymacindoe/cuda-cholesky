@@ -64,9 +64,9 @@ if [ -x strsm ]
         do
         for m in {8..512..8}
           do
-          echo strsm l ${u} ${t} ${d} ${m} 15360
-          ./strsm l ${u} ${t} ${d} ${m} 15360
-        done | tee strsm_l_${u}_${t}_${d}_15360.txt
+          echo strsm l ${u} ${t} ${d} ${m} 11520
+          ./strsm l ${u} ${t} ${d} ${m} 11520
+        done | tee strsm_l_${u}_${t}_${d}_11520.txt
       done
     done
   done

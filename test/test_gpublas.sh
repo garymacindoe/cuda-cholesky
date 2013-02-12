@@ -64,9 +64,9 @@ if [ -x custrsm ]
         do
         for m in {8..512..8}
           do
-          echo custrsm l ${u} ${t} ${d} ${m} 15360
-          ./custrsm l ${u} ${t} ${d} ${m} 15360 1
-        done | tee custrsm_l_${u}_${t}_${d}_15360.txt
+          echo custrsm l ${u} ${t} ${d} ${m} 11520
+          ./custrsm l ${u} ${t} ${d} ${m} 11520 1
+        done | tee custrsm_l_${u}_${t}_${d}_11520.txt
       done
     done
   done
