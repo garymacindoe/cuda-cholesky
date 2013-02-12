@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <float.h>
 #include <math.h>
+#include <time.h>
 
 int main(int argc, char * argv[]) {
   size_t n;
@@ -43,6 +44,9 @@ int main(int argc, char * argv[]) {
   CUcontext context;
   CU_ERROR_CHECK(cuCtxCreate(&context, CU_CTX_SCHED_BLOCKING_SYNC, device));
 
+  CULAPACKhandle handle;
+  CU_ERROR_CHECK(cuLAPACKCreate(&handle));
+
   if ((x = malloc(incx * n * sizeof(float))) == NULL) {
     fputs("Unable to allocate x\n", stderr);
     return -1;
@@ -55,7 +59,7 @@ int main(int argc, char * argv[]) {
   CU_ERROR_CHECK(cuMemcpyHtoD(dx, x, incx * n * sizeof(float)));
 
   float res;
-  CU_ERROR_CHECK(cuSlogdet(dx, incx, n, &res, NULL));
+  CU_ERROR_CHECK(cuSlogdet(handle, dx, incx, n, &res, NULL));
 
   float sum = 0.0f;
   float c = 0.0f;
@@ -70,23 +74,20 @@ int main(int argc, char * argv[]) {
   float diff = fabsf(sum - res);
   bool passed = (diff <= 2.0f * (float)n * FLT_EPSILON);
 
-  CUevent start, stop;
-  CU_ERROR_CHECK(cuEventCreate(&start, CU_EVENT_BLOCKING_SYNC));
-  CU_ERROR_CHECK(cuEventCreate(&stop, CU_EVENT_BLOCKING_SYNC));
-
-  CU_ERROR_CHECK(cuEventRecord(start, NULL));
+  struct timespec start, stop;
+  if (clock_gettime(CLOCK_REALTIME, &start) != 0) {
+    fprintf(stderr, "clock_gettime failed at %s:%d\n", __FILE__, __LINE__);
+    return -4;
+  }
   for (size_t i = 0; i < 20; i++)
-    CU_ERROR_CHECK(cuSlogdet(dx, incx, n, &res, NULL));
-  CU_ERROR_CHECK(cuEventRecord(stop, NULL));
-  CU_ERROR_CHECK(cuEventSynchronize(stop));
+    CU_ERROR_CHECK(cuSlogdet(handle, dx, incx, n, &res, NULL));
+  if (clock_gettime(CLOCK_REALTIME, &stop) != 0) {
+    fprintf(stderr, "clock_gettime failed at %s:%d\n", __FILE__, __LINE__);
+    return -5;
+  }
 
-  float time;
-  CU_ERROR_CHECK(cuEventElapsedTime(&time, start, stop));
-  time /= 20;
-  time *= 1.e-3f;
-
-  CU_ERROR_CHECK(cuEventDestroy(start));
-  CU_ERROR_CHECK(cuEventDestroy(stop));
+  double time = ((double)(stop.tv_sec - start.tv_sec) +
+                 (double)(stop.tv_nsec - start.tv_nsec) * 1.e-9) / 20.0;
 
   const size_t bandwidth = n * sizeof(float);
   fprintf(stdout, "%.3es %.3gGB/s Error: %.3e\n%sED!\n", time,
@@ -94,6 +95,8 @@ int main(int argc, char * argv[]) {
 
   free(x);
   CU_ERROR_CHECK(cuMemFree(dx));
+
+  CU_ERROR_CHECK(cuLAPACKDestroy(handle));
 
   CU_ERROR_CHECK(cuCtxDestroy(context));
 

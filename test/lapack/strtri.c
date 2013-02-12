@@ -5,7 +5,7 @@
 #include <string.h>
 #include <float.h>
 #include <math.h>
-#include <sys/time.h>
+#include <time.h>
 #include "ref/strtri_ref.c"
 #include "util/slatmc.c"
 
@@ -100,20 +100,20 @@ int main(int argc, char * argv[]) {
       A[j * lda + i] = (i == j) ? 1.0f : 0.0f;
   }
 
-  struct timeval start, stop;
-  if (gettimeofday(&start, NULL) != 0) {
-    fprintf(stderr, "gettimeofday failed at %s:%d\n", __FILE__, __LINE__);
+  struct timespec start, stop;
+  if (clock_gettime(CLOCK_REALTIME, &start) != 0) {
+    fprintf(stderr, "clock_gettime failed at %s:%d\n", __FILE__, __LINE__);
     return -4;
   }
   for (size_t i = 0; i < 20; i++)
     strtri(uplo, diag, n, A, lda, &info);
-  if (gettimeofday(&stop, NULL) != 0) {
-    fprintf(stderr, "gettimeofday failed at %s:%d\n", __FILE__, __LINE__);
+  if (clock_gettime(CLOCK_REALTIME, &stop) != 0) {
+    fprintf(stderr, "clock_gettime failed at %s:%d\n", __FILE__, __LINE__);
     return -5;
   }
 
   double time = ((double)(stop.tv_sec - start.tv_sec) +
-                 (double)(stop.tv_usec - start.tv_usec) * 1.e-6) / 20.0;
+                 (double)(stop.tv_nsec - start.tv_nsec) * 1.e-6) / 20.0;
   const size_t flops = ((n * n * n) / 3) + ((2 * n) / 3);
   fprintf(stdout, "%.3es %.3gGFlops/s Error: %.3e\n%sED!\n", time,
           ((double)flops * 1.e-9) / time, diff, (passed) ? "PASS" : "FAIL");

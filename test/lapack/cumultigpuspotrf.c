@@ -6,7 +6,7 @@
 #include <string.h>
 #include <float.h>
 #include <math.h>
-#include <sys/time.h>
+#include <time.h>
 #include "ref/spotrf_ref.c"
 #include "util/slatmc.c"
 
@@ -56,8 +56,8 @@ int main(int argc, char * argv[]) {
   CUmultiGPU mGPU;
   CU_ERROR_CHECK(cuMultiGPUCreate(&mGPU, devices, deviceCount));
 
-  CUmultiGPUBLAShandle handle;
-  CU_ERROR_CHECK(cuMultiGPUBLASCreate(&handle, mGPU));
+  CUmultiGPULAPACKhandle handle;
+  CU_ERROR_CHECK(cuMultiGPULAPACKCreate(&handle, mGPU));
 
   lda = (n + 3u) & ~3u;
   if ((A = malloc(lda *  n * sizeof(float))) == NULL) {
@@ -99,21 +99,21 @@ int main(int argc, char * argv[]) {
       A[j * lda + i] = (i == j) ? 1.0f : 0.0f;
   }
 
-  struct timeval start, stop;
-  if (gettimeofday(&start, NULL) != 0) {
-    fprintf(stderr, "gettimeofday failed at %s:%d\n", __FILE__, __LINE__);
+  struct timespec start, stop;
+  if (clock_gettime(CLOCK_REALTIME, &start) != 0) {
+    fprintf(stderr, "clock_gettime failed at %s:%d\n", __FILE__, __LINE__);
     return -4;
   }
   for (size_t i = 0; i < 20; i++)
     CU_ERROR_CHECK(cuMultiGPUSpotrf(handle, uplo, n, A, lda, &info));
   CU_ERROR_CHECK(cuMultiGPUSynchronize(mGPU));
-  if (gettimeofday(&stop, NULL) != 0) {
-    fprintf(stderr, "gettimeofday failed at %s:%d\n", __FILE__, __LINE__);
+  if (clock_gettime(CLOCK_REALTIME, &stop) != 0) {
+    fprintf(stderr, "clock_gettime failed at %s:%d\n", __FILE__, __LINE__);
     return -5;
   }
 
   double time = ((double)(stop.tv_sec - start.tv_sec) +
-                 (double)(stop.tv_usec - start.tv_usec) * 1.e-6) / 20.0;
+                 (double)(stop.tv_nsec - start.tv_nsec) * 1.e-6) / 20.0;
   const size_t flops = ((n * n * n) / 3) + ((n * n) / 2) + (n / 6);
   fprintf(stdout, "%.3es %.3gGFlops/s Error: %.3e\n%sED!\n", time,
           ((double)flops * 1.e-9) / time, diff, (passed) ? "PASS" : "FAIL");
@@ -121,7 +121,7 @@ int main(int argc, char * argv[]) {
   free(A);
   free(refA);
 
-  CU_ERROR_CHECK(cuMultiGPUBLASDestroy(handle));
+  CU_ERROR_CHECK(cuMultiGPULAPACKDestroy(handle));
   CU_ERROR_CHECK(cuMultiGPUDestroy(mGPU));
 
   return (int)!passed;

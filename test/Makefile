@@ -2,10 +2,10 @@ include ../make.inc
 
 CUDA_HOME = /opt/cuda
 
-CPPFLAGS = -I../include -I$(CUDA_HOME)/include
+CPPFLAGS = -D_POSIX_C_SOURCE=199309L -I../include -I$(CUDA_HOME)/include
 
 CC = gcc
-CFLAGS = -ggdb -O0 -pipe -std=c99 -pedantic -Wall -Wextra -Wconversion
+CFLAGS = -O0 -pipe -std=c99 -pedantic -Wall -Wextra -Wconversion
 # CC = icc
 # CFLAGS = -O0 -pipe -std=c99 -Wall -openmp
 
