@@ -28,7 +28,7 @@ VPATH = ../include
 
 .PHONY: all clean
 
-all: $(TARGET) slogdet.fatbin
+all: $(TARGET)
 
 clean:
 	$(RM) $(OBJECTS) slogdet.fatbin slogdet.fatbin.c
