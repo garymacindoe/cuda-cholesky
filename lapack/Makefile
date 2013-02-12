@@ -31,7 +31,7 @@ VPATH = ../include
 all: $(TARGET) slogdet.fatbin
 
 clean:
-	$(RM) $(OBJECTS)
+	$(RM) $(OBJECTS) slogdet.fatbin slogdet.fatbin.c
 
 $(TARGET): $(OBJECTS)
 

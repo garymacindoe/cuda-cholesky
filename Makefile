@@ -12,7 +12,7 @@ clean:
 	cd test && $(MAKE) clean
 
 distclean: clean
-	$(RM) libcumultigpu.a libcumultigpu_seq.a libblas.a liblapack.a
+	$(RM) libcumultigpu.a libcumultigpu_seq.a libblas.a liblapack.a include/config.h
 
 libblas.a:
 	cd blas && $(MAKE) all
