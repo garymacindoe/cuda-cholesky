@@ -55,17 +55,11 @@ void sgemm(CBlasTranspose, CBlasTranspose,
            float, const float * restrict, size_t, const float * restrict, size_t,
            float, float * restrict, size_t);
 
-// In-place single precision triangular matrix multiply
+// Single precision triangular matrix multiply
 void strmm(CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
            size_t, size_t,
            float, const float * restrict, size_t,
            float * restrict, size_t);
-
-// Out of place single precision triangular matrix multiply
-void strmm2(CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
-            size_t, size_t,
-            float, const float * restrict, size_t, const float * restrict, size_t,
-            float * restrict, size_t);
 
 // Single precision triangular solve
 void strsm(CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
