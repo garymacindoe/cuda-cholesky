@@ -43,9 +43,6 @@ int main(int argc, char * argv[]) {
   CUcontext context;
   CU_ERROR_CHECK(cuCtxCreate(&context, CU_CTX_SCHED_BLOCKING_SYNC, device));
 
-  CULAPACKhandle handle;
-  CU_ERROR_CHECK(cuLAPACKCreate(&handle));
-
   if ((x = malloc(incx * n * sizeof(float))) == NULL) {
     fputs("Unable to allocate x\n", stderr);
     return -1;
@@ -58,7 +55,7 @@ int main(int argc, char * argv[]) {
   CU_ERROR_CHECK(cuMemcpyHtoD(dx, x, incx * n * sizeof(float)));
 
   float res;
-  CU_ERROR_CHECK(cuSlogdet(handle, dx, incx, n, &res, NULL));
+  CU_ERROR_CHECK(cuSlogdet(dx, incx, n, &res, NULL));
 
   float sum = 0.0f;
   float c = 0.0f;
@@ -71,7 +68,7 @@ int main(int argc, char * argv[]) {
   sum *= 2.0f;
 
   float diff = fabsf(sum - res);
-  bool passed = (diff < 2.0f * (float)n * FLT_EPSILON);
+  bool passed = (diff <= 2.0f * (float)n * FLT_EPSILON);
 
   CUevent start, stop;
   CU_ERROR_CHECK(cuEventCreate(&start, CU_EVENT_BLOCKING_SYNC));
@@ -79,7 +76,7 @@ int main(int argc, char * argv[]) {
 
   CU_ERROR_CHECK(cuEventRecord(start, NULL));
   for (size_t i = 0; i < 20; i++)
-    CU_ERROR_CHECK(cuSlogdet(handle, dx, incx, n, &res, NULL));
+    CU_ERROR_CHECK(cuSlogdet(dx, incx, n, &res, NULL));
   CU_ERROR_CHECK(cuEventRecord(stop, NULL));
   CU_ERROR_CHECK(cuEventSynchronize(stop));
 
@@ -97,8 +94,6 @@ int main(int argc, char * argv[]) {
 
   free(x);
   CU_ERROR_CHECK(cuMemFree(dx));
-
-  CU_ERROR_CHECK(cuLAPACKDestroy(handle));
 
   CU_ERROR_CHECK(cuCtxDestroy(context));
 

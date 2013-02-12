@@ -6,6 +6,7 @@
 #include <math.h>
 #include <sys/time.h>
 #include "ref/strmm_ref.c"
+#include "util/slatmc.c"
 
 int main(int argc, char * argv[]) {
   CBlasSide side;
@@ -94,9 +95,9 @@ int main(int argc, char * argv[]) {
       return -1;
     }
 
-    for (size_t j = 0; j < m; j++) {
-      for (size_t i = 0; i < m; i++)
-        A[j * lda + i] = (float)rand() / (float)RAND_MAX;
+    if (slatmc(m, 2.0f, A, lda) != 0) {
+      fputs("Unable to initialise A\n", stderr);
+      return -1;
     }
   }
   else {
@@ -106,9 +107,9 @@ int main(int argc, char * argv[]) {
       return -1;
     }
 
-    for (size_t j = 0; j < n; j++) {
-      for (size_t i = 0; i < n; i++)
-        A[j * lda + i] = (float)rand() / (float)RAND_MAX;
+    if (slatmc(n, 2.0f, A, lda) != 0) {
+      fputs("Unable to initialise A\n", stderr);
+      return -1;
     }
   }
 

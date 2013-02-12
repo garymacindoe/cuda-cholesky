@@ -53,11 +53,11 @@ __device__ void sscal(int n, float alpha, const float * __restrict__ x, float * 
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__device__ void strmm2LUN(int m, int n,
+__global__ void strmm2LUN(const float * __restrict__ A, const float * __restrict__ B,
+                          float * __restrict__ X,
                           float alpha,
-                          const float * __restrict__ A, int lda,
-                          const float * __restrict__ B, int ldb,
-                          float * __restrict__ X, int ldx) {
+                          int lda, int ldb, int ldx,
+                          int m, int n) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of X
   const int bj = blockIdx.y * nb;       // Starting column of block of X
@@ -163,11 +163,11 @@ __device__ void strmm2LUN(int m, int n,
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__device__ void strmm2LUT(int m, int n,
+__global__ void strmm2LUT(const float * __restrict__ A, const float * __restrict__ B,
+                          float * __restrict__ X,
                           float alpha,
-                          const float * __restrict__ A, int lda,
-                          const float * __restrict__ B, int ldb,
-                          float * __restrict__ X, int ldx) {
+                          int lda, int ldb, int ldx,
+                          int m, int n) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of X
   const int bj = blockIdx.y * nb;       // Starting column of block of X
@@ -273,11 +273,11 @@ __device__ void strmm2LUT(int m, int n,
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__device__ void strmm2LLN(int m, int n,
+__global__ void strmm2LLN(const float * __restrict__ A, const float * __restrict__ B,
+                          float * __restrict__ X,
                           float alpha,
-                          const float * __restrict__ A, int lda,
-                          const float * __restrict__ B, int ldb,
-                          float * __restrict__ X, int ldx) {
+                          int lda, int ldb, int ldx,
+                          int m, int n) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of X
   const int bj = blockIdx.y * nb;       // Starting column of block of X
@@ -376,11 +376,11 @@ __device__ void strmm2LLN(int m, int n,
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__device__ void strmm2LLT(int m, int n,
+__global__ void strmm2LLT(const float * __restrict__ A, const float * __restrict__ B,
+                          float * __restrict__ X,
                           float alpha,
-                          const float * __restrict__ A, int lda,
-                          const float * __restrict__ B, int ldb,
-                          float * __restrict__ X, int ldx) {
+                          int lda, int ldb, int ldx,
+                          int m, int n) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of X
   const int bj = blockIdx.y * nb;       // Starting column of block of X
@@ -511,11 +511,11 @@ __device__ void strmm2LLT(int m, int n,
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__device__ void strmm2RUN(int m, int n,
+__global__ void strmm2RUN(const float * __restrict__ A, const float * __restrict__ B,
+                          float * __restrict__ X,
                           float alpha,
-                          const float * __restrict__ A, int lda,
-                          const float * __restrict__ B, int ldb,
-                          float * __restrict__ X, int ldx) {
+                          int lda, int ldb, int ldx,
+                          int m, int n) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of X
   const int bj = blockIdx.y * nb;       // Starting column of block of X
@@ -601,11 +601,11 @@ __device__ void strmm2RUN(int m, int n,
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__device__ void strmm2RUT(int m, int n,
+__global__ void strmm2RUT(const float * __restrict__ A, const float * __restrict__ B,
+                          float * __restrict__ X,
                           float alpha,
-                          const float * __restrict__ A, int lda,
-                          const float * __restrict__ B, int ldb,
-                          float * __restrict__ X, int ldx) {
+                          int lda, int ldb, int ldx,
+                          int m, int n) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of X
   const int bj = blockIdx.y * nb;       // Starting column of block of X
@@ -707,11 +707,11 @@ __device__ void strmm2RUT(int m, int n,
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__device__ void strmm2RLN(int m, int n,
+__global__ void strmm2RLN(const float * __restrict__ A, const float * __restrict__ B,
+                          float * __restrict__ X,
                           float alpha,
-                          const float * __restrict__ A, int lda,
-                          const float * __restrict__ B, int ldb,
-                          float * __restrict__ X, int ldx) {
+                          int lda, int ldb, int ldx,
+                          int m, int n) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of X
   const int bj = blockIdx.y * nb;       // Starting column of block of X
@@ -812,11 +812,11 @@ __device__ void strmm2RLN(int m, int n,
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__device__ void strmm2RLT(int m, int n,
+__global__ void strmm2RLT(const float * __restrict__ A, const float * __restrict__ B,
+                          float * __restrict__ X,
                           float alpha,
-                          const float * __restrict__ A, int lda,
-                          const float * __restrict__ B, int ldb,
-                          float * __restrict__ X, int ldx) {
+                          int lda, int ldb, int ldx,
+                          int m, int n) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of X
   const int bj = blockIdx.y * nb;       // Starting column of block of X
@@ -899,110 +899,20 @@ __device__ void strmm2RLT(int m, int n,
     sscal(n - bj, alpha, x, X, ldx);
 }
 
-template <CBlasDiag diag,
-          unsigned int mb, unsigned int nb, unsigned int kb,
-          unsigned int bx, unsigned int by>
-__global__ void strmmLUN(const float * __restrict__ A,
-                         const float * __restrict__ B, float * __restrict__ X,
-                         float alpha,
-                         int lda, int ldb, int ldx,
-                         int m, int n) {
-  strmm2LUN<diag, mb, nb, kb, bx, by>(m, n, alpha, A, lda, B, ldb, X, ldx);
-}
+template __global__ void strmm2LUN<CBlasUnit,    64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
+template __global__ void strmm2LUN<CBlasNonUnit, 64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
+template __global__ void strmm2LUT<CBlasUnit,    32, 32,  8,  8,  8>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
+template __global__ void strmm2LUT<CBlasNonUnit, 32, 32,  8,  8,  8>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
+template __global__ void strmm2LLN<CBlasUnit,    64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
+template __global__ void strmm2LLN<CBlasNonUnit, 64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
+template __global__ void strmm2LLT<CBlasUnit,    32, 32,  8,  8,  8>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
+template __global__ void strmm2LLT<CBlasNonUnit, 32, 32,  8,  8,  8>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
 
-template <CBlasDiag diag,
-          unsigned int mb, unsigned int nb, unsigned int kb,
-          unsigned int bx, unsigned int by>
-__global__ void strmmLUT(const float * __restrict__ A,
-                         const float * __restrict__ B, float * __restrict__ X,
-                         float alpha,
-                         int lda, int ldb, int ldx,
-                         int m, int n) {
-  strmm2LUT<diag, mb, nb, kb, bx, by>(m, n, alpha, A, lda, B, ldb, X, ldx);
-}
-
-template <CBlasDiag diag,
-          unsigned int mb, unsigned int nb, unsigned int kb,
-          unsigned int bx, unsigned int by>
-__global__ void strmmLLN(const float * __restrict__ A,
-                         const float * __restrict__ B, float * __restrict__ X,
-                         float alpha,
-                         int lda, int ldb, int ldx,
-                         int m, int n) {
-  strmm2LLN<diag, mb, nb, kb, bx, by>(m, n, alpha, A, lda, B, ldb, X, ldx);
-}
-
-template <CBlasDiag diag,
-          unsigned int mb, unsigned int nb, unsigned int kb,
-          unsigned int bx, unsigned int by>
-__global__ void strmmLLT(const float * __restrict__ A,
-                         const float * __restrict__ B, float * __restrict__ X,
-                         float alpha,
-                         int lda, int ldb, int ldx,
-                         int m, int n) {
-  strmm2LLT<diag, mb, nb, kb, bx, by>(m, n, alpha, A, lda, B, ldb, X, ldx);
-}
-
-template <CBlasDiag diag,
-          unsigned int mb, unsigned int nb, unsigned int kb,
-          unsigned int bx, unsigned int by>
-__global__ void strmmRUN(const float * __restrict__ A,
-                         const float * __restrict__ B, float * __restrict__ X,
-                         float alpha,
-                         int lda, int ldb, int ldx,
-                         int m, int n) {
-  strmm2RUN<diag, mb, nb, kb, bx, by>(m, n, alpha, A, lda, B, ldb, X, ldx);
-}
-
-template <CBlasDiag diag,
-          unsigned int mb, unsigned int nb, unsigned int kb,
-          unsigned int bx, unsigned int by>
-__global__ void strmmRUT(const float * __restrict__ A,
-                         const float * __restrict__ B, float * __restrict__ X,
-                         float alpha,
-                         int lda, int ldb, int ldx,
-                         int m, int n) {
-  strmm2RUT<diag, mb, nb, kb, bx, by>(m, n, alpha, A, lda, B, ldb, X, ldx);
-}
-
-template <CBlasDiag diag,
-          unsigned int mb, unsigned int nb, unsigned int kb,
-          unsigned int bx, unsigned int by>
-__global__ void strmmRLN(const float * __restrict__ A,
-                         const float * __restrict__ B, float * __restrict__ X,
-                         float alpha,
-                         int lda, int ldb, int ldx,
-                         int m, int n) {
-  strmm2RLN<diag, mb, nb, kb, bx, by>(m, n, alpha, A, lda, B, ldb, X, ldx);
-}
-
-template <CBlasDiag diag,
-          unsigned int mb, unsigned int nb, unsigned int kb,
-          unsigned int bx, unsigned int by>
-__global__ void strmmRLT(const float * __restrict__ A,
-                         const float * __restrict__ B, float * __restrict__ X,
-                         float alpha,
-                         int lda, int ldb, int ldx,
-                         int m, int n) {
-  strmm2RLT<diag, mb, nb, kb, bx, by>(m, n, alpha, A, lda, B, ldb, X, ldx);
-}
-
-#ifndef __DEVICE_ONLY
-template __global__ void strmmLUN<CBlasUnit,    64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
-template __global__ void strmmLUN<CBlasNonUnit, 64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
-template __global__ void strmmLUT<CBlasUnit,    32, 32,  8,  8,  8>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
-template __global__ void strmmLUT<CBlasNonUnit, 32, 32,  8,  8,  8>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
-template __global__ void strmmLLN<CBlasUnit,    64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
-template __global__ void strmmLLN<CBlasNonUnit, 64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
-template __global__ void strmmLLT<CBlasUnit,    32, 32,  8,  8,  8>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
-template __global__ void strmmLLT<CBlasNonUnit, 32, 32,  8,  8,  8>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
-
-template __global__ void strmmRUN<CBlasUnit,    64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
-template __global__ void strmmRUN<CBlasNonUnit, 64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
-template __global__ void strmmRUT<CBlasUnit,    64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
-template __global__ void strmmRUT<CBlasNonUnit, 64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
-template __global__ void strmmRLN<CBlasUnit,    64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
-template __global__ void strmmRLN<CBlasNonUnit, 64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
-template __global__ void strmmRLT<CBlasUnit,    64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
-template __global__ void strmmRLT<CBlasNonUnit, 64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
-#endif
+template __global__ void strmm2RUN<CBlasUnit,    64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
+template __global__ void strmm2RUN<CBlasNonUnit, 64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
+template __global__ void strmm2RUT<CBlasUnit,    64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
+template __global__ void strmm2RUT<CBlasNonUnit, 64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
+template __global__ void strmm2RLN<CBlasUnit,    64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
+template __global__ void strmm2RLN<CBlasNonUnit, 64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
+template __global__ void strmm2RLT<CBlasUnit,    64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);
+template __global__ void strmm2RLT<CBlasNonUnit, 64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, int, int, int, int, int);

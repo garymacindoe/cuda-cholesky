@@ -1,11 +1,20 @@
 #include "lapack.h"
-#include "handle.h"
 #include "error.h"
 #include <stdio.h>
 #include <math.h>
 #include "slogdet.fatbin.c"
 
 static inline unsigned int max(unsigned int a, unsigned int b) { return (a > b) ? a : b; }
+
+static inline unsigned int nextPow2(unsigned int n) {
+  n--;
+  n |= n >> 1;
+  n |= n >> 2;
+  n |= n >> 4;
+  n |= n >> 8;
+  n |= n >> 16;
+  return ++n;
+}
 
 float slogdet(const float * x, size_t incx, size_t n) {
   if (n == 0)
@@ -24,24 +33,15 @@ float slogdet(const float * x, size_t incx, size_t n) {
   return 2.0f * total;
 }
 
-static inline unsigned int nextPow2(unsigned int n) {
-  n--;
-  n |= n >> 1;
-  n |= n >> 2;
-  n |= n >> 4;
-  n |= n >> 8;
-  n |= n >> 16;
-  return ++n;
-}
-
-CUresult cuSlogdet(CULAPACKhandle handle, CUdeviceptr x, size_t incx, size_t n, float * result, CUstream stream) {
+CUresult cuSlogdet(CUdeviceptr x, size_t incx, size_t n, float * result, CUstream stream) {
   if (n == 0) {
     *result = 0.0f;
     return CUDA_SUCCESS;
   }
 
-  if (handle->slogdet == NULL)
-    CU_ERROR_CHECK(cuModuleLoadData(&handle->slogdet, imageBytes));
+  static CUmodule module = NULL;
+  if (module == NULL)
+    CU_ERROR_CHECK(cuModuleLoadData(&module, imageBytes));
 
   unsigned int threads, blocks;
   if (n == 1) {
@@ -60,7 +60,7 @@ CUresult cuSlogdet(CULAPACKhandle handle, CUdeviceptr x, size_t incx, size_t n, 
   snprintf(name, 31, "_Z6reduceILj%uELb%dEEvPKfPfii", threads, (n & (n - 1)) == 0);
 
   CUfunction function;
-  CU_ERROR_CHECK(cuModuleGetFunction(&function, handle->slogdet, name));
+  CU_ERROR_CHECK(cuModuleGetFunction(&function, module, name));
 
   void * params[] = { &x, &temp, &incx, &n };
 

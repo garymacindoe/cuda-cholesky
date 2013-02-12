@@ -5,8 +5,8 @@
 #include <stdbool.h>
 #include <float.h>
 #include <math.h>
-#include "ref/dtrsm_ref.c"
-#include "util/dlatmc.c"
+#include "ref/strmm_ref.c"
+#include "util/slatmc.c"
 
 int main(int argc, char * argv[]) {
   CBlasSide side;
@@ -92,9 +92,9 @@ int main(int argc, char * argv[]) {
 
   srand(0);
 
-  double alpha, * A, * B, * refB;
+  float alpha, * A, * B, * refB;
   CUdeviceptr dA, dB;
-  size_t lda, ldb, dlda, dldb, * F;
+  size_t lda, ldb, dlda, dldb;
 
   CU_ERROR_CHECK(cuInit(0));
 
@@ -107,96 +107,97 @@ int main(int argc, char * argv[]) {
   CUBLAShandle handle;
   CU_ERROR_CHECK(cuBLASCreate(&handle));
 
-  alpha = (double)rand() / (double)RAND_MAX;
+  alpha = (float)rand() / (float)RAND_MAX;
 
   if (side == CBlasLeft) {
-    lda = (m + 1u) & ~1u;
-    if ((A = malloc(lda * m * sizeof(double))) == NULL) {
+    lda = (m + 3u) & ~3u;
+    if ((A = malloc(lda * m * sizeof(float))) == NULL) {
       fputs("Unable to allocate A\n", stderr);
       return -1;
     }
-    CU_ERROR_CHECK(cuMemAllocPitch(&dA, &dlda, m * sizeof(double), m, sizeof(double)));
-    dlda /= sizeof(double);
+    CU_ERROR_CHECK(cuMemAllocPitch(&dA, &dlda, m * sizeof(float), m, sizeof(float)));
+    dlda /= sizeof(float);
 
-    if (dlatmc(m, 2.0, A, lda) != 0) {
+    if (slatmc(m, 2.0f, A, lda) != 0) {
       fputs("Unable to initialise A\n", stderr);
       return -1;
     }
 
-    CUDA_MEMCPY2D copy = { 0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(double),
-                           0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(double),
-                           m * sizeof(double), m };
+    CUDA_MEMCPY2D copy = { 0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(float),
+    0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(float),
+    m * sizeof(float), m };
     CU_ERROR_CHECK(cuMemcpy2D(&copy));
   }
   else {
-    lda = (n + 1u) & ~1u;
-    if ((A = malloc(lda * n * sizeof(double))) == NULL) {
+    lda = (n + 3u) & ~3u;
+    if ((A = malloc(lda * n * sizeof(float))) == NULL) {
       fputs("Unable to allocate A\n", stderr);
       return -1;
     }
-    CU_ERROR_CHECK(cuMemAllocPitch(&dA, &dlda, n * sizeof(double), n, sizeof(double)));
-    dlda /= sizeof(double);
+    CU_ERROR_CHECK(cuMemAllocPitch(&dA, &dlda, n * sizeof(float), n, sizeof(float)));
+    dlda /= sizeof(float);
 
-    if (dlatmc(n, 2.0, A, lda) != 0) {
+    if (slatmc(n, 2.0f, A, lda) != 0) {
       fputs("Unable to initialise A\n", stderr);
       return -1;
     }
 
-    CUDA_MEMCPY2D copy = { 0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(double),
-                           0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(double),
-                           n * sizeof(double), n };
+    CUDA_MEMCPY2D copy = { 0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(float),
+    0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(float),
+    n * sizeof(float), n };
     CU_ERROR_CHECK(cuMemcpy2D(&copy));
   }
 
-  ldb = (m + 1u) & ~1u;
-  if ((B = malloc(ldb * n * sizeof(double))) == NULL) {
+  ldb = (m + 3u) & ~3u;
+  if ((B = malloc(ldb * n * sizeof(float))) == NULL) {
     fputs("Unable to allocate B\n", stderr);
     return -3;
   }
-  if ((refB = malloc(ldb * n * sizeof(double))) == NULL) {
+  if ((refB = malloc(ldb * n * sizeof(float))) == NULL) {
     fputs("Unable to allocate refB\n", stderr);
     return -4;
   }
-  if ((F = calloc(ldb * n, sizeof(size_t))) == NULL) {
-    fputs("Unable to allocate F\n", stderr);
-    return -5;
-  }
-  CU_ERROR_CHECK(cuMemAllocPitch(&dB, &dldb, m * sizeof(double), n, sizeof(double)));
-  dldb /= sizeof(double);
+  CU_ERROR_CHECK(cuMemAllocPitch(&dB, &dldb, m * sizeof(float), n, sizeof(float)));
+  dldb /= sizeof(float);
 
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < m; i++)
-      refB[j * ldb + i] = B[j * ldb + i] = (double)rand() / (double)RAND_MAX;
+      refB[j * ldb + i] = B[j * ldb + i] = (float)rand() / (float)RAND_MAX;
   }
 
-  CUDA_MEMCPY2D copy = { 0, 0, CU_MEMORYTYPE_HOST, B, 0, NULL, ldb * sizeof(double),
-                         0, 0, CU_MEMORYTYPE_DEVICE, NULL, dB, NULL, dldb * sizeof(double),
-                         m * sizeof(double), n };
+  CUDA_MEMCPY2D copy = { 0, 0, CU_MEMORYTYPE_HOST, B, 0, NULL, ldb * sizeof(float),
+  0, 0, CU_MEMORYTYPE_DEVICE, NULL, dB, NULL, dldb * sizeof(float),
+  m * sizeof(float), n };
   CU_ERROR_CHECK(cuMemcpy2D(&copy));
 
-  dtrsm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb, F);
-  CU_ERROR_CHECK(cuDtrsm(handle, side, uplo, trans, diag, m, n, alpha, dA, dlda, dB, dldb, NULL));
+  strmm_ref(side, uplo, trans, diag, m, n, alpha, A, lda, refB, ldb);
+  CU_ERROR_CHECK(cuStrmm(handle, side, uplo, trans, diag, m, n, alpha, dA, dlda, dB, dldb, NULL));
 
-  copy = (CUDA_MEMCPY2D){ 0, 0, CU_MEMORYTYPE_DEVICE, NULL, dB, NULL, dldb * sizeof(double),
-           0, 0, CU_MEMORYTYPE_HOST, B, 0, NULL, ldb * sizeof(double),
-           m * sizeof(double), n };
+  copy = (CUDA_MEMCPY2D){ 0, 0, CU_MEMORYTYPE_DEVICE, NULL, dB, NULL, dldb * sizeof(float),
+  0, 0, CU_MEMORYTYPE_HOST, B, 0, NULL, ldb * sizeof(float),
+  m * sizeof(float), n };
   CU_ERROR_CHECK(cuMemcpy2D(&copy));
 
   bool passed = true;
-  double diff = 0.0;
+  float diff = 0.0f;
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < m; i++) {
-      double d = fabs(B[j * ldb + i] - refB[j * ldb + i]);
+      float d = fabsf(B[j * ldb + i] - refB[j * ldb + i]);
       if (d > diff)
         diff = d;
 
-      if (passed) {
-        if (d > (double)F[j * ldb + i] * 2.0 * DBL_EPSILON)
-          passed = false;
-      }
+      size_t flops;
+      if (side == CBlasLeft)
+        flops = 2 * i + 1;
+      else
+        flops = 2 * j + 1;
+      if (diag == CBlasNonUnit)
+        flops++;
+
+      if (d > (float)flops * 2.0f * FLT_EPSILON)
+        passed = false;
     }
   }
-  free(F);
 
   CUevent start, stop;
   CU_ERROR_CHECK(cuEventCreate(&start, CU_EVENT_BLOCKING_SYNC));
@@ -204,7 +205,7 @@ int main(int argc, char * argv[]) {
 
   CU_ERROR_CHECK(cuEventRecord(start, NULL));
   for (size_t i = 0; i < 20; i++)
-    CU_ERROR_CHECK(cuDtrsm(handle, side, uplo, trans, diag, m, n, alpha, dA, dlda, dB, dldb, NULL));
+    CU_ERROR_CHECK(cuStrmm(handle, side, uplo, trans, diag, m, n, alpha, dA, dlda, dB, dldb, NULL));
   CU_ERROR_CHECK(cuEventRecord(stop, NULL));
   CU_ERROR_CHECK(cuEventSynchronize(stop));
 

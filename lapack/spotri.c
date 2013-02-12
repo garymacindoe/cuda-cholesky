@@ -22,7 +22,7 @@ void spotri(CBlasUplo uplo,
   slauum(uplo, n, A, lda, info);
 }
 
-CUresult cuSpotri(CULAPACKhandle handle,
+CUresult cuSpotri(CUBLAShandle handle,
                   CBlasUplo uplo,
                   size_t n,
                   CUdeviceptr A, size_t lda,
@@ -45,7 +45,7 @@ CUresult cuSpotri(CULAPACKhandle handle,
   return CUDA_SUCCESS;
 }
 
-CUresult cuMultiGPUSpotri(CUmultiGPULAPACKhandle handle,
+CUresult cuMultiGPUSpotri(CUmultiGPUBLAShandle handle,
                           CBlasUplo uplo,
                           size_t n,
                           float * restrict A, size_t lda,

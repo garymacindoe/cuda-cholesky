@@ -26,18 +26,14 @@ LAPACK_SRC = $(wildcard lapack/*.c)
 LAPACK_TARGETS = $(basename $(notdir $(LAPACK_SRC)))
 $(LAPACK_TARGETS): LOADLIBES = ../liblapack.a ../libblas.a ../libcumultigpu.a
 
-RNG_SRC = $(wildcard rng/*.c)
-RNG_TARGETS = $(basename $(notdir $(RNG_SRC)))
-$(RNG_TARGETS): LOADLIBES = ../libcumultigpu.a
-
-TARGETS = $(MULTIGPU_TARGETS) $(BLAS_TARGETS) $(LAPACK_TARGETS) $(RNG_TARGETS)
+TARGETS = $(MULTIGPU_TARGETS) $(BLAS_TARGETS) $(LAPACK_TARGETS)
 
 .PHONY: all clean
 
 all: $(TARGETS)
 
 clean:
-	$(RM) $(TARGETS) $(MULTIGPU_SRC:.c=.d) $(BLAS_SRC:.c=.d) $(LAPACK_SRC:.c=.d) $(RNG_SRC:.c=.d)
+	$(RM) $(TARGETS) $(MULTIGPU_SRC:.c=.d) $(BLAS_SRC:.c=.d) $(LAPACK_SRC:.c=.d)
 
 $(TARGETS):
 	$(CC) $(CPPFLAGS) $(CFLAGS) -o $(@) $(<) $(LDFLAGS) $(LOADLIBES) $(LDLIBS)
@@ -45,7 +41,6 @@ $(TARGETS):
 -include $(MULTIGPU_SRC:.c=.d)
 -include $(BLAS_SRC:.c=.d)
 -include $(LAPACK_SRC:.c=.d)
--include $(RNG_SRC:.c=.d)
 
 %.d: %.c
 	@set -e; $(RM) $@; \

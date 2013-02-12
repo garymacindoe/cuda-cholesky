@@ -56,8 +56,8 @@ int main(int argc, char * argv[]) {
   CUmultiGPU mGPU;
   CU_ERROR_CHECK(cuMultiGPUCreate(&mGPU, devices, deviceCount));
 
-  CUmultiGPULAPACKhandle handle;
-  CU_ERROR_CHECK(cuMultiGPULAPACKCreate(&handle, mGPU));
+  CUmultiGPUBLAShandle handle;
+  CU_ERROR_CHECK(cuMultiGPUBLASCreate(&handle, mGPU));
 
   lda = (n + 3u) & ~3u;
   if ((A = malloc(lda *  n * sizeof(float))) == NULL) {
@@ -121,7 +121,7 @@ int main(int argc, char * argv[]) {
   free(A);
   free(refA);
 
-  CU_ERROR_CHECK(cuMultiGPULAPACKDestroy(handle));
+  CU_ERROR_CHECK(cuMultiGPUBLASDestroy(handle));
   CU_ERROR_CHECK(cuMultiGPUDestroy(mGPU));
 
   return (int)!passed;

@@ -1,10 +1,8 @@
 #include "lapack.h"
-#include "handle.h"
 #include "error.h"
 #include <stdio.h>
 #include <math.h>
 #include "config.h"
-#include "spotrf.fatbin.c"
 
 static inline size_t min(size_t a, size_t b) { return (a < b) ? a : b; }
 static inline size_t max(size_t a, size_t b) { return (a > b) ? a : b; }
@@ -146,119 +144,11 @@ void spotrf(CBlasUplo uplo,
   }
 }
 
-static inline CUresult cuSpotf2(CULAPACKhandle handle, CBlasUplo uplo,
-                                size_t n,
-                                CUdeviceptr A, size_t lda,
-                                CUdeviceptr info, CUstream stream) {
-  const unsigned int bx = 64;
-  if (n > bx)
-    return CUDA_ERROR_INVALID_VALUE;
-
-  if (handle->spotrf == NULL)
-    CU_ERROR_CHECK(cuModuleLoadData(&handle->spotrf, imageBytes));
-
-  char name[39];
-  snprintf(name, 39, "_Z6spotf2IL9CBlasUplo%dELj%uEEvPfPiii", uplo, bx);
-
-  CUfunction function;
-  CU_ERROR_CHECK(cuModuleGetFunction(&function, handle->spotrf, name));
-
-  void * params[] = { &A, &info, &lda, &n };
-
-  CU_ERROR_CHECK(cuLaunchKernel(function, 1, 1, 1, bx, 1, 1, 0, stream, params, NULL));
-
-  return CUDA_SUCCESS;
-}
-
-static inline CUresult cuSpotfimm2(CULAPACKhandle handle, CBlasUplo uplo,
-                                   size_t j, size_t jb, size_t n,
-                                   CUdeviceptr A, size_t lda,
-                                   CUdeviceptr B, size_t ldb,
-                                   CUdeviceptr info, CUstream stream) {
-  if (handle->spotrf == NULL)
-    CU_ERROR_CHECK(cuModuleLoadData(&handle->spotrf, imageBytes));
-
-  /* For uplo == CBlasUpper m = jb, n = n - j - jb, k = j and an extra column
-   * of blocks is needed to compute the cholesky
-   * For uplo == CBlasLower m = n - j - jb, n = jb, k = j and an extra row of
-   * blocks is needed to compute the cholesky */
-  const unsigned int mb = (uplo == CBlasUpper) ? 32 : 64;
-  const unsigned int nb = (uplo == CBlasUpper) ? 32 : 16;
-  const unsigned int kb = (uplo == CBlasUpper) ?  8 : 16;
-  const unsigned int bx = (uplo == CBlasUpper) ?  8 : 16;
-  const unsigned int by = (uplo == CBlasUpper) ?  8 :  4;
-
-  char name[67];
-  snprintf(name, 67, "_Z9spotfimm2IL9CBlasUplo%dELj%uELj%uELj%uELj%uELj%uEEvPfS1_Piiiiii", uplo, mb, nb, kb, bx, by);
-
-  CUfunction function;
-  CU_ERROR_CHECK(cuModuleGetFunction(&function, handle->spotrf, name));
-
-  void * params[] = { &A, &B, &info, &lda, &ldb, &j, &jb, &n };
-
-  const unsigned int gx = (uplo == CBlasUpper) ? ((unsigned int)jb + mb - 1) / mb : (unsigned int)(n - j - jb + mb - 1) / mb + 1;
-  const unsigned int gy = (uplo == CBlasUpper) ? (unsigned int)(n - j - jb + nb - 1) / nb + 1 : ((unsigned int)jb + nb - 1) / nb;
-
-  CU_ERROR_CHECK(cuLaunchKernel(function, gx, gy, 1, bx, by, 1, 0, stream, params, NULL));
-
-  return CUDA_SUCCESS;
-}
-
-static CUresult hybridSpotrf(CBlasUplo uplo,
-                             CUdeviceptr A, size_t lda, float * X, size_t ldb,
-                             float * C, size_t ldc, CUdeviceptr D, size_t ldd,
-                             size_t j, size_t jb, size_t n, long * info, CUstream stream) {
-
-  // Work out whether it is worthwhile to do block column copy for the block size
-  const double column_dtoh = (double)(n * jb * sizeof(float)) * BANDWIDTH_DTOH + OVERHEAD_DTOH;
-  const double block_dtoh = (double)jb * ((double)(jb * sizeof(float)) * BANDWIDTH_DTOH + OVERHEAD_DTOH);
-  const bool bcc_dtoh = (lda == n && column_dtoh < block_dtoh);
-
-  const double column_htod = (double)(n * jb * sizeof(float)) * BANDWIDTH_HTOD + OVERHEAD_HTOD;
-  const double block_htod = (double)jb * ((double)(jb * sizeof(float)) * BANDWIDTH_HTOD + OVERHEAD_HTOD);
-  // Can only copy column back if the column was copied in the first place
-  const bool bcc_htod = bcc_dtoh && (column_htod < block_htod);
-
-  /* Start copying diagonal block onto host asynchronously */
-  float * B;
-  if (bcc_dtoh) {
-    // Copy the entire column in one go
-    CU_ERROR_CHECK(cuMemcpyDtoHAsync(X, A + j * lda * sizeof(float), n * jb * sizeof(float), stream));
-    B = &X[j];    // The diagonal block is half-way down
-  }
-  else {
-    // Copy each column of the diagonal block separately
-    CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(X, ldb, 0, 0, A, lda, j, j,
-                                      jb, jb, sizeof(float), stream));
-    B = X;      // The diagonal block is at the top of the column
-  }
-
-  /* Wait until the diagonal block has been copied */
-  CU_ERROR_CHECK(cuStreamSynchronize(stream));
-  /* Perform the diagonal block decomposition using the CPU */
-  spotrf(uplo, jb, B, ldb, info);
-
-  /* Copy the diagonal block back onto the device */
-  if (bcc_htod)
-    CU_ERROR_CHECK(cuMemcpyHtoDAsync(A + j * lda * sizeof(float), X, n * jb * sizeof(float), stream));
-  else
-    CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A, lda, j, j, B, ldb, 0, 0,
-                                      jb, jb, sizeof(float), stream));
-
-  /* If the matrix is not positive definite don't bother with the inverse */
-  if (*info != 0)
-    return CUDA_SUCCESS;
-
-  /* Overlap the asynchronous copy calculating the inverse out of place */
-  strtri2(uplo, CBlasNonUnit, jb, B, ldb, C, ldc, info);
-  /* Copy the inverse into the top/left of the column/row for out of place STRMM */
-  CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(D, ldd, 0, 0, C, ldc, 0, 0,
-                                     jb, jb, sizeof(float), stream));
-
-  return CUDA_SUCCESS;
-}
-
-CUresult cuSpotrf(CULAPACKhandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A, size_t lda, long * info) {
+CUresult cuSpotrf(CUBLAShandle handle,
+                  CBlasUplo uplo,
+                  size_t n,
+                  CUdeviceptr A, size_t lda,
+                  long * info) {
   *info = 0;
   if (lda < n)
     *info = -4;
@@ -270,126 +160,109 @@ CUresult cuSpotrf(CULAPACKhandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A
   if (n == 0)
     return CUDA_SUCCESS;
 
-  // Allocate the info parameter on the device
-//   CUdeviceptr dinfo;
-//   CU_ERROR_CHECK(cuMemAlloc(&dinfo, sizeof(long)));
-
-  // If n <= 64 call the unblocked algorithm
-//   if (n <= 64) {
-//     CU_ERROR_CHECK(cuSpotf2(handle, uplo, n, A, lda, dinfo, NULL));
-//     CU_ERROR_CHECK(cuMemcpyDtoH(info, dinfo, sizeof(long)));
-//     CU_ERROR_CHECK(cuMemFree(dinfo));
-//     return CUDA_SUCCESS;
-//   }
-
-//   // Find out what the current GPU can do
-//   CUdevice device;
-//   CU_ERROR_CHECK(cuCtxGetDevice(&device));
-//
-//   int concurrentCopies, concurrentKernels;
-//   // Find out if the current GPU can overlap memory copies with kernel execution
-//   CU_ERROR_CHECK(cuDeviceGetAttribute(&concurrentCopies, CU_DEVICE_ATTRIBUTE_GPU_OVERLAP, device));
-//   // Find out if the current GPU can execute multiple kernels simultaneously
-//   CU_ERROR_CHECK(cuDeviceGetAttribute(&concurrentKernels, CU_DEVICE_ATTRIBUTE_CONCURRENT_KERNELS, device));
-
-  // static block size
+  // Block size
   const size_t nb = (uplo == CBlasUpper) ? 256 : 128;
-  // dynamic block sizing
-//   size_t nb = n / 4;
 
-  float * B, * C;
-  size_t ldb, ldc;
-  CUdeviceptr D;
-  size_t ldd;
+  float * B;
+  size_t ldb;
   CUstream stream0, stream1;
 
-  // Allocate memory for the block column
-  CU_ERROR_CHECK(cuMemAllocHost((void **)&B, (ldb = (n + 3u) & ~3u) * nb * sizeof(float)));
-  // Allocate memory on host for out of place inverse
-  CU_ERROR_CHECK(cuMemAllocHost((void **)&C, (ldc = (nb + 3u) & ~3u) * nb * sizeof(float)));
+  // Allocate memory for diagonal block on host
+  CU_ERROR_CHECK(cuMemAllocHost((void **)&B, (ldb = (nb + 3u) & ~3u) * nb * sizeof(float)));
 
   // Create two streams for asynchronous copy and compute
-  CU_ERROR_CHECK(cuStreamCreate(&stream0, 0));
-  CU_ERROR_CHECK(cuStreamCreate(&stream1, 0));
+  CU_ERROR_CHECK(cuStreamCreate(&stream0, CU_STREAM_NON_BLOCKING));
+  CU_ERROR_CHECK(cuStreamCreate(&stream1, CU_STREAM_NON_BLOCKING));
 
   if (uplo == CBlasUpper) {
-    // Allocate a temporary row matrix for out of place STRTRI, SGEMM and STRMM */
-    CU_ERROR_CHECK(cuMemAllocPitch(&D, &ldd, nb * sizeof(float), n, sizeof(float)));
-    ldd /= sizeof(float);
-
-    // Static block sizing
     for (size_t j = 0; j < n; j += nb) {
-    // Dynamic block sizing - nb = nb/2 up to n / 2 then nb = n*2 up to n
-//     for (size_t j = 0; j < n; j += nb, nb = (j < n / 2) ? max(1, nb / 2) : min(n, nb * 2)) {
       const size_t jb = min(nb, n - j);
 
       /* Rank-K update of diagonal block using column matrix above */
-      CU_ERROR_CHECK(cuSsyrk(handle->blas_handle, CBlasUpper, CBlasTrans, jb, j,
+      CU_ERROR_CHECK(cuSsyrk(handle, CBlasUpper, CBlasTrans, jb, j,
                              -one, A + j * lda * sizeof(float), lda,
                              one, A + (j * lda + j) * sizeof(float), lda, stream0));
-      /* Out of place SGEMM (on a different stream) which copies the row to the
-       * right of the diagonal into D(0,nb) */
-      CU_ERROR_CHECK(cuSgemm2(handle->blas_handle, CBlasTrans, CBlasNoTrans,
-                              jb, n - j - jb, j,
-                              -one, A + j * lda * sizeof(float), lda,
-                              A + (j + jb) * lda * sizeof(float), lda,
-                              one, A + ((j + jb) * lda + j) * sizeof(float), lda,
-                              D + nb * ldd * sizeof(float), ldd, stream1));
-      CU_ERROR_CHECK(hybridSpotrf(uplo, A, lda, B, ldb, C, ldc, D, ldd, j, jb, n, info, stream0));
+
+      /* Matrix multiply using column above and matrix to the right to update
+       * the row to the right of the diagonal block */
+      CU_ERROR_CHECK(cuSgemm(handle, CBlasTrans, CBlasNoTrans,
+                             jb, n - j - jb, j,
+                             -one, A + j * lda * sizeof(float), lda,
+                             A + (j + jb) * lda * sizeof(float), lda,
+                             one, A + ((j + jb) * lda + j) * sizeof(float), lda, stream1));
+
+      /* Start copying diagonal block onto host asynchronously */
+      CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(B, ldb, 0, 0, A, lda, j, j,
+                                         jb, jb, sizeof(float), stream0));
+
+      /* Wait until the diagonal block has been copied */
+      CU_ERROR_CHECK(cuStreamSynchronize(stream0));
+
+      /* Perform the diagonal block decomposition using the CPU */
+      spotrf(uplo, jb, B, ldb, info);
+
+      /* Copy the diagonal block back onto the device */
+      CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A, lda, j, j, B, ldb, 0, 0,
+                                         jb, jb, sizeof(float), stream0));
+
       /* Check for positive definite matrix */
       if (*info != 0) {
         *info += (long)j;
         break;
       }
-      /* Perform the triangular solve */
-      CU_ERROR_CHECK(cuStrmm2(handle->blas_handle, CBlasLeft, CBlasUpper, CBlasTrans, CBlasNonUnit,
-                              jb, n - j - jb, one, D, ldd, D + nb * ldd * sizeof(float), ldd,
-                              A + ((j + jb) * lda + j) * sizeof(float), lda, stream0));
+
+      /* Triangular solve to update the row to the right using the diagonal
+       * block */
+      CU_ERROR_CHECK(cuStrsm(handle, CBlasLeft, CBlasUpper, CBlasTrans, CBlasNonUnit,
+                             jb, n - j - jb, one, A + (j * lda + j) * sizeof(float), lda,
+                             A + ((j + jb) * lda + j) * sizeof(float), lda, stream0));
     }
   }
   else {
-    // Allocate a temporary column matrix for out of place STRTRI, SGEMM and STRMM */
-    CU_ERROR_CHECK(cuMemAllocPitch(&D, &ldd, n * sizeof(float), nb, sizeof(float)));
-    ldd /= sizeof(float);
-
-    // Static block sizing
     for (size_t j = 0; j < n; j += nb) {
-    // Dynamic block sizing - nb = nb/2 up to n / 2 then nb = n*2 up to n
-//     for (size_t j = 0; j < n; j += nb, nb = (j < n / 2) ? max(1, nb / 2) : min(n, nb * 2)) {
       const size_t jb = min(nb, n - j);
 
       /* Rank-K update of diagonal block using row matrix to the left */
-      CU_ERROR_CHECK(cuSsyrk(handle->blas_handle, CBlasLower, CBlasNoTrans, jb, j,
+      CU_ERROR_CHECK(cuSsyrk(handle, CBlasLower, CBlasNoTrans, jb, j,
                              -one, A + j * sizeof(float), lda,
                              one, A + (j * lda + j) * sizeof(float), lda, stream0));
-      /* Out of place SGEMM (on a different stream)
-       * which copies the column under of the diagonal into D(nb,0) */
-      CU_ERROR_CHECK(cuSgemm2(handle->blas_handle, CBlasNoTrans, CBlasTrans, n - j - jb, jb, j,
-                              -one, A + (j + jb) * sizeof(float), lda,
-                              A + j * sizeof(float), lda,
-                              one, A + (j * lda + j + jb) * sizeof(float), lda,
-                              D + nb * sizeof(float), ldd, stream1));
-      CU_ERROR_CHECK(hybridSpotrf(uplo, A, lda, B, ldb, C, ldc, D, ldd, j, jb, n, info, stream0));
+
+      /* Matrix multiply using row to the left and matrix below to update the
+       * column below the diagonal block */
+      CU_ERROR_CHECK(cuSgemm(handle, CBlasNoTrans, CBlasTrans, n - j - jb, jb, j,
+                             -one, A + (j + jb) * sizeof(float), lda,
+                             A + j * sizeof(float), lda,
+                             one, A + (j * lda + j + jb) * sizeof(float), lda, stream1));
+
+      /* Start copying diagonal block onto host asynchronously */
+      CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(B, ldb, 0, 0, A, lda, j, j,
+                                         jb, jb, sizeof(float), stream0));
+
+      /* Wait until the diagonal block has been copied */
+      CU_ERROR_CHECK(cuStreamSynchronize(stream0));
+
+      /* Perform the diagonal block decomposition using the CPU */
+      spotrf(uplo, jb, B, ldb, info);
+
+      /* Copy the diagonal block back onto the device */
+      CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A, lda, j, j, B, ldb, 0, 0,
+                                        jb, jb, sizeof(float), stream0));
+
       /* Check for positive definite matrix */
       if (*info != 0) {
         *info += (long)j;
         break;
       }
-      /* Triangular solve of the diagonal block using the column matrix below
-       * on the same stream as the copy to ensure it has completed first */
-      /* Perform the out of place triangular matrix multiply to copy D back into
-       * the correct place */
-      CU_ERROR_CHECK(cuStrmm2(handle->blas_handle, CBlasRight, CBlasLower, CBlasTrans, CBlasNonUnit,
-                              n - j - jb, jb, one, D, ldd, D + nb * sizeof(float), ldd,
-                              A + (j * lda + j + jb) * sizeof(float), lda, stream0));
+
+      /* Triangular solve to update the column below using the diagonal block */
+      CU_ERROR_CHECK(cuStrsm(handle, CBlasRight, CBlasLower, CBlasTrans, CBlasNonUnit,
+                             n - j - jb, jb, one, A + (j * lda + j) * sizeof(float), lda,
+                             A + (j * lda + j + jb) * sizeof(float), lda, stream0));
     }
   }
 
   // Clean up resources
   CU_ERROR_CHECK(cuMemFreeHost(B));
-  CU_ERROR_CHECK(cuMemFreeHost(C));
-  CU_ERROR_CHECK(cuMemFree(D));
-//   CU_ERROR_CHECK(cuMemFree(dinfo));
 
   CU_ERROR_CHECK(cuStreamDestroy(stream0));
   CU_ERROR_CHECK(cuStreamDestroy(stream1));
@@ -397,7 +270,8 @@ CUresult cuSpotrf(CULAPACKhandle handle, CBlasUplo uplo, size_t n, CUdeviceptr A
   return CUDA_SUCCESS;
 }
 
-CUresult cuMultiGPUSpotrf(CUmultiGPULAPACKhandle handle, CBlasUplo uplo,
+CUresult cuMultiGPUSpotrf(CUmultiGPUBLAShandle handle,
+                          CBlasUplo uplo,
                           size_t n,
                           float * restrict A, size_t lda,
                           long * restrict info) {
@@ -423,9 +297,9 @@ CUresult cuMultiGPUSpotrf(CUmultiGPULAPACKhandle handle, CBlasUplo uplo,
     for (size_t j = 0; j < n; j += nb) {
       const size_t jb = min(nb, n - j);
 
-      CU_ERROR_CHECK(cuMultiGPUSsyrk(handle->blas_handle, CBlasUpper, CBlasTrans, jb, j,
+      CU_ERROR_CHECK(cuMultiGPUSsyrk(handle, CBlasUpper, CBlasTrans, jb, j,
                                      -one, &A[j * lda], lda, one, &A[j * lda + j], lda));
-      CU_ERROR_CHECK(cuMultiGPUBLASSynchronize(handle->blas_handle));
+      CU_ERROR_CHECK(cuMultiGPUBLASSynchronize(handle));
       spotrf(CBlasUpper, jb, &A[j * lda + j], lda, info);
       if (*info != 0) {
         (*info) += (long)j;
@@ -433,10 +307,10 @@ CUresult cuMultiGPUSpotrf(CUmultiGPULAPACKhandle handle, CBlasUplo uplo,
       }
 
       if (j + jb < n) {
-        CU_ERROR_CHECK(cuMultiGPUSgemm(handle->blas_handle, CBlasTrans, CBlasNoTrans, jb, n - j - jb, j,
+        CU_ERROR_CHECK(cuMultiGPUSgemm(handle, CBlasTrans, CBlasNoTrans, jb, n - j - jb, j,
                                        -one, &A[j * lda], lda, &A[(j + jb) * lda], lda,
                                        one, &A[(j + jb) * lda + j], lda));
-        CU_ERROR_CHECK(cuMultiGPUStrsm(handle->blas_handle, CBlasLeft, CBlasUpper, CBlasTrans, CBlasNonUnit, jb, n - j - jb,
+        CU_ERROR_CHECK(cuMultiGPUStrsm(handle, CBlasLeft, CBlasUpper, CBlasTrans, CBlasNonUnit, jb, n - j - jb,
                                        one, &A[j * lda + j], lda, &A[(j + jb) * lda + j], lda));
       }
     }
@@ -445,9 +319,9 @@ CUresult cuMultiGPUSpotrf(CUmultiGPULAPACKhandle handle, CBlasUplo uplo,
     for (size_t j = 0; j < n; j += nb) {
       const size_t jb = min(nb, n - j);
 
-      CU_ERROR_CHECK(cuMultiGPUSsyrk(handle->blas_handle, CBlasLower, CBlasNoTrans, jb, j,
+      CU_ERROR_CHECK(cuMultiGPUSsyrk(handle, CBlasLower, CBlasNoTrans, jb, j,
                                      -one, &A[j], lda, one, &A[j * lda + j], lda));
-      CU_ERROR_CHECK(cuMultiGPUBLASSynchronize(handle->blas_handle));
+      CU_ERROR_CHECK(cuMultiGPUBLASSynchronize(handle));
       spotrf(CBlasLower, jb, &A[j * lda + j], lda, info);
       if (*info != 0) {
         (*info) += (long)j;
@@ -455,10 +329,10 @@ CUresult cuMultiGPUSpotrf(CUmultiGPULAPACKhandle handle, CBlasUplo uplo,
       }
 
       if (j + jb < n) {
-        CU_ERROR_CHECK(cuMultiGPUSgemm(handle->blas_handle, CBlasNoTrans, CBlasTrans, n - j - jb, jb, j,
+        CU_ERROR_CHECK(cuMultiGPUSgemm(handle, CBlasNoTrans, CBlasTrans, n - j - jb, jb, j,
                                        -one, &A[j + jb], lda, &A[j], lda,
                                        one, &A[j * lda + j + jb], lda));
-        CU_ERROR_CHECK(cuMultiGPUStrsm(handle->blas_handle, CBlasRight, CBlasLower, CBlasTrans, CBlasNonUnit, n - j - jb, jb,
+        CU_ERROR_CHECK(cuMultiGPUStrsm(handle, CBlasRight, CBlasLower, CBlasTrans, CBlasNonUnit, n - j - jb, jb,
                                        one, &A[j * lda + j], lda, &A[j * lda + j + jb], lda));
       }
     }
