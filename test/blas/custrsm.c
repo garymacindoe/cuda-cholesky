@@ -178,8 +178,8 @@ int main(int argc, char * argv[]) {
   CU_ERROR_CHECK(cuStrsm(handle, side, uplo, trans, diag, m, n, alpha, dA, dlda, dB, dldb, NULL));
 
   copy = (CUDA_MEMCPY2D){ 0, 0, CU_MEMORYTYPE_DEVICE, NULL, dB, NULL, dldb * sizeof(float),
-           0, 0, CU_MEMORYTYPE_HOST, B, 0, NULL, ldb * sizeof(float),
-           m * sizeof(float), n };
+                          0, 0, CU_MEMORYTYPE_HOST, B, 0, NULL, ldb * sizeof(float),
+                          m * sizeof(float), n };
   CU_ERROR_CHECK(cuMemcpy2D(&copy));
 
   bool passed = true;

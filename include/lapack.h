@@ -15,16 +15,16 @@ extern "C" {
 
 /** My CPU implementations */
 // Single precision Cholesky decomposition
-void spotrf(CBlasUplo, size_t,  float * restrict, size_t, long * restrict);
+void spotrf(CBlasUplo, size_t, float * restrict, size_t, long * restrict);
 
-// In-place single precision triangular inverse from Cholesky decomposition
-void strtri(CBlasUplo, CBlasDiag, size_t,  float * restrict, size_t, long * restrict);
+// Single precision triangular inverse
+void strtri(CBlasUplo, CBlasDiag, size_t, float * restrict, size_t, long * restrict);
 
 // Single precision triangular square
-void slauum(CBlasUplo, size_t,  float * restrict, size_t, long * restrict);
+void slauum(CBlasUplo, size_t, float * restrict, size_t, long * restrict);
 
 // Single precision inverse from Cholesky decomposition
-void spotri(CBlasUplo, size_t,  float * restrict, size_t, long * restrict);
+void spotri(CBlasUplo, size_t, float * restrict, size_t, long * restrict);
 
 /** My Hybrid implementations */
 typedef struct __culapackhandle_st * CULAPACKhandle;
@@ -51,21 +51,21 @@ CUresult cuMultiGPULAPACKDestroy(CUmultiGPULAPACKhandle);
 CUresult cuMultiGPULAPACKSynchronize(CUmultiGPULAPACKhandle);
 
 // Single precision Cholesky decomposition
-CUresult cuMultiGPUSpotrf(CUmultiGPULAPACKhandle, CBlasUplo, size_t,  float * restrict, size_t, long * restrict);
+CUresult cuMultiGPUSpotrf(CUmultiGPULAPACKhandle, CBlasUplo, size_t, float * restrict, size_t, long * restrict);
 
 // Single precision triangular inverse from Cholesky decomposition
 CUresult cuMultiGPUStrtri(CUmultiGPULAPACKhandle, CBlasUplo, CBlasDiag, size_t,  float * restrict, size_t, long * restrict);
 
 // Single precision triangular square
-CUresult cuMultiGPUSlauum(CUmultiGPULAPACKhandle, CBlasUplo, size_t,  float * restrict, size_t, long * restrict);
+CUresult cuMultiGPUSlauum(CUmultiGPULAPACKhandle, CBlasUplo, size_t, float * restrict, size_t, long * restrict);
 
 // Single precision inverse from Cholesky decomposition
-CUresult cuMultiGPUSpotri(CUmultiGPULAPACKhandle, CBlasUplo, size_t,  float * restrict, size_t, long * restrict);
+CUresult cuMultiGPUSpotri(CUmultiGPULAPACKhandle, CBlasUplo, size_t, float * restrict, size_t, long * restrict);
 
 /** Calculating log determinant - CPU and GPU only */
 float slogdet(const float *, size_t, size_t);
 
-CUresult cuSlogdet(CULAPACKhandle, CUdeviceptr, size_t, size_t,  float *, CUstream);
+CUresult cuSlogdet(CULAPACKhandle, CUdeviceptr, size_t, size_t, float *, CUstream);
 
 #ifdef __cplusplus
 }

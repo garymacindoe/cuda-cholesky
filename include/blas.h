@@ -28,9 +28,9 @@ typedef enum { CBlasNonUnit = 'N', CBlasUnit = 'U' } CBlasDiag;
 
 /**
  * Prefixes:
- *      <none>: Hand coded to run on the CPU using arguments in system memory
- *          cu: Hand coded to run on the GPU using arguments in graphics memory
- *  cuMultiGPU: Hand coded to run on the CPU and multiple GPUs using arguments in system memory
+ *      <none>: run on the CPU using arguments in system memory
+ *          cu: run on the GPU using arguments in graphics memory
+ *  cuMultiGPU: run on the CPU and multiple GPUs using arguments in system memory
  */
 
 /** Error function */

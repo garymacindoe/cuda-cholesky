@@ -56,7 +56,7 @@ int main(int argc, char * argv[]) {
   long info, rInfo;
 
   lda = (n + 3u) & ~3u;
-  if ((A = malloc(lda *  n * sizeof(float))) == NULL) {
+  if ((A = malloc(lda * n * sizeof(float))) == NULL) {
     fputs("Unable to allocate A\n", stderr);
     return -1;
   }

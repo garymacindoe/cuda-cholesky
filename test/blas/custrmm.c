@@ -124,8 +124,8 @@ int main(int argc, char * argv[]) {
     }
 
     CUDA_MEMCPY2D copy = { 0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(float),
-    0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(float),
-    m * sizeof(float), m };
+                           0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(float),
+                           m * sizeof(float), m };
     CU_ERROR_CHECK(cuMemcpy2D(&copy));
   }
   else {
@@ -143,8 +143,8 @@ int main(int argc, char * argv[]) {
     }
 
     CUDA_MEMCPY2D copy = { 0, 0, CU_MEMORYTYPE_HOST, A, 0, NULL, lda * sizeof(float),
-    0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(float),
-    n * sizeof(float), n };
+                           0, 0, CU_MEMORYTYPE_DEVICE, NULL, dA, NULL, dlda * sizeof(float),
+                           n * sizeof(float), n };
     CU_ERROR_CHECK(cuMemcpy2D(&copy));
   }
 
@@ -174,8 +174,8 @@ int main(int argc, char * argv[]) {
   CU_ERROR_CHECK(cuStrmm(handle, side, uplo, trans, diag, m, n, alpha, dA, dlda, dB, dldb, NULL));
 
   copy = (CUDA_MEMCPY2D){ 0, 0, CU_MEMORYTYPE_DEVICE, NULL, dB, NULL, dldb * sizeof(float),
-  0, 0, CU_MEMORYTYPE_HOST, B, 0, NULL, ldb * sizeof(float),
-  m * sizeof(float), n };
+                          0, 0, CU_MEMORYTYPE_HOST, B, 0, NULL, ldb * sizeof(float),
+                          m * sizeof(float), n };
   CU_ERROR_CHECK(cuMemcpy2D(&copy));
 
   bool passed = true;
