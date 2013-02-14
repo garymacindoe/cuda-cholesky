@@ -13,7 +13,7 @@ static inline CUresult cublashandle_init(struct __cublashandle_st * handle) {
   else
     handle->contextOwner = false;
 
-  handle->sgemm = NULL;
+  handle->sgemm2 = NULL;
   handle->ssyrk = NULL;
   handle->strmm2 = NULL;
   handle->strsm = NULL;
@@ -24,8 +24,8 @@ static inline CUresult cublashandle_init(struct __cublashandle_st * handle) {
 static inline CUresult cublashandle_cleanup(struct __cublashandle_st * handle) {
   CU_ERROR_CHECK(cuCtxPushCurrent(handle->context));
 
-  if (handle->sgemm != NULL)
-    CU_ERROR_CHECK(cuModuleUnload(handle->sgemm));
+  if (handle->sgemm2 != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->sgemm2));
   if (handle->ssyrk != NULL)
     CU_ERROR_CHECK(cuModuleUnload(handle->ssyrk));
   if (handle->strmm2 != NULL)

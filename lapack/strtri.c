@@ -84,6 +84,66 @@ static inline void strti2(CBlasUplo uplo, CBlasDiag diag,
   }
 }
 
+static inline void strti22(CBlasUplo uplo, CBlasDiag diag,
+                           size_t n,
+                           const float * restrict A, size_t lda,
+                           float * restrict B, size_t ldb,
+                           long * restrict info) {
+  if (uplo == CBlasUpper) {
+    for (size_t j = 0; j < n; j++) {
+      register float bjj;
+      if (diag == CBlasNonUnit) {
+        if (A[j * lda + j] == zero) {
+          *info = (long)j + 1;
+          return;
+        }
+        B[j * ldb + j] = one / A[j * lda + j];
+        bjj = -B[j * ldb + j];
+      }
+      else
+        bjj = -one;
+
+      for (size_t i = 0; i < j; i++)
+        B[j * ldb + i] = A[j * lda + i];
+      for (size_t k = 0; k < j; k++) {
+        register float temp = B[j * ldb + k];
+        if (diag == CBlasNonUnit) B[j * ldb + k] *= B[k * ldb + k];
+        for (size_t i = 0; i < k; i++)
+          B[j * ldb + i] += temp * B[k * ldb + i];
+      }
+      for (size_t i = 0; i < j; i++)
+        B[j * ldb + i] *= bjj;
+    }
+  }
+  else {
+    size_t j = n - 1;
+    do {
+      register float bjj;
+      if (diag == CBlasNonUnit) {
+        if (A[j * lda + j] == zero) {
+          *info = (long)j + 1;
+          return;
+        }
+        B[j * ldb + j] = one / A[j * lda + j];
+        bjj = -B[j * ldb + j];
+      }
+      else
+        bjj = -one;
+
+      for (size_t i = j + 1; i < n; i++)
+        B[j * ldb + i] = A[j * lda + i];
+      for (size_t i = n - 1; i > j; i--) {
+        register float temp = B[j * ldb + i];
+        if (diag == CBlasNonUnit) B[j * ldb + i] *= B[i * ldb + i];
+        for (size_t k = i + 1; k < n; k++)
+          B[j * ldb + k] += temp * B[i * ldb + k];
+      }
+      for (size_t i = j + 1; i < n; i++)
+        B[j * ldb + i] *= bjj;
+    } while (j-- > 0);
+  }
+}
+
 void strtri(CBlasUplo uplo, CBlasDiag diag,
             size_t n,
             float * restrict A, size_t lda,
@@ -152,6 +212,81 @@ void strtri(CBlasUplo uplo, CBlasDiag diag,
   }
 }
 
+void strtri2(CBlasUplo uplo, CBlasDiag diag,
+             size_t n,
+             const float * restrict A, size_t lda,
+             float * restrict B, size_t ldb,
+             long * restrict info) {
+  *info = 0;
+  if (lda < n)
+    *info = -5;
+  if (ldb < n)
+    *info = -7;
+  if (*info != 0) {
+    XERBLA(-(*info));
+    return;
+  }
+
+  if (n == 0)
+    return;
+
+  const size_t nb = (uplo == CBlasUpper) ? 32 : 64;
+
+  if (n < nb) {
+    strti22(uplo, diag, n, A, lda, B, ldb, info);
+    return;
+  }
+
+  if (uplo == CBlasUpper) {
+    for (size_t j = 0; j < n; j += nb) {
+      const size_t jb = min(nb, n - j);
+      strmm2(CBlasLeft, CBlasUpper, CBlasNoTrans, diag,
+             j, jb,
+             one, B, ldb, &A[j * lda], lda,
+             &B[j * ldb], ldb);
+      strsm(CBlasRight, CBlasUpper, CBlasNoTrans, diag,
+            j, jb,
+            -one, &A[j * lda + j], lda,
+            &B[j * ldb], ldb);
+      strti22(CBlasUpper, diag,
+              jb,
+              &A[j * lda + j], lda,
+              &B[j * ldb + j], ldb,
+              info);
+      if (*info != 0) {
+        *info += (long)j;
+        return;
+      }
+    }
+  }
+  else {
+    size_t j = (n + nb - 1) & ~(nb - 1);
+    do {
+      j -= nb;
+      const size_t jb = min(nb, n - j);
+      if (j + jb < n) {
+        strmm2(CBlasLeft, CBlasLower, CBlasNoTrans, diag,
+               n - j - jb, jb,
+               one, &B[(j + jb) * ldb + j + jb], ldb, &A[j * lda + j + jb], lda,
+               &B[j * ldb + j + jb], ldb);
+        strsm(CBlasRight, CBlasLower, CBlasNoTrans, diag,
+              n - j - jb, jb,
+              -one, &A[j * lda + j], lda,
+              &B[j * ldb + j + jb], ldb);
+      }
+      strti22(CBlasLower, diag,
+              jb,
+              &A[j * lda + j], lda,
+              &B[j * ldb + j], ldb,
+              info);
+      if (*info != 0) {
+        *info += (long)j;
+        return;
+      }
+    } while (j > 0);
+  }
+}
+
 CUresult cuStrtri(CULAPACKhandle handle,
                   CBlasUplo uplo, CBlasDiag diag,
                   size_t n,
@@ -169,34 +304,33 @@ CUresult cuStrtri(CULAPACKhandle handle,
     return CUDA_SUCCESS;
 
   float * B;
-  size_t ldb;
+  CUdeviceptr X;
+  size_t ldb, ldx;
   CUstream stream0, stream1;
 
   // Block size (must be a power of two for lower triangular)
-  const size_t nb = 512;
+  const size_t nb = 256 : 128;
 
   // Allocate page-locked host memory for diagonal block
   CU_ERROR_CHECK(cuMemAllocHost((void **)&B, (ldb = (nb + 3u) & ~3u) * nb * sizeof(float)));
 
+  // Allocate a temporary column for the out of place matrix multiply
+  CU_ERROR_CHECK(cuMemAllocPitch(&X, &ldx, n * sizeof(float), nb, sizeof(float)));
+
   // Create two streams for asynchronous copy and compute
-  CU_ERROR_CHECK(cuStreamCreate(&stream0, 0));
-  CU_ERROR_CHECK(cuStreamCreate(&stream1, 0));
+  CU_ERROR_CHECK(cuStreamCreate(&stream0, CU_STREAM_NON_BLOCKING));
+  CU_ERROR_CHECK(cuStreamCreate(&stream1, CU_STREAM_NON_BLOCKING));
 
   if (uplo == CBlasUpper) {
     for (size_t j = 0; j < n; j += nb) {
       const size_t jb = min(nb, n - j);
 
-      /* Update the current column using the big square matrix to the left */
-      CU_ERROR_CHECK(cuStrmm(handle->blas_handle,
-                             CBlasLeft, CBlasUpper, CBlasNoTrans, diag, j, jb,
-                             one, A, lda, A + j * lda * sizeof(float), lda, stream0));
-
-      /* Then update the column again using the small square matrix on the
-       * diagonal below */
-      CU_ERROR_CHECK(cuStrsm(handle->blas_handle,
-                             CBlasRight, CBlasUpper, CBlasNoTrans, diag, j, jb,
-                             -one, A + (j * lda + j) * sizeof(float), lda,
-                             A + j * lda * sizeof(float), lda, stream0));
+      /* Multiply the current column by the big square matrix to the left and
+       * store the result in X */
+      CU_ERROR_CHECK(cuStrmm2(handle->blas_handle,
+                              CBlasLeft, CBlasUpper, CBlasNoTrans, diag, j, jb,
+                              one, A, lda, A + j * lda * sizeof(float), lda,
+                              X, ldx, stream0));
 
       /* Start copying diagonal block onto host asynchronously */
       CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(B, ldb, 0, 0, A, lda, j, j,
@@ -209,14 +343,21 @@ CUresult cuStrtri(CULAPACKhandle handle,
 
       /* Copy the diagonal block back onto the device */
       CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A, lda, j, j, B, ldb, 0, 0,
-                                         jb, jb, sizeof(float), stream0));
+                                         jb, jb, sizeof(float), stream1));
       if (*info != 0) {
         *info += (long)j;
         break;
       }
 
       /* Wait until the diagonal block has been copied back */
-      CU_ERROR_CHECK(cuStreamSynchronize(stream0));
+      CU_ERROR_CHECK(cuStreamSynchronize(stream1));
+
+      /* Multiply the temporary column by the small square matrix on the
+       * diagonal below and store the result back in the correct place in A */
+      CU_ERROR_CHECK(cuStrmm2(handle->blas_handle,
+                              CBlasRight, CBlasUpper, CBlasNoTrans, diag, j, jb,
+                              -one, A + (j * lda + j) * sizeof(float), lda, X, ldx,
+                              A + j * lda * sizeof(float), lda, stream0));
     }
   }
   else {
@@ -226,18 +367,12 @@ CUresult cuStrtri(CULAPACKhandle handle,
       j -= nb;  // j starts on the next multiple of nb below n
       const size_t jb = min(nb, n - j);
 
-      /* Update the current column using the big square matrix to the right */
-      CU_ERROR_CHECK(cuStrmm(handle->blas_handle,
-                             CBlasLeft, CBlasLower, CBlasNoTrans, diag, n - j - jb, jb,
-                             one, A + ((j + jb) * lda + j + jb) * sizeof(float), lda,
-                             A + (j * lda + j + jb) * sizeof(float), lda, stream0));
-
-      /* Then update the column again using the small square matrix on the
-       * diagonal above (on the same stream) */
-      CU_ERROR_CHECK(cuStrsm(handle->blas_handle,
-                             CBlasRight, CBlasLower, CBlasNoTrans, diag, n - j - jb, jb,
-                             -one, A + (j * lda + j) * sizeof(float), lda,
-                             A + (j * lda + j + jb) * sizeof(float), lda, stream0));
+      /* Multiply the current column by the big square matrix to the right and
+       * store the result in X */
+      CU_ERROR_CHECK(cuStrmm2(handle->blas_handle,
+                              CBlasLeft, CBlasLower, CBlasNoTrans, diag, n - j - jb, jb,
+                              one, A + ((j + jb) * lda + j + jb) * sizeof(float), lda,
+                              A + (j * lda + j + jb) * sizeof(float), lda, X, ldx, stream0));
 
       /* Start copying diagonal block onto host asynchronously */
       CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(B, ldb, 0, 0, A, lda, j, j,
@@ -250,19 +385,27 @@ CUresult cuStrtri(CULAPACKhandle handle,
 
       /* Copy the diagonal block back onto the device */
       CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A, lda, j, j, B, ldb, 0, 0,
-                                         jb, jb, sizeof(float), stream0));
+                                         jb, jb, sizeof(float), stream1));
       if (*info != 0) {
         *info += (long)j;
         break;
       }
 
       /* Wait until the diagonal block has been copied back */
-      CU_ERROR_CHECK(cuStreamSynchronize(stream0));
+      CU_ERROR_CHECK(cuStreamSynchronize(stream1));
+
+      /* Multiply the temporary column by the small square matrix on the
+       * diagonal above and store the result back in the correct place in A */
+      CU_ERROR_CHECK(cuStrmm2(handle->blas_handle,
+                              CBlasRight, CBlasLower, CBlasNoTrans, diag, n - j - jb, jb,
+                              -one, A + (j * lda + j) * sizeof(float), lda, X, ldx,
+                              A + (j * lda + j + jb) * sizeof(float), lda, stream0));
     } while (j > 0);
   }
 
   // Clean up resources
   CU_ERROR_CHECK(cuMemFreeHost(B));
+  CU_ERROR_CHECK(cuMemFree(X));
 
   CU_ERROR_CHECK(cuStreamDestroy(stream0));
   CU_ERROR_CHECK(cuStreamDestroy(stream1));

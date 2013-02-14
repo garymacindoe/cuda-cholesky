@@ -26,11 +26,11 @@ __device__ void saxpy(float alpha, const float * __restrict__ x, float * __restr
 template <CBlasTranspose transA, CBlasTranspose transB,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void sgemm(const float * __restrict__ A, const float * __restrict__ B,
-                      float * __restrict__ C,
-                      float alpha, float beta,
-                      int lda, int ldb, int ldc,
-                      int m, int n, int k) {
+__global__ void sgemm2(const float * __restrict__ A, const float * __restrict__ B,
+                       const float * __restrict__ C, float * __restrict__ D,
+                       float alpha, float beta,
+                       int lda, int ldb, int ldc, int ldd,
+                       int m, int n, int k) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of C/C
   const int bj = blockIdx.y * nb;       // Starting column of block of C/C
@@ -54,6 +54,7 @@ __global__ void sgemm(const float * __restrict__ A, const float * __restrict__ B
   A += (transA == CBlasNoTrans) ? bi + ti : (bi + threadIdx.y) * lda + threadIdx.x;
   B += (transB == CBlasNoTrans) ? (bj + threadIdx.y) * ldb + threadIdx.x : threadIdx.y * ldb + bj + threadIdx.x;
   C += (bj + tj) * ldc + bi + ti;
+  D += (bj + tj) * ldd + bi + ti;
   n -= bj + tj;
   m -= bi + ti;
 
@@ -63,7 +64,7 @@ __global__ void sgemm(const float * __restrict__ A, const float * __restrict__ B
   __shared__ float a[mb][kb + 1];       // Optimised away when transA == CBlasNoTrans
   __shared__ float b[kb][(transB == CBlasNoTrans) ? nb + 1 : nb];
 
-  float c[] = { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+  float d[] = { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
                 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
 
   while (k > 0) {
@@ -100,7 +101,7 @@ __global__ void sgemm(const float * __restrict__ A, const float * __restrict__ B
       // Read A straight from global memory.
 #pragma unroll
       for (int l = 0; l < kb; l++) {
-        saxpy(A[0], b[l], c);
+        saxpy(A[0], b[l], d);
         A += lda;
       }
     }
@@ -110,7 +111,7 @@ __global__ void sgemm(const float * __restrict__ A, const float * __restrict__ B
       // matched with the correct row/column of B.
 #pragma unroll
       for (int l = 0; l < kb; l++)
-        saxpy(a[ti][l], &b[l][tj], c);
+        saxpy(a[ti][l], &b[l][tj], d);
     }
 
     __syncthreads();
@@ -121,51 +122,51 @@ __global__ void sgemm(const float * __restrict__ A, const float * __restrict__ B
 
   if (transA == CBlasNoTrans) {
     for (int l = 0; l < k; l++) {
-      saxpy(A[0], b[l], c);
+      saxpy(A[0], b[l], d);
       A += lda;
     }
   }
   else {
     for (int l = 0; l < k; l++)
-      saxpy(a[ti][l], &b[l][tj], c);
+      saxpy(a[ti][l], &b[l][tj], d);
   }
 
   if (n <= 0 || m <= 0) return;
   if (beta == 0.0f) {
-    C[0] = alpha * c[ 0]; if ( 1 >= n) return; C += ldc;
-    C[0] = alpha * c[ 1]; if ( 2 >= n) return; C += ldc;
-    C[0] = alpha * c[ 2]; if ( 3 >= n) return; C += ldc;
-    C[0] = alpha * c[ 3]; if ( 4 >= n) return; C += ldc;
-    C[0] = alpha * c[ 4]; if ( 5 >= n) return; C += ldc;
-    C[0] = alpha * c[ 5]; if ( 6 >= n) return; C += ldc;
-    C[0] = alpha * c[ 6]; if ( 7 >= n) return; C += ldc;
-    C[0] = alpha * c[ 7]; if ( 8 >= n) return; C += ldc;
-    C[0] = alpha * c[ 8]; if ( 9 >= n) return; C += ldc;
-    C[0] = alpha * c[ 9]; if (10 >= n) return; C += ldc;
-    C[0] = alpha * c[10]; if (11 >= n) return; C += ldc;
-    C[0] = alpha * c[11]; if (12 >= n) return; C += ldc;
-    C[0] = alpha * c[12]; if (13 >= n) return; C += ldc;
-    C[0] = alpha * c[13]; if (14 >= n) return; C += ldc;
-    C[0] = alpha * c[14]; if (15 >= n) return; C += ldc;
-    C[0] = alpha * c[15];
+    D[0] = alpha * d[ 0]; if ( 1 >= n) return; D += ldd;
+    D[0] = alpha * d[ 1]; if ( 2 >= n) return; D += ldd;
+    D[0] = alpha * d[ 2]; if ( 3 >= n) return; D += ldd;
+    D[0] = alpha * d[ 3]; if ( 4 >= n) return; D += ldd;
+    D[0] = alpha * d[ 4]; if ( 5 >= n) return; D += ldd;
+    D[0] = alpha * d[ 5]; if ( 6 >= n) return; D += ldd;
+    D[0] = alpha * d[ 6]; if ( 7 >= n) return; D += ldd;
+    D[0] = alpha * d[ 7]; if ( 8 >= n) return; D += ldd;
+    D[0] = alpha * d[ 8]; if ( 9 >= n) return; D += ldd;
+    D[0] = alpha * d[ 9]; if (10 >= n) return; D += ldd;
+    D[0] = alpha * d[10]; if (11 >= n) return; D += ldd;
+    D[0] = alpha * d[11]; if (12 >= n) return; D += ldd;
+    D[0] = alpha * d[12]; if (13 >= n) return; D += ldd;
+    D[0] = alpha * d[13]; if (14 >= n) return; D += ldd;
+    D[0] = alpha * d[14]; if (15 >= n) return; D += ldd;
+    D[0] = alpha * d[15];
   }
   else {
-    C[0] = alpha * c[ 0] + beta * C[0]; if ( 1 >= n) return; C += ldc;
-    C[0] = alpha * c[ 1] + beta * C[0]; if ( 2 >= n) return; C += ldc;
-    C[0] = alpha * c[ 2] + beta * C[0]; if ( 3 >= n) return; C += ldc;
-    C[0] = alpha * c[ 3] + beta * C[0]; if ( 4 >= n) return; C += ldc;
-    C[0] = alpha * c[ 4] + beta * C[0]; if ( 5 >= n) return; C += ldc;
-    C[0] = alpha * c[ 5] + beta * C[0]; if ( 6 >= n) return; C += ldc;
-    C[0] = alpha * c[ 6] + beta * C[0]; if ( 7 >= n) return; C += ldc;
-    C[0] = alpha * c[ 7] + beta * C[0]; if ( 8 >= n) return; C += ldc;
-    C[0] = alpha * c[ 8] + beta * C[0]; if ( 9 >= n) return; C += ldc;
-    C[0] = alpha * c[ 9] + beta * C[0]; if (10 >= n) return; C += ldc;
-    C[0] = alpha * c[10] + beta * C[0]; if (11 >= n) return; C += ldc;
-    C[0] = alpha * c[11] + beta * C[0]; if (12 >= n) return; C += ldc;
-    C[0] = alpha * c[12] + beta * C[0]; if (13 >= n) return; C += ldc;
-    C[0] = alpha * c[13] + beta * C[0]; if (14 >= n) return; C += ldc;
-    C[0] = alpha * c[14] + beta * C[0]; if (15 >= n) return; C += ldc;
-    C[0] = alpha * c[15] + beta * C[0];
+    D[0] = alpha * d[ 0] + beta * C[0]; if ( 1 >= n) return; C += ldc; D += ldd;
+    D[0] = alpha * d[ 1] + beta * C[0]; if ( 2 >= n) return; C += ldc; D += ldd;
+    D[0] = alpha * d[ 2] + beta * C[0]; if ( 3 >= n) return; C += ldc; D += ldd;
+    D[0] = alpha * d[ 3] + beta * C[0]; if ( 4 >= n) return; C += ldc; D += ldd;
+    D[0] = alpha * d[ 4] + beta * C[0]; if ( 5 >= n) return; C += ldc; D += ldd;
+    D[0] = alpha * d[ 5] + beta * C[0]; if ( 6 >= n) return; C += ldc; D += ldd;
+    D[0] = alpha * d[ 6] + beta * C[0]; if ( 7 >= n) return; C += ldc; D += ldd;
+    D[0] = alpha * d[ 7] + beta * C[0]; if ( 8 >= n) return; C += ldc; D += ldd;
+    D[0] = alpha * d[ 8] + beta * C[0]; if ( 9 >= n) return; C += ldc; D += ldd;
+    D[0] = alpha * d[ 9] + beta * C[0]; if (10 >= n) return; C += ldc; D += ldd;
+    D[0] = alpha * d[10] + beta * C[0]; if (11 >= n) return; C += ldc; D += ldd;
+    D[0] = alpha * d[11] + beta * C[0]; if (12 >= n) return; C += ldc; D += ldd;
+    D[0] = alpha * d[12] + beta * C[0]; if (13 >= n) return; C += ldc; D += ldd;
+    D[0] = alpha * d[13] + beta * C[0]; if (14 >= n) return; C += ldc; D += ldd;
+    D[0] = alpha * d[14] + beta * C[0]; if (15 >= n) return; C += ldc; D += ldd;
+    D[0] = alpha * d[15] + beta * C[0];
   }
 }
 
@@ -210,7 +211,7 @@ __global__ void sgemm(const float * __restrict__ A, const float * __restrict__ B
  * kb is chosen to be the largest multiple of 16 such that the number of blocks
  * per multiprocessor is limited by the register usage.
  */
-template __global__ void sgemm<CBlasNoTrans, CBlasNoTrans, 64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, float, int, int, int, int, int, int);
-template __global__ void sgemm<CBlasNoTrans, CBlasTrans,   64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, float, int, int, int, int, int, int);
-template __global__ void sgemm<CBlasTrans,   CBlasNoTrans, 32, 32,  8,  8,  8>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, float, int, int, int, int, int, int);
-template __global__ void sgemm<CBlasTrans,   CBlasTrans,   32, 32,  8,  8,  8>(const float * __restrict__, const float * __restrict__, float * __restrict__, float, float, int, int, int, int, int, int);
+template __global__ void sgemm2<CBlasNoTrans, CBlasNoTrans, 64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, const float * __restrict__, float * __restrict__, float, float, int, int, int, int, int, int, int);
+template __global__ void sgemm2<CBlasNoTrans, CBlasTrans,   64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, const float * __restrict__, float * __restrict__, float, float, int, int, int, int, int, int, int);
+template __global__ void sgemm2<CBlasTrans,   CBlasNoTrans, 32, 32,  8,  8,  8>(const float * __restrict__, const float * __restrict__, const float * __restrict__, float * __restrict__, float, float, int, int, int, int, int, int, int);
+template __global__ void sgemm2<CBlasTrans,   CBlasTrans,   32, 32,  8,  8,  8>(const float * __restrict__, const float * __restrict__, const float * __restrict__, float * __restrict__, float, float, int, int, int, int, int, int, int);

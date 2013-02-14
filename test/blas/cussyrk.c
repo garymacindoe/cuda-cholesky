@@ -148,8 +148,8 @@ int main(int argc, char * argv[]) {
   CU_ERROR_CHECK(cuSsyrk(handle, uplo, trans, n, k, alpha, dA, dlda, beta, dC, dldc, NULL));
 
   copy = (CUDA_MEMCPY2D){ 0, 0, CU_MEMORYTYPE_DEVICE, NULL, dC, NULL, dldc * sizeof(float),
-           0, 0, CU_MEMORYTYPE_HOST, C, 0, NULL, ldc * sizeof(float),
-           n * sizeof(float), n };
+                          0, 0, CU_MEMORYTYPE_HOST, C, 0, NULL, ldc * sizeof(float),
+                          n * sizeof(float), n };
   CU_ERROR_CHECK(cuMemcpy2D(&copy));
 
   float diff = 0.0f;

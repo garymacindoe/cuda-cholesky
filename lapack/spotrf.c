@@ -164,18 +164,24 @@ CUresult cuSpotrf(CULAPACKhandle handle,
   // Block size
   const size_t nb = (uplo == CBlasUpper) ? 256 : 128;
 
-  float * B;
-  size_t ldb;
+  float * B, * C;
+  CUdeviceptr X;
+  size_t ldb, ldc, ldx;
   CUstream stream0, stream1;
 
-  // Allocate memory for diagonal block on host
+  // Allocate memory for diagonal blocks on host
   CU_ERROR_CHECK(cuMemAllocHost((void **)&B, (ldb = (nb + 3u) & ~3u) * nb * sizeof(float)));
+  CU_ERROR_CHECK(cuMemAllocHost((void **)&C, (ldc = (nb + 3u) & ~3u) * nb * sizeof(float)));
 
   // Create two streams for asynchronous copy and compute
   CU_ERROR_CHECK(cuStreamCreate(&stream0, CU_STREAM_NON_BLOCKING));
   CU_ERROR_CHECK(cuStreamCreate(&stream1, CU_STREAM_NON_BLOCKING));
 
   if (uplo == CBlasUpper) {
+    // Allocate temporary block row for out of place triangular multiply
+    CU_ERROR_CHECK(cuMemAllocPitch(&X, &ldx, nb * sizeof(float), n, sizeof(float)));
+    ldx /= sizeof(float);
+
     for (size_t j = 0; j < n; j += nb) {
       const size_t jb = min(nb, n - j);
 
@@ -184,13 +190,14 @@ CUresult cuSpotrf(CULAPACKhandle handle,
                              -one, A + j * lda * sizeof(float), lda,
                              one, A + (j * lda + j) * sizeof(float), lda, stream0));
 
-      /* Matrix multiply using column above and matrix to the right to update
-       * the row to the right of the diagonal block */
-      CU_ERROR_CHECK(cuSgemm(handle->blas_handle, CBlasTrans, CBlasNoTrans,
-                             jb, n - j - jb, j,
-                             -one, A + j * lda * sizeof(float), lda,
-                             A + (j + jb) * lda * sizeof(float), lda,
-                             one, A + ((j + jb) * lda + j) * sizeof(float), lda, stream1));
+      /* Out of place matrix multiply using column above and matrix to the right
+       * to copy the row to the right of the diagonal block into X(0, nb) */
+      CU_ERROR_CHECK(cuSgemm2(handle->blas_handle, CBlasTrans, CBlasNoTrans,
+                              jb, n - j - jb, j,
+                              -one, A + j * lda * sizeof(float), lda,
+                              A + (j + jb) * lda * sizeof(float), lda,
+                              one, A + ((j + jb) * lda + j) * sizeof(float), lda,
+                              X + nb * ldx * sizeof(float), ldx, stream1));
 
       /* Start copying diagonal block onto host asynchronously */
       CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(B, ldb, 0, 0, A, lda, j, j,
@@ -212,14 +219,28 @@ CUresult cuSpotrf(CULAPACKhandle handle,
         break;
       }
 
-      /* Triangular solve to update the row to the right using the diagonal
-       * block */
-      CU_ERROR_CHECK(cuStrsm(handle->blas_handle, CBlasLeft, CBlasUpper, CBlasTrans, CBlasNonUnit,
-                             jb, n - j - jb, one, A + (j * lda + j) * sizeof(float), lda,
-                             A + ((j + jb) * lda + j) * sizeof(float), lda, stream0));
+      /* While the diagonal block is copying compute the inverse out-of-place
+       * (no need to check info for singularity as positive definite matrices
+       * are always non-singular) */
+      strtri2(uplo, CBlasNonUnit, jb, B, ldb, C, ldc, info);
+
+      /* Copy the inverse onto the device in X */
+      CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(X, ldx, 0, 0, C, ldc, 0, 0,
+                                         jb, jb, sizeof(float), stream0));
+
+      /* Out of place triangular matrix multiply using the inverse of the
+       * diagonal block and copying the temporary block row X back into the
+       * correct place in A */
+      CU_ERROR_CHECK(cuStrmm2(handle->blas_handle, CBlasLeft, CBlasUpper, CBlasTrans, CBlasNonUnit,
+                              jb, n - j - jb, one, X, ldx, X + nb * ldx * sizeof(float), ldx,
+                              A + ((j + jb) * lda + j) * sizeof(float), lda, stream0));
     }
   }
   else {
+    // Allocate temporary block column for out of place triangular multiply
+    CU_ERROR_CHECK(cuMemAllocPitch(&X, &ldx, n * sizeof(float), nb, sizeof(float)));
+    ldx /= sizeof(float);
+
     for (size_t j = 0; j < n; j += nb) {
       const size_t jb = min(nb, n - j);
 
@@ -228,12 +249,13 @@ CUresult cuSpotrf(CULAPACKhandle handle,
                              -one, A + j * sizeof(float), lda,
                              one, A + (j * lda + j) * sizeof(float), lda, stream0));
 
-      /* Matrix multiply using row to the left and matrix below to update the
-       * column below the diagonal block */
-      CU_ERROR_CHECK(cuSgemm(handle->blas_handle, CBlasNoTrans, CBlasTrans, n - j - jb, jb, j,
-                             -one, A + (j + jb) * sizeof(float), lda,
-                             A + j * sizeof(float), lda,
-                             one, A + (j * lda + j + jb) * sizeof(float), lda, stream1));
+      /* Out of place matrix multiply using row to the left and matrix below
+       * to copy the column below of the diagonal block into X(nb, 0) */
+      CU_ERROR_CHECK(cuSgemm2(handle->blas_handle, CBlasNoTrans, CBlasTrans, n - j - jb, jb, j,
+                              -one, A + (j + jb) * sizeof(float), lda,
+                              A + j * sizeof(float), lda,
+                              one, A + (j * lda + j + jb) * sizeof(float), lda,
+                              X + nb * sizeof(float), ldx, stream1));
 
       /* Start copying diagonal block onto host asynchronously */
       CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(B, ldb, 0, 0, A, lda, j, j,
@@ -255,15 +277,28 @@ CUresult cuSpotrf(CULAPACKhandle handle,
         break;
       }
 
-      /* Triangular solve to update the column below using the diagonal block */
-      CU_ERROR_CHECK(cuStrsm(handle->blas_handle, CBlasRight, CBlasLower, CBlasTrans, CBlasNonUnit,
-                             n - j - jb, jb, one, A + (j * lda + j) * sizeof(float), lda,
-                             A + (j * lda + j + jb) * sizeof(float), lda, stream0));
+      /* While the diagonal block is copying compute the inverse out-of-place
+       * (no need to check info for singularity as positive definite matrices
+       * are always non-singular) */
+      strtri2(uplo, CBlasNonUnit, jb, B, ldb, C, ldc, info);
+
+      /* Copy the inverse onto the device in X */
+      CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(X, ldx, 0, 0, C, ldc, 0, 0,
+                                         jb, jb, sizeof(float), stream0));
+
+      /* Out of place triangular matrix multiply using the inverse of the
+       * diagonal block and copying the temporary block column X back into the
+       * correct place in A */
+      CU_ERROR_CHECK(cuStrmm2(handle->blas_handle, CBlasRight, CBlasLower, CBlasTrans, CBlasNonUnit,
+                              n - j - jb, jb, one, X, ldx, X + nb * sizeof(float), ldx,
+                              A + (j * lda + j + jb) * sizeof(float), lda, stream0));
     }
   }
 
   // Clean up resources
   CU_ERROR_CHECK(cuMemFreeHost(B));
+  CU_ERROR_CHECK(cuMemFreeHost(C));
+  CU_ERROR_CHECK(cuMemFree(X));
 
   CU_ERROR_CHECK(cuStreamDestroy(stream0));
   CU_ERROR_CHECK(cuStreamDestroy(stream1));

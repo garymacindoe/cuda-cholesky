@@ -61,7 +61,7 @@ void strmm(CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
            float, const float * restrict, size_t,
            float * restrict, size_t);
 
-// Out of place single precision triangular matrix multiply
+// Out-of-place single precision triangular matrix multiply
 void strmm2(CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
             size_t, size_t,
             float, const float * restrict, size_t, const float * restrict, size_t,
@@ -84,17 +84,27 @@ CUresult cuSsyrk(CUBLAShandle, CBlasUplo, CBlasTranspose,
                  float, CUdeviceptr, size_t,
                  float, CUdeviceptr, size_t, CUstream);
 
-// Single precision matrix multiply
-CUresult cuSgemm(CUBLAShandle, CBlasTranspose, CBlasTranspose,
-                 size_t, size_t, size_t,
-                 float, CUdeviceptr, size_t, CUdeviceptr, size_t,
-                 float, CUdeviceptr, size_t, CUstream);
+// In-place single precision matrix multiply
+#define cuSgemm(handle, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, stream) \
+         cuSgemm2(handle, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, C, ldc, stream)
+
+// Out-of-place single precision matrix multiply
+CUresult cuSgemm2(CUBLAShandle, CBlasTranspose, CBlasTranspose,
+                  size_t, size_t, size_t,
+                  float, CUdeviceptr, size_t, CUdeviceptr, size_t,
+                  float, CUdeviceptr, size_t, CUdeviceptr, size_t, CUstream);
 
 // Single precision triangular matrix multiply
 CUresult cuStrmm(CUBLAShandle, CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
                  size_t, size_t,
                  float, CUdeviceptr, size_t, CUdeviceptr, size_t,
                  CUstream);
+
+// Single precision triangular matrix multiply
+CUresult cuStrmm2(CUBLAShandle, CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,
+                  size_t, size_t,
+                  float, CUdeviceptr, size_t, CUdeviceptr, size_t,
+                  CUdeviceptr, size_t, CUstream);
 
 // Single precision triangular matrix solve
 CUresult cuStrsm(CUBLAShandle, CBlasSide, CBlasUplo, CBlasTranspose, CBlasDiag,

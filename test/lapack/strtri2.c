@@ -51,8 +51,8 @@ int main(int argc, char * argv[]) {
 
   srand(0);
 
-  float * A, * refA;
-  size_t lda;
+  float * A, * B, * refB;
+  size_t lda, ldb;
   long info, rInfo;
 
   lda = (n + 3u) & ~3u;
@@ -61,9 +61,15 @@ int main(int argc, char * argv[]) {
     return -1;
   }
 
-  if ((refA = malloc(lda * n * sizeof(float))) == NULL) {
-    fputs("Unable to allocate refA\n", stderr);
+  ldb = (n + 3u) & ~3u;
+  if ((B = malloc(ldb * n * sizeof(float))) == NULL) {
+    fputs("Unable to allocate B\n", stderr);
     return -2;
+  }
+
+  if ((refB = malloc(ldb * n * sizeof(float))) == NULL) {
+    fputs("Unable to allocate refB\n", stderr);
+    return -3;
   }
 
   if (slatmc(n, 2.0f, A, lda) != 0) {
@@ -78,18 +84,39 @@ int main(int argc, char * argv[]) {
 //   }
 
   for (size_t j = 0; j < n; j++)
-    memcpy(&refA[j * lda], &A[j * lda], n * sizeof(float));
+    memcpy(&refB[j * ldb], &A[j * lda], n * sizeof(float));
 
-  strtri_ref(uplo, diag, n, refA, lda, &rInfo);
-  strtri(uplo, diag, n, A, lda, &info);
+  strtri_ref(uplo, diag, n, refB, ldb, &rInfo);
+  strtri2(uplo, diag, n, A, lda, B, ldb, &info);
 
   bool passed = (info == rInfo);
   float diff = 0.0f;
-  for (size_t j = 0; j < n; j++) {
-    for (size_t i = 0; i < n; i++) {
-      float d = fabsf(A[j * lda + i] - refA[j * lda + i]);
-      if (d > diff)
-        diff = d;
+  if (uplo == CBlasUpper) {
+    for (size_t j = 0; j < n; j++) {
+      for (size_t i = 0; i < j; i++) {
+        float d = fabsf(B[j * ldb + i] - refB[j * ldb + i]);
+        if (d > diff)
+          diff = d;
+      }
+      if (diag == CBlasNonUnit) {
+        float d = fabsf(B[j * ldb + j] - refB[j * ldb + j]);
+        if (d > diff)
+          diff = d;
+      }
+    }
+  }
+  else {
+    for (size_t j = 0; j < n; j++) {
+      if (diag == CBlasNonUnit) {
+        float d = fabsf(B[j * ldb + j] - refB[j * ldb + j]);
+        if (d > diff)
+          diff = d;
+      }
+      for (size_t i = j + 1; i < n; i++) {
+        float d = fabsf(B[j * ldb + i] - refB[j * ldb + i]);
+        if (d > diff)
+          diff = d;
+      }
     }
   }
 
@@ -106,7 +133,7 @@ int main(int argc, char * argv[]) {
     return -4;
   }
   for (size_t i = 0; i < 20; i++)
-    strtri(uplo, diag, n, A, lda, &info);
+    strtri2(uplo, diag, n, A, lda, B, ldb, &info);
   if (clock_gettime(CLOCK_REALTIME, &stop) != 0) {
     fprintf(stderr, "clock_gettime failed at %s:%d\n", __FILE__, __LINE__);
     return -5;
@@ -119,7 +146,8 @@ int main(int argc, char * argv[]) {
           ((double)flops * 1.e-9) / time, diff, (passed) ? "PASS" : "FAIL");
 
   free(A);
-  free(refA);
+  free(B);
+  free(refB);
 
   return (int)!passed;
 }
