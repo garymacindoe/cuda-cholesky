@@ -5,6 +5,7 @@
 #include "config.h"
 
 static inline size_t min(size_t a, size_t b) { return (a < b) ? a : b; }
+static inline size_t max(size_t a, size_t b) { return (a > b) ? a : b; }
 
 static inline CUresult cuMemcpyHtoD2DAsync(CUdeviceptr A, size_t lda, size_t ai, size_t aj,
                                            const void * B, size_t ldb, size_t bi, size_t bj,
@@ -137,8 +138,8 @@ CUresult cuSlauum(CULAPACKhandle handle,
   size_t ldb;
   CUstream stream0, stream1;
 
-  // Block size
-  const size_t nb = 512;
+  // (Maximum) dynamic block size
+  size_t nb = n / 4;
 
   // Allocate page-locked host memory for diagonal block
   CU_ERROR_CHECK(cuMemAllocHost((void **)&B, (ldb = (nb + 3u) & ~3u) * nb * sizeof(float)));
@@ -148,7 +149,8 @@ CUresult cuSlauum(CULAPACKhandle handle,
   CU_ERROR_CHECK(cuStreamCreate(&stream1, CU_STREAM_NON_BLOCKING));
 
   if (uplo == CBlasUpper) {
-    for (size_t i = 0; i < n; i += nb) {
+    // Decrease block size towards centre then increase
+    for (size_t i = 0; i < n; i += nb, nb = (i < n / 2) ? max(1, nb / 2) : min(n / 2, nb * 2)) {
       const size_t ib = min(nb, n - i);
 
       /* Update the current column using the diagonal block */
@@ -182,7 +184,8 @@ CUresult cuSlauum(CULAPACKhandle handle,
     }
   }
   else {
-    for (size_t i = 0; i < n; i += nb) {
+    // Decrease block size towards centre then increase
+    for (size_t i = 0; i < n; i += nb, nb = (i < n / 2) ? max(1, nb / 2) : min(n / 2, nb * 2)) {
       const size_t ib = min(nb, n - i);
 
       /* Update the current column using the diagonal block */

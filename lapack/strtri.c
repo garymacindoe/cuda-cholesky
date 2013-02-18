@@ -5,6 +5,7 @@
 #include "handle.h"
 
 static inline size_t min(size_t a, size_t b) { return (a < b) ? a : b; }
+static inline size_t max(size_t a, size_t b) { return (a > b) ? a : b; }
 
 static inline CUresult cuMemcpyHtoD2DAsync(CUdeviceptr A, size_t lda, size_t ai, size_t aj,
                                            const void * B, size_t ldb, size_t bi, size_t bj,
@@ -308,8 +309,8 @@ CUresult cuStrtri(CULAPACKhandle handle,
   size_t ldb, ldx;
   CUstream stream0, stream1;
 
-  // Block size (must be a power of two for lower triangular)
-  const size_t nb = 256 : 128;
+  // (Maximum) dynamic block size
+  size_t nb = n / 2;
 
   // Allocate page-locked host memory for diagonal block
   CU_ERROR_CHECK(cuMemAllocHost((void **)&B, (ldb = (nb + 3u) & ~3u) * nb * sizeof(float)));
@@ -322,7 +323,8 @@ CUresult cuStrtri(CULAPACKhandle handle,
   CU_ERROR_CHECK(cuStreamCreate(&stream1, CU_STREAM_NON_BLOCKING));
 
   if (uplo == CBlasUpper) {
-    for (size_t j = 0; j < n; j += nb) {
+    // Increase block size
+    for (size_t j = 0, nb = 1; j < n; j += nb, nb = min(n / 2, nb * 2)) {
       const size_t jb = min(nb, n - j);
 
       /* Multiply the current column by the big square matrix to the left and
@@ -361,11 +363,9 @@ CUresult cuStrtri(CULAPACKhandle handle,
     }
   }
   else {
-    // Round j up to the next multiple of nb (only works if nb is a power of 2)
-    size_t j = (n + nb - 1) & ~(nb - 1);
-    do {
-      j -= nb;  // j starts on the next multiple of nb below n
-      const size_t jb = min(nb, n - j);
+    for (size_t i = 0, nb = 1; i < n; i += nb, nb = min(n / 2, nb * 2)) {
+      const size_t jb = min(nb, n - i);
+      const size_t j = n - i - jb;
 
       /* Multiply the current column by the big square matrix to the right and
        * store the result in X */
@@ -400,7 +400,8 @@ CUresult cuStrtri(CULAPACKhandle handle,
                               CBlasRight, CBlasLower, CBlasNoTrans, diag, n - j - jb, jb,
                               -one, A + (j * lda + j) * sizeof(float), lda, X, ldx,
                               A + (j * lda + j + jb) * sizeof(float), lda, stream0));
-    } while (j > 0);
+
+    }
   }
 
   // Clean up resources

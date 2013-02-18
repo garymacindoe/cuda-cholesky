@@ -161,8 +161,8 @@ CUresult cuSpotrf(CULAPACKhandle handle,
   if (n == 0)
     return CUDA_SUCCESS;
 
-  // Block size
-  const size_t nb = (uplo == CBlasUpper) ? 256 : 128;
+  // (Maximum) dynamic block size
+  size_t nb = n / 4;
 
   float * B, * C;
   CUdeviceptr X;
@@ -182,7 +182,8 @@ CUresult cuSpotrf(CULAPACKhandle handle,
     CU_ERROR_CHECK(cuMemAllocPitch(&X, &ldx, nb * sizeof(float), n, sizeof(float)));
     ldx /= sizeof(float);
 
-    for (size_t j = 0; j < n; j += nb) {
+    // Decrease block size towards centre then increase
+    for (size_t j = 0; j < n; j += nb, nb = (j < n / 2) ? max(1, nb / 2) : min(n / 2, nb * 2)) {
       const size_t jb = min(nb, n - j);
 
       /* Rank-K update of diagonal block using column matrix above */
@@ -241,7 +242,8 @@ CUresult cuSpotrf(CULAPACKhandle handle,
     CU_ERROR_CHECK(cuMemAllocPitch(&X, &ldx, n * sizeof(float), nb, sizeof(float)));
     ldx /= sizeof(float);
 
-    for (size_t j = 0; j < n; j += nb) {
+    // Decrease block size towards centre then increase
+    for (size_t j = 0; j < n; j += nb, nb = (j < n / 2) ? max(1, nb / 2) : min(n / 2, nb * 2)) {
       const size_t jb = min(nb, n - j);
 
       /* Rank-K update of diagonal block using row matrix to the left */
