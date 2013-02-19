@@ -317,6 +317,7 @@ CUresult cuStrtri(CULAPACKhandle handle,
 
   // Allocate a temporary column for the out of place matrix multiply
   CU_ERROR_CHECK(cuMemAllocPitch(&X, &ldx, n * sizeof(float), nb, sizeof(float)));
+  ldx /= sizeof(float);
 
   // Create two streams for asynchronous copy and compute
   CU_ERROR_CHECK(cuStreamCreate(&stream0, CU_STREAM_NON_BLOCKING));
