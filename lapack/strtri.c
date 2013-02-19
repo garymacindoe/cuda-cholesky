@@ -179,8 +179,8 @@ CUresult cuStrtri(CULAPACKhandle handle,
   CU_ERROR_CHECK(cuMemAllocHost((void **)&B, (ldb = (nb + 3u) & ~3u) * nb * sizeof(float)));
 
   // Create two streams for asynchronous copy and compute
-  CU_ERROR_CHECK(cuStreamCreate(&stream0, 0));
-  CU_ERROR_CHECK(cuStreamCreate(&stream1, 0));
+  CU_ERROR_CHECK(cuStreamCreate(&stream0, CU_STREAM_NON_BLOCKING));
+  CU_ERROR_CHECK(cuStreamCreate(&stream1, CU_STREAM_NON_BLOCKING));
 
   if (uplo == CBlasUpper) {
     for (size_t j = 0; j < n; j += nb) {
