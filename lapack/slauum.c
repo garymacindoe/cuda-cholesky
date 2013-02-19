@@ -134,7 +134,8 @@ CUresult cuSlauum(CULAPACKhandle handle,
     return CUDA_SUCCESS;
 
   float * B;
-  size_t ldb;
+  CUdeviceptr X;
+  size_t ldb, ldx;
   CUstream stream0, stream1;
 
   // Block size
@@ -148,18 +149,22 @@ CUresult cuSlauum(CULAPACKhandle handle,
   CU_ERROR_CHECK(cuStreamCreate(&stream1, CU_STREAM_NON_BLOCKING));
 
   if (uplo == CBlasUpper) {
+    // Allocate a temporary column for the out of place matrix multiply
+    CU_ERROR_CHECK(cuMemAllocPitch(&X, &ldx, n * sizeof(float), nb, sizeof(float)));
+    ldx /= sizeof(float);
+
     for (size_t i = 0; i < n; i += nb) {
       const size_t ib = min(nb, n - i);
 
       /* Update the current column using the diagonal block */
-      CU_ERROR_CHECK(cuStrmm(handle->blas_handle, CBlasRight, CBlasUpper, CBlasTrans, CBlasNonUnit, i, ib,
-                             one, A + (i * lda + i) * sizeof(float), lda,
-                             A + i * lda * sizeof(float), lda, stream0));
+      CU_ERROR_CHECK(cuStrmm2(handle->blas_handle, CBlasRight, CBlasUpper, CBlasTrans, CBlasNonUnit, i, ib,
+                              one, A + (i * lda + i) * sizeof(float), lda,
+                              A + i * lda * sizeof(float), lda, X, ldx, stream0));
       /* Update the current column using the big matrix to the right */
-      CU_ERROR_CHECK(cuSgemm(handle->blas_handle, CBlasNoTrans, CBlasTrans, i, ib, n - i - ib,
-                             one, A + (i + ib) * lda * sizeof(float), lda,
-                             A + ((i + ib) * lda + i) * sizeof(float), lda,
-                             one, A + i * lda * sizeof(float), lda, stream1));
+      CU_ERROR_CHECK(cuSgemm2(handle->blas_handle, CBlasNoTrans, CBlasTrans, i, ib, n - i - ib,
+                              one, A + (i + ib) * lda * sizeof(float), lda,
+                              A + ((i + ib) * lda + i) * sizeof(float), lda,
+                              one, X, ldx, A + i * lda * sizeof(float), lda, stream1));
 
       /* Start copying diagonal block onto host asynchronously */
       CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(B, ldb, 0, 0, A, lda, i, i,
@@ -182,18 +187,22 @@ CUresult cuSlauum(CULAPACKhandle handle,
     }
   }
   else {
+    // Allocate a temporary row for the out of place matrix multiply
+    CU_ERROR_CHECK(cuMemAllocPitch(&X, &ldx, nb * sizeof(float), n, sizeof(float)));
+    ldx /= sizeof(float);
+
     for (size_t i = 0; i < n; i += nb) {
       const size_t ib = min(nb, n - i);
 
       /* Update the current column using the diagonal block */
-      CU_ERROR_CHECK(cuStrmm(handle->blas_handle, CBlasLeft, CBlasLower, CBlasTrans, CBlasNonUnit, ib, i,
-                             one, A + (i * lda + i) * sizeof(float), lda,
-                             A + i * sizeof(float), lda, stream0));
+      CU_ERROR_CHECK(cuStrmm2(handle->blas_handle, CBlasLeft, CBlasLower, CBlasTrans, CBlasNonUnit, ib, i,
+                              one, A + (i * lda + i) * sizeof(float), lda,
+                              A + i * sizeof(float), lda, X, ldx, stream0));
       /* Update the current column using the big matrix to the right */
-      CU_ERROR_CHECK(cuSgemm(handle->blas_handle, CBlasTrans, CBlasNoTrans, ib, i, n - i - ib,
-                             one, A + (i * lda + i + ib) * sizeof(float), lda,
-                             A + (i + ib) * sizeof(float), lda,
-                             one, A + i * sizeof(float), lda, stream1));
+      CU_ERROR_CHECK(cuSgemm2(handle->blas_handle, CBlasTrans, CBlasNoTrans, ib, i, n - i - ib,
+                              one, A + (i * lda + i + ib) * sizeof(float), lda,
+                              A + (i + ib) * sizeof(float), lda,
+                              one, X, ldx, A + i * sizeof(float), lda, stream1));
 
       /* Start copying diagonal block onto host asynchronously */
       CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(B, ldb, 0, 0, A, lda, i, i,
@@ -218,6 +227,7 @@ CUresult cuSlauum(CULAPACKhandle handle,
 
   // Clean up resources
   CU_ERROR_CHECK(cuMemFreeHost(B));
+  CU_ERROR_CHECK(cuMemFree(X));
 
   CU_ERROR_CHECK(cuStreamDestroy(stream0));
   CU_ERROR_CHECK(cuStreamDestroy(stream1));

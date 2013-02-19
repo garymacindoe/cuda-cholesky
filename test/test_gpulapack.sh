@@ -34,8 +34,8 @@ if [ -x custrtri ]
         do
         echo custrtri ${u} ${d} ${n}
         ./custrtri ${u} ${d} ${n} 1
-      done
-    done | tee custrtri_${u}_${d}.txt
+      done | tee custrtri_${u}_${d}.txt
+    done
   done
 fi
 
