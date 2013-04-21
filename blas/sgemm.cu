@@ -1,12 +1,5 @@
 #include "blas.h"
-
-// y(1:16) += alpha * x(1:16)
-__device__ void saxpy(float alpha, const float * __restrict__ x, float * __restrict__ y) {
-  y[ 0] += alpha * x[ 0]; y[ 1] += alpha * x[ 1]; y[ 2] += alpha * x[ 2]; y[ 3] += alpha * x[ 3];
-  y[ 4] += alpha * x[ 4]; y[ 5] += alpha * x[ 5]; y[ 6] += alpha * x[ 6]; y[ 7] += alpha * x[ 7];
-  y[ 8] += alpha * x[ 8]; y[ 9] += alpha * x[ 9]; y[10] += alpha * x[10]; y[11] += alpha * x[11];
-  y[12] += alpha * x[12]; y[13] += alpha * x[13]; y[14] += alpha * x[14]; y[15] += alpha * x[15];
-}
+#include "saxpy.cu"
 
 /**
  * SGEMM:
@@ -26,11 +19,11 @@ __device__ void saxpy(float alpha, const float * __restrict__ x, float * __restr
 template <CBlasTranspose transA, CBlasTranspose transB,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void sgemm2(const float * __restrict__ A, const float * __restrict__ B,
-                       const float * __restrict__ C, float * __restrict__ D,
-                       float alpha, float beta,
-                       int lda, int ldb, int ldc, int ldd,
-                       int m, int n, int k) {
+__device__ void sgemm2(int m, int n, int k,
+                       float alpha, const float * __restrict__ A, int lda,
+                       const float * __restrict__ B, int ldb,
+                       float beta, const float * __restrict__ C, int ldc,
+                       float * __restrict__ D, int ldd) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of C/C
   const int bj = blockIdx.y * nb;       // Starting column of block of C/C
@@ -168,6 +161,17 @@ __global__ void sgemm2(const float * __restrict__ A, const float * __restrict__ 
     D[0] = alpha * d[14] + beta * C[0]; if (15 >= n) return; C += ldc; D += ldd;
     D[0] = alpha * d[15] + beta * C[0];
   }
+}
+
+template <CBlasTranspose transA, CBlasTranspose transB,
+          unsigned int mb, unsigned int nb, unsigned int kb,
+          unsigned int bx, unsigned int by>
+__global__ void sgemm2(const float * __restrict__ A, const float * __restrict__ B,
+                      const float * __restrict__ C, float * __restrict__ D,
+                      float alpha, float beta,
+                      int lda, int ldb, int ldc, int ldd,
+                      int m, int n, int k) {
+  sgemm2<transA, transB, mb, nb, kb, bx, by>(m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, D, ldd);
 }
 
 /**

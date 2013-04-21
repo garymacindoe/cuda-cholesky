@@ -59,5 +59,6 @@ strmm.o: blas.h cumultigpu.h error.h handle.h config.h strmm.fatbin.c
 strsm.o: blas.h cumultigpu.h error.h handle.h config.h strsm.fatbin.c
 
 sgemm.fatbin ssyrk.fatbin strmm.fatbin strsm.fatbin: NVCFLAGS += -code=sm_11,sm_13 -arch=compute_11
+sgemm.fatbin ssyrk.fatbin strmm.fatbin: saxpy.cu
 
 $(FATBINS): blas.h cumultigpu.h
