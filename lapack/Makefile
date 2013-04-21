@@ -26,7 +26,7 @@ OBJECTS = handle.o \
           slauum.o spotrf.o spotri.o strtri.o \
           slogdet.o
 
-FATBINS = slogdet.fatbin
+FATBINS = spotrf.fatbin slauum.fatbin strtri.fatbin slogdet.fatbin
 
 VPATH = ../include
 
@@ -41,12 +41,16 @@ $(TARGET): $(OBJECTS)
 
 handle.o: lapack.h blas.h cumultigpu.h handle.h error.h
 
-slauum.o: lapack.h blas.h cumultigpu.h handle.h error.h config.h
-spotrf.o: lapack.h blas.h cumultigpu.h handle.h error.h config.h
+slauum.o: lapack.h blas.h cumultigpu.h handle.h error.h config.h slauum.fatbin.c
+spotrf.o: lapack.h blas.h cumultigpu.h handle.h error.h config.h spotrf.fatbin.c
 spotri.o: lapack.h blas.h cumultigpu.h error.h
-strtri.o: lapack.h blas.h cumultigpu.h handle.h error.h config.h
-ztrtri.o: lapack.h blas.h cumultigpu.h handle.h error.h config.h
+strtri.o: lapack.h blas.h cumultigpu.h handle.h error.h config.h strtri.fatbin.c
 
 slogdet.o: lapack.h blas.h cumultigpu.h handle.h error.h slogdet.fatbin.c
 
 slogdet.fatbin: NVCFLAGS += -maxrregcount=10 -code=sm_11,sm_13 -arch=compute_11
+slauum.fatbin: NVCFLAGS += -maxrregcount=32 -code=sm_11,sm_13 -arch=compute_11
+spotrf.fatbin: NVCFLAGS += -maxrregcount=32 -code=sm_11,sm_13 -arch=compute_11
+spotri.fatbin: NVCFLAGS += -maxrregcount=32 -code=sm_11,sm_13 -arch=compute_11
+strtri.fatbin: NVCFLAGS += -maxrregcount=32 -code=sm_11,sm_13 -arch=compute_11
+spotrf.fatbin: strtri.cu
