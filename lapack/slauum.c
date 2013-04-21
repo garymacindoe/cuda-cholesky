@@ -134,7 +134,7 @@ CUresult cuSlauum(CULAPACKhandle handle,
   if (n == 0)
     return CUDA_SUCCESS;
 
-  float * B;
+  float * D;
   CUdeviceptr X;
   size_t ldb, ldx;
   CUstream stream0, stream1;
@@ -143,7 +143,7 @@ CUresult cuSlauum(CULAPACKhandle handle,
   size_t nb = n / 4;
 
   // Allocate page-locked host memory for diagonal block
-  CU_ERROR_CHECK(cuMemAllocHost((void **)&B, (ldb = (nb + 3u) & ~3u) * nb * sizeof(float)));
+  CU_ERROR_CHECK(cuMemAllocHost((void **)&D, (ldb = (n + 3u) & ~3u) * nb * sizeof(float)));
 
   // Create streams for asynchronous copy and compute
   CU_ERROR_CHECK(cuStreamCreate(&stream0, CU_STREAM_NON_BLOCKING));
@@ -158,6 +158,11 @@ CUresult cuSlauum(CULAPACKhandle handle,
     for (size_t i = 0; i < n; i += nb, nb = (i < n / 2) ? max(1, nb / 2) : min(n / 2, nb * 2)) {
       const size_t ib = min(nb, n - i);
 
+      // Work out whether it is worthwhile to do block column copy for the block size
+      const double column_dtoh = (double)(n * ib * sizeof(float)) * BANDWIDTH_DTOH + OVERHEAD_DTOH;
+      const double block_dtoh = (double)ib * ((double)(ib * sizeof(float)) * BANDWIDTH_DTOH + OVERHEAD_DTOH);
+      const bool bcc_dtoh = (lda == n && column_dtoh < block_dtoh);
+
       /* Update the current column using the diagonal block */
       CU_ERROR_CHECK(cuStrmm2(handle->blas_handle, CBlasRight, CBlasUpper, CBlasTrans, CBlasNonUnit, i, ib,
                               one, A + (i * lda + i) * sizeof(float), lda,
@@ -169,8 +174,18 @@ CUresult cuSlauum(CULAPACKhandle handle,
                               one, X, ldx, A + i * lda * sizeof(float), lda, stream1));
 
       /* Start copying diagonal block onto host asynchronously */
-      CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(B, ldb, 0, 0, A, lda, i, i,
-                                        ib, ib, sizeof(float), stream0));
+      float * B;
+      if (bcc_dtoh) {
+        // Copy the entire column in one go
+        CU_ERROR_CHECK(cuMemcpyDtoHAsync(D, A + i * lda * sizeof(float), n * ib * sizeof(float), stream0));
+        B = &D[i];    // The diagonal block is half-way down
+      }
+      else {
+        // Copy each column of the diagonal block separately
+        CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(D, ldb, 0, 0, A, lda, i, i,
+                                          ib, ib, sizeof(float), stream0));
+        B = D;      // The diagonal block is at the top of the column
+      }
 
       /* Wait until the diagonal block has been copied */
       CU_ERROR_CHECK(cuStreamSynchronize(stream0));
@@ -197,6 +212,16 @@ CUresult cuSlauum(CULAPACKhandle handle,
     for (size_t i = 0; i < n; i += nb, nb = (i < n / 2) ? max(1, nb / 2) : min(n / 2, nb * 2)) {
       const size_t ib = min(nb, n - i);
 
+      // Work out whether it is worthwhile to do block column copy for the block size
+      const double column_dtoh = (double)(n * ib * sizeof(float)) * BANDWIDTH_DTOH + OVERHEAD_DTOH;
+      const double block_dtoh = (double)ib * ((double)(ib * sizeof(float)) * BANDWIDTH_DTOH + OVERHEAD_DTOH);
+      const bool bcc_dtoh = (lda == n && column_dtoh < block_dtoh);
+
+      const double column_htod = (double)(n * ib * sizeof(float)) * BANDWIDTH_HTOD + OVERHEAD_HTOD;
+      const double block_htod = (double)ib * ((double)(ib * sizeof(float)) * BANDWIDTH_HTOD + OVERHEAD_HTOD);
+      // Can only copy column back if the column was copied in the first place
+      const bool bcc_htod = bcc_dtoh && (column_htod < block_htod);
+
       /* Update the current column using the diagonal block */
       CU_ERROR_CHECK(cuStrmm2(handle->blas_handle, CBlasLeft, CBlasLower, CBlasTrans, CBlasNonUnit, ib, i,
                               one, A + (i * lda + i) * sizeof(float), lda,
@@ -208,8 +233,18 @@ CUresult cuSlauum(CULAPACKhandle handle,
                               one, X, ldx, A + i * sizeof(float), lda, stream1));
 
       /* Start copying diagonal block onto host asynchronously */
-      CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(B, ldb, 0, 0, A, lda, i, i,
-                                        ib, ib, sizeof(float), stream0));
+      float * B;
+      if (bcc_dtoh) {
+        // Copy the entire column in one go
+        CU_ERROR_CHECK(cuMemcpyDtoHAsync(D, A + i * lda * sizeof(float), n * ib * sizeof(float), stream0));
+        B = &D[i];    // The diagonal block is half-way down
+      }
+      else {
+        // Copy each column of the diagonal block separately
+        CU_ERROR_CHECK(cuMemcpyDtoH2DAsync(D, ldb, 0, 0, A, lda, i, i,
+                                          ib, ib, sizeof(float), stream0));
+        B = D;      // The diagonal block is at the top of the column
+      }
 
       /* Wait until the diagonal block has been copied */
       CU_ERROR_CHECK(cuStreamSynchronize(stream0));
@@ -217,8 +252,11 @@ CUresult cuSlauum(CULAPACKhandle handle,
       slauum(uplo, ib, B, ldb, info);
 
       /* Copy the diagonal block back onto the device */
-      CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A, lda, i, i, B, ldb, 0, 0,
-                                         ib, ib, sizeof(float), stream0));
+      if (bcc_htod)   // Only works for lower triangular slauum
+        CU_ERROR_CHECK(cuMemcpyHtoDAsync(A + i * lda * sizeof(float), D, n * ib * sizeof(float), stream0));
+      else
+        CU_ERROR_CHECK(cuMemcpyHtoD2DAsync(A, lda, i, i, B, ldb, 0, 0,
+                                          ib, ib, sizeof(float), stream0));
 
       /* Perform the SSYRK on the same stream as the copy to ensure A has
        * finised copying back first. */
@@ -229,7 +267,7 @@ CUresult cuSlauum(CULAPACKhandle handle,
   }
 
   // Clean up resources
-  CU_ERROR_CHECK(cuMemFreeHost(B));
+  CU_ERROR_CHECK(cuMemFreeHost(D));
   CU_ERROR_CHECK(cuMemFree(X));
 
   CU_ERROR_CHECK(cuStreamDestroy(stream0));
