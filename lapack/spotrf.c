@@ -150,6 +150,9 @@ static inline CUresult cuSpotf2(CULAPACKhandle handle, CBlasUplo uplo,
                                 size_t n,
                                 CUdeviceptr A, size_t lda,
                                 CUdeviceptr info, CUstream stream) {
+  if (n == 0)
+    return CUDA_SUCCESS;
+
   const unsigned int bx = 64;
   if (n > bx)
     return CUDA_ERROR_INVALID_VALUE;
@@ -175,7 +178,16 @@ static inline CUresult cuSpotfimm2(CULAPACKhandle handle, CBlasUplo uplo,
                                    CUdeviceptr A, size_t lda,
                                    CUdeviceptr B, size_t ldb,
                                    CUdeviceptr info, CUstream stream) {
-  if (handle->spotrf == NULL)
+  if ((uplo == CBlasUpper && jb > 32) || (uplo == CBlasLower && jb > 16))
+    return CUDA_ERROR_INVALID_VALUE;
+
+  if (j == 0 || n - j - jb <= 0) {
+    // Have no SGEMM to do so just do SPOTF2
+    CU_ERROR_CHECK(cuSpotf2(handle, uplo, jb, A + (j * lda + j) * sizeof(float), lda, info, stream));
+    return CUDA_SUCCESS;
+  }
+
+  if (handle->spotfimm2 == NULL)
     CU_ERROR_CHECK(cuModuleLoadData(&handle->spotfimm2, imageBytes));
 
   /* For uplo == CBlasUpper m = jb, n = n - j - jb, k = j and an extra column
@@ -192,7 +204,7 @@ static inline CUresult cuSpotfimm2(CULAPACKhandle handle, CBlasUplo uplo,
   snprintf(name, 67, "_Z9spotfimm2IL9CBlasUplo%dELj%uELj%uELj%uELj%uELj%uEEvPfS1_Piiiiii", uplo, mb, nb, kb, bx, by);
 
   CUfunction function;
-  CU_ERROR_CHECK(cuModuleGetFunction(&function, handle->spotrf, name));
+  CU_ERROR_CHECK(cuModuleGetFunction(&function, handle->spotfimm2, name));
 
   void * params[] = { &A, &B, &info, &lda, &ldb, &j, &jb, &n };
 
@@ -263,7 +275,7 @@ CUresult cuSpotrf(CULAPACKhandle handle,
                              one, A + (j * lda + j) * sizeof(float), lda, stream0));
 
       // If the block size is small enough
-      if (jb <= 64) {
+      if (jb <= 32) {
         // Call the combined SPOTF2/SGEMM kernel on the GPU to avoid host->device transfer
         CU_ERROR_CHECK(cuSpotfimm2(handle, uplo, j, jb, n, A, lda, X, ldx, dinfo, NULL));
         CU_ERROR_CHECK(cuMemcpyDtoH(info, dinfo, sizeof(long)));
@@ -362,7 +374,7 @@ CUresult cuSpotrf(CULAPACKhandle handle,
                              one, A + (j * lda + j) * sizeof(float), lda, stream0));
 
       // If the block size is small enough
-      if (jb <= 64) {
+      if (jb <= 16) {
         // Call the combined SPOTF2/SGEMM kernel on the GPU to avoid host->device transfer
         CU_ERROR_CHECK(cuSpotfimm2(handle, uplo, j, jb, n, A, lda, X, ldx, dinfo, NULL));
         CU_ERROR_CHECK(cuMemcpyDtoH(info, dinfo, sizeof(long)));

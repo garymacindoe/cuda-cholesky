@@ -339,13 +339,11 @@ __global__ void spotfimm2(float * __restrict__ A, float * __restrict__ B,
   }
 }
 
-#ifndef __DEVICE_ONLY
 template __global__ void spotf2<CBlasUpper, 64>(float * __restrict__, int * __restrict__, int, int);
 template __global__ void spotf2<CBlasLower, 64>(float * __restrict__, int * __restrict__, int, int);
 
 template __global__ void spotfimm2<CBlasUpper, 32, 32, 8, 8, 8>(float * __restrict__, float * __restrict__, int * __restrict__, int, int, int, int, int);
 template __global__ void spotfimm2<CBlasLower, 64, 16, 16, 16, 4>(float * __restrict__, float * __restrict__, int * __restrict__, int, int, int, int, int);
-#endif
 
 #if 0
 #include <stdio.h>
@@ -402,6 +400,10 @@ int main(int argc, char * argv[]) {
 
   if (sscanf(argv[2], "%d", &n) != 1) {
     fprintf(stderr, "Unable to parse integer from '%s'\n", argv[2]);
+    return 2;
+  }
+  if (n < 1 || n > 64) {
+    fputs("n must be between 1 and 64\n", stderr);
     return 2;
   }
 
@@ -563,6 +565,9 @@ extern "C" void spotf2_(const char *, const int *, float *, const int *, int *);
 extern "C" void strti2_(const char *, const char *, const int *, float *, const int *, int *);
 
 static inline void spotfimm2(CBlasUplo uplo, int j, int jb, int n, float * A, int lda, float * B, int ldb, int * info) {
+  if (n == 0 || jb == 0)
+    return;     // No SGEMM or SPOTF2
+
   if (uplo == CBlasUpper) {
     spotfimm2<CBlasUpper, 32, 32,  8,  8,  8><<<dim3(((unsigned int)jb + 31) / 32 + 1, (unsigned int)(n - j - jb + 31) / 32), dim3(8, 8)>>>(A, B, info, lda, ldb, j, jb, n);
   }
@@ -624,6 +629,14 @@ int main(int argc, char * argv[]) {
 
   if (sscanf(argv[3], "%d", &nb) != 1) {
     fprintf(stderr, "Unable to parse integer from '%s'\n", argv[3]);
+    return 3;
+  }
+  if (nb <= 0 || (uplo == CBlasUpper && nb > 32)) {
+    fputs("nb must be between 1 and 32\n", stderr);
+    return 3;
+  }
+  if (nb <= 0 || (uplo == CBlasLower && nb > 16)) {
+    fputs("nb must be between 1 and 16\n", stderr);
     return 3;
   }
 
