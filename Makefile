@@ -1,6 +1,6 @@
 .PHONY: all test clean distclean
 
-all: libcumultigpu.a libcumultigpu_seq.a libblas.a liblapack.a
+all: test
 
 test: libcumultigpu.a libcumultigpu_seq.a libblas.a liblapack.a
 	cd test && $(MAKE)
@@ -10,8 +10,6 @@ clean:
 	cd lapack && $(MAKE) clean
 	cd multigpu && $(MAKE) clean
 	cd test && $(MAKE) clean
-
-distclean: clean
 	$(RM) libcumultigpu.a libcumultigpu_seq.a libblas.a liblapack.a include/config.h
 
 libblas.a:
