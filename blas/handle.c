@@ -15,8 +15,23 @@ static inline CUresult cublashandle_init(struct __cublashandle_st * handle) {
 
   handle->sgemm = NULL;
   handle->ssyrk = NULL;
-  handle->strmm2 = NULL;
+  handle->strmm = NULL;
   handle->strsm = NULL;
+
+  handle->cgemm = NULL;
+  handle->cherk = NULL;
+  handle->ctrmm = NULL;
+  handle->ctrsm = NULL;
+
+  handle->dgemm = NULL;
+  handle->dsyrk = NULL;
+  handle->dtrmm = NULL;
+  handle->dtrsm = NULL;
+
+  handle->zgemm = NULL;
+  handle->zherk = NULL;
+  handle->ztrmm = NULL;
+  handle->ztrsm = NULL;
 
   return CUDA_SUCCESS;
 }
@@ -28,10 +43,37 @@ static inline CUresult cublashandle_cleanup(struct __cublashandle_st * handle) {
     CU_ERROR_CHECK(cuModuleUnload(handle->sgemm));
   if (handle->ssyrk != NULL)
     CU_ERROR_CHECK(cuModuleUnload(handle->ssyrk));
-  if (handle->strmm2 != NULL)
-    CU_ERROR_CHECK(cuModuleUnload(handle->strmm2));
+  if (handle->strmm != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->strmm));
   if (handle->strsm != NULL)
     CU_ERROR_CHECK(cuModuleUnload(handle->strsm));
+
+  if (handle->cgemm != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->cgemm));
+  if (handle->cherk != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->cherk));
+  if (handle->ctrmm != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->ctrmm));
+  if (handle->ctrsm != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->ctrsm));
+
+  if (handle->dgemm != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->dgemm));
+  if (handle->dsyrk != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->dsyrk));
+  if (handle->dtrmm != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->dtrmm));
+  if (handle->dtrsm != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->dtrsm));
+
+  if (handle->zgemm != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->zgemm));
+  if (handle->zherk != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->zherk));
+  if (handle->ztrmm != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->ztrmm));
+  if (handle->ztrsm != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->ztrsm));
 
   if (handle->contextOwner)
     CU_ERROR_CHECK(cuCtxDestroy(handle->context));

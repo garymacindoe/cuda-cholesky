@@ -26,9 +26,15 @@ BIN2CFLAGS = -c -st
 TARGET = ../libblas.a
 
 OBJECTS = handle.o xerbla.o \
-          sgemm.o ssyrk.o strmm.o strsm.o
+          sgemm.o ssyrk.o strmm.o strsm.o \
+          cgemm.o cherk.o ctrmm.o ctrsm.o \
+          dgemm.o dsyrk.o dtrmm.o dtrsm.o \
+          zgemm.o zherk.o ztrmm.o ztrsm.o
 
-FATBINS = sgemm.fatbin ssyrk.fatbin strmm.fatbin strsm.fatbin
+FATBINS = sgemm.fatbin ssyrk.fatbin strmm.fatbin strsm.fatbin \
+          cgemm.fatbin cherk.fatbin ctrmm.fatbin ctrsm.fatbin \
+          dgemm.fatbin dsyrk.fatbin dtrmm.fatbin dtrsm.fatbin \
+          zgemm.fatbin zherk.fatbin ztrmm.fatbin ztrsm.fatbin
 
 VPATH = ../include
 
@@ -41,7 +47,7 @@ clean:
 
 $(TARGET): $(OBJECTS)
 
-config: config.c error.h blas.h cumultigpu.h | sgemm.fatbin
+config: config.c error.h blas.h cumultigpu.h | sgemm.fatbin cgemm.fatbin dgemm.fatbin zgemm.fatbin
 	$(CC) $(CPPFLAGS) $(CFLAGS) -o $(@) $(<) $(LOADLIBES) $(LDLIBS)
 
 ../include/config.h: config
@@ -57,7 +63,22 @@ ssyrk.o: blas.h cumultigpu.h error.h handle.h config.h ssyrk.fatbin.c
 sgemm.o: blas.h cumultigpu.h error.h handle.h config.h sgemm.fatbin.c
 strmm.o: blas.h cumultigpu.h error.h handle.h config.h strmm.fatbin.c
 strsm.o: blas.h cumultigpu.h error.h handle.h config.h strsm.fatbin.c
+cherk.o: blas.h cumultigpu.h error.h handle.h config.h cherk.fatbin.c
+cgemm.o: blas.h cumultigpu.h error.h handle.h config.h cgemm.fatbin.c
+ctrmm.o: blas.h cumultigpu.h error.h handle.h config.h ctrmm.fatbin.c
+ctrsm.o: blas.h cumultigpu.h error.h handle.h config.h ctrsm.fatbin.c
+dsyrk.o: blas.h cumultigpu.h error.h handle.h config.h dsyrk.fatbin.c
+dgemm.o: blas.h cumultigpu.h error.h handle.h config.h dgemm.fatbin.c
+dtrmm.o: blas.h cumultigpu.h error.h handle.h config.h dtrmm.fatbin.c
+dtrsm.o: blas.h cumultigpu.h error.h handle.h config.h dtrsm.fatbin.c
+zherk.o: blas.h cumultigpu.h error.h handle.h config.h zherk.fatbin.c
+zgemm.o: blas.h cumultigpu.h error.h handle.h config.h zgemm.fatbin.c
+ztrmm.o: blas.h cumultigpu.h error.h handle.h config.h ztrmm.fatbin.c
+ztrsm.o: blas.h cumultigpu.h error.h handle.h config.h ztrsm.fatbin.c
 
 sgemm.fatbin ssyrk.fatbin strmm.fatbin strsm.fatbin: NVCFLAGS += -code=sm_11,sm_13 -arch=compute_11
+cgemm.fatbin cherk.fatbin ctrmm.fatbin ctrsm.fatbin: NVCFLAGS += -code=sm_11,sm_13 -arch=compute_11
+dgemm.fatbin dsyrk.fatbin dtrmm.fatbin dtrsm.fatbin: NVCFLAGS += -code=sm_13 -arch=compute_13
+zgemm.fatbin zherk.fatbin ztrmm.fatbin ztrsm.fatbin: NVCFLAGS += -code=sm_13 -arch=compute_13
 
 $(FATBINS): blas.h cumultigpu.h
