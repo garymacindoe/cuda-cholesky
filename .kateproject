@@ -1,8 +1,0 @@
-{
-  "name": "CUDA Scientific Library",
-  "files": [ { "svn": 1 } ],
-  "build": {
-    "build": "make",
-    "clean": "make distclean"
-  }
-}
