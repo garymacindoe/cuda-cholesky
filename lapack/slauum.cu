@@ -183,13 +183,11 @@ __global__ void slaumm2(float * __restrict__ A, float * __restrict__ B,
   }
 }
 
-#ifndef __DEVICE_ONLY
 template __global__ void slauu2<CBlasUpper, 64>(float *, int, int);
 template __global__ void slauu2<CBlasLower, 64>(float *, int, int);
 
 template __global__ void slaumm2<CBlasUpper, 64, 16, 16, 16, 4>(float * __restrict__, float * __restrict__, int, int, int, int, int);
 template __global__ void slaumm2<CBlasLower, 32, 32,  8,  8, 8>(float * __restrict__, float * __restrict__, int, int, int, int, int);
-#endif
 
 #if 0
 #include <stdio.h>

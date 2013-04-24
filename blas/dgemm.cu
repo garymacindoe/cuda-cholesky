@@ -23,11 +23,11 @@
 template <CBlasTranspose transA, CBlasTranspose transB,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void dgemm2(const double * __restrict__ A, const double * __restrict__ B,
-                       const double * __restrict__ C, double * __restrict__ D,
-                       double alpha, double beta,
-                       int lda, int ldb, int ldc, int ldd,
-                       int m, int n, int k) {
+__device__ void dgemm2(int m, int n, int k,
+                       double alpha, const double * __restrict__ A, int lda,
+                       const double * __restrict__ B, int ldb,
+                       double beta, const double * __restrict__ C, int ldc,
+                       double * __restrict__ D, int ldd) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of C/D
   const int bj = blockIdx.y * nb;       // Starting column of block of C/D
@@ -180,11 +180,11 @@ __global__ void dgemm2(const double * __restrict__ A, const double * __restrict_
 template <CBlasTranspose transA, CBlasTranspose transB,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void dgemm2(const double * __restrict__ A, const double * __restrict__ B,
-                       const double * __restrict__ C, double * __restrict__ D,
-                       double alpha, double beta,
-                       int lda, int ldb, int ldc, int ldd,
-                       int m, int n, int k) {
+__device__ void dgemm2(int m, int n, int k,
+                       double alpha, const double * __restrict__ A, int lda,
+                       const double * __restrict__ B, int ldb,
+                       double beta, const double * __restrict__ C, int ldc,
+                       double * __restrict__ D, int ldd) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of C/D
   const int bj = blockIdx.y * nb;       // Starting column of block of C/D
@@ -306,6 +306,17 @@ __global__ void dgemm2(const double * __restrict__ A, const double * __restrict_
 }
 
 #endif
+
+template <CBlasTranspose transA, CBlasTranspose transB,
+          unsigned int mb, unsigned int nb, unsigned int kb,
+          unsigned int bx, unsigned int by>
+__global__ void dgemm2(const double * __restrict__ A, const double * __restrict__ B,
+                       const double * __restrict__ C, double * __restrict__ D,
+                       double alpha, double beta,
+                       int lda, int ldb, int ldc, int ldd,
+                       int m, int n, int k) {
+  dgemm2<transA, transB, mb, nb, kb, bx, by>(m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, D, ldd);
+}
 
 /**
  * For D = aAB + bC:

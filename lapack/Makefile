@@ -23,8 +23,8 @@ BIN2CFLAGS = -c -st
 TARGET = ../liblapack.a
 
 OBJECTS = handle.o \
-          slauum.o spotrf.o spotri.o strtri.o slogdet.o \
-          dlauum.o dpotrf.o dpotri.o dtrtri.o dlogdet.o
+          slauum.o spotrf.o spotri.o strtri.o slogdet.o
+#           dlauum.o dpotrf.o dpotri.o dtrtri.o dlogdet.o
 #           clauum.o cpotrf.o cpotri.o ctrtri.o \
 #           zlauum.o zpotrf.o zpotri.o ztrtri.o
 
@@ -43,17 +43,18 @@ $(TARGET): $(OBJECTS)
 
 handle.o: lapack.h blas.h cumultigpu.h handle.h error.h
 
-slauum.o: lapack.h blas.h cumultigpu.h handle.h error.h config.h
-spotrf.o: lapack.h blas.h cumultigpu.h handle.h error.h config.h
+slauum.o: lapack.h blas.h cumultigpu.h handle.h error.h config.h slauum.fatbin.c
+spotrf.o: lapack.h blas.h cumultigpu.h handle.h error.h config.h spotrf.fatbin.c
 spotri.o: lapack.h blas.h cumultigpu.h error.h
-strtri.o: lapack.h blas.h cumultigpu.h handle.h error.h config.h
+strtri.o: lapack.h blas.h cumultigpu.h handle.h error.h config.h strtri.fatbin.c
 slogdet.o: lapack.h blas.h cumultigpu.h handle.h error.h slogdet.fatbin.c
+spotrf.fatbin: NVCFLAGS += -maxrregcount=10 -code=sm_11,sm_13 -arch=compute_11
 slogdet.fatbin: NVCFLAGS += -maxrregcount=10 -code=sm_11,sm_13 -arch=compute_11
 
-dlauum.o: lapack.h blas.h cumultigpu.h handle.h error.h config.h
-dpotrf.o: lapack.h blas.h cumultigpu.h handle.h error.h config.h
+dlauum.o: lapack.h blas.h cumultigpu.h handle.h error.h config.h dlauum.fatbin.c
+dpotrf.o: lapack.h blas.h cumultigpu.h handle.h error.h config.h dpotrf.fatbin.c
 dpotri.o: lapack.h blas.h cumultigpu.h error.h
-dtrtri.o: lapack.h blas.h cumultigpu.h handle.h error.h config.h
+dtrtri.o: lapack.h blas.h cumultigpu.h handle.h error.h config.h dtrtri.fatbin.c
 dlogdet.o: lapack.h blas.h cumultigpu.h handle.h error.h dlogdet.fatbin.c
 dlogdet.fatbin: NVCFLAGS += -maxrregcount=10 -code=sm_13 -arch=compute_13
 

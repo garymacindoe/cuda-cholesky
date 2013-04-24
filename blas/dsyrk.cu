@@ -21,10 +21,9 @@
 template <CBlasUplo uplo, CBlasTranspose trans,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void dsyrk(const double * __restrict__ A, double * __restrict__ C,
-                      double alpha, double beta,
-                      int lda, int ldc,
-                      int n, int k) {
+__device__ void dsyrk(int n, int k,
+                      double alpha, const double * __restrict__ A, int lda,
+                      double beta, double * __restrict__ C, int ldc) {
 
 //   int bi, bj, nnb = (n + nb - 1) / nb;
 //   if (uplo == CBlasLower) {
@@ -243,10 +242,9 @@ __global__ void dsyrk(const double * __restrict__ A, double * __restrict__ C,
 template <CBlasUplo uplo, CBlasTranspose trans,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void dsyrk(const double * __restrict__ A, double * __restrict__ C,
-                      double alpha, double beta,
-                      int lda, int ldc,
-                      int n, int k) {
+__device__ void dsyrk(int n, int k,
+                      double alpha, const double * __restrict__ A, int lda,
+                      double beta, double * __restrict__ C, int ldc) {
 
 //   int bi, bj, nnb = (n + nb - 1) / nb;
 //   if (uplo == CBlasLower) {
@@ -436,6 +434,15 @@ __global__ void dsyrk(const double * __restrict__ A, double * __restrict__ C,
 }
 
 #endif
+template <CBlasUplo uplo, CBlasTranspose trans,
+          unsigned int mb, unsigned int nb, unsigned int kb,
+          unsigned int bx, unsigned int by>
+__global__ void dsyrk(const double * __restrict__ A, double * __restrict__ C,
+                      double alpha, double beta,
+                      int lda, int ldc,
+                      int n, int k) {
+  dsyrk<uplo, trans, mb, nb, kb, bx, by>(n, k, alpha, A, lda, beta, C, ldc);
+}
 
 /**
  * For C = aAB + bC:

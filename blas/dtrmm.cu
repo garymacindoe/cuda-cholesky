@@ -20,11 +20,10 @@ __device__ void dscal(int n, double alpha, const double * __restrict__ x,
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void dtrmmLUN(const double * __restrict__ A,
-                         const double * __restrict__ B, double * __restrict__ X,
-                         double alpha,
-                         int lda, int ldb, int ldx,
-                         int m, int n) {
+__device__ void dtrmmLUN(int m, int n,
+                         double alpha, const double * __restrict__ A, int lda,
+                         const double * __restrict__ B, int ldb,
+                         double * __restrict__ X, int ldx) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of X
   const int bj = blockIdx.y * nb;       // Starting column of block of X
@@ -134,11 +133,10 @@ __global__ void dtrmmLUN(const double * __restrict__ A,
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void dtrmmLUT(const double * __restrict__ A,
-                         const double * __restrict__ B, double * __restrict__ X,
-                         double alpha,
-                         int lda, int ldb, int ldx,
-                         int m, int n) {
+__device__ void dtrmmLUT(int m, int n,
+                         double alpha, const double * __restrict__ A, int lda,
+                         const double * __restrict__ B, int ldb,
+                         double * __restrict__ X, int ldx) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of X
   const int bj = blockIdx.y * nb;       // Starting column of block of X
@@ -258,11 +256,10 @@ __global__ void dtrmmLUT(const double * __restrict__ A,
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void dtrmmLLN(const double * __restrict__ A,
-                         const double * __restrict__ B, double * __restrict__ X,
-                         double alpha,
-                         int lda, int ldb, int ldx,
-                         int m, int n) {
+__device__ void dtrmmLLN(int m, int n,
+                         double alpha, const double * __restrict__ A, int lda,
+                         const double * __restrict__ B, int ldb,
+                         double * __restrict__ X, int ldx) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of X
   const int bj = blockIdx.y * nb;       // Starting column of block of X
@@ -365,11 +362,10 @@ __global__ void dtrmmLLN(const double * __restrict__ A,
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void dtrmmLLT(const double * __restrict__ A,
-                         const double * __restrict__ B, double * __restrict__ X,
-                         double alpha,
-                         int lda, int ldb, int ldx,
-                         int m, int n) {
+__device__ void dtrmmLLT(int m, int n,
+                         double alpha, const double * __restrict__ A, int lda,
+                         const double * __restrict__ B, int ldb,
+                         double * __restrict__ X, int ldx) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of X
   const int bj = blockIdx.y * nb;       // Starting column of block of X
@@ -515,11 +511,10 @@ __global__ void dtrmmLLT(const double * __restrict__ A,
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void dtrmmRUN(const double * __restrict__ A,
-                         const double * __restrict__ B, double * __restrict__ X,
-                         double alpha,
-                         int lda, int ldb, int ldx,
-                         int m, int n) {
+__device__ void dtrmmRUN(int m, int n,
+                         double alpha, const double * __restrict__ A, int lda,
+                         const double * __restrict__ B, int ldb,
+                         double * __restrict__ X, int ldx) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of X
   const int bj = blockIdx.y * nb;       // Starting column of block of X
@@ -597,11 +592,10 @@ __global__ void dtrmmRUN(const double * __restrict__ A,
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void dtrmmRUT(const double * __restrict__ A,
-                         const double * __restrict__ B, double * __restrict__ X,
-                         double alpha,
-                         int lda, int ldb, int ldx,
-                         int m, int n) {
+__device__ void dtrmmRUT(int m, int n,
+                         double alpha, const double * __restrict__ A, int lda,
+                         const double * __restrict__ B, int ldb,
+                         double * __restrict__ X, int ldx) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of X
   const int bj = blockIdx.y * nb;       // Starting column of block of X
@@ -691,11 +685,10 @@ __global__ void dtrmmRUT(const double * __restrict__ A,
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void dtrmmRLN(const double * __restrict__ A,
-                         const double * __restrict__ B, double * __restrict__ X,
-                         double alpha,
-                         int lda, int ldb, int ldx,
-                         int m, int n) {
+__device__ void dtrmmRLN(int m, int n,
+                         double alpha, const double * __restrict__ A, int lda,
+                         const double * __restrict__ B, int ldb,
+                         double * __restrict__ X, int ldx) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of X
   const int bj = blockIdx.y * nb;       // Starting column of block of X
@@ -784,11 +777,10 @@ __global__ void dtrmmRLN(const double * __restrict__ A,
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void dtrmmRLT(const double * __restrict__ A,
-                         const double * __restrict__ B, double * __restrict__ X,
-                         double alpha,
-                         int lda, int ldb, int ldx,
-                         int m, int n) {
+__device__ void dtrmmRLT(int m, int n,
+                         double alpha, const double * __restrict__ A, int lda,
+                         const double * __restrict__ B, int ldb,
+                         double * __restrict__ X, int ldx) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of X
   const int bj = blockIdx.y * nb;       // Starting column of block of X
@@ -881,11 +873,10 @@ __device__ void dscal(int n, double alpha, const double * x, double * y, int inc
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void dtrmmLUN(const double * __restrict__ A,
-                         const double * __restrict__ B, double * __restrict__ X,
-                         double alpha,
-                         int lda, int ldb, int ldx,
-                         int m, int n) {
+__device__ void dtrmmLUN(int m, int n,
+                         double alpha, const double * __restrict__ A, int lda,
+                         const double * __restrict__ B, int ldb,
+                         double * __restrict__ X, int ldx) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of X
   const int bj = blockIdx.y * nb;       // Starting column of block of X
@@ -990,11 +981,10 @@ __global__ void dtrmmLUN(const double * __restrict__ A,
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void dtrmmLUT(const double * __restrict__ A,
-                         const double * __restrict__ B, double * __restrict__ X,
-                         double alpha,
-                         int lda, int ldb, int ldx,
-                         int m, int n) {
+__device__ void dtrmmLUT(int m, int n,
+                         double alpha, const double * __restrict__ A, int lda,
+                         const double * __restrict__ B, int ldb,
+                         double * __restrict__ X, int ldx) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of X
   const int bj = blockIdx.y * nb;       // Starting column of block of X
@@ -1099,11 +1089,10 @@ __global__ void dtrmmLUT(const double * __restrict__ A,
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void dtrmmLLN(const double * __restrict__ A,
-                         const double * __restrict__ B, double * __restrict__ X,
-                         double alpha,
-                         int lda, int ldb, int ldx,
-                         int m, int n) {
+__device__ void dtrmmLLN(int m, int n,
+                         double alpha, const double * __restrict__ A, int lda,
+                         const double * __restrict__ B, int ldb,
+                         double * __restrict__ X, int ldx) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of X
   const int bj = blockIdx.y * nb;       // Starting column of block of X
@@ -1201,11 +1190,10 @@ __global__ void dtrmmLLN(const double * __restrict__ A,
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void dtrmmLLT(const double * __restrict__ A,
-                         const double * __restrict__ B, double * __restrict__ X,
-                         double alpha,
-                         int lda, int ldb, int ldx,
-                         int m, int n) {
+__device__ void dtrmmLLT(int m, int n,
+                         double alpha, const double * __restrict__ A, int lda,
+                         const double * __restrict__ B, int ldb,
+                         double * __restrict__ X, int ldx) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of X
   const int bj = blockIdx.y * nb;       // Starting column of block of X
@@ -1335,11 +1323,10 @@ __global__ void dtrmmLLT(const double * __restrict__ A,
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void dtrmmRUN(const double * __restrict__ A,
-                         const double * __restrict__ B, double * __restrict__ X,
-                         double alpha,
-                         int lda, int ldb, int ldx,
-                         int m, int n) {
+__device__ void dtrmmRUN(int m, int n,
+                         double alpha, const double * __restrict__ A, int lda,
+                         const double * __restrict__ B, int ldb,
+                         double * __restrict__ X, int ldx) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of X
   const int bj = blockIdx.y * nb;       // Starting column of block of X
@@ -1412,11 +1399,10 @@ __global__ void dtrmmRUN(const double * __restrict__ A,
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void dtrmmRUT(const double * __restrict__ A,
-                         const double * __restrict__ B, double * __restrict__ X,
-                         double alpha,
-                         int lda, int ldb, int ldx,
-                         int m, int n) {
+__device__ void dtrmmRUT(int m, int n,
+                         double alpha, const double * __restrict__ A, int lda,
+                         const double * __restrict__ B, int ldb,
+                         double * __restrict__ X, int ldx) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of X
   const int bj = blockIdx.y * nb;       // Starting column of block of X
@@ -1501,11 +1487,10 @@ __global__ void dtrmmRUT(const double * __restrict__ A,
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void dtrmmRLN(const double * __restrict__ A,
-                         const double * __restrict__ B, double * __restrict__ X,
-                         double alpha,
-                         int lda, int ldb, int ldx,
-                         int m, int n) {
+__device__ void dtrmmRLN(int m, int n,
+                         double alpha, const double * __restrict__ A, int lda,
+                         const double * __restrict__ B, int ldb,
+                         double * __restrict__ X, int ldx) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of X
   const int bj = blockIdx.y * nb;       // Starting column of block of X
@@ -1589,11 +1574,10 @@ __global__ void dtrmmRLN(const double * __restrict__ A,
 template <CBlasDiag diag,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void dtrmmRLT(const double * __restrict__ A,
-                         const double * __restrict__ B, double * __restrict__ X,
-                         double alpha,
-                         int lda, int ldb, int ldx,
-                         int m, int n) {
+__device__ void dtrmmRLT(int m, int n,
+                         double alpha, const double * __restrict__ A, int lda,
+                         const double * __restrict__ B, int ldb,
+                         double * __restrict__ X, int ldx) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of X
   const int bj = blockIdx.y * nb;       // Starting column of block of X
@@ -1664,6 +1648,94 @@ __global__ void dtrmmRLT(const double * __restrict__ A,
 }
 
 #endif
+
+template <CBlasDiag diag,
+          unsigned int mb, unsigned int nb, unsigned int kb,
+          unsigned int bx, unsigned int by>
+__global__ void dtrmmLUN(const double * __restrict__ A,
+                         const double * __restrict__ B, double * __restrict__ X,
+                         double alpha,
+                         int lda, int ldb, int ldx,
+                         int m, int n) {
+  dtrmmLUN<diag, mb, nb, kb, bx, by>(m, n, alpha, A, lda, B, ldb, X, ldx);
+}
+
+template <CBlasDiag diag,
+          unsigned int mb, unsigned int nb, unsigned int kb,
+          unsigned int bx, unsigned int by>
+__global__ void dtrmmLUT(const double * __restrict__ A,
+                         const double * __restrict__ B, double * __restrict__ X,
+                         double alpha,
+                         int lda, int ldb, int ldx,
+                         int m, int n) {
+  dtrmmLUT<diag, mb, nb, kb, bx, by>(m, n, alpha, A, lda, B, ldb, X, ldx);
+}
+
+template <CBlasDiag diag,
+          unsigned int mb, unsigned int nb, unsigned int kb,
+          unsigned int bx, unsigned int by>
+__global__ void dtrmmLLN(const double * __restrict__ A,
+                         const double * __restrict__ B, double * __restrict__ X,
+                         double alpha,
+                         int lda, int ldb, int ldx,
+                         int m, int n) {
+  dtrmmLLN<diag, mb, nb, kb, bx, by>(m, n, alpha, A, lda, B, ldb, X, ldx);
+}
+
+template <CBlasDiag diag,
+          unsigned int mb, unsigned int nb, unsigned int kb,
+          unsigned int bx, unsigned int by>
+__global__ void dtrmmLLT(const double * __restrict__ A,
+                         const double * __restrict__ B, double * __restrict__ X,
+                         double alpha,
+                         int lda, int ldb, int ldx,
+                         int m, int n) {
+  dtrmmLLT<diag, mb, nb, kb, bx, by>(m, n, alpha, A, lda, B, ldb, X, ldx);
+}
+
+template <CBlasDiag diag,
+          unsigned int mb, unsigned int nb, unsigned int kb,
+          unsigned int bx, unsigned int by>
+__global__ void dtrmmRUN(const double * __restrict__ A,
+                         const double * __restrict__ B, double * __restrict__ X,
+                         double alpha,
+                         int lda, int ldb, int ldx,
+                         int m, int n) {
+  dtrmmRUN<diag, mb, nb, kb, bx, by>(m, n, alpha, A, lda, B, ldb, X, ldx);
+}
+
+template <CBlasDiag diag,
+          unsigned int mb, unsigned int nb, unsigned int kb,
+          unsigned int bx, unsigned int by>
+__global__ void dtrmmRUT(const double * __restrict__ A,
+                         const double * __restrict__ B, double * __restrict__ X,
+                         double alpha,
+                         int lda, int ldb, int ldx,
+                         int m, int n) {
+  dtrmmRUT<diag, mb, nb, kb, bx, by>(m, n, alpha, A, lda, B, ldb, X, ldx);
+}
+
+template <CBlasDiag diag,
+          unsigned int mb, unsigned int nb, unsigned int kb,
+          unsigned int bx, unsigned int by>
+__global__ void dtrmmRLN(const double * __restrict__ A,
+                         const double * __restrict__ B, double * __restrict__ X,
+                         double alpha,
+                         int lda, int ldb, int ldx,
+                         int m, int n) {
+  dtrmmRLN<diag, mb, nb, kb, bx, by>(m, n, alpha, A, lda, B, ldb, X, ldx);
+}
+
+template <CBlasDiag diag,
+          unsigned int mb, unsigned int nb, unsigned int kb,
+          unsigned int bx, unsigned int by>
+__global__ void dtrmmRLT(const double * __restrict__ A,
+                         const double * __restrict__ B, double * __restrict__ X,
+                         double alpha,
+                         int lda, int ldb, int ldx,
+                         int m, int n) {
+  dtrmmRLT<diag, mb, nb, kb, bx, by>(m, n, alpha, A, lda, B, ldb, X, ldx);
+}
 
 template __global__ void dtrmmLUN<CBlasUnit,    64,  8, 16, 16,  4>(const double * __restrict__, const double * __restrict__, double * __restrict__, double, int, int, int, int, int);
 template __global__ void dtrmmLUN<CBlasNonUnit, 64,  8, 16, 16,  4>(const double * __restrict__, const double * __restrict__, double * __restrict__, double, int, int, int, int, int);

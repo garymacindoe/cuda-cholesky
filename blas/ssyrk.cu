@@ -1,12 +1,5 @@
 #include "blas.h"
-
-// y(1:16) += alpha * x(1:16)
-__device__ void saxpy(float alpha, const float * __restrict__ x, float * __restrict__ y) {
-  y[ 0] += alpha * x[ 0]; y[ 1] += alpha * x[ 1]; y[ 2] += alpha * x[ 2]; y[ 3] += alpha * x[ 3];
-  y[ 4] += alpha * x[ 4]; y[ 5] += alpha * x[ 5]; y[ 6] += alpha * x[ 6]; y[ 7] += alpha * x[ 7];
-  y[ 8] += alpha * x[ 8]; y[ 9] += alpha * x[ 9]; y[10] += alpha * x[10]; y[11] += alpha * x[11];
-  y[12] += alpha * x[12]; y[13] += alpha * x[13]; y[14] += alpha * x[14]; y[15] += alpha * x[15];
-}
+#include "saxpy.cu"
 
 /**
  * SSYRK:
@@ -26,10 +19,9 @@ __device__ void saxpy(float alpha, const float * __restrict__ x, float * __restr
 template <CBlasUplo uplo, CBlasTranspose trans,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void ssyrk(const float * __restrict__ A, float * __restrict__ C,
-                      float alpha, float beta,
-                      int lda, int ldc,
-                      int n, int k) {
+__device__ void ssyrk(int n, int k,
+                      float alpha, const float * __restrict__ A, int lda,
+                      float beta, float * __restrict__ C, int ldc) {
 
 //   int bi, bj, nnb = (n + nb - 1) / nb;
 //   if (uplo == CBlasLower) {
@@ -247,6 +239,15 @@ __global__ void ssyrk(const float * __restrict__ A, float * __restrict__ C,
       if (i >= j++) C[0] = alpha * c[15] + beta * C[0];
     }
   }
+}
+template <CBlasUplo uplo, CBlasTranspose trans,
+          unsigned int mb, unsigned int nb, unsigned int kb,
+          unsigned int bx, unsigned int by>
+__global__ void ssyrk(const float * __restrict__ A, float * __restrict__ C,
+                      float alpha, float beta,
+                      int lda, int ldc,
+                      int n, int k) {
+  ssyrk<uplo, trans, mb, nb, kb, bx, by>(n, k, alpha, A, lda, beta, C, ldc);
 }
 
 /**
