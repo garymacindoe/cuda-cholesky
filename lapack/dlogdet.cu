@@ -65,11 +65,11 @@ __global__ void reduce(const double * x, double * temp, int incx, int n) {
   // in a larger grid size and therefore fewer elements per thread
   const int gs = bs * 2 * gridDim.x;
   for (int i = blockIdx.x * (bs * 2) + threadIdx.x; i < n; i += gs) {
-    sum += logf(x[i * incx]);    // log x when reading from global memory
+    sum += log(x[i * incx]);    // log x when reading from global memory
 
     // ensure we don't read out of bounds -- this is optimized away for powerOf2 sized arrays
     if (nIsPow2 || i + bs < n)
-      sum += logf(x[(i + bs) * incx]);   // log x when reading from global memory
+      sum += log(x[(i + bs) * incx]);   // log x when reading from global memory
   }
 
   // do reduction in shared mem
