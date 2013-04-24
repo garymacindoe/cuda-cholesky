@@ -17,6 +17,7 @@ static CUresult cuSgemmBenchmark(CUfunction, CBlasTranspose, CBlasTranspose, siz
 static CUresult cuCgemmBenchmark(CUfunction, CBlasTranspose, CBlasTranspose, size_t, size_t, size_t, float *);
 static CUresult cuDgemmBenchmark(CUfunction, CBlasTranspose, CBlasTranspose, size_t, size_t, size_t, float *);
 static CUresult cuZgemmBenchmark(CUfunction, CBlasTranspose, CBlasTranspose, size_t, size_t, size_t, float *);
+static CUresult bandwidth_test(double *, double *, double *, double *);
 
 int main() {
   CU_ERROR_CHECK(cuInit(0));
@@ -284,6 +285,15 @@ int main() {
     fputs("#define ZGEMM_CC_NB 32\n", stdout);
     fputs("#define ZGEMM_CC_KB 32\n\n", stdout);
   }
+
+  double bandwidth_htod, overhead_htod, bandwidth_dtoh, overhead_dtoh;
+  CU_ERROR_CHECK(bandwidth_test(&bandwidth_htod, &overhead_htod,
+                                &bandwidth_dtoh, &overhead_dtoh));
+
+  fprintf(stdout, "#define BANDWIDTH_HTOD %.10e\n", bandwidth_htod);
+  fprintf(stdout, "#define OVERHEAD_HTOD %.10e\n", overhead_htod);
+  fprintf(stdout, "#define BANDWIDTH_DTOH %.10e\n", bandwidth_dtoh);
+  fprintf(stdout, "#define OVERHEAD_DTOH %.10e\n", overhead_dtoh);
 
   CU_ERROR_CHECK(cuCtxDestroy(context));
 
@@ -845,6 +855,89 @@ static CUresult cuZgemmBenchmark(CUfunction function, CBlasTranspose transA, CBl
   CU_ERROR_CHECK(cuMemFreeHost(A));
   CU_ERROR_CHECK(cuMemFreeHost(B));
   CU_ERROR_CHECK(cuMemFreeHost(C));
+
+  return CUDA_SUCCESS;
+}
+
+static CUresult bandwidth_test(double * bandwidth_htod, double * overhead_htod,
+                               double * bandwidth_dtoh, double * overhead_dtoh) {
+  CUstream stream;
+  CU_ERROR_CHECK(cuStreamCreate(&stream, 0));
+
+  CUdeviceptr dPointer;
+  CU_ERROR_CHECK(cuMemAlloc(&dPointer, 16777216));
+
+  void * hPointer;
+  CU_ERROR_CHECK(cuMemAllocHost(&hPointer, 134217728));
+
+  double sumX = 0.0, sumXX = 0.0, sumY = 0.0, sumXY = 0.0;
+  const size_t n = 16;
+  for (size_t j = 1; j <= n; j++) {
+    size_t size = j * 1048576;
+    struct timeval start, stop;
+
+    int error;
+    if ((error = gettimeofday(&start, NULL)) != 0) {
+      fprintf(stderr, "Unable to get start time: %s\n", strerror(error));
+      return error;
+    }
+    for (size_t k = 0; k < 20; k++)
+      CU_ERROR_CHECK(cuMemcpyHtoDAsync(dPointer, hPointer, size, stream));
+    CU_ERROR_CHECK(cuStreamSynchronize(stream));
+    if ((error = gettimeofday(&stop, NULL)) != 0) {
+      fprintf(stderr, "Unable to get stop time: %s\n", strerror(error));
+      return error;
+    }
+    double time = ((double)(stop.tv_sec - start.tv_sec) + ((double)(stop.tv_usec - start.tv_usec) * 1.E-6)) / 20.0;
+
+    sumX += (double)size;
+    sumXX += (double)size * (double)size;
+    sumY += time;
+    sumXY += time * (double)size;
+  }
+  double sxx = sumXX - (sumX * sumX) / (double)n;
+  double sxy = sumXY - (sumX * sumY) / (double)n;
+  double xbar = sumX / (double)n;
+  double ybar = sumY / (double)n;
+
+  *bandwidth_htod = sxy / sxx;
+  *overhead_htod = ybar - *bandwidth_htod * xbar;
+
+  sumY = 0.0, sumXY = 0.0;
+  for (size_t j = 1; j <= n; j++) {
+    size_t size = j * 1048576;
+    struct timeval start, stop;
+
+    int error;
+    if ((error = gettimeofday(&start, NULL)) != 0) {
+      fprintf(stderr, "Unable to get start time: %s\n", strerror(error));
+      return error;
+    }
+    for (size_t k = 0; k < 20; k++)
+      CU_ERROR_CHECK(cuMemcpyDtoHAsync(hPointer, dPointer, size, stream));
+    CU_ERROR_CHECK(cuStreamSynchronize(stream));
+    if ((error = gettimeofday(&stop, NULL)) != 0) {
+      fprintf(stderr, "Unable to get stop time: %s\n", strerror(error));
+      return error;
+    }
+    double time = ((double)(stop.tv_sec - start.tv_sec) + ((double)(stop.tv_usec - start.tv_usec) * 1.E-6)) / 20.0;
+
+    sumY += time;
+    sumXY += time * (double)size;
+  }
+  sxx = sumXX - (sumX * sumX) / (double)n;
+  sxy = sumXY - (sumX * sumY) / (double)n;
+  xbar = sumX / (double)n;
+  ybar = sumY / (double)n;
+
+  *bandwidth_dtoh = sxy / sxx;
+  *overhead_dtoh = ybar - *bandwidth_dtoh * xbar;
+
+  CU_ERROR_CHECK(cuMemFreeHost(hPointer));
+
+  CU_ERROR_CHECK(cuMemFree(dPointer));
+
+  CU_ERROR_CHECK(cuStreamDestroy(stream));
 
   return CUDA_SUCCESS;
 }

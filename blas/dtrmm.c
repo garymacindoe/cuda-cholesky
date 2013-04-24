@@ -203,6 +203,228 @@ void dtrmm(CBlasSide side, CBlasUplo uplo, CBlasTranspose trans, CBlasDiag diag,
   }
 }
 
+void dtrmm2(CBlasSide side, CBlasUplo uplo, CBlasTranspose trans, CBlasDiag diag,
+            size_t m, size_t n,
+            double alpha, const double * restrict A, size_t lda,
+            const double * restrict B, size_t ldb,
+            double * restrict X, size_t ldx) {
+  const size_t nRowA = (side == CBlasLeft) ? m : n;
+
+  int info = 0;
+  if (lda < nRowA)
+    info = 9;
+  else if (ldb < m)
+    info = 11;
+  else if (ldx < m)
+    info = 13;
+  if (info != 0) {
+    XERBLA(info);
+    return;
+  }
+
+  if (m == 0 || n == 0)
+    return;
+
+  if (alpha == zero) {
+#pragma omp parallel for
+    for (size_t j = 0; j < n; j++) {
+      for (size_t i = 0; i < m; i++)
+        X[j * ldx + i] = zero;
+    }
+    return;
+  }
+
+  if (side == CBlasLeft) {
+    if (trans == CBlasNoTrans) {
+      if (uplo == CBlasUpper) {
+#pragma omp parallel for
+        for (size_t j = 0; j < n; j++) {
+          for (size_t k = 0; k < m; k++) {
+            register double temp = B[j * ldb + k];
+            if (temp != zero) {
+              temp *= alpha;
+              for (size_t i = 0; i < k; i++)
+                X[j * ldx + i] += temp * A[k * lda + i];
+              if (diag == CBlasNonUnit) temp *= A[k * lda + k];
+            }
+            X[j * ldx + k] = temp;
+          }
+        }
+      }
+      else {
+#pragma omp parallel for
+        for (size_t j = 0; j < n; j++) {
+          size_t k = m - 1;
+          do {
+            if (B[j * ldb + k] != zero) {
+              register double temp = alpha * B[j * ldb + k];
+              X[j * ldx + k] = temp;
+              if (diag == CBlasNonUnit) X[j * ldx + k] *= A[k * lda + k];
+              for (size_t i = k + 1; i < m; i++)
+                X[j * ldx + i] += temp * A[k * lda + i];
+            }
+            else
+              X[j * ldx + k] = B[j * ldb + k];
+          } while (k-- > 0);
+        }
+      }
+    }
+    else {
+      if (uplo == CBlasUpper) {
+#pragma omp parallel for
+        for (size_t j = 0; j < n; j++) {
+          size_t i = m - 1;
+          do {
+            register double temp = B[j * ldb + i];
+            if (diag == CBlasNonUnit) temp *= A[i * lda + i];
+            for (size_t k = 0; k < i; k++)
+              temp += A[i * lda + k] * B[j * ldb + k];
+            X[j * ldx + i] = alpha * temp;
+          } while (i-- > 0);
+        }
+      }
+      else {
+#pragma omp parallel for
+        for (size_t j = 0; j < n; j++) {
+          for (size_t i = 0; i < m; i++) {
+            register double temp = B[j * ldb + i];
+            if (diag == CBlasNonUnit) temp *= A[i * lda + i];
+            for (size_t k = i + 1; k < m; k++)
+              temp += A[i * lda + k] * B[j * ldb + k];
+            X[j * ldx + i] = alpha * temp;
+          }
+        }
+      }
+    }
+  }
+  else {
+    if (trans == CBlasNoTrans) {
+      if (uplo == CBlasUpper) {
+        size_t j = n - 1;
+        do {
+          register double temp = alpha;
+          if (diag == CBlasNonUnit) temp *= A[j * lda + j];
+          for (size_t i = 0; i < m; i++)
+            X[j * ldx + i] = temp * B[j * ldb + i];
+          for (size_t k = 0; k < j; k++) {
+            if (A[j * lda + k] != zero) {
+              register double temp = alpha * A[j * lda + k];
+              for (size_t i = 0; i < m; i++)
+                X[j * ldx + i] += temp * B[k * ldb + i];
+            }
+          }
+        } while (j-- > 0);
+      }
+      else {
+        for (size_t j = 0; j < n; j++) {
+          register double temp = alpha;
+          if (diag == CBlasNonUnit) temp *= A[j * lda + j];
+          for (size_t i = 0; i < m; i++)
+            X[j * ldx + i] = temp * B[j * ldb + i];
+          for (size_t k = j + 1; k < n; k++) {
+            if (A[j * lda + k] != zero) {
+              register double temp = alpha * A[j * lda + k];
+              for (size_t i = 0; i < m; i++)
+                X[j * ldx + i] += temp * B[k * ldb + i];
+            }
+          }
+        }
+      }
+    }
+    else {
+      if (uplo == CBlasUpper) {
+        for (size_t k = 0; k < n; k++) {
+          for (size_t j = 0; j < k; j++) {
+            if (A[k * lda + j] != zero) {
+              register double temp = alpha * A[k * lda + j];
+              for (size_t i = 0; i < m; i++)
+                X[j * ldx + i] += temp * B[k * ldb + i];
+            }
+          }
+          register double temp = alpha;
+          if (diag == CBlasNonUnit) temp *= A[k * lda + k];
+          if (temp != one) {
+            for (size_t i = 0; i < m; i++)
+              X[k * ldx + i] = temp * B[k * ldb + i];
+          }
+        }
+      }
+      else {
+        size_t k = n - 1;
+        do {
+          for (size_t j = k + 1; j < n; j++) {
+            if (A[k * lda + j] != zero) {
+              register double temp = alpha * A[k * lda + j];
+              for (size_t i = 0; i < m; i++)
+                X[j * ldx + i] += temp * B[k * ldb + i];
+            }
+          }
+          register double temp = alpha;
+          if (diag == CBlasNonUnit) temp *= A[k * lda + k];
+          if (temp != one) {
+            for (size_t i = 0; i < m; i++)
+              X[k * ldx + i] = temp * B[k * ldb + i];
+          }
+        } while (k-- > 0);
+      }
+    }
+  }
+}
+
+CUresult cuDtrmm2(CUBLAShandle handle,
+                  CBlasSide side, CBlasUplo uplo, CBlasTranspose trans, CBlasDiag diag,
+                  size_t m, size_t n,
+                  double alpha,
+                  CUdeviceptr A, size_t lda, CUdeviceptr B, size_t ldb,
+                  CUdeviceptr X, size_t ldx, CUstream stream) {
+  const size_t nRowA = (side == CBlasLeft) ? m : n;
+
+  int info = 0;
+  if (lda < nRowA)
+    info = 9;
+  else if (ldb < m)
+    info = 11;
+  else if (ldx < m)
+    info = 13;
+  if (info != 0) {
+    XERBLA(info);
+    return CUDA_ERROR_INVALID_VALUE;
+  }
+
+  if (m == 0 || n == 0)
+    return CUDA_SUCCESS;
+
+  CU_ERROR_CHECK(cuCtxPushCurrent(handle->context));
+
+  if (handle->dtrmm2 == NULL)
+    CU_ERROR_CHECK(cuModuleLoadData(&handle->dtrmm2, imageBytes));
+
+  const unsigned int mb = (side == CBlasRight) ? 64 : (trans == CBlasNoTrans) ? 64 : 32;
+  const unsigned int nb = (side == CBlasRight) ?  8 : (trans == CBlasNoTrans) ?  8 : 16;
+  const unsigned int kb = (side == CBlasRight) ?  8 : (trans == CBlasNoTrans) ? 16 :  8;
+  const unsigned int bx = (side == CBlasRight) ?  8 : (trans == CBlasNoTrans) ? 16 :  8;
+  const unsigned int by = (side == CBlasRight) ?  8 : (trans == CBlasNoTrans) ?  4 :  8;
+
+  char name[67];
+  snprintf(name, 67,
+           "_Z8dtrmm%c%c%cIL9CBlasDiag%dELj%uELj%uELj%uELj%uELj%uEEvPKdS2_Pddiiiii",
+           side, uplo, trans, diag, mb, nb, kb, bx, by);
+
+  CUfunction function;
+  CU_ERROR_CHECK(cuModuleGetFunction(&function, handle->dtrmm2, name));
+
+  void * params[] = { &A, &B, &X, &alpha, &lda, &ldb, &ldx, &m, &n };
+
+  CU_ERROR_CHECK(cuLaunchKernel(function,
+                                (unsigned int)(m + mb - 1) / mb, (unsigned int)(n + nb - 1) / nb, 1,
+                                bx, by, 1,
+                                0, stream, params, NULL));
+
+  CU_ERROR_CHECK(cuCtxPopCurrent(&handle->context));
+
+  return CUDA_SUCCESS;
+}
+
 CUresult cuDtrmm(CUBLAShandle handle,
                  CBlasSide side, CBlasUplo uplo, CBlasTranspose trans, CBlasDiag diag,
                  size_t m, size_t n,
@@ -231,29 +453,7 @@ CUresult cuDtrmm(CUBLAShandle handle,
   CU_ERROR_CHECK(cuMemAllocPitch(&X, &ldx, m * sizeof(double), n, sizeof(double)));
   ldx /= sizeof(double);
 
-  if (handle->dtrmm == NULL)
-    CU_ERROR_CHECK(cuModuleLoadData(&handle->dtrmm, imageBytes));
-
-  const unsigned int mb = (side == CBlasRight) ? 64 : (trans == CBlasNoTrans) ? 64 : 32;
-  const unsigned int nb = (side == CBlasRight) ?  8 : (trans == CBlasNoTrans) ?  8 : 16;
-  const unsigned int kb = (side == CBlasRight) ?  8 : (trans == CBlasNoTrans) ? 16 :  8;
-  const unsigned int bx = (side == CBlasRight) ?  8 : (trans == CBlasNoTrans) ? 16 :  8;
-  const unsigned int by = (side == CBlasRight) ?  8 : (trans == CBlasNoTrans) ?  4 :  8;
-
-  char name[67];
-  snprintf(name, 67,
-           "_Z8dtrmm%c%c%cIL9CBlasDiag%dELj%uELj%uELj%uELj%uELj%uEEvPKdS2_Pddiiiii",
-           side, uplo, trans, diag, mb, nb, kb, bx, by);
-
-  CUfunction function;
-  CU_ERROR_CHECK(cuModuleGetFunction(&function, handle->dtrmm, name));
-
-  void * params[] = { &A, &B, &X, &alpha, &lda, &ldb, &ldx, &m, &n };
-
-  CU_ERROR_CHECK(cuLaunchKernel(function,
-                                (unsigned int)(m + mb - 1) / mb, (unsigned int)(n + nb - 1) / nb, 1,
-                                bx, by, 1,
-                                0, stream, params, NULL));
+  CU_ERROR_CHECK(cuDtrmm2(handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb, X, ldx, stream));
 
   CU_ERROR_CHECK(cuMemcpyDtoD2DAsync(B, ldb, 0, 0, X, ldx, 0, 0, m, n, sizeof(double), stream));
 

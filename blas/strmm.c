@@ -396,8 +396,8 @@ CUresult cuStrmm2(CUBLAShandle handle,
 
   CU_ERROR_CHECK(cuCtxPushCurrent(handle->context));
 
-  if (handle->strmm == NULL)
-    CU_ERROR_CHECK(cuModuleLoadData(&handle->strmm, imageBytes));
+  if (handle->strmm2 == NULL)
+    CU_ERROR_CHECK(cuModuleLoadData(&handle->strmm2, imageBytes));
 
   const unsigned int mb = (side == CBlasLeft && trans != CBlasNoTrans) ? 32 : 64;
   const unsigned int nb = (side == CBlasLeft && trans != CBlasNoTrans) ? 32 : 16;
@@ -411,7 +411,7 @@ CUresult cuStrmm2(CUBLAShandle handle,
            side, uplo, trans, diag, mb, nb, kb, bx, by);
 
   CUfunction function;
-  CU_ERROR_CHECK(cuModuleGetFunction(&function, handle->strmm, name));
+  CU_ERROR_CHECK(cuModuleGetFunction(&function, handle->strmm2, name));
 
   void * params[] = { &A, &B, &X, &alpha, &lda, &ldb, &ldx, &m, &n };
 

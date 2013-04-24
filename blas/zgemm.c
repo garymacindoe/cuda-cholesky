@@ -223,11 +223,11 @@ void zgemm(CBlasTranspose transA, CBlasTranspose transB,
   }
 }
 
-CUresult cuZgemm(CUBLAShandle handle, CBlasTranspose transA, CBlasTranspose transB,
-                 size_t m, size_t n, size_t k,
-                 double complex alpha, CUdeviceptr A, size_t lda, CUdeviceptr B, size_t ldb,
-                 double complex beta, CUdeviceptr C, size_t ldc,
-                 CUstream stream) {
+CUresult cuZgemm2(CUBLAShandle handle, CBlasTranspose transA, CBlasTranspose transB,
+                  size_t m, size_t n, size_t k,
+                  double complex alpha, CUdeviceptr A, size_t lda, CUdeviceptr B, size_t ldb,
+                  double complex beta, CUdeviceptr C, size_t ldc, CUdeviceptr D, size_t ldd,
+                  CUstream stream) {
   const size_t nRowA = (transA == CBlasNoTrans) ? m : k;
   const size_t nRowB = (transB == CBlasNoTrans) ? k : n;
 
@@ -238,27 +238,29 @@ CUresult cuZgemm(CUBLAShandle handle, CBlasTranspose transA, CBlasTranspose tran
     info = 10;
   else if (ldc < m)
     info = 13;
+  else if (ldd < m)
+    info = 15;
   if (info != 0) {
     XERBLA(info);
     return CUDA_ERROR_INVALID_VALUE;
   }
 
-  if (m == 0 || n == 0 || ((alpha == zero || k == 0) && beta == one))
+  if (m == 0 || n == 0 || (C == D && (alpha == zero || k == 0) && beta == one))
     return CUDA_SUCCESS;
 
   CU_ERROR_CHECK(cuCtxPushCurrent(handle->context));
 
-  if (handle->zgemm == NULL)
-    CU_ERROR_CHECK(cuModuleLoadData(&handle->zgemm, imageBytes));
+  if (handle->zgemm2 == NULL)
+    CU_ERROR_CHECK(cuModuleLoadData(&handle->zgemm2, imageBytes));
 
   unsigned int mb, nb, kb, bx, by;
-  char name[95];
+  char name[96];
 
   if (transA == CBlasNoTrans) {
     mb = 64; nb =  4; kb = 16;
     bx = (transB == CBlasNoTrans) ? 16 :  4;
     by = (transB == CBlasNoTrans) ?  4 : 16;
-    snprintf(name, 90, "_Z6zgemmNIL14CBlasTranspose%dELj64ELj4ELj16ELj%uELj%uEEv7double2S1_PKS1_S3_S3_PS1_iiiiiii", transB, bx, by);
+    snprintf(name, 91, "_Z7zgemm2NIL14CBlasTranspose%dELj64ELj4ELj16ELj%uELj%uEEv7double2S1_PKS1_S3_S3_PS1_iiiiiii", transB, bx, by);
   }
   else {
     mb =  8;
@@ -266,13 +268,13 @@ CUresult cuZgemm(CUBLAShandle handle, CBlasTranspose transA, CBlasTranspose tran
     kb = (transB == CBlasNoTrans) ?  4 :  8;
     bx = (transB == CBlasNoTrans) ?  4 :  8;
     by =  8;
-    snprintf(name, 95, "_Z6zgemmTIL14CBlasTranspose%dELS0_%dELj8ELj%uELj%uELj%uELj8EEv7double2S1_PKS1_S3_S3_PS1_iiiiiii", transA, transB, nb, kb, bx);
+    snprintf(name, 96, "_Z7zgemm2TIL14CBlasTranspose%dELS0_%dELj8ELj%uELj%uELj%uELj8EEv7double2S1_PKS1_S3_S3_PS1_iiiiiii", transA, transB, nb, kb, bx);
   }
 
   CUfunction function;
-  CU_ERROR_CHECK(cuModuleGetFunction(&function, handle->zgemm, name));
+  CU_ERROR_CHECK(cuModuleGetFunction(&function, handle->zgemm2, name));
 
-  void * params[] = { &alpha, &beta, &A, &B, &C, &lda, &ldb, &ldc, &m, &n, &k };
+  void * params[] = { &A, &B, &C, &D, &alpha, &beta, &lda, &ldb, &ldc, &ldd, &m, &n, &k };
 
   CU_ERROR_CHECK(cuLaunchKernel(function, (unsigned int)(m + mb - 1) / mb, (unsigned int)(n + nb - 1) / nb, 1,
                                 bx, by, 1, 0, stream, params, NULL));
