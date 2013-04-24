@@ -77,7 +77,7 @@ __global__ void reduce(const double * x, double * temp, int incx, int n) {
 
   // write result for this block to global mem
   if (threadIdx.x == 0)
-    temp[blockIdx.x] = 2.0 * shared[0];     // calculate 2 * sum(log(x))
+    temp[blockIdx.x] = 2.0 * shared[0];      // calculate 2 * sum(log(x))
 
   //
   // PHASE 2: Last block finished will process all partial sums

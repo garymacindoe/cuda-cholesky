@@ -57,7 +57,7 @@ CUresult cuDlogdet(CULAPACKhandle handle, CUdeviceptr x, size_t incx, size_t n, 
   CU_ERROR_CHECK(cuMemAlloc(&temp, blocks * sizeof(double)));
 
   char name[31];
-  snprintf(name, 31, "_Z6reduceILj%uELb%dEEvPKfPfii", threads, (n & (n - 1)) == 0);
+  snprintf(name, 31, "_Z6reduceILj%uELb%dEEvPKdPdii", threads, (n & (n - 1)) == 0);
 
   CUfunction function;
   CU_ERROR_CHECK(cuModuleGetFunction(&function, handle->dlogdet, name));
