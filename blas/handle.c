@@ -18,6 +18,21 @@ static inline CUresult cublashandle_init(struct __cublashandle_st * handle) {
   handle->strmm2 = NULL;
   handle->strsm = NULL;
 
+  handle->cgemm2 = NULL;
+  handle->cherk = NULL;
+  handle->ctrmm2 = NULL;
+  handle->ctrsm = NULL;
+
+  handle->dgemm2 = NULL;
+  handle->dsyrk = NULL;
+  handle->dtrmm2 = NULL;
+  handle->dtrsm = NULL;
+
+  handle->zgemm2 = NULL;
+  handle->zherk = NULL;
+  handle->ztrmm2 = NULL;
+  handle->ztrsm = NULL;
+
   return CUDA_SUCCESS;
 }
 
@@ -32,6 +47,33 @@ static inline CUresult cublashandle_cleanup(struct __cublashandle_st * handle) {
     CU_ERROR_CHECK(cuModuleUnload(handle->strmm2));
   if (handle->strsm != NULL)
     CU_ERROR_CHECK(cuModuleUnload(handle->strsm));
+
+  if (handle->cgemm2 != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->cgemm2));
+  if (handle->cherk != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->cherk));
+  if (handle->ctrmm2 != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->ctrmm2));
+  if (handle->ctrsm != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->ctrsm));
+
+  if (handle->dgemm2 != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->dgemm2));
+  if (handle->dsyrk != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->dsyrk));
+  if (handle->dtrmm2 != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->dtrmm2));
+  if (handle->dtrsm != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->dtrsm));
+
+  if (handle->zgemm2 != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->zgemm2));
+  if (handle->zherk != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->zherk));
+  if (handle->ztrmm2 != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->ztrmm2));
+  if (handle->ztrsm != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->ztrsm));
 
   if (handle->contextOwner)
     CU_ERROR_CHECK(cuCtxDestroy(handle->context));
