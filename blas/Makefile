@@ -81,4 +81,9 @@ cgemm.fatbin cherk.fatbin ctrmm.fatbin ctrsm.fatbin: NVCFLAGS += -code=sm_11,sm_
 dgemm.fatbin dsyrk.fatbin dtrmm.fatbin dtrsm.fatbin: NVCFLAGS += -code=sm_13 -arch=compute_13
 zgemm.fatbin zherk.fatbin ztrmm.fatbin ztrsm.fatbin: NVCFLAGS += -code=sm_13 -arch=compute_13
 
+sgemm.fatbin ssyrk.fatbin strmm.fatbin: saxpy.cu
+cgemm.fatbin cherk.fatbin ctrmm.fatbin: caxpy.cu
+dgemm.fatbin dsyrk.fatbin dtrmm.fatbin: daxpy.cu
+zgemm.fatbin zherk.fatbin ztrmm.fatbin: zaxpy.cu
+
 $(FATBINS): blas.h cumultigpu.h

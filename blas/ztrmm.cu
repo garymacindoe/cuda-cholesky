@@ -1,60 +1,8 @@
 #include "blas.h"
+#include "zaxpy.cu"
 #include <cuComplex.h>
 
 #if __CUDA_ARCH__ < 200 && (!defined(__BANK_CONFLICTS__) || __BANK_CONFLICTS__ <= 1)
-
-// y(1:4) += alpha * x(1:4)
-__device__ void zaxpy(cuDoubleComplex alpha, const int * __restrict__ x_real_hi,
-                      const int * __restrict__ x_real_lo,
-                      const int * __restrict__ x_imag_hi,
-                      const int * __restrict__ x_imag_lo,
-                      cuDoubleComplex * __restrict__ y) {
-  y[0] = cuCfma(alpha, make_cuDoubleComplex(__hiloint2double(x_real_hi[0], x_real_lo[0]),
-                                            __hiloint2double(x_imag_hi[0], x_imag_lo[0])), y[0]);
-  y[1] = cuCfma(alpha, make_cuDoubleComplex(__hiloint2double(x_real_hi[1], x_real_lo[1]),
-                                            __hiloint2double(x_imag_hi[1], x_imag_lo[1])), y[1]);
-  y[2] = cuCfma(alpha, make_cuDoubleComplex(__hiloint2double(x_real_hi[2], x_real_lo[2]),
-                                            __hiloint2double(x_imag_hi[2], x_imag_lo[2])), y[2]);
-  y[3] = cuCfma(alpha, make_cuDoubleComplex(__hiloint2double(x_real_hi[3], x_real_lo[3]),
-                                            __hiloint2double(x_imag_hi[3], x_imag_lo[3])), y[3]);
-}
-
-// y(1:4) += x(1:4)
-__device__ void zaxpy(const int * __restrict__ x_real_hi,
-                      const int * __restrict__ x_real_lo,
-                      const int * __restrict__ x_imag_hi,
-                      const int * __restrict__ x_imag_lo,
-                      cuDoubleComplex * __restrict__ y) {
-  y[0] = cuCadd(y[0], make_cuDoubleComplex(__hiloint2double(x_real_hi[0], x_real_lo[0]),
-                                           __hiloint2double(x_imag_hi[0], x_imag_lo[0])));
-  y[1] = cuCadd(y[1], make_cuDoubleComplex(__hiloint2double(x_real_hi[1], x_real_lo[1]),
-                                           __hiloint2double(x_imag_hi[1], x_imag_lo[1])));
-  y[2] = cuCadd(y[2], make_cuDoubleComplex(__hiloint2double(x_real_hi[2], x_real_lo[2]),
-                                           __hiloint2double(x_imag_hi[2], x_imag_lo[2])));
-  y[3] = cuCadd(y[3], make_cuDoubleComplex(__hiloint2double(x_real_hi[3], x_real_lo[3]),
-                                           __hiloint2double(x_imag_hi[3], x_imag_lo[3])));
-}
-
-// y(1:n) += alpha * x(1:n)
-__device__ void zaxpy(int n, cuDoubleComplex alpha,
-                      const int * __restrict__ x_real_hi,
-                      const int * __restrict__ x_real_lo,
-                      const int * __restrict__ x_imag_hi,
-                      const int * __restrict__ x_imag_lo,
-                      cuDoubleComplex * __restrict__ y) {
-  if (n <= 0) return;
-  y[0] = cuCfma(alpha, make_cuDoubleComplex(__hiloint2double(x_real_hi[0], x_real_lo[0]),
-                                            __hiloint2double(x_imag_hi[0], x_imag_lo[0])), y[0]);
-  if (1 >= n) return;
-  y[1] = cuCfma(alpha, make_cuDoubleComplex(__hiloint2double(x_real_hi[1], x_real_lo[1]),
-                                            __hiloint2double(x_imag_hi[1], x_imag_lo[1])), y[1]);
-  if (2 >= n) return;
-  y[2] = cuCfma(alpha, make_cuDoubleComplex(__hiloint2double(x_real_hi[2], x_real_lo[2]),
-                                            __hiloint2double(x_imag_hi[2], x_imag_lo[2])), y[2]);
-  if (3 >= n) return;
-  y[3] = cuCfma(alpha, make_cuDoubleComplex(__hiloint2double(x_real_hi[3], x_real_lo[3]),
-                                            __hiloint2double(x_imag_hi[3], x_imag_lo[3])), y[3]);
-}
 
 // y(1:n) = alpha * x(1:n)
 __device__ void zscal(int n, cuDoubleComplex alpha,
@@ -112,7 +60,7 @@ __global__ void ztrmmLUN(cuDoubleComplex alpha,
 #pragma unroll
       for (int ll = 0; ll < kb; ll++) {
         if (ti <= l++)
-          zaxpy(A[0], b_real_hi[ll], b_real_lo[ll], b_imag_hi[ll], b_imag_lo[ll], x);
+          zaxpy4(A[0], b_real_hi[ll], b_real_lo[ll], b_imag_hi[ll], b_imag_lo[ll], x);
         A += lda;
       }
     }
@@ -120,9 +68,9 @@ __global__ void ztrmmLUN(cuDoubleComplex alpha,
 #pragma unroll
       for (int ll = 0; ll < kb; ll++) {
         if (ti == l)
-          zaxpy(b_real_hi[ll], b_real_lo[ll], b_imag_hi[ll], b_imag_lo[ll], x);
+          zaxpy4(b_real_hi[ll], b_real_lo[ll], b_imag_hi[ll], b_imag_lo[ll], x);
         else if (ti < l)
-          zaxpy(A[0], b_real_hi[ll], b_real_lo[ll], b_imag_hi[ll], b_imag_lo[ll], x);
+          zaxpy4(A[0], b_real_hi[ll], b_real_lo[ll], b_imag_hi[ll], b_imag_lo[ll], x);
         A += lda;
         l++;
       }
@@ -137,16 +85,16 @@ __global__ void ztrmmLUN(cuDoubleComplex alpha,
   if (diag == CBlasNonUnit) {
     for (int ll = 0; ll < k; ll++) {
       if (ti <= l++)
-        zaxpy(A[0], b_real_hi[ll], b_real_lo[ll], b_imag_hi[ll], b_imag_lo[ll], x);
+        zaxpy4(A[0], b_real_hi[ll], b_real_lo[ll], b_imag_hi[ll], b_imag_lo[ll], x);
       A += lda;
     }
   }
   else {
     for (int ll = 0; ll < k; ll++) {
       if (ti == l)
-        zaxpy(b_real_hi[ll], b_real_lo[ll], b_imag_hi[ll], b_imag_lo[ll], x);
+        zaxpy4(b_real_hi[ll], b_real_lo[ll], b_imag_hi[ll], b_imag_lo[ll], x);
       else if (ti < l)
-        zaxpy(A[0], b_real_hi[ll], b_real_lo[ll], b_imag_hi[ll], b_imag_lo[ll], x);
+        zaxpy4(A[0], b_real_hi[ll], b_real_lo[ll], b_imag_hi[ll], b_imag_lo[ll], x);
       A += lda;
       l++;
     }
@@ -169,7 +117,7 @@ __global__ void ztrmmLUN(cuDoubleComplex alpha,
 
 #pragma unroll
     for (int l = 0; l < kb; l++) {
-      zaxpy(A[0], b_real_hi[l], b_real_lo[l], b_imag_hi[l], b_imag_lo[l], x);
+      zaxpy4(A[0], b_real_hi[l], b_real_lo[l], b_imag_hi[l], b_imag_lo[l], x);
       A += lda;
     }
 
@@ -180,7 +128,7 @@ __global__ void ztrmmLUN(cuDoubleComplex alpha,
   }
 
   for (int l = 0; l < k; l++) {
-    zaxpy(A[0], b_real_hi[l], b_real_lo[l], b_imag_hi[l], b_imag_lo[l], x);
+    zaxpy4(A[0], b_real_hi[l], b_real_lo[l], b_imag_hi[l], b_imag_lo[l], x);
     A += lda;
   }
 
@@ -247,7 +195,7 @@ __global__ void ztrmmLUT(cuDoubleComplex alpha,
 
 #pragma unroll
     for (int l = 0; l < kb; l++)
-      zaxpy(make_cuDoubleComplex(__hiloint2double(a_real_hi[ti][l], a_real_lo[ti][l]),
+      zaxpy4(make_cuDoubleComplex(__hiloint2double(a_real_hi[ti][l], a_real_lo[ti][l]),
                                  __hiloint2double(a_imag_hi[ti][l], a_imag_lo[ti][l])),
             &b_real_hi[l][tj], &b_real_lo[l][tj], &b_imag_hi[l][tj], &b_imag_lo[l][tj], x);
 
@@ -290,7 +238,7 @@ __global__ void ztrmmLUT(cuDoubleComplex alpha,
 #pragma unroll
       for (int ll = 0; ll < kb; ll++) {
         if (ti >= l++)
-          zaxpy(make_cuDoubleComplex(__hiloint2double(a_real_hi[ti][ll], a_real_lo[ti][ll]),
+          zaxpy4(make_cuDoubleComplex(__hiloint2double(a_real_hi[ti][ll], a_real_lo[ti][ll]),
                                      __hiloint2double(a_imag_hi[ti][ll], a_imag_lo[ti][ll])),
                 &b_real_hi[ll][tj], &b_real_lo[ll][tj], &b_imag_hi[ll][tj], &b_imag_lo[ll][tj], x);
       }
@@ -299,9 +247,9 @@ __global__ void ztrmmLUT(cuDoubleComplex alpha,
 #pragma unroll
       for (int ll = 0; ll < kb; ll++) {
         if (ti == l)
-          zaxpy(&b_real_hi[ll][tj], &b_real_lo[ll][tj], &b_imag_hi[ll][tj], &b_imag_lo[ll][tj], x);
+          zaxpy4(&b_real_hi[ll][tj], &b_real_lo[ll][tj], &b_imag_hi[ll][tj], &b_imag_lo[ll][tj], x);
         else if (ti > l)
-          zaxpy(make_cuDoubleComplex(__hiloint2double(a_real_hi[ti][ll], a_real_lo[ti][ll]),
+          zaxpy4(make_cuDoubleComplex(__hiloint2double(a_real_hi[ti][ll], a_real_lo[ti][ll]),
                                      __hiloint2double(a_imag_hi[ti][ll], a_imag_lo[ti][ll])),
                 &b_real_hi[ll][tj], &b_real_lo[ll][tj], &b_imag_hi[ll][tj], &b_imag_lo[ll][tj], x);
         l++;
@@ -317,7 +265,7 @@ __global__ void ztrmmLUT(cuDoubleComplex alpha,
   if (diag == CBlasNonUnit) {
     for (int ll = 0; ll < k; ll++) {
       if (ti >= l++)
-        zaxpy(make_cuDoubleComplex(__hiloint2double(a_real_hi[ti][ll], a_real_lo[ti][ll]),
+        zaxpy4(make_cuDoubleComplex(__hiloint2double(a_real_hi[ti][ll], a_real_lo[ti][ll]),
                                    __hiloint2double(a_imag_hi[ti][ll], a_imag_lo[ti][ll])),
               &b_real_hi[ll][tj], &b_real_lo[ll][tj], &b_imag_hi[ll][tj], &b_imag_lo[ll][tj], x);
     }
@@ -325,9 +273,9 @@ __global__ void ztrmmLUT(cuDoubleComplex alpha,
   else {
     for (int ll = 0; ll < k; ll++) {
       if (ti == l)
-        zaxpy(&b_real_hi[ll][tj], &b_real_lo[ll][tj], &b_imag_hi[ll][tj], &b_imag_lo[ll][tj], x);
+        zaxpy4(&b_real_hi[ll][tj], &b_real_lo[ll][tj], &b_imag_hi[ll][tj], &b_imag_lo[ll][tj], x);
       else if (ti > l)
-        zaxpy(make_cuDoubleComplex(__hiloint2double(a_real_hi[ti][ll], a_real_lo[ti][ll]),
+        zaxpy4(make_cuDoubleComplex(__hiloint2double(a_real_hi[ti][ll], a_real_lo[ti][ll]),
                                    __hiloint2double(a_imag_hi[ti][ll], a_imag_lo[ti][ll])),
               &b_real_hi[ll][tj], &b_real_lo[ll][tj], &b_imag_hi[ll][tj], &b_imag_lo[ll][tj], x);
       l++;
@@ -378,7 +326,7 @@ __global__ void ztrmmLLN(cuDoubleComplex alpha,
 
 #pragma unroll
     for (int l = 0; l < kb; l++) {
-      zaxpy(A[0], b_real_hi[l], b_real_lo[l], b_imag_hi[l], b_imag_lo[l], x);
+      zaxpy4(A[0], b_real_hi[l], b_real_lo[l], b_imag_hi[l], b_imag_lo[l], x);
       A += lda;
     }
 
@@ -408,7 +356,7 @@ __global__ void ztrmmLLN(cuDoubleComplex alpha,
 #pragma unroll
       for (int ll = 0; ll < kb; ll++) {
         if (ti >= l++)
-          zaxpy(A[0], b_real_hi[ll], b_real_lo[ll], b_imag_hi[ll], b_imag_lo[ll], x);
+          zaxpy4(A[0], b_real_hi[ll], b_real_lo[ll], b_imag_hi[ll], b_imag_lo[ll], x);
         A += lda;
       }
     }
@@ -416,9 +364,9 @@ __global__ void ztrmmLLN(cuDoubleComplex alpha,
 #pragma unroll
       for (int ll = 0; ll < kb; ll++) {
         if (ti == l)
-          zaxpy(b_real_hi[ll], b_real_lo[ll], b_imag_hi[ll], b_imag_lo[ll], x);
+          zaxpy4(b_real_hi[ll], b_real_lo[ll], b_imag_hi[ll], b_imag_lo[ll], x);
         else if (ti > l)
-          zaxpy(A[0], b_real_hi[ll], b_real_lo[ll], b_imag_hi[ll], b_imag_lo[ll], x);
+          zaxpy4(A[0], b_real_hi[ll], b_real_lo[ll], b_imag_hi[ll], b_imag_lo[ll], x);
         A += lda;
         l++;
       }
@@ -433,16 +381,16 @@ __global__ void ztrmmLLN(cuDoubleComplex alpha,
   if (diag == CBlasNonUnit) {
     for (int ll = 0; ll < k; ll++) {
       if (ti >= l++)
-        zaxpy(A[0], b_real_hi[ll], b_real_lo[ll], b_imag_hi[ll], b_imag_lo[ll], x);
+        zaxpy4(A[0], b_real_hi[ll], b_real_lo[ll], b_imag_hi[ll], b_imag_lo[ll], x);
       A += lda;
     }
   }
   else {
     for (int ll = 0; ll < k; ll++) {
       if (ti == l)
-        zaxpy(b_real_hi[ll], b_real_lo[ll], b_imag_hi[ll], b_imag_lo[ll], x);
+        zaxpy4(b_real_hi[ll], b_real_lo[ll], b_imag_hi[ll], b_imag_lo[ll], x);
       else if (ti > l)
-        zaxpy(A[0], b_real_hi[ll], b_real_lo[ll], b_imag_hi[ll], b_imag_lo[ll], x);
+        zaxpy4(A[0], b_real_hi[ll], b_real_lo[ll], b_imag_hi[ll], b_imag_lo[ll], x);
       A += lda;
       l++;
     }
@@ -516,7 +464,7 @@ __global__ void ztrmmLLT(cuDoubleComplex alpha,
 #pragma unroll
       for (int ll = 0; ll < kb; ll++) {
         if (ti <= l++)
-          zaxpy(make_cuDoubleComplex(__hiloint2double(a_real_hi[ti][ll], a_real_lo[ti][ll]),
+          zaxpy4(make_cuDoubleComplex(__hiloint2double(a_real_hi[ti][ll], a_real_lo[ti][ll]),
                                      __hiloint2double(a_imag_hi[ti][ll], a_imag_lo[ti][ll])),
                 &b_real_hi[ll][tj], &b_real_lo[ll][tj], &b_imag_hi[ll][tj], &b_imag_lo[ll][tj], x);
       }
@@ -525,9 +473,9 @@ __global__ void ztrmmLLT(cuDoubleComplex alpha,
 #pragma unroll
       for (int ll = 0; ll < kb; ll++) {
         if (ti == l)
-          zaxpy(&b_real_hi[ll][tj], &b_real_lo[ll][tj], &b_imag_hi[ll][tj], &b_imag_lo[ll][tj], x);
+          zaxpy4(&b_real_hi[ll][tj], &b_real_lo[ll][tj], &b_imag_hi[ll][tj], &b_imag_lo[ll][tj], x);
         else if (ti < l)
-          zaxpy(make_cuDoubleComplex(__hiloint2double(a_real_hi[ti][ll], a_real_lo[ti][ll]),
+          zaxpy4(make_cuDoubleComplex(__hiloint2double(a_real_hi[ti][ll], a_real_lo[ti][ll]),
                                      __hiloint2double(a_imag_hi[ti][ll], a_imag_lo[ti][ll])),
                 &b_real_hi[ll][tj], &b_real_lo[ll][tj], &b_imag_hi[ll][tj], &b_imag_lo[ll][tj], x);
         l++;
@@ -543,7 +491,7 @@ __global__ void ztrmmLLT(cuDoubleComplex alpha,
   if (diag == CBlasNonUnit) {
     for (int ll = 0; ll < k; ll++) {
       if (ti <= l++)
-        zaxpy(make_cuDoubleComplex(__hiloint2double(a_real_hi[ti][ll], a_real_lo[ti][ll]),
+        zaxpy4(make_cuDoubleComplex(__hiloint2double(a_real_hi[ti][ll], a_real_lo[ti][ll]),
                                    __hiloint2double(a_imag_hi[ti][ll], a_imag_lo[ti][ll])),
               &b_real_hi[ll][tj], &b_real_lo[ll][tj], &b_imag_hi[ll][tj], &b_imag_lo[ll][tj], x);
     }
@@ -551,9 +499,9 @@ __global__ void ztrmmLLT(cuDoubleComplex alpha,
   else {
     for (int ll = 0; ll < k; ll++) {
       if (ti == l)
-        zaxpy(&b_real_hi[ll][tj], &b_real_lo[ll][tj], &b_imag_hi[ll][tj], &b_imag_lo[ll][tj], x);
+        zaxpy4(&b_real_hi[ll][tj], &b_real_lo[ll][tj], &b_imag_hi[ll][tj], &b_imag_lo[ll][tj], x);
       else if (ti < l)
-        zaxpy(make_cuDoubleComplex(__hiloint2double(a_real_hi[ti][ll], a_real_lo[ti][ll]),
+        zaxpy4(make_cuDoubleComplex(__hiloint2double(a_real_hi[ti][ll], a_real_lo[ti][ll]),
                                    __hiloint2double(a_imag_hi[ti][ll], a_imag_lo[ti][ll])),
               &b_real_hi[ll][tj], &b_real_lo[ll][tj], &b_imag_hi[ll][tj], &b_imag_lo[ll][tj], x);
       l++;
@@ -590,7 +538,7 @@ __global__ void ztrmmLLT(cuDoubleComplex alpha,
 
 #pragma unroll
     for (int l = 0; l < kb; l++)
-      zaxpy(make_cuDoubleComplex(__hiloint2double(a_real_hi[ti][l], a_real_lo[ti][l]),
+      zaxpy4(make_cuDoubleComplex(__hiloint2double(a_real_hi[ti][l], a_real_lo[ti][l]),
                                  __hiloint2double(a_imag_hi[ti][l], a_imag_lo[ti][l])),
             &b_real_hi[l][tj], &b_real_lo[l][tj], &b_imag_hi[l][tj], &b_imag_lo[l][tj], x);
 
@@ -601,7 +549,7 @@ __global__ void ztrmmLLT(cuDoubleComplex alpha,
   }
 
   for (int l = 0; l < k; l++)
-    zaxpy(make_cuDoubleComplex(__hiloint2double(a_real_hi[ti][l], a_real_lo[ti][l]),
+    zaxpy4(make_cuDoubleComplex(__hiloint2double(a_real_hi[ti][l], a_real_lo[ti][l]),
                                __hiloint2double(a_imag_hi[ti][l], a_imag_lo[ti][l])),
           &b_real_hi[l][tj], &b_real_lo[l][tj], &b_imag_hi[l][tj], &b_imag_lo[l][tj], x);
 
@@ -613,23 +561,23 @@ __global__ void ztrmmLLT(cuDoubleComplex alpha,
   do { \
     if (diag != CBlasNonUnit) { \
       x[(i)] = cuCadd(x[(i)], B[0]); \
-      zaxpy(8 - (i) - 1, B[0], &a_real_hi[(i)][(i) + 1], &a_real_lo[(i)][(i) + 1], \
+      zaxpy4(8 - (i) - 1, B[0], &a_real_hi[(i)][(i) + 1], &a_real_lo[(i)][(i) + 1], \
                                &a_imag_hi[(i)][(i) + 1], &a_imag_lo[(i)][(i) + 1], &x[(i) + 1]); \
     } \
     else \
-      zaxpy(8 - (i), B[0], &a_real_hi[(i)][(i)], &a_real_lo[(i)][(i)], \
+      zaxpy4(8 - (i), B[0], &a_real_hi[(i)][(i)], &a_real_lo[(i)][(i)], \
                            &a_imag_hi[(i)][(i)], &a_imag_lo[(i)][(i)], &x[(i)]); \
   } while (false)
 
 #define INNER_RIGHT_LOOP_INC(i) \
   do { \
     if (diag != CBlasNonUnit) { \
-      zaxpy((i) - 1, B[0], a_real_hi[(i) - 1], a_real_lo[(i) - 1], \
+      zaxpy4((i) - 1, B[0], a_real_hi[(i) - 1], a_real_lo[(i) - 1], \
                            a_imag_hi[(i) - 1], a_imag_lo[(i) - 1], x); \
       x[(i) - 1] = cuCadd(x[(i) - 1], B[0]); \
     } \
     else \
-      zaxpy((i), B[0], a_real_hi[(i) - 1], a_real_lo[(i) - 1], a_imag_hi[(i) - 1], a_imag_lo[(i) - 1], x); \
+      zaxpy4((i), B[0], a_real_hi[(i) - 1], a_real_lo[(i) - 1], a_imag_hi[(i) - 1], a_imag_lo[(i) - 1], x); \
   } while (false)
 
 template <CBlasDiag diag,
@@ -672,7 +620,7 @@ __global__ void ztrmmRUN(cuDoubleComplex alpha,
 
 #pragma unroll
     for (int l = 0; l < kb; l++) {
-      zaxpy(B[0], a_real_hi[l], a_real_lo[l], a_imag_hi[l], a_imag_lo[l], x);
+      zaxpy4(B[0], a_real_hi[l], a_real_lo[l], a_imag_hi[l], a_imag_lo[l], x);
       B += ldb;
     }
 
@@ -797,7 +745,7 @@ __global__ void ztrmmRUT(cuDoubleComplex alpha,
 
 #pragma unroll
     for (int l = 0; l < kb; l++) {
-      zaxpy(B[0], a_real_hi[l], a_real_lo[l], a_imag_hi[l], a_imag_lo[l], x);
+      zaxpy4(B[0], a_real_hi[l], a_real_lo[l], a_imag_hi[l], a_imag_lo[l], x);
       B += ldb;
     }
 
@@ -808,7 +756,7 @@ __global__ void ztrmmRUT(cuDoubleComplex alpha,
   }
 
   for (int l = 0; l < k; l++) {
-    zaxpy(B[0], a_real_hi[l], a_real_lo[l], a_imag_hi[l], a_imag_lo[l], x);
+    zaxpy4(B[0], a_real_hi[l], a_real_lo[l], a_imag_hi[l], a_imag_lo[l], x);
     B += ldb;
   }
 
@@ -889,7 +837,7 @@ __global__ void ztrmmRLN(cuDoubleComplex alpha,
 
 #pragma unroll
     for (int l = 0; l < kb; l++) {
-      zaxpy(B[0], a_real_hi[l], a_real_lo[l], a_imag_hi[l], a_imag_lo[l], x);
+      zaxpy4(B[0], a_real_hi[l], a_real_lo[l], a_imag_hi[l], a_imag_lo[l], x);
       B += ldb;
     }
 
@@ -900,7 +848,7 @@ __global__ void ztrmmRLN(cuDoubleComplex alpha,
   }
 
   for (int l = 0; l < k; l++) {
-    zaxpy(B[0], a_real_hi[l], a_real_lo[l], a_imag_hi[l], a_imag_lo[l], x);
+    zaxpy4(B[0], a_real_hi[l], a_real_lo[l], a_imag_hi[l], a_imag_lo[l], x);
     B += ldb;
   }
 
@@ -952,7 +900,7 @@ __global__ void ztrmmRLT(cuDoubleComplex alpha,
 
 #pragma unroll
     for (int l = 0; l < kb; l++) {
-      zaxpy(B[0], a_real_hi[l], a_real_lo[l], a_imag_hi[l], a_imag_lo[l], x);
+      zaxpy4(B[0], a_real_hi[l], a_real_lo[l], a_imag_hi[l], a_imag_lo[l], x);
       B += ldb;
     }
 
@@ -1001,25 +949,6 @@ __global__ void ztrmmRLT(cuDoubleComplex alpha,
 
 #else
 
-// y(1:4) += alpha * x(1:4)
-__device__ void zaxpy(cuDoubleComplex alpha, const cuDoubleComplex * x, cuDoubleComplex * y) {
-  y[0] = cuCfma(alpha, x[0], y[0]); y[1] = cuCfma(alpha, x[1], y[1]);
-  y[2] = cuCfma(alpha, x[2], y[2]); y[3] = cuCfma(alpha, x[3], y[3]);
-}
-
-// y(1:4) += x(1:4)
-__device__ void zaxpy(const cuDoubleComplex * x, cuDoubleComplex * y) {
-  y[0] = cuCadd(y[0], x[0]); y[1] = cuCadd(y[1], x[1]);
-  y[2] = cuCadd(y[2], x[2]); y[3] = cuCadd(y[3], x[3]);
-}
-
-// y(1:n) += alpha * x(1:n)
-__device__ void zaxpy(int n, cuDoubleComplex alpha, const cuDoubleComplex * x, cuDoubleComplex * y) {
-  if (n <= 0) return;
-  y[0] = cuCfma(alpha, x[0], y[0]); if (1 >= n) return; y[1] = cuCfma(alpha, x[1], y[1]); if (2 >= n) return;
-  y[2] = cuCfma(alpha, x[2], y[2]); if (3 >= n) return; y[3] = cuCfma(alpha, x[3], y[3]);
-}
-
 // y(1:n) = alpha * x(1:n)
 __device__ void zscal(int n, cuDoubleComplex alpha, const cuDoubleComplex * x, cuDoubleComplex * y, int incy) {
   if (n <= 0) return;
@@ -1067,7 +996,7 @@ __global__ void ztrmmLUN(cuDoubleComplex alpha,
 #pragma unroll
       for (int ll = 0; ll < kb; ll++) {
         if (ti <= l++)
-          zaxpy(A[0], b[ll], x);
+          zaxpy4(A[0], b[ll], x);
         A += lda;
       }
     }
@@ -1075,9 +1004,9 @@ __global__ void ztrmmLUN(cuDoubleComplex alpha,
 #pragma unroll
       for (int ll = 0; ll < kb; ll++) {
         if (ti == l)
-          zaxpy(b[ll], x);
+          zaxpy4(b[ll], x);
         else if (ti < l)
-          zaxpy(A[0], b[ll], x);
+          zaxpy4(A[0], b[ll], x);
         A += lda;
         l++;
       }
@@ -1092,16 +1021,16 @@ __global__ void ztrmmLUN(cuDoubleComplex alpha,
   if (diag == CBlasNonUnit) {
     for (int ll = 0; ll < k; ll++) {
       if (ti <= l++)
-        zaxpy(A[0], b[ll], x);
+        zaxpy4(A[0], b[ll], x);
       A += lda;
     }
   }
   else {
     for (int ll = 0; ll < k; ll++) {
       if (ti == l)
-        zaxpy(b[ll], x);
+        zaxpy4(b[ll], x);
       else if (ti < l)
-        zaxpy(A[0], b[ll], x);
+        zaxpy4(A[0], b[ll], x);
       A += lda;
       l++;
     }
@@ -1120,7 +1049,7 @@ __global__ void ztrmmLUN(cuDoubleComplex alpha,
 
 #pragma unroll
     for (int l = 0; l < kb; l++) {
-      zaxpy(A[0], b[l], x);
+      zaxpy4(A[0], b[l], x);
       A += lda;
     }
 
@@ -1131,7 +1060,7 @@ __global__ void ztrmmLUN(cuDoubleComplex alpha,
   }
 
   for (int l = 0; l < k; l++) {
-    zaxpy(A[0], b[l], x);
+    zaxpy4(A[0], b[l], x);
     A += lda;
   }
 
@@ -1180,7 +1109,7 @@ __global__ void ztrmmLUT(cuDoubleComplex alpha,
 
 #pragma unroll
     for (int l = 0; l < kb; l++)
-      zaxpy(a[ti][l], &b[l][tj], x);
+      zaxpy4(a[ti][l], &b[l][tj], x);
 
     __syncthreads();
 
@@ -1209,16 +1138,16 @@ __global__ void ztrmmLUT(cuDoubleComplex alpha,
 #pragma unroll
       for (int ll = 0; ll < kb; ll++) {
         if (ti >= l++)
-          zaxpy(a[ti][ll], &b[ll][tj], x);
+          zaxpy4(a[ti][ll], &b[ll][tj], x);
       }
     }
     else {
 #pragma unroll
       for (int ll = 0; ll < kb; ll++) {
         if (ti == l)
-          zaxpy(&b[ll][tj], x);
+          zaxpy4(&b[ll][tj], x);
         else if (ti > l)
-          zaxpy(a[ti][ll], &b[ll][tj], x);
+          zaxpy4(a[ti][ll], &b[ll][tj], x);
         l++;
       }
     }
@@ -1232,15 +1161,15 @@ __global__ void ztrmmLUT(cuDoubleComplex alpha,
   if (diag == CBlasNonUnit) {
     for (int ll = 0; ll < k; ll++) {
       if (ti >= l++)
-        zaxpy(a[ti][ll], &b[ll][tj], x);
+        zaxpy4(a[ti][ll], &b[ll][tj], x);
     }
   }
   else {
     for (int ll = 0; ll < k; ll++) {
       if (ti == l)
-        zaxpy(&b[ll][tj], x);
+        zaxpy4(&b[ll][tj], x);
       else if (ti > l)
-        zaxpy(a[ti][ll], &b[ll][tj], x);
+        zaxpy4(a[ti][ll], &b[ll][tj], x);
       l++;
     }
   }
@@ -1282,7 +1211,7 @@ __global__ void ztrmmLLN(cuDoubleComplex alpha,
 
 #pragma unroll
     for (int l = 0; l < kb; l++) {
-      zaxpy(A[0], b[l], x);
+      zaxpy4(A[0], b[l], x);
       A += lda;
     }
 
@@ -1308,7 +1237,7 @@ __global__ void ztrmmLLN(cuDoubleComplex alpha,
 #pragma unroll
       for (int ll = 0; ll < kb; ll++) {
         if (ti >= l++)
-          zaxpy(A[0], b[ll], x);
+          zaxpy4(A[0], b[ll], x);
         A += lda;
       }
     }
@@ -1316,9 +1245,9 @@ __global__ void ztrmmLLN(cuDoubleComplex alpha,
 #pragma unroll
       for (int ll = 0; ll < kb; ll++) {
         if (ti == l)
-          zaxpy(b[ll], x);
+          zaxpy4(b[ll], x);
         else if (ti > l)
-          zaxpy(A[0], b[ll], x);
+          zaxpy4(A[0], b[ll], x);
         A += lda;
         l++;
       }
@@ -1333,16 +1262,16 @@ __global__ void ztrmmLLN(cuDoubleComplex alpha,
   if (diag == CBlasNonUnit) {
     for (int ll = 0; ll < k; ll++) {
       if (ti >= l++)
-        zaxpy(A[0], b[ll], x);
+        zaxpy4(A[0], b[ll], x);
       A += lda;
     }
   }
   else {
     for (int ll = 0; ll < k; ll++) {
       if (ti == l)
-        zaxpy(b[ll], x);
+        zaxpy4(b[ll], x);
       else if (ti > l)
-        zaxpy(A[0], b[ll], x);
+        zaxpy4(A[0], b[ll], x);
       A += lda;
       l++;
     }
@@ -1398,16 +1327,16 @@ __global__ void ztrmmLLT(cuDoubleComplex alpha,
 #pragma unroll
       for (int ll = 0; ll < kb; ll++) {
         if (ti <= l++)
-          zaxpy(a[ti][ll], &b[ll][tj], x);
+          zaxpy4(a[ti][ll], &b[ll][tj], x);
       }
     }
     else {
 #pragma unroll
       for (int ll = 0; ll < kb; ll++) {
         if (ti == l)
-          zaxpy(&b[ll][tj], x);
+          zaxpy4(&b[ll][tj], x);
         else if (ti < l)
-          zaxpy(a[ti][ll], &b[ll][tj], x);
+          zaxpy4(a[ti][ll], &b[ll][tj], x);
         l++;
       }
     }
@@ -1421,15 +1350,15 @@ __global__ void ztrmmLLT(cuDoubleComplex alpha,
   if (diag == CBlasNonUnit) {
     for (int ll = 0; ll < k; ll++) {
       if (ti <= l++)
-        zaxpy(a[ti][ll], &b[ll][tj], x);
+        zaxpy4(a[ti][ll], &b[ll][tj], x);
     }
   }
   else {
     for (int ll = 0; ll < k; ll++) {
       if (ti == l)
-        zaxpy(&b[ll][tj], x);
+        zaxpy4(&b[ll][tj], x);
       else if (ti < l)
-        zaxpy(a[ti][ll], &b[ll][tj], x);
+        zaxpy4(a[ti][ll], &b[ll][tj], x);
       l++;
     }
   }
@@ -1452,7 +1381,7 @@ __global__ void ztrmmLLT(cuDoubleComplex alpha,
 
 #pragma unroll
     for (int l = 0; l < kb; l++)
-      zaxpy(a[ti][l], &b[l][tj], x);
+      zaxpy4(a[ti][l], &b[l][tj], x);
 
     __syncthreads();
 
@@ -1461,7 +1390,7 @@ __global__ void ztrmmLLT(cuDoubleComplex alpha,
   }
 
   for (int l = 0; l < k; l++)
-    zaxpy(a[ti][l], &b[l][tj], x);
+    zaxpy4(a[ti][l], &b[l][tj], x);
 
   if (m - bi - ti > 0)
     zscal(n - bj - tj, alpha, x, X, ldx);
@@ -1471,20 +1400,20 @@ __global__ void ztrmmLLT(cuDoubleComplex alpha,
   do { \
     if (diag != CBlasNonUnit) { \
       x[(i)] = cuCadd(x[(i)], B[0]); \
-      zaxpy(8 - (i) - 1, B[0], &a[(i)][(i) + 1], &x[(i) + 1]); \
+      zaxpy4(8 - (i) - 1, B[0], &a[(i)][(i) + 1], &x[(i) + 1]); \
     } \
     else \
-      zaxpy(8 - (i), B[0], &a[(i)][(i)], &x[(i)]); \
+      zaxpy4(8 - (i), B[0], &a[(i)][(i)], &x[(i)]); \
   } while (false)
 
 #define INNER_RIGHT_LOOP_INC(i) \
   do { \
     if (diag != CBlasNonUnit) { \
-      zaxpy((i) - 1, B[0], a[(i) - 1], x); \
+      zaxpy4((i) - 1, B[0], a[(i) - 1], x); \
       x[(i) - 1] = cuCadd(x[(i) - 1], B[0]); \
     } \
     else \
-      zaxpy((i), B[0], a[(i) - 1], x); \
+      zaxpy4((i), B[0], a[(i) - 1], x); \
   } while (false)
 
 template <CBlasDiag diag,
@@ -1520,7 +1449,7 @@ __global__ void ztrmmRUN(cuDoubleComplex alpha,
 
 #pragma unroll
     for (int l = 0; l < kb; l++) {
-      zaxpy(B[0], a[l], x);
+      zaxpy4(B[0], a[l], x);
       B += ldb;
     }
 
@@ -1622,7 +1551,7 @@ __global__ void ztrmmRUT(cuDoubleComplex alpha,
 
 #pragma unroll
     for (int l = 0; l < kb; l++) {
-      zaxpy(B[0], a[l], x);
+      zaxpy4(B[0], a[l], x);
       B += ldb;
     }
 
@@ -1633,7 +1562,7 @@ __global__ void ztrmmRUT(cuDoubleComplex alpha,
   }
 
   for (int l = 0; l < k; l++) {
-    zaxpy(B[0], a[l], x);
+    zaxpy4(B[0], a[l], x);
     B += ldb;
   }
 
@@ -1703,7 +1632,7 @@ __global__ void ztrmmRLN(cuDoubleComplex alpha,
 
 #pragma unroll
     for (int l = 0; l < kb; l++) {
-      zaxpy(B[0], a[l], x);
+      zaxpy4(B[0], a[l], x);
       B += ldb;
     }
 
@@ -1714,7 +1643,7 @@ __global__ void ztrmmRLN(cuDoubleComplex alpha,
   }
 
   for (int l = 0; l < k; l++) {
-    zaxpy(B[0], a[l], x);
+    zaxpy4(B[0], a[l], x);
     B += ldb;
   }
 
@@ -1755,7 +1684,7 @@ __global__ void ztrmmRLT(cuDoubleComplex alpha,
 
 #pragma unroll
     for (int l = 0; l < kb; l++) {
-      zaxpy(B[0], a[l], x);
+      zaxpy4(B[0], a[l], x);
       B += ldb;
     }
 

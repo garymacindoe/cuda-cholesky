@@ -1,4 +1,5 @@
 #include "blas.h"
+#include "caxpy.cu"
 #include <cuComplex.h>
 
 __host__ __device__ static __inline__ cuComplex cuCmulf(float a, cuComplex b) {
@@ -10,18 +11,6 @@ __host__ __device__ static __inline__ cuComplex cuCfmaf(float a, cuComplex b, cu
 }
 
 #if __CUDA_ARCH__ < 200 && (!defined(__BANK_CONFLICTS__) || __BANK_CONFLICTS__ <= 1)
-
-// y(1:8) += alpha * x(1:8)
-__device__ void caxpy(cuComplex alpha, const float * x_real, const float * x_imag, cuComplex * y) {
-  y[0] = cuCfmaf(alpha, make_cuComplex(x_real[0], x_imag[0]), y[0]);
-  y[1] = cuCfmaf(alpha, make_cuComplex(x_real[1], x_imag[1]), y[1]);
-  y[2] = cuCfmaf(alpha, make_cuComplex(x_real[2], x_imag[2]), y[2]);
-  y[3] = cuCfmaf(alpha, make_cuComplex(x_real[3], x_imag[3]), y[3]);
-  y[4] = cuCfmaf(alpha, make_cuComplex(x_real[4], x_imag[4]), y[4]);
-  y[5] = cuCfmaf(alpha, make_cuComplex(x_real[5], x_imag[5]), y[5]);
-  y[6] = cuCfmaf(alpha, make_cuComplex(x_real[6], x_imag[6]), y[6]);
-  y[7] = cuCfmaf(alpha, make_cuComplex(x_real[7], x_imag[7]), y[7]);
-}
 
 /**
  * CHERK:
@@ -246,14 +235,6 @@ __global__ void cherk(const cuComplex * __restrict__ A,
 }
 
 #else
-
-// y(1:8) += alpha * x(1:8)
-__device__ void caxpy(cuComplex alpha, const cuComplex * x, cuComplex * y) {
-  y[0] = cuCfmaf(alpha, x[0], y[0]); y[1] = cuCfmaf(alpha, x[1], y[1]);
-  y[2] = cuCfmaf(alpha, x[2], y[2]); y[3] = cuCfmaf(alpha, x[3], y[3]);
-  y[4] = cuCfmaf(alpha, x[4], y[4]); y[5] = cuCfmaf(alpha, x[5], y[5]);
-  y[6] = cuCfmaf(alpha, x[6], y[6]); y[7] = cuCfmaf(alpha, x[7], y[7]);
-}
 
 /**
  * CHERK:
