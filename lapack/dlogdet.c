@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <math.h>
 #include "handle.h"
-#include "slogdet.fatbin.c"
+#include "dlogdet.fatbin.c"
 
 static inline unsigned int max(unsigned int a, unsigned int b) { return (a > b) ? a : b; }
 
