@@ -145,11 +145,11 @@ void sgemm(CBlasTranspose transA, CBlasTranspose transB,
   }
 }
 
-CUresult cuSgemm(CUBLAShandle handle, CBlasTranspose transA, CBlasTranspose transB,
-                 size_t m, size_t n, size_t k,
-                 float alpha, CUdeviceptr A, size_t lda, CUdeviceptr B, size_t ldb,
-                 float beta, CUdeviceptr C, size_t ldc,
-                 CUstream stream) {
+CUresult cuSgemm2(CUBLAShandle handle, CBlasTranspose transA, CBlasTranspose transB,
+                  size_t m, size_t n, size_t k,
+                  float alpha, CUdeviceptr A, size_t lda, CUdeviceptr B, size_t ldb,
+                  float beta, CUdeviceptr C, size_t ldc, CUdeviceptr D, size_t ldd,
+                  CUstream stream) {
   const size_t nRowA = (transA == CBlasNoTrans) ? m : k;
   const size_t nRowB = (transB == CBlasNoTrans) ? k : n;
 
@@ -160,18 +160,20 @@ CUresult cuSgemm(CUBLAShandle handle, CBlasTranspose transA, CBlasTranspose tran
     info = 10;
   else if (ldc < m)
     info = 13;
+  else if (ldd < m)
+    info = 15;
   if (info != 0) {
     XERBLA(info);
     return CUDA_ERROR_INVALID_VALUE;
   }
 
-  if (m == 0 || n == 0 || ((alpha == zero || k == 0) && beta == one))
+  if (m == 0 || n == 0 || (C == D && (alpha == zero || k == 0) && beta == one))
     return CUDA_SUCCESS;
 
   CU_ERROR_CHECK(cuCtxPushCurrent(handle->context));
 
-  if (handle->sgemm == NULL)
-    CU_ERROR_CHECK(cuModuleLoadData(&handle->sgemm, imageBytes));
+  if (handle->sgemm2 == NULL)
+    CU_ERROR_CHECK(cuModuleLoadData(&handle->sgemm2, imageBytes));
 
   const unsigned int mb = (transA == CBlasNoTrans) ? 64 : 32;
   const unsigned int nb = (transA == CBlasNoTrans) ? 16 : 32;
@@ -179,15 +181,15 @@ CUresult cuSgemm(CUBLAShandle handle, CBlasTranspose transA, CBlasTranspose tran
   const unsigned int bx = (transA == CBlasNoTrans) ? 16 :  8;
   const unsigned int by = (transA == CBlasNoTrans) ?  4 :  8;
 
-  char name[80];
-  snprintf(name, 80,
-           "_Z5sgemmIL14CBlasTranspose%dELS0_%dELj%uELj%uELj%uELj%uELj%uEEvPKfS2_Pfffiiiiii",
+  char name[85];
+  snprintf(name, 85,
+           "_Z6sgemm2IL14CBlasTranspose%dELS0_%dELj%uELj%uELj%uELj%uELj%uEEvPKfS2_S2_Pfffiiiiiii",
            transA, transB, mb, nb, kb, bx, by);
 
   CUfunction function;
-  CU_ERROR_CHECK(cuModuleGetFunction(&function, handle->sgemm, name));
+  CU_ERROR_CHECK(cuModuleGetFunction(&function, handle->sgemm2, name));
 
-  void * params[] = { &A, &B, &C, &alpha, &beta, &lda, &ldb, &ldc, &m, &n, &k };
+  void * params[] = { &A, &B, &C, &D, &alpha, &beta, &lda, &ldb, &ldc, &ldd, &m, &n, &k };
 
   CU_ERROR_CHECK(cuLaunchKernel(function, (unsigned int)(m + mb - 1) / mb, (unsigned int)(n + nb - 1) / nb, 1,
                                 bx, by, 1, 0, stream, params, NULL));

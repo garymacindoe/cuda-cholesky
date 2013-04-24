@@ -13,24 +13,24 @@ static inline CUresult cublashandle_init(struct __cublashandle_st * handle) {
   else
     handle->contextOwner = false;
 
-  handle->sgemm = NULL;
+  handle->sgemm2 = NULL;
   handle->ssyrk = NULL;
-  handle->strmm = NULL;
+  handle->strmm2 = NULL;
   handle->strsm = NULL;
 
-  handle->cgemm = NULL;
+  handle->cgemm2 = NULL;
   handle->cherk = NULL;
-  handle->ctrmm = NULL;
+  handle->ctrmm2 = NULL;
   handle->ctrsm = NULL;
 
-  handle->dgemm = NULL;
+  handle->dgemm2 = NULL;
   handle->dsyrk = NULL;
-  handle->dtrmm = NULL;
+  handle->dtrmm2 = NULL;
   handle->dtrsm = NULL;
 
-  handle->zgemm = NULL;
+  handle->zgemm2 = NULL;
   handle->zherk = NULL;
-  handle->ztrmm = NULL;
+  handle->ztrmm2 = NULL;
   handle->ztrsm = NULL;
 
   return CUDA_SUCCESS;
@@ -39,39 +39,39 @@ static inline CUresult cublashandle_init(struct __cublashandle_st * handle) {
 static inline CUresult cublashandle_cleanup(struct __cublashandle_st * handle) {
   CU_ERROR_CHECK(cuCtxPushCurrent(handle->context));
 
-  if (handle->sgemm != NULL)
-    CU_ERROR_CHECK(cuModuleUnload(handle->sgemm));
+  if (handle->sgemm2 != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->sgemm2));
   if (handle->ssyrk != NULL)
     CU_ERROR_CHECK(cuModuleUnload(handle->ssyrk));
-  if (handle->strmm != NULL)
-    CU_ERROR_CHECK(cuModuleUnload(handle->strmm));
+  if (handle->strmm2 != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->strmm2));
   if (handle->strsm != NULL)
     CU_ERROR_CHECK(cuModuleUnload(handle->strsm));
 
-  if (handle->cgemm != NULL)
-    CU_ERROR_CHECK(cuModuleUnload(handle->cgemm));
+  if (handle->cgemm2 != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->cgemm2));
   if (handle->cherk != NULL)
     CU_ERROR_CHECK(cuModuleUnload(handle->cherk));
-  if (handle->ctrmm != NULL)
-    CU_ERROR_CHECK(cuModuleUnload(handle->ctrmm));
+  if (handle->ctrmm2 != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->ctrmm2));
   if (handle->ctrsm != NULL)
     CU_ERROR_CHECK(cuModuleUnload(handle->ctrsm));
 
-  if (handle->dgemm != NULL)
-    CU_ERROR_CHECK(cuModuleUnload(handle->dgemm));
+  if (handle->dgemm2 != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->dgemm2));
   if (handle->dsyrk != NULL)
     CU_ERROR_CHECK(cuModuleUnload(handle->dsyrk));
-  if (handle->dtrmm != NULL)
-    CU_ERROR_CHECK(cuModuleUnload(handle->dtrmm));
+  if (handle->dtrmm2 != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->dtrmm2));
   if (handle->dtrsm != NULL)
     CU_ERROR_CHECK(cuModuleUnload(handle->dtrsm));
 
-  if (handle->zgemm != NULL)
-    CU_ERROR_CHECK(cuModuleUnload(handle->zgemm));
+  if (handle->zgemm2 != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->zgemm2));
   if (handle->zherk != NULL)
     CU_ERROR_CHECK(cuModuleUnload(handle->zherk));
-  if (handle->ztrmm != NULL)
-    CU_ERROR_CHECK(cuModuleUnload(handle->ztrmm));
+  if (handle->ztrmm2 != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->ztrmm2));
   if (handle->ztrsm != NULL)
     CU_ERROR_CHECK(cuModuleUnload(handle->ztrsm));
 

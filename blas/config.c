@@ -42,9 +42,9 @@ int main() {
 
   CUfunction sgemmN, sgemmT;
   CU_ERROR_CHECK(cuModuleGetFunction(&sgemmN, sgemm,
-  "_Z5sgemmIL14CBlasTranspose78ELS0_84ELj64ELj16ELj16ELj16ELj4EEvPKfS2_Pfffiiiiii"));
+  "_Z6sgemm2IL14CBlasTranspose78ELS0_84ELj64ELj16ELj16ELj16ELj4EEvPKfS2_S2_Pfffiiiiiii"));
   CU_ERROR_CHECK(cuModuleGetFunction(&sgemmT, sgemm,
-  "_Z5sgemmIL14CBlasTranspose84ELS0_78ELj32ELj32ELj8ELj8ELj8EEvPKfS2_Pfffiiiiii"));
+  "_Z6sgemm2IL14CBlasTranspose84ELS0_78ELj32ELj32ELj8ELj8ELj8EEvPKfS2_S2_Pfffiiiiiii"));
 
   CU_ERROR_CHECK(cuFuncMaxBlocksPerMP(sgemmN, device, 64, &maxBlocks));
   getMaxReduction((unsigned int)multiProcessorCount * maxBlocks, 64, 16, &mb, &nb);
@@ -94,9 +94,9 @@ int main() {
 
   CUfunction cgemmN, cgemmC;
   CU_ERROR_CHECK(cuModuleGetFunction(&cgemmN, cgemm,
-  "_Z5cgemmIL14CBlasTranspose78ELS0_67ELj64ELj8ELj16ELj8ELj8EEvPK6float2S3_S3_PS1_S1_S1_iiiiiii"));
+  "_Z6cgemm2IL14CBlasTranspose78ELS0_67ELj64ELj8ELj16ELj8ELj8EEvPK6float2S3_S3_PS1_S1_S1_iiiiiii"));
   CU_ERROR_CHECK(cuModuleGetFunction(&cgemmC, cgemm,
-  "_Z5cgemmIL14CBlasTranspose67ELS0_78ELj32ELj16ELj8ELj8ELj8EEvPK6float2S3_S3_PS1_S1_S1_iiiiiii"));
+  "_Z6cgemm2IL14CBlasTranspose67ELS0_78ELj32ELj16ELj8ELj8ELj8EEvPK6float2S3_S3_PS1_S1_S1_iiiiiii"));
 
   CU_ERROR_CHECK(cuFuncMaxBlocksPerMP(cgemmN, device, 64, &maxBlocks));
   getMaxReduction((unsigned int)multiProcessorCount * maxBlocks, 64, 8, &mb, &nb);
@@ -147,9 +147,9 @@ int main() {
 
     CUfunction dgemmN, dgemmT;
     CU_ERROR_CHECK(cuModuleGetFunction(&dgemmN, dgemm,
-    "_Z5dgemmIL14CBlasTranspose78ELS0_84ELj64ELj8ELj16ELj8ELj8EEvPKdS2_S2_Pdddiiiiiii"));
+    "_Z6dgemm2IL14CBlasTranspose78ELS0_84ELj64ELj8ELj16ELj8ELj8EEvPKdS2_S2_Pdddiiiiiii"));
     CU_ERROR_CHECK(cuModuleGetFunction(&dgemmT, dgemm,
-    "_Z5dgemmIL14CBlasTranspose84ELS0_78ELj32ELj16ELj8ELj8ELj8EEvPKdS2_S2_Pdddiiiiiii"));
+    "_Z6dgemm2IL14CBlasTranspose84ELS0_78ELj32ELj16ELj8ELj8ELj8EEvPKdS2_S2_Pdddiiiiiii"));
 
     CU_ERROR_CHECK(cuFuncMaxBlocksPerMP(dgemmN, device, 64, &maxBlocks));
     getMaxReduction((unsigned int)multiProcessorCount * maxBlocks, 64, 8, &mb, &nb);
@@ -199,11 +199,11 @@ int main() {
 
     CUfunction zgemmN, zgemmCN, zgemmCC;
     CU_ERROR_CHECK(cuModuleGetFunction(&zgemmN, zgemm,
-    "_Z6zgemmNIL14CBlasTranspose67ELj64ELj4ELj16ELj4ELj16EEv7double2S1_PKS1_S3_S3_PS1_iiiiiii"));
+    "_Z7zgemm2NIL14CBlasTranspose67ELj64ELj4ELj16ELj4ELj16EEv7double2S1_PKS1_S3_S3_PS1_iiiiiii"));
     CU_ERROR_CHECK(cuModuleGetFunction(&zgemmCN, zgemm,
-    "_Z6zgemmTIL14CBlasTranspose67ELS0_78ELj8ELj8ELj4ELj4ELj8EEv7double2S1_PKS1_S3_S3_PS1_iiiiiii"));
+    "_Z7zgemm2TIL14CBlasTranspose67ELS0_78ELj8ELj8ELj4ELj4ELj8EEv7double2S1_PKS1_S3_S3_PS1_iiiiiii"));
     CU_ERROR_CHECK(cuModuleGetFunction(&zgemmCC, zgemm,
-    "_Z6zgemmTIL14CBlasTranspose67ELS0_67ELj8ELj16ELj8ELj8ELj8EEv7double2S1_PKS1_S3_S3_PS1_iiiiiii"));
+    "_Z7zgemm2TIL14CBlasTranspose67ELS0_67ELj8ELj16ELj8ELj8ELj8EEv7double2S1_PKS1_S3_S3_PS1_iiiiiii"));
 
     CU_ERROR_CHECK(cuFuncMaxBlocksPerMP(zgemmN, device, 64, &maxBlocks));
     getMaxReduction((unsigned int)multiProcessorCount * maxBlocks, 64, 4, &mb, &nb);
@@ -374,8 +374,8 @@ static void getMaxReduction(unsigned int blocks, unsigned int mb, unsigned int n
 
 static CUresult cuSgemmBenchmark(CUfunction function, CBlasTranspose transA, CBlasTranspose transB, size_t m, size_t n, size_t k, float * time) {
   float alpha, beta, * A, * B, * C;
-  CUdeviceptr dA, dB, dC;
-  size_t lda, ldb, ldc, dlda, dldb, dldc;
+  CUdeviceptr dA, dB, dC, dD;
+  size_t lda, ldb, ldc, dlda, dldb, dldc, dldd;
 
   alpha = (float)rand() / (float)RAND_MAX;
   beta = (float)rand() / (float)RAND_MAX;
@@ -446,6 +446,9 @@ static CUresult cuSgemmBenchmark(CUfunction function, CBlasTranspose transA, CBl
   CU_ERROR_CHECK(cuMemAllocPitch(&dC, &dldc, m * sizeof(float), n, sizeof(float)));
   dldc /= sizeof(float);
 
+  CU_ERROR_CHECK(cuMemAllocPitch(&dD, &dldd, m * sizeof(float), n, sizeof(float)));
+  dldd /= sizeof(float);
+
   for (size_t j = 0; j < n; j++) {
     for (size_t i = 0; i < m; i++)
       C[j * ldc + i] = (float)rand() / (float)RAND_MAX;
@@ -460,7 +463,7 @@ static CUresult cuSgemmBenchmark(CUfunction function, CBlasTranspose transA, CBl
   CU_ERROR_CHECK(cuEventCreate(&start, CU_EVENT_BLOCKING_SYNC));
   CU_ERROR_CHECK(cuEventCreate(&stop, CU_EVENT_BLOCKING_SYNC));
 
-  void * params[] = { &dA, &dB, &dC, &alpha, &beta, &dlda, &dldb, &dldc, &m, &n, &k };
+  void * params[] = { &dA, &dB, &dC, &dD, &alpha, &beta, &dlda, &dldb, &dldc, &dldd, &m, &n, &k };
 
   CU_ERROR_CHECK(cuEventRecord(start, 0));
   for (size_t i = 0; i < 2000; i++) {
@@ -480,6 +483,7 @@ static CUresult cuSgemmBenchmark(CUfunction function, CBlasTranspose transA, CBl
   CU_ERROR_CHECK(cuMemFree(dA));
   CU_ERROR_CHECK(cuMemFree(dB));
   CU_ERROR_CHECK(cuMemFree(dC));
+  CU_ERROR_CHECK(cuMemFree(dD));
   CU_ERROR_CHECK(cuMemFreeHost(A));
   CU_ERROR_CHECK(cuMemFreeHost(B));
   CU_ERROR_CHECK(cuMemFreeHost(C));

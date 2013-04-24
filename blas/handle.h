@@ -3,10 +3,10 @@
 
 struct __cublashandle_st {
   CUcontext context;
-  CUmodule sgemm, ssyrk, strsm, strmm;
-  CUmodule cgemm, cherk, ctrsm, ctrmm;
-  CUmodule dgemm, dsyrk, dtrsm, dtrmm;
-  CUmodule zgemm, zherk, ztrsm, ztrmm;
+  CUmodule sgemm2, ssyrk, strsm, strmm2;
+  CUmodule cgemm2, cherk, ctrsm, ctrmm2;
+  CUmodule dgemm2, dsyrk, dtrsm, dtrmm2;
+  CUmodule zgemm2, zherk, ztrsm, ztrmm2;
   bool contextOwner;
 };
 
