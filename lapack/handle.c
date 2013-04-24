@@ -7,6 +7,7 @@ static inline CUresult culapackhandle_init(struct __culapackhandle_st * handle) 
   CU_ERROR_CHECK(cuCtxGetCurrent(&handle->context));
 
   handle->slogdet = NULL;
+  handle->dlogdet = NULL;
 
   return CUDA_SUCCESS;
 }
@@ -16,6 +17,9 @@ static inline CUresult culapackhandle_cleanup(struct __culapackhandle_st * handl
 
   if (handle->slogdet != NULL)
     CU_ERROR_CHECK(cuModuleUnload(handle->slogdet));
+
+  if (handle->dlogdet != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->dlogdet));
 
   CU_ERROR_CHECK(cuCtxPopCurrent(&handle->context));
   CU_ERROR_CHECK(cuBLASDestroy(handle->blas_handle));

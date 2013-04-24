@@ -4,7 +4,7 @@
 struct __culapackhandle_st {
   CUBLAShandle blas_handle;
   CUcontext context;
-  CUmodule slogdet;
+  CUmodule slogdet, dlogdet;
 };
 
 struct __cumultigpulapackhandle_st {
