@@ -40,8 +40,8 @@ CUresult cuDlogdet(CULAPACKhandle handle, CUdeviceptr x, size_t incx, size_t n, 
     return CUDA_SUCCESS;
   }
 
-  if (handle->slogdet == NULL)
-    CU_ERROR_CHECK(cuModuleLoadData(&handle->slogdet, imageBytes));
+  if (handle->dlogdet == NULL)
+    CU_ERROR_CHECK(cuModuleLoadData(&handle->dlogdet, imageBytes));
 
   unsigned int threads, blocks;
   if (n == 1) {
@@ -60,7 +60,7 @@ CUresult cuDlogdet(CULAPACKhandle handle, CUdeviceptr x, size_t incx, size_t n, 
   snprintf(name, 31, "_Z6reduceILj%uELb%dEEvPKdPdii", threads, (n & (n - 1)) == 0);
 
   CUfunction function;
-  CU_ERROR_CHECK(cuModuleGetFunction(&function, handle->slogdet, name));
+  CU_ERROR_CHECK(cuModuleGetFunction(&function, handle->dlogdet, name));
 
   void * params[] = { &x, &temp, &incx, &n };
 

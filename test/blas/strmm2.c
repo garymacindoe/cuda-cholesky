@@ -171,7 +171,7 @@ int main(int argc, char * argv[]) {
   }
 
   double time = ((double)(stop.tv_sec - start.tv_sec) +
-                 (double)(stop.tv_nsec - start.tv_nsec) * 1.e-6) / 20.0;
+                 (double)(stop.tv_nsec - start.tv_nsec) * 1.e-9) / 20.0;
 
   const size_t flops = (side == CBlasLeft) ? n * m * m : m * n * n;
 
