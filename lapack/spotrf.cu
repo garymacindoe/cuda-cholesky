@@ -569,10 +569,13 @@ static inline void spotfimm2(CBlasUplo uplo, int j, int jb, int n, float * A, in
     return;     // No SGEMM or SPOTF2
 
   if (uplo == CBlasUpper) {
-    spotfimm2<CBlasUpper, 32, 32,  8,  8,  8><<<dim3(((unsigned int)jb + 31) / 32 + 1, (unsigned int)(n - j - jb + 31) / 32), dim3(8, 8)>>>(A, B, info, lda, ldb, j, jb, n);
+    spotfimm2<CBlasUpper, 32, 32,  8,  8,  8><<<dim3(((unsigned int)jb + 31) / 32 + 1, (unsigned int)max((n - j - jb + 31) / 32, 1)), dim3(8, 8)>>>(A, B, info, lda, ldb, j, jb, n);
   }
   else {
-    spotfimm2<CBlasLower, 64, 16, 16, 16,  4><<<dim3((unsigned int)(n - j - jb + 63) / 64, ((unsigned int)jb + 15) / 16 + 1), dim3(16, 4)>>>(A, B, info, lda, ldb, j, jb, n);
+//    if (n - j - jb == 0)
+      spotfimm2<CBlasLower, 64, 16, 16, 16,  4><<<dim3((unsigned int)max((n - j - jb + 63) / 64, 1), ((unsigned int)jb + 15) / 16 + 1), dim3(16, 4)>>>(A, B, info, lda, ldb, j, jb, n);
+//    else
+//      spotfimm2<CBlasLower, 64, 16, 16, 16,  4><<<dim3((unsigned int)(n - j - jb + 63) / 64, ((unsigned int)jb + 15) / 16 + 1), dim3(16, 4)>>>(A, B, info, lda, ldb, j, jb, n);
   }
 }
 
@@ -629,14 +632,6 @@ int main(int argc, char * argv[]) {
 
   if (sscanf(argv[3], "%d", &nb) != 1) {
     fprintf(stderr, "Unable to parse integer from '%s'\n", argv[3]);
-    return 3;
-  }
-  if (nb <= 0 || (uplo == CBlasUpper && nb > 32)) {
-    fputs("nb must be between 1 and 32\n", stderr);
-    return 3;
-  }
-  if (nb <= 0 || (uplo == CBlasLower && nb > 16)) {
-    fputs("nb must be between 1 and 16\n", stderr);
     return 3;
   }
 

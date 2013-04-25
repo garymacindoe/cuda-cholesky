@@ -181,14 +181,8 @@ static inline CUresult cuSpotfimm2(CULAPACKhandle handle, CBlasUplo uplo,
   if ((uplo == CBlasUpper && jb > 32) || (uplo == CBlasLower && jb > 16))
     return CUDA_ERROR_INVALID_VALUE;
 
-  if (j == 0 || n - j - jb <= 0) {
-    // Have no SGEMM to do so just do SPOTF2
-    CU_ERROR_CHECK(cuSpotf2(handle, uplo, jb, A + (j * lda + j) * sizeof(float), lda, info, stream));
-    return CUDA_SUCCESS;
-  }
-
-  if (handle->spotfimm2 == NULL)
-    CU_ERROR_CHECK(cuModuleLoadData(&handle->spotfimm2, imageBytes));
+  if (handle->spotrf == NULL)
+    CU_ERROR_CHECK(cuModuleLoadData(&handle->spotrf, imageBytes));
 
   /* For uplo == CBlasUpper m = jb, n = n - j - jb, k = j and an extra column
    * of blocks is needed to compute the cholesky
@@ -204,14 +198,14 @@ static inline CUresult cuSpotfimm2(CULAPACKhandle handle, CBlasUplo uplo,
   snprintf(name, 67, "_Z9spotfimm2IL9CBlasUplo%dELj%uELj%uELj%uELj%uELj%uEEvPfS1_Piiiiii", uplo, mb, nb, kb, bx, by);
 
   CUfunction function;
-  CU_ERROR_CHECK(cuModuleGetFunction(&function, handle->spotfimm2, name));
+  CU_ERROR_CHECK(cuModuleGetFunction(&function, handle->spotrf, name));
 
   void * params[] = { &A, &B, &info, &lda, &ldb, &j, &jb, &n };
 
   const unsigned int gx = (uplo == CBlasUpper) ? ((unsigned int)jb + mb - 1) / mb : (unsigned int)(n - j - jb + mb - 1) / mb + 1;
   const unsigned int gy = (uplo == CBlasUpper) ? (unsigned int)(n - j - jb + nb - 1) / nb + 1 : ((unsigned int)jb + nb - 1) / nb;
 
-  CU_ERROR_CHECK(cuLaunchKernel(function, gx, gy, 1, bx, by, 1, 0, stream, params, NULL));
+  CU_ERROR_CHECK(cuLaunchKernel(function, max(gx, 1), max(gy, 1), 1, bx, by, 1, 0, stream, params, NULL));
 
   return CUDA_SUCCESS;
 }

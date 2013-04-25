@@ -23,12 +23,15 @@ BIN2CFLAGS = -c -st
 TARGET = ../liblapack.a
 
 OBJECTS = handle.o \
-          slauum.o spotrf.o spotri.o strtri.o slogdet.o
-#           dlauum.o dpotrf.o dpotri.o dtrtri.o dlogdet.o
+          slauum.o spotrf.o spotri.o strtri.o slogdet.o \
+          dlauum.o dpotrf.o dpotri.o dtrtri.o dlogdet.o
 #           clauum.o cpotrf.o cpotri.o ctrtri.o \
 #           zlauum.o zpotrf.o zpotri.o ztrtri.o
 
-FATBINS = slogdet.fatbin dlogdet.fatbin
+FATBINS = slauum.fatbin spotrf.fatbin strtri.fatbin slogdet.fatbin \
+          dlauum.fatbin dpotrf.fatbin dtrtri.fatbin dlogdet.fatbin
+#           clauum.fatbin cpotrf.fatbin ctrtri.fatbin \
+#           zlauum.fatbin zpotrf.fatbin ztrtri.fatbin
 
 VPATH = ../include
 
@@ -48,7 +51,9 @@ spotrf.o: lapack.h blas.h cumultigpu.h handle.h error.h config.h spotrf.fatbin.c
 spotri.o: lapack.h blas.h cumultigpu.h error.h
 strtri.o: lapack.h blas.h cumultigpu.h handle.h error.h config.h strtri.fatbin.c
 slogdet.o: lapack.h blas.h cumultigpu.h handle.h error.h slogdet.fatbin.c
-spotrf.fatbin: NVCFLAGS += -maxrregcount=10 -code=sm_11,sm_13 -arch=compute_11
+slauum.fatbin: NVCFLAGS += -maxrregcount=32 -code=sm_11,sm_13 -arch=compute_11
+spotrf.fatbin: NVCFLAGS += -maxrregcount=32 -code=sm_11,sm_13 -arch=compute_11
+strtri.fatbin: NVCFLAGS += -maxrregcount=32 -code=sm_11,sm_13 -arch=compute_11
 slogdet.fatbin: NVCFLAGS += -maxrregcount=10 -code=sm_11,sm_13 -arch=compute_11
 
 dlauum.o: lapack.h blas.h cumultigpu.h handle.h error.h config.h dlauum.fatbin.c
@@ -56,14 +61,23 @@ dpotrf.o: lapack.h blas.h cumultigpu.h handle.h error.h config.h dpotrf.fatbin.c
 dpotri.o: lapack.h blas.h cumultigpu.h error.h
 dtrtri.o: lapack.h blas.h cumultigpu.h handle.h error.h config.h dtrtri.fatbin.c
 dlogdet.o: lapack.h blas.h cumultigpu.h handle.h error.h dlogdet.fatbin.c
+dlauum.fatbin: NVCFLAGS += -maxrregcount=32 -code=sm_13 -arch=compute_13
+dpotrf.fatbin: NVCFLAGS += -maxrregcount=32 -code=sm_13 -arch=compute_13
+dtrtri.fatbin: NVCFLAGS += -maxrregcount=32 -code=sm_13 -arch=compute_13
 dlogdet.fatbin: NVCFLAGS += -maxrregcount=10 -code=sm_13 -arch=compute_13
 
-# clauum.o: lapack.h blas.h cumultigpu.h handle.h error.h config.h
-# cpotrf.o: lapack.h blas.h cumultigpu.h handle.h error.h config.h
+# clauum.o: lapack.h blas.h cumultigpu.h handle.h error.h config.h clauum.fatbin.c
+# cpotrf.o: lapack.h blas.h cumultigpu.h handle.h error.h config.h cpotrf.fatbin.c
 # cpotri.o: lapack.h blas.h cumultigpu.h error.h
-# ctrtri.o: lapack.h blas.h cumultigpu.h handle.h error.h config.h
+# ctrtri.o: lapack.h blas.h cumultigpu.h handle.h error.h config.h ctrtri.fatbin.c
+# clauum.fatbin: NVCFLAGS += -maxrregcount=32 -code=sm_11,sm_13 -arch=compute_11
+# cpotrf.fatbin: NVCFLAGS += -maxrregcount=32 -code=sm_11,sm_13 -arch=compute_11
+# ctrtri.fatbin: NVCFLAGS += -maxrregcount=32 -code=sm_11,sm_13 -arch=compute_11
 
-# zlauum.o: lapack.h blas.h cumultigpu.h handle.h error.h config.h
-# zpotrf.o: lapack.h blas.h cumultigpu.h handle.h error.h config.h
+# zlauum.o: lapack.h blas.h cumultigpu.h handle.h error.h config.h zlauum.fatbin.c
+# zpotrf.o: lapack.h blas.h cumultigpu.h handle.h error.h config.h zpotrf.fatbin.c
 # zpotri.o: lapack.h blas.h cumultigpu.h error.h
-# ztrtri.o: lapack.h blas.h cumultigpu.h handle.h error.h config.h
+# ztrtri.o: lapack.h blas.h cumultigpu.h handle.h error.h config.h ztrtri.fatbin.c
+# zlauum.fatbin: NVCFLAGS += -maxrregcount=32 -code=sm_13 -arch=compute_13
+# zpotrf.fatbin: NVCFLAGS += -maxrregcount=32 -code=sm_13 -arch=compute_13
+# ztrtri.fatbin: NVCFLAGS += -maxrregcount=32 -code=sm_13 -arch=compute_13

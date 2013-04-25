@@ -7,11 +7,13 @@ static inline CUresult culapackhandle_init(struct __culapackhandle_st * handle) 
   CU_ERROR_CHECK(cuCtxGetCurrent(&handle->context));
 
   handle->spotrf = NULL;
-  handle->spotfimm2 = NULL;
   handle->strtri = NULL;
-  handle->strtimm2 = NULL;
   handle->slauum = NULL;
   handle->slogdet = NULL;
+  handle->dpotrf = NULL;
+  handle->dtrtri = NULL;
+  handle->dlauum = NULL;
+  handle->dlogdet = NULL;
 
   return CUDA_SUCCESS;
 }
@@ -21,16 +23,21 @@ static inline CUresult culapackhandle_cleanup(struct __culapackhandle_st * handl
 
   if (handle->spotrf != NULL)
     CU_ERROR_CHECK(cuModuleUnload(handle->spotrf));
-  if (handle->spotfimm2 != NULL)
-    CU_ERROR_CHECK(cuModuleUnload(handle->spotfimm2));
   if (handle->strtri != NULL)
     CU_ERROR_CHECK(cuModuleUnload(handle->strtri));
-  if (handle->strtimm2 != NULL)
-    CU_ERROR_CHECK(cuModuleUnload(handle->strtimm2));
   if (handle->slauum != NULL)
     CU_ERROR_CHECK(cuModuleUnload(handle->slauum));
   if (handle->slogdet != NULL)
     CU_ERROR_CHECK(cuModuleUnload(handle->slogdet));
+
+  if (handle->dpotrf != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->dpotrf));
+  if (handle->dtrtri != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->dtrtri));
+  if (handle->dlauum != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->dlauum));
+  if (handle->dlogdet != NULL)
+    CU_ERROR_CHECK(cuModuleUnload(handle->dlogdet));
 
   CU_ERROR_CHECK(cuCtxPopCurrent(&handle->context));
   CU_ERROR_CHECK(cuBLASDestroy(handle->blas_handle));
