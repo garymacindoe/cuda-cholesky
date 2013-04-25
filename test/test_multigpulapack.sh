@@ -7,7 +7,7 @@ if [ -x cumultigpuspotrf ]
     for n in {512..8192..512}
       do
       echo cumultigpuspotrf ${u} ${n}
-      ./cumultigpuspotrf ${u} ${n} 1
+      ./cumultigpuspotrf ${u} ${n}
     done | tee cumultigpuspotrf_${u}.txt
   done
 fi
@@ -19,7 +19,7 @@ if [ -x cumultigpuspotri ]
     for n in {512..8192..512}
       do
       echo cumultigpuspotri ${u} ${n}
-      ./cumultigpuspotri ${u} ${n} 1
+      ./cumultigpuspotri ${u} ${n}
     done | tee cumultigpuspotri_${u}.txt
   done
 fi
@@ -33,7 +33,7 @@ if [ -x cumultigpustrtri ]
       for n in {512..8192..512}
         do
         echo cumultigpustrtri ${u} ${d} ${n}
-        ./cumultigpustrtri ${u} ${d} ${n} 1
+        ./cumultigpustrtri ${u} ${d} ${n}
       done
     done | tee cumultigpustrtri_${u}_${d}.txt
   done
@@ -46,7 +46,7 @@ if [ -x cumultigpuslauum ]
     for n in {512..8192..512}
       do
       echo cumultigpuslauum ${u} ${n}
-      ./cumultigpuslauum ${u} ${n} 1
+      ./cumultigpuslauum ${u} ${n}
     done | tee cumultigpuslauum_${u}.txt
   done
 fi
@@ -59,7 +59,7 @@ if [ -x cumultigpudpotrf ]
     for n in {512..8192..512}
       do
       echo cumultigpudpotrf ${u} ${n}
-      ./cumultigpudpotrf ${u} ${n} 1
+      ./cumultigpudpotrf ${u} ${n}
     done | tee cumultigpudpotrf_${u}.txt
   done
 fi
@@ -71,7 +71,7 @@ if [ -x cumultigpudpotri ]
     for n in {512..8192..512}
       do
       echo cumultigpudpotri ${u} ${n}
-      ./cumultigpudpotri ${u} ${n} 1
+      ./cumultigpudpotri ${u} ${n}
     done | tee cumultigpudpotri_${u}.txt
   done
 fi
@@ -85,7 +85,7 @@ if [ -x cumultigpudtrtri ]
       for n in {512..8192..512}
         do
         echo cumultigpudtrtri ${u} ${d} ${n}
-        ./cumultigpudtrtri ${u} ${d} ${n} 1
+        ./cumultigpudtrtri ${u} ${d} ${n}
       done
     done | tee cumultigpudtrtri_${u}_${d}.txt
   done
@@ -98,7 +98,7 @@ if [ -x cumultigpudlauum ]
     for n in {512..8192..512}
       do
       echo cumultigpudlauum ${u} ${n}
-      ./cumultigpudlauum ${u} ${n} 1
+      ./cumultigpudlauum ${u} ${n}
     done | tee cumultigpudlauum_${u}.txt
   done
 fi
@@ -111,7 +111,7 @@ if [ -x cumultigpucpotrf ]
     for n in {512..8192..512}
       do
       echo cumultigpucpotrf ${u} ${n}
-      ./cumultigpucpotrf ${u} ${n} 1
+      ./cumultigpucpotrf ${u} ${n}
     done | tee cumultigpucpotrf_${u}.txt
   done
 fi
@@ -123,7 +123,7 @@ if [ -x cumultigpucpotri ]
     for n in {512..8192..512}
       do
       echo cumultigpucpotri ${u} ${n}
-      ./cumultigpucpotri ${u} ${n} 1
+      ./cumultigpucpotri ${u} ${n}
     done | tee cumultigpucpotri_${u}.txt
   done
 fi
@@ -137,7 +137,7 @@ if [ -x cumultigpuctrtri ]
       for n in {512..8192..512}
         do
         echo cumultigpuctrtri ${u} ${d} ${n}
-        ./cumultigpuctrtri ${u} ${d} ${n} 1
+        ./cumultigpuctrtri ${u} ${d} ${n}
       done
     done | tee cumultigpuctrtri_${u}_${d}.txt
   done
@@ -150,7 +150,7 @@ if [ -x cumultigpuclauum ]
     for n in {512..8192..512}
       do
       echo cumultigpuclauum ${u} ${n}
-      ./cumultigpuclauum ${u} ${n} 1
+      ./cumultigpuclauum ${u} ${n}
     done | tee cumultigpuclauum_${u}.txt
   done
 fi
@@ -160,7 +160,7 @@ if [ -x cumultigpuclogdet ]
   for n in {1024..1048576..1024}
     do
     echo cumultigpuclogdet ${n}
-    ./cumultigpuclogdet ${n} 1
+    ./cumultigpuclogdet ${n}
   done | tee cumultigpuclogdet.txt
 fi
 
@@ -171,7 +171,7 @@ if [ -x cumultigpuzpotrf ]
     for n in {512..8192..512}
       do
       echo cumultigpuzpotrf ${u} ${n}
-      ./cumultigpuzpotrf ${u} ${n} 1
+      ./cumultigpuzpotrf ${u} ${n}
     done | tee cumultigpuzpotrf_${u}.txt
   done
 fi
@@ -183,7 +183,7 @@ if [ -x cumultigpuzpotri ]
     for n in {512..8192..512}
       do
       echo cumultigpuzpotri ${u} ${n}
-      ./cumultigpuzpotri ${u} ${n} 1
+      ./cumultigpuzpotri ${u} ${n}
     done | tee cumultigpuzpotri_${u}.txt
   done
 fi
@@ -197,7 +197,7 @@ if [ -x cumultigpuztrtri ]
       for n in {512..8192..512}
         do
         echo cumultigpuztrtri ${u} ${d} ${n}
-        ./cumultigpuztrtri ${u} ${d} ${n} 1
+        ./cumultigpuztrtri ${u} ${d} ${n}
       done
     done | tee cumultigpuztrtri_${u}_${d}.txt
   done
@@ -210,7 +210,7 @@ if [ -x cumultigpuzlauum ]
     for n in {512..8192..512}
       do
       echo cumultigpuzlauum ${u} ${n}
-      ./cumultigpuzlauum ${u} ${n} 1
+      ./cumultigpuzlauum ${u} ${n}
     done | tee cumultigpuzlauum_${u}.txt
   done
 fi
@@ -220,6 +220,6 @@ if [ -x cumultigpuzlogdet ]
   for n in {1024..1048576..1024}
     do
     echo cumultigpuzlogdet ${n}
-    ./cumultigpuzlogdet ${n} 1
+    ./cumultigpuzlogdet ${n}
   done | tee cumultigpuzlogdet.txt
 fi
