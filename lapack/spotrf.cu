@@ -224,14 +224,17 @@ __global__ void spotfimm2(float * __restrict__ A, float * __restrict__ B,
                           int lda, int ldb,
                           int j, int jb, int n) {
   if (uplo == CBlasUpper) {
-    if (blockIdx.x == gridDim.x - 1) {
-      if (blockIdx.y == 0) {
+    // If we are the last column of blocks
+    if (blockIdx.y == gridDim.y - 1) {
+      // and the first of the last column (there should only be one)
+      if (blockIdx.x == 0) {
         __shared__ int sinfo;
         __shared__ float a[(mb * (mb + 1)) / 2];
 
         const int i = threadIdx.y * bx + threadIdx.x;
 
-        // Read upper triangle of A into shared memory
+        // Read upper triangle of A into shared memory using upper triangular
+        // packed storage mode
         for (int k = 0; k < jb; k++) {
           if (i <= k)
             a[upper(i, k)] = A[k * lda + j + i];
@@ -272,20 +275,23 @@ __global__ void spotfimm2(float * __restrict__ A, float * __restrict__ B,
         }
       }
     }
-    else
+    else        // All other blocks perform SGEMM
       sgemm2<CBlasTrans, CBlasNoTrans, mb, nb, kb, bx, by>(jb, n - j - jb, j,
              -1.0f, A, lda, &A[jb * lda], lda,
               1.0f, &A[jb * lda + j], lda, &B[jb * ldb], ldb);
   }
   else {
-    if (blockIdx.y == gridDim.y - 1) {
-      if (blockIdx.x == 0) {
+    // If we are the last row of blocks
+    if (blockIdx.x == gridDim.x - 1) {
+      // and the first of the last row (there should only be one)
+      if (blockIdx.y == 0) {
         __shared__ int sinfo;
         __shared__ float a[(nb * (nb + 1)) / 2];
 
         const int i = threadIdx.y * bx + threadIdx.x;
 
-        // Read lower triangle of A into shared memory
+        // Read lower triangle of A into shared memory using lower triangular
+        // packed storage mode
         if (i < jb) {
           for (int k = 0; k < jb; k++) {
             if (i >= k)
@@ -332,7 +338,7 @@ __global__ void spotfimm2(float * __restrict__ A, float * __restrict__ B,
         }
       }
     }
-    else
+    else        // All other blocks perform SGEMM
       sgemm2<CBlasNoTrans, CBlasTrans, mb, nb, kb, bx, by>(n - j - jb, jb, j,
              -1.0f, &A[jb], lda, A, lda,
               1.0f, &A[j * lda + jb], lda, &B[jb], ldb);
@@ -565,17 +571,39 @@ extern "C" void spotf2_(const char *, const int *, float *, const int *, int *);
 extern "C" void strti2_(const char *, const char *, const int *, float *, const int *, int *);
 
 static inline void spotfimm2(CBlasUplo uplo, int j, int jb, int n, float * A, int lda, float * B, int ldb, int * info) {
-  if (n == 0 || jb == 0)
-    return;     // No SGEMM or SPOTF2
-
   if (uplo == CBlasUpper) {
-    spotfimm2<CBlasUpper, 32, 32,  8,  8,  8><<<dim3(((unsigned int)jb + 31) / 32 + 1, (unsigned int)max((n - j - jb + 31) / 32, 1)), dim3(8, 8)>>>(A, B, info, lda, ldb, j, jb, n);
+    const unsigned int mb = 32;
+    const unsigned int nb = 32;
+    const unsigned int kb =  8;
+    const unsigned int bx =  8;
+    const unsigned int by =  8;
+
+    if (jb > mb) {
+      fputs("On entry to spotfimm2 parameter 3 had an invalid value\n", stderr);
+      return;
+    }
+
+    const unsigned int gx = (jb + nb - 1) / nb;
+    const unsigned int gy = (n - j - jb + nb - 1) / nb;
+
+    spotfimm2<CBlasUpper, mb, nb, kb, bx, by><<<dim3(max(gx, 1), gy + 1), dim3(bx, by)>>>(A, B, info, lda, ldb, j, jb, n);
   }
   else {
-//    if (n - j - jb == 0)
-      spotfimm2<CBlasLower, 64, 16, 16, 16,  4><<<dim3((unsigned int)max((n - j - jb + 63) / 64, 1), ((unsigned int)jb + 15) / 16 + 1), dim3(16, 4)>>>(A, B, info, lda, ldb, j, jb, n);
-//    else
-//      spotfimm2<CBlasLower, 64, 16, 16, 16,  4><<<dim3((unsigned int)(n - j - jb + 63) / 64, ((unsigned int)jb + 15) / 16 + 1), dim3(16, 4)>>>(A, B, info, lda, ldb, j, jb, n);
+    const unsigned int mb = 64;
+    const unsigned int nb = 16;
+    const unsigned int kb = 16;
+    const unsigned int bx = 16;
+    const unsigned int by =  4;
+
+    if (jb > nb) {
+      fputs("On entry to spotfimm2 parameter 3 had an invalid value\n", stderr);
+      return;
+    }
+
+    const unsigned int gx = (n - j - jb + mb - 1) / mb;
+    const unsigned int gy = (jb + nb - 1) / nb;
+
+    spotfimm2<CBlasLower, mb, nb, kb, bx, by><<<dim3(gx + 1, max(gy, 1)), dim3(bx, by)>>>(A, B, info, lda, ldb, j, jb, n);
   }
 }
 
@@ -686,11 +714,13 @@ int main(int argc, char * argv[]) {
     CUDA_ERROR_CHECK(cudaMemcpy2D(dA, dlda * sizeof(float), A, lda * sizeof(float), (j + jb) * sizeof(float), n - j, cudaMemcpyHostToDevice));
     CUDA_ERROR_CHECK(cudaMemcpy2D(dB, dldb * sizeof(float), B, ldb * sizeof(float), jb * sizeof(float), n - j, cudaMemcpyHostToDevice));
 
+#ifdef PRINT
     for (int i = 0; i < j + jb; i++) {
       for (int k = 0; k < n - j; k++)
         fprintf(stderr, "%15.6f", A[k * lda + i]);
       fprintf(stderr, "\n");
     }
+#endif
   }
   else {
     if ((A = (float *)malloc((lda = (n - j + 3u) & ~3u) * (j + jb) * sizeof(float))) == NULL) {
@@ -728,16 +758,18 @@ int main(int argc, char * argv[]) {
     CUDA_ERROR_CHECK(cudaMemcpy2D(dA, dlda * sizeof(float), A, lda * sizeof(float), (n - j) * sizeof(float), j + jb, cudaMemcpyHostToDevice));
     CUDA_ERROR_CHECK(cudaMemcpy2D(dB, dldb * sizeof(float), B, ldb * sizeof(float), (n - j) * sizeof(float), jb, cudaMemcpyHostToDevice));
 
+#ifdef PRINT
     for (int i = 0; i < n - j; i++) {
       for (int k = 0; k < j + jb; k++)
         fprintf(stderr, "%15.6f", A[k * lda + i]);
       fprintf(stderr, "\n");
     }
+#endif
   }
 
   int info = 0, refInfo = 0;
-  spotfimm2_(uplo, j, jb, n, refA, lda, refB, ldb, &refInfo);
   spotfimm2(uplo, j, jb, n, dA, dlda, dB, dldb, dinfo);
+  spotfimm2_(uplo, j, jb, n, refA, lda, refB, ldb, &refInfo);
   CUDA_ERROR_CHECK(cudaMemcpy(&info, dinfo, sizeof(int), cudaMemcpyDeviceToHost));
 
   float error = 0.0f;
@@ -745,6 +777,7 @@ int main(int argc, char * argv[]) {
     CUDA_ERROR_CHECK(cudaMemcpy2D(A, lda * sizeof(float), dA, dlda * sizeof(float), (j + jb) * sizeof(float), n - j, cudaMemcpyDeviceToHost));
     CUDA_ERROR_CHECK(cudaMemcpy2D(B, ldb * sizeof(float), dB, dldb * sizeof(float), jb * sizeof(float), n - j, cudaMemcpyDeviceToHost));
 
+#ifdef PRINT
     fputs("\nrefA:\n", stderr);
     for (int i = 0; i < j + jb; i++) {
       for (int k = 0; k < n - j; k++)
@@ -770,6 +803,7 @@ int main(int argc, char * argv[]) {
         fprintf(stderr, "%15.6f", B[k * ldb + i]);
       fprintf(stderr, "\n");
     }
+#endif
 
     for (int k = 0; k < n - j; k++) {
       for (int i = 0; i < j + jb; i++) {
@@ -791,6 +825,7 @@ int main(int argc, char * argv[]) {
     CUDA_ERROR_CHECK(cudaMemcpy2D(A, lda * sizeof(float), dA, dlda * sizeof(float), (n - j) * sizeof(float), j + jb, cudaMemcpyDeviceToHost));
     CUDA_ERROR_CHECK(cudaMemcpy2D(B, ldb * sizeof(float), dB, dldb * sizeof(float), (n - j) * sizeof(float), jb, cudaMemcpyDeviceToHost));
 
+#ifdef PRINT
     fputs("\nrefA:\n", stderr);
     for (int i = 0; i < n - j; i++) {
       for (int k = 0; k < j + jb; k++)
@@ -816,6 +851,7 @@ int main(int argc, char * argv[]) {
         fprintf(stderr, "%15.6f", B[k * ldb + i]);
       fprintf(stderr, "\n");
     }
+#endif
 
     for (int k = 0; k < j + jb; k++) {
       for (int i = 0; i < n - j; i++) {

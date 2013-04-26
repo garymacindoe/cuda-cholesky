@@ -178,34 +178,86 @@ static inline CUresult cuSpotfimm2(CULAPACKhandle handle, CBlasUplo uplo,
                                    CUdeviceptr A, size_t lda,
                                    CUdeviceptr B, size_t ldb,
                                    CUdeviceptr info, CUstream stream) {
-  if ((uplo == CBlasUpper && jb > 32) || (uplo == CBlasLower && jb > 16))
-    return CUDA_ERROR_INVALID_VALUE;
+  if (uplo == CBlasUpper) {
+    const unsigned int mb = 32;
+    const unsigned int nb = 32;
+    const unsigned int kb =  8;
+    const unsigned int bx =  8;
+    const unsigned int by =  8;
 
-  if (handle->spotrf == NULL)
-    CU_ERROR_CHECK(cuModuleLoadData(&handle->spotrf, imageBytes));
+    if (jb > mb)
+      return CUDA_ERROR_INVALID_VALUE;
 
-  /* For uplo == CBlasUpper m = jb, n = n - j - jb, k = j and an extra column
-   * of blocks is needed to compute the cholesky
-   * For uplo == CBlasLower m = n - j - jb, n = jb, k = j and an extra row of
-   * blocks is needed to compute the cholesky */
-  const unsigned int mb = (uplo == CBlasUpper) ? 32 : 64;
-  const unsigned int nb = (uplo == CBlasUpper) ? 32 : 16;
-  const unsigned int kb = (uplo == CBlasUpper) ?  8 : 16;
-  const unsigned int bx = (uplo == CBlasUpper) ?  8 : 16;
-  const unsigned int by = (uplo == CBlasUpper) ?  8 :  4;
+    if (handle->spotrf == NULL)
+      CU_ERROR_CHECK(cuModuleLoadData(&handle->spotrf, imageBytes));
 
-  char name[67];
-  snprintf(name, 67, "_Z9spotfimm2IL9CBlasUplo%dELj%uELj%uELj%uELj%uELj%uEEvPfS1_Piiiiii", uplo, mb, nb, kb, bx, by);
+    char name[67];
+    snprintf(name, 67, "_Z9spotfimm2IL9CBlasUplo85ELj%uELj%uELj%uELj%uELj%uEEvPfS1_Piiiiii", mb, nb, kb, bx, by);
 
-  CUfunction function;
-  CU_ERROR_CHECK(cuModuleGetFunction(&function, handle->spotrf, name));
+    CUfunction function;
+    CU_ERROR_CHECK(cuModuleGetFunction(&function, handle->spotrf, name));
 
-  void * params[] = { &A, &B, &info, &lda, &ldb, &j, &jb, &n };
+    void * params[] = { &A, &B, &info, &lda, &ldb, &j, &jb, &n };
 
-  const unsigned int gx = (uplo == CBlasUpper) ? ((unsigned int)jb + mb - 1) / mb : (unsigned int)(n - j - jb + mb - 1) / mb + 1;
-  const unsigned int gy = (uplo == CBlasUpper) ? (unsigned int)(n - j - jb + nb - 1) / nb + 1 : ((unsigned int)jb + nb - 1) / nb;
+    const unsigned int gx = ((unsigned int)jb + nb - 1) / nb;
+    const unsigned int gy = (unsigned int)((n - j - jb + nb - 1) / nb);
 
-  CU_ERROR_CHECK(cuLaunchKernel(function, max(gx, 1), max(gy, 1), 1, bx, by, 1, 0, stream, params, NULL));
+    CU_ERROR_CHECK(cuLaunchKernel(function, (unsigned int)max(gx, 1), gy + 1, 1, bx, by, 1, 0, stream, params, NULL));
+  }
+  else {
+    const unsigned int mb = 64;
+    const unsigned int nb = 16;
+    const unsigned int kb = 16;
+    const unsigned int bx = 16;
+    const unsigned int by =  4;
+
+    if (jb > nb)
+      return CUDA_ERROR_INVALID_VALUE;
+
+    if (handle->spotrf == NULL)
+      CU_ERROR_CHECK(cuModuleLoadData(&handle->spotrf, imageBytes));
+
+    char name[67];
+    snprintf(name, 67, "_Z9spotfimm2IL9CBlasUplo76ELj%uELj%uELj%uELj%uELj%uEEvPfS1_Piiiiii", mb, nb, kb, bx, by);
+
+    CUfunction function;
+    CU_ERROR_CHECK(cuModuleGetFunction(&function, handle->spotrf, name));
+
+    void * params[] = { &A, &B, &info, &lda, &ldb, &j, &jb, &n };
+
+    const unsigned int gx = (unsigned int)((n - j - jb + mb - 1) / mb);
+    const unsigned int gy = ((unsigned int)jb + nb - 1) / nb;
+
+    CU_ERROR_CHECK(cuLaunchKernel(function, gx + 1, (unsigned int)max(gy, 1), 1, bx, by, 1, 0, stream, params, NULL));
+  }
+//   if ((uplo == CBlasUpper && jb > 32) || (uplo == CBlasLower && jb > 16))
+//     return CUDA_ERROR_INVALID_VALUE;
+//
+//   if (handle->spotrf == NULL)
+//     CU_ERROR_CHECK(cuModuleLoadData(&handle->spotrf, imageBytes));
+//
+//   /* For uplo == CBlasUpper m = jb, n = n - j - jb, k = j and an extra column
+//    * of blocks is needed to compute the cholesky
+//    * For uplo == CBlasLower m = n - j - jb, n = jb, k = j and an extra row of
+//    * blocks is needed to compute the cholesky */
+//   const unsigned int mb = (uplo == CBlasUpper) ? 32 : 64;
+//   const unsigned int nb = (uplo == CBlasUpper) ? 32 : 16;
+//   const unsigned int kb = (uplo == CBlasUpper) ?  8 : 16;
+//   const unsigned int bx = (uplo == CBlasUpper) ?  8 : 16;
+//   const unsigned int by = (uplo == CBlasUpper) ?  8 :  4;
+//
+//   char name[67];
+//   snprintf(name, 67, "_Z9spotfimm2IL9CBlasUplo%dELj%uELj%uELj%uELj%uELj%uEEvPfS1_Piiiiii", uplo, mb, nb, kb, bx, by);
+//
+//   CUfunction function;
+//   CU_ERROR_CHECK(cuModuleGetFunction(&function, handle->spotrf, name));
+//
+//   void * params[] = { &A, &B, &info, &lda, &ldb, &j, &jb, &n };
+//
+//   const unsigned int gx = (uplo == CBlasUpper) ? ((unsigned int)jb + mb - 1) / mb + 1 : (unsigned int)max((n - j - jb + mb - 1) / mb, 1);
+//   const unsigned int gy = (uplo == CBlasUpper) ? (unsigned int)max((n - j - jb + nb - 1) / nb, 1) : ((unsigned int)jb + nb - 1) / nb + 1;
+//
+//   CU_ERROR_CHECK(cuLaunchKernel(function, gx, gy, 1, bx, by, 1, 0, stream, params, NULL));
 
   return CUDA_SUCCESS;
 }
@@ -228,19 +280,22 @@ CUresult cuSpotrf(CULAPACKhandle handle,
 
   // Allocate the info parameter on the device
   CUdeviceptr dinfo;
-  CU_ERROR_CHECK(cuMemAlloc(&dinfo, sizeof(long)));
+  CU_ERROR_CHECK(cuMemAlloc(&dinfo, sizeof(int)));
 
   // If n <= 64 call the unblocked algorithm
   if (n <= 64) {
     CU_ERROR_CHECK(cuSpotf2(handle, uplo, n, A, lda, dinfo, NULL));
-    CU_ERROR_CHECK(cuMemcpyDtoH(info, dinfo, sizeof(long)));
+    int hinfo;
+    CU_ERROR_CHECK(cuMemcpyDtoH(&hinfo, dinfo, sizeof(int)));
     CU_ERROR_CHECK(cuMemFree(dinfo));
+    *info = hinfo;
     return CUDA_SUCCESS;
   }
 
   // (Maximum) dynamic block size
   size_t nb = n / 4;
 
+  int hinfo = 0;
   float * D, * C;
   CUdeviceptr X;
   size_t ldb, ldc, ldx;
@@ -271,8 +326,9 @@ CUresult cuSpotrf(CULAPACKhandle handle,
       // If the block size is small enough
       if (jb <= 32) {
         // Call the combined SPOTF2/SGEMM kernel on the GPU to avoid host->device transfer
-        CU_ERROR_CHECK(cuSpotfimm2(handle, uplo, j, jb, n, A, lda, X, ldx, dinfo, NULL));
-        CU_ERROR_CHECK(cuMemcpyDtoH(info, dinfo, sizeof(long)));
+        CU_ERROR_CHECK(cuSpotfimm2(handle, uplo, j, jb, n, A + j * lda * sizeof(float), lda, X, ldx, dinfo, stream0));
+        CU_ERROR_CHECK(cuMemcpyDtoH(&hinfo, dinfo, sizeof(int)));
+        *info = hinfo;
 
         /* Check for positive definite matrix */
         if (*info != 0) {
@@ -370,8 +426,9 @@ CUresult cuSpotrf(CULAPACKhandle handle,
       // If the block size is small enough
       if (jb <= 16) {
         // Call the combined SPOTF2/SGEMM kernel on the GPU to avoid host->device transfer
-        CU_ERROR_CHECK(cuSpotfimm2(handle, uplo, j, jb, n, A, lda, X, ldx, dinfo, NULL));
-        CU_ERROR_CHECK(cuMemcpyDtoH(info, dinfo, sizeof(long)));
+        CU_ERROR_CHECK(cuSpotfimm2(handle, uplo, j, jb, n, A + j * sizeof(float), lda, X, ldx, dinfo, stream0));
+        CU_ERROR_CHECK(cuMemcpyDtoH(&hinfo, dinfo, sizeof(int)));
+        *info = hinfo;
 
         /* Check for positive definite matrix */
         if (*info != 0) {
