@@ -94,36 +94,38 @@ __device__ void spptf2(int n, float * __restrict__ A, int * __restrict__ info) {
     // in global memory.  Using triangular packed storage also avoids bank
     // conflicts.
     const int i = threadIdx.y * bx + threadIdx.x;
-    for (int j = 0; j < n; j++) {
-      float temp;
-      if (i >= j) {
-        // SGEMV/SSYRK
-        temp = A[lower<nb>(i, j)];
-        for (int k = 0; k < j; k++)
-          temp -= A[lower<nb>(j, k)] * A[lower<nb>(i, k)];
+    if (i < n) {
+      for (int j = 0; j < n; j++) {
+        float temp;
+        if (i >= j) {
+          // SGEMV/SSYRK
+          temp = A[lower<nb>(i, j)];
+          for (int k = 0; k < j; k++)
+            temp -= A[lower<nb>(j, k)] * A[lower<nb>(i, k)];
 
-        // Thread j calculates the diagonal element
-        if (i == j) {
-          if (temp <= 0.0f || isnan(temp)) {
-            *info = j + 1;
-            A[lower<nb>(j, j)] = temp;
+          // Thread j calculates the diagonal element
+          if (i == j) {
+            if (temp <= 0.0f || isnan(temp)) {
+              *info = j + 1;
+              A[lower<nb>(j, j)] = temp;
+            }
+            else
+              A[lower<nb>(j, j)] = sqrtf(temp);
           }
-          else
-            A[lower<nb>(j, j)] = sqrtf(temp);
         }
+
+        __syncthreads();
+
+        // If info != 0 return (matrix is not positive definite)
+        if (*info != 0)
+          return;
+
+        // SSCAL
+        if (i > j)
+          A[lower<nb>(i, j)] = temp / A[lower<nb>(j, j)];
+
+        __syncthreads();
       }
-
-      __syncthreads();
-
-      // If info != 0 return (matrix is not positive definite)
-      if (*info != 0)
-        return;
-
-      // SSCAL
-      if (i > j)
-        A[lower<nb>(i, j)] = temp / A[lower<nb>(j, j)];
-
-      __syncthreads();
     }
   }
 }
@@ -151,12 +153,14 @@ __global__ void spotf2(float * __restrict__ A, int * __restrict__ info, int lda,
    */
   __shared__ float a[(bx * (bx + 1)) / 2];
 
+  const int i = threadIdx.x;
+
   if (uplo == CBlasUpper) {
     // Read upper triangle of A into shared memory
     #pragma unroll
-    for (int j = 0; j < n; j++) {
-      if (threadIdx.x <= j)
-        a[upper(threadIdx.x, j)] = A[j * lda + threadIdx.x];
+    for (int j = 0; j < bx; j++) {
+      if (i <= j)
+        a[upper(i, j)] = A[j * lda + i];
     }
 
     __syncthreads();
@@ -165,21 +169,21 @@ __global__ void spotf2(float * __restrict__ A, int * __restrict__ info, int lda,
     spptf2<CBlasUpper, bx, bx>(n, a, &sinfo);
 
     // Write info back to global memory
-    if (threadIdx.x == 0)
+    if (i == 0)
       *info = sinfo;
 
     // Write the upper triangle of A back to global memory
     for (int j = 0; j < n; j++) {
-      if (threadIdx.x <= j)
-        A[j * lda + threadIdx.x] = a[upper(threadIdx.x, j)];
+      if (i <= j)
+        A[j * lda + i] = a[upper(i, j)];
     }
   }
   else {
     // Read lower triangle of A into shared memory
     #pragma unroll
-    for (int j = 0; j < n; j++) {
-      if (threadIdx.x >= j)
-        a[lower<bx>(threadIdx.x, j)] = A[j * lda + threadIdx.x];
+    for (int j = 0; j < bx; j++) {
+      if (i >= j)
+        a[lower<bx>(i, j)] = A[j * lda + i];
     }
 
     __syncthreads();
@@ -188,13 +192,15 @@ __global__ void spotf2(float * __restrict__ A, int * __restrict__ info, int lda,
     spptf2<CBlasLower, bx, bx>(n, a, &sinfo);
 
     // Write info back to global memory
-    if (threadIdx.x == 0)
+    if (i == 0)
       *info = sinfo;
 
     // Write the lower triangle of A back to global memory
-    for (int j = 0; j < n; j++) {
-      if (threadIdx.x >= j)
-        A[j * lda + threadIdx.x] = a[lower<bx>(threadIdx.x, j)];
+    if (i < n) {
+      for (int j = 0; j < n; j++) {
+        if (i >= j)
+          A[j * lda + i] = a[lower<bx>(i, j)];
+      }
     }
   }
 }
@@ -235,7 +241,8 @@ __global__ void spotfimm2(float * __restrict__ A, float * __restrict__ B,
 
         // Read upper triangle of A into shared memory using upper triangular
         // packed storage mode
-        for (int k = 0; k < jb; k++) {
+        #pragma unroll
+        for (int k = 0; k < mb; k++) {
           if (i <= k)
             a[upper(i, k)] = A[k * lda + j + i];
         }
@@ -270,8 +277,6 @@ __global__ void spotfimm2(float * __restrict__ A, float * __restrict__ B,
         for (int k = 0; k < jb; k++) {
           if (i <= k)
             B[k * ldb + i] = a[upper(i, k)];
-          else if (i < jb)
-            B[k * ldb + i] = A[k * lda + j + i];
         }
       }
     }
@@ -289,26 +294,26 @@ __global__ void spotfimm2(float * __restrict__ A, float * __restrict__ B,
         __shared__ float a[(nb * (nb + 1)) / 2];
 
         const int i = threadIdx.y * bx + threadIdx.x;
+        A += j * lda;
 
         // Read lower triangle of A into shared memory using lower triangular
         // packed storage mode
-        if (i < jb) {
-          for (int k = 0; k < jb; k++) {
-            if (i >= k)
-              a[lower<nb>(i, k)] = A[(j + k) * lda + i];
-          }
+        #pragma unroll
+        for (int k = 0; k < nb; k++) {
+          if (i >= k)
+            a[lower<nb>(i, k)] = A[k * lda + i];
         }
 
         __syncthreads();
 
-        if (i < jb) {
-          // Perform the cholesky decomposition using the packed device function
-          spptf2<CBlasLower, nb, bx>(jb, a, &sinfo);
+        // Perform the cholesky decomposition using the packed device function
+        spptf2<CBlasLower, nb, bx>(jb, a, &sinfo);
 
-          // Write the lower triangle of A back to global memory
+        // Write the lower triangle of A back to global memory
+        if (i < jb) {
           for (int k = 0; k < jb; k++) {
             if (i >= k)
-              A[(j + k) * lda + i] = a[lower<nb>(i, k)];
+              A[k * lda + i] = a[lower<nb>(i, k)];
           }
         }
 
@@ -320,18 +325,16 @@ __global__ void spotfimm2(float * __restrict__ A, float * __restrict__ B,
           return;
         }
 
+        // Perform the inverse of A using the cholesky decomposition in shared memory
+        stpti2<CBlasLower, CBlasNonUnit, nb, bx>(jb, a, &sinfo);
+
+        // Write info back to global memory
+        if (i == 0)
+          *info = sinfo;
+
+        // Write the lower triangle of A back to global memory in the top block of B
         if (i < jb) {
-          // Perform the inverse of A using the cholesky decomposition in shared memory
-          stpti2<CBlasLower, CBlasNonUnit, nb, bx>(jb, a, &sinfo);
-
-          // Write info back to global memory
-          if (i == 0)
-            *info = sinfo;
-
-          // Write the lower triangle of A back to global memory in the top block of B
           for (int k = 0; k < jb; k++) {
-            if (i < k)
-              B[k * ldb + i] = A[(j + k) * lda + i];
             if (i >= k)
               B[k * ldb + i] = a[lower<nb>(i, k)];
           }
@@ -862,8 +865,16 @@ int main(int argc, char * argv[]) {
     }
 
     for (int k = 0; k < jb; k++) {
-      for (int i = 0; i < n - j; i++) {
+      for (int i = k; i < jb; i++) {
         float diff = fabsf(B[k * ldb + i] - refB[k * ldb + i]);
+        if (diff > error)
+          error = diff;
+      }
+    }
+
+    for (int k = 0; k < jb; k++) {
+      for (int i = 0; i < n - j - jb; i++) {
+        float diff = fabsf(B[k * ldb + jb + i] - refB[k * ldb + jb + i]);
         if (diff > error)
           error = diff;
       }
