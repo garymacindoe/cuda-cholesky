@@ -29,6 +29,21 @@ void slauum(CBlasUplo, size_t, float * restrict, size_t, long * restrict);
 // Single precision inverse from Cholesky decomposition
 void spotri(CBlasUplo, size_t, float * restrict, size_t, long * restrict);
 
+// Double precision Cholesky decomposition
+void dpotrf(CBlasUplo, size_t, double * restrict, size_t, long * restrict);
+
+// In-place double precision triangular inverse from Cholesky decomposition
+void dtrtri(CBlasUplo, CBlasDiag, size_t, double * restrict, size_t, long * restrict);
+
+// Out-of-place single precision triangular inverse from Cholesky decomposition
+void dtrtri2(CBlasUplo, CBlasDiag, size_t, const double * restrict, size_t, double * restrict, size_t, long * restrict);
+
+// Double precision triangular square
+void dlauum(CBlasUplo, size_t, double * restrict, size_t, long * restrict);
+
+// Double precision inverse from Cholesky decomposition
+void dpotri(CBlasUplo, size_t, double * restrict, size_t, long * restrict);
+
 /** My Hybrid implementations */
 typedef struct __culapackhandle_st * CULAPACKhandle;
 CUresult cuLAPACKCreate(CULAPACKhandle *);
@@ -45,6 +60,18 @@ CUresult cuSlauum(CULAPACKhandle, CBlasUplo, size_t, CUdeviceptr, size_t, long *
 
 // Single precision inverse from Cholesky decomposition
 CUresult cuSpotri(CULAPACKhandle, CBlasUplo, size_t, CUdeviceptr, size_t, long *);
+
+// Double precision Cholesky decomposition
+CUresult cuDpotrf(CULAPACKhandle, CBlasUplo, size_t, CUdeviceptr, size_t, long *);
+
+// Double precision triangular inverse from Cholesky decomposition
+CUresult cuDtrtri(CULAPACKhandle, CBlasUplo, CBlasDiag, size_t, CUdeviceptr, size_t, long *);
+
+// Double precision triangular square
+CUresult cuDlauum(CULAPACKhandle, CBlasUplo, size_t, CUdeviceptr, size_t, long *);
+
+// Double precision inverse from Cholesky decomposition
+CUresult cuDpotri(CULAPACKhandle, CBlasUplo, size_t, CUdeviceptr, size_t, long *);
 
 /** My CPU + multiGPU implementations */
 // MultiGPU handle
@@ -65,10 +92,27 @@ CUresult cuMultiGPUSlauum(CUmultiGPULAPACKhandle, CBlasUplo, size_t, float * res
 // Single precision inverse from Cholesky decomposition
 CUresult cuMultiGPUSpotri(CUmultiGPULAPACKhandle, CBlasUplo, size_t, float * restrict, size_t, long * restrict);
 
+// Double precision Cholesky decomposition
+CUresult cuMultiGPUDpotrf(CUmultiGPULAPACKhandle, CBlasUplo, size_t, double * restrict, size_t, long * restrict);
+
+// Double precision triangular inverse from Cholesky decomposition
+CUresult cuMultiGPUDtrtri(CUmultiGPULAPACKhandle, CBlasUplo, CBlasDiag, size_t, double * restrict, size_t, long * restrict);
+
+// Double precision triangular square
+CUresult cuMultiGPUDlauum(CUmultiGPULAPACKhandle, CBlasUplo, size_t, double * restrict, size_t, long * restrict);
+
+// Double precision inverse from Cholesky decomposition
+CUresult cuMultiGPUDpotri(CUmultiGPULAPACKhandle, CBlasUplo, size_t, double * restrict, size_t, long * restrict);
+
 /** Calculating log determinant - CPU and GPU only */
 float slogdet(const float *, size_t, size_t);
 
 CUresult cuSlogdet(CULAPACKhandle, CUdeviceptr, size_t, size_t,  float *, CUstream);
+
+/** Calculating log determinant - CPU and GPU only */
+double dlogdet(const double *, size_t, size_t);
+
+CUresult cuDlogdet(CULAPACKhandle, CUdeviceptr, size_t, size_t,  double *, CUstream);
 
 #ifdef __cplusplus
 }

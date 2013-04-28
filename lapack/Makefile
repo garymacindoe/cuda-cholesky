@@ -23,8 +23,8 @@ BIN2CFLAGS = -c -st
 TARGET = ../liblapack.a
 
 OBJECTS = handle.o \
-          slauum.o spotrf.o spotri.o strtri.o slogdet.o
-#           dlauum.o dpotrf.o dpotri.o dtrtri.o dlogdet.o
+          slauum.o spotrf.o spotri.o strtri.o slogdet.o \
+          dlauum.o dpotrf.o dpotri.o dtrtri.o dlogdet.o
 #           clauum.o cpotrf.o cpotri.o ctrtri.o \
 #           zlauum.o zpotrf.o zpotri.o ztrtri.o
 

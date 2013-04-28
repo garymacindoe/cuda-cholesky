@@ -373,3 +373,411 @@ static int cond(int n, float c, float * A, size_t lda) {
   return 0;
 }
 #endif
+
+#if 0
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdbool.h>
+#include <ctype.h>
+#include <float.h>
+#include <math.h>
+
+#define CUDA_ERROR_CHECK(call) \
+  do { \
+    cudaError_t error = (call); \
+    if (error != cudaSuccess) { \
+      fprintf(stderr, "CUDA Runtime error in %s (%s:%d): %s\n", __func__, __FILE__, __LINE__, cudaGetErrorString(error)); \
+      return error; \
+    } \
+  } while (false)
+
+#define xerbla(info) \
+  fprintf(stderr, "On entry to %s parameter %d had an invalid value\n", __func__, (info))
+
+extern "C" void sgemm_(const char *, const char *, const int *, const int *, const int *,
+                       const float *, const float *, const int *, const float *, const int *,
+                       const float *, float *, const int *);
+extern "C" void slauu2_(const char *, const int *, float *, const int *);
+
+static inline void slaumm2(CBlasUplo uplo, int j, int jb, int n, float * A, int lda, float * B, int ldb) {
+  if (uplo == CBlasUpper) {
+    const unsigned int mb = 32;
+    const unsigned int nb = 32;
+    const unsigned int kb =  8;
+    const unsigned int bx =  8;
+    const unsigned int by =  8;
+
+    if (jb > mb) {
+      fputs("On entry to slaumm2 parameter 3 had an invalid value\n", stderr);
+      return;
+    }
+
+    const unsigned int gx = (jb + nb - 1) / nb;
+    const unsigned int gy = (n - j - jb + nb - 1) / nb;
+
+    slaumm2<CBlasUpper, mb, nb, kb, bx, by><<<dim3(max(gx, 1), gy + 1), dim3(bx, by)>>>(A, B, lda, ldb, j, jb, n);
+  }
+  else {
+    const unsigned int mb = 64;
+    const unsigned int nb = 16;
+    const unsigned int kb = 16;
+    const unsigned int bx = 16;
+    const unsigned int by =  4;
+
+    if (jb > nb) {
+      fputs("On entry to slaumm2 parameter 3 had an invalid value\n", stderr);
+      return;
+    }
+
+    const unsigned int gx = (n - j - jb + mb - 1) / mb;
+    const unsigned int gy = (jb + nb - 1) / nb;
+
+    slaumm2<CBlasLower, mb, nb, kb, bx, by><<<dim3(gx + 1, max(gy, 1)), dim3(bx, by)>>>(A, B, lda, ldb, j, jb, n);
+  }
+}
+
+static void slaumm2_(CBlasUplo uplo, int j, int jb, int n, float * A, int lda, float * B, int ldb) {
+  const float mone = -1.0f, one = 1.0f;
+  const int n_j_jb = n - j - jb;
+  if (uplo == CBlasUpper) {
+    slauu2_("Upper", &jb, &A[j], &lda);
+    sgemm_("No Transpose", "Transpose", &j, &jb, &n_j_jb, &one, &A[jb * lda + j], &lda, &A[jb * lda], &lda, &one, A, &lda);
+  }
+  else {
+    slauu2_("Lower", &jb, &A[j * lda], &lda);
+    sgemm_("Transpose", "No Transpose", &jb, &j, &n_j_jb, &one, &A[j * lda + jb], &lda, &A[jb], &lda, &one, A, &lda);
+  }
+}
+
+static int cond(int, float, float *, size_t);
+
+int main(int argc, char * argv[]) {
+  CBlasUplo uplo;
+  int j, nb, n;
+
+  if (argc != 5) {
+    fprintf(stderr, "Usage %s <uplo> <diag> <n>\n"
+                    "where:\n"
+                    "  <uplo>  is 'U' or 'u' for CBlasUpper or 'L' or 'l' for CBlasLower\n"
+                    "  <j>     is the current index\n"
+                    "  <nb>    is the block size\n"
+                    "  <n>     is the size of the matrix\n", argv[0]);
+    return -1;
+  }
+
+  char u;
+  if (sscanf(argv[1], "%c", &u) != 1) {
+    fprintf(stderr, "Unable to parse character from '%s'\n", argv[1]);
+    return 1;
+  }
+  switch (u) {
+    case 'u': case 'U': uplo = CBlasUpper; break;
+    case 'l': case 'L': uplo = CBlasLower; break;
+    default: fprintf(stderr, "Unknown uplo '%c'\n", u); return 1;
+  }
+
+  if (sscanf(argv[2], "%d", &j) != 1) {
+    fprintf(stderr, "Unable to parse integer from '%s'\n", argv[2]);
+    return 2;
+  }
+
+  if (sscanf(argv[3], "%d", &nb) != 1) {
+    fprintf(stderr, "Unable to parse integer from '%s'\n", argv[3]);
+    return 3;
+  }
+
+  if (sscanf(argv[4], "%d", &n) != 1) {
+    fprintf(stderr, "Unable to parse integer from '%s'\n", argv[4]);
+    return 4;
+  }
+
+  if (j >= n || nb > n) {
+    fputs("n is too small\n", stderr);
+    return 5;
+  }
+
+  int jb = min(nb, n - j);
+
+  float * A, * B, * dA, * dB, * refA, * refB;
+  size_t lda, ldb, dlda, dldb;
+  int * dinfo;
+  if (uplo == CBlasUpper) {
+    if ((A = (float *)malloc((lda = (j + jb + 3u) & ~3u) * (n - j) * sizeof(float))) == NULL) {
+      fprintf(stderr, "Failed to allocate A\n");
+      return -1;
+    }
+    if ((B = (float *)calloc((ldb = (jb + 3u) & ~3u), (n - j) * sizeof(float))) == NULL) {
+      fprintf(stderr, "Failed to allocate B\n");
+      return -2;
+    }
+    if ((refA = (float *)malloc(lda * (n - j) * sizeof(float))) == NULL) {
+      fprintf(stderr, "Failed to allocate refA\n");
+      return -3;
+    }
+    CUDA_ERROR_CHECK(cudaMallocPitch((void **)&dA, &dlda, (j + jb) * sizeof(float), n - j));
+    CUDA_ERROR_CHECK(cudaMallocPitch((void **)&dB, &dldb, jb * sizeof(float), n - j));
+    CUDA_ERROR_CHECK(cudaMalloc((void **)&dinfo, sizeof(int)));
+    dlda /= sizeof(float);
+    dldb /= sizeof(float);
+
+    for (int k = 0; k < n - j; k++) {
+      for (int i = 0; i < j + jb; i++)
+        A[k * lda + i] = (float)rand() / (float)RAND_MAX;
+    }
+
+    cond(jb, 2.0f, &A[j], lda);
+
+    for (int k = 0; k < n - j; k++)
+      memcpy(&refA[k * lda], &A[k * lda], (j + jb) * sizeof(float));
+
+    CUDA_ERROR_CHECK(cudaMemcpy2D(dA, dlda * sizeof(float), A, lda * sizeof(float), (j + jb) * sizeof(float), n - j, cudaMemcpyHostToDevice));
+    CUDA_ERROR_CHECK(cudaMemcpy2D(dB, dldb * sizeof(float), B, ldb * sizeof(float), jb * sizeof(float), n - j, cudaMemcpyHostToDevice));
+
+#ifdef PRINT
+    for (int i = 0; i < j + jb; i++) {
+      for (int k = 0; k < n - j; k++)
+        fprintf(stderr, "%15.6f", A[k * lda + i]);
+      fprintf(stderr, "\n");
+    }
+#endif
+  }
+  else {
+    if ((A = (float *)malloc((lda = (n - j + 3u) & ~3u) * (j + jb) * sizeof(float))) == NULL) {
+      fprintf(stderr, "Failed to allocate A\n");
+      return -1;
+    }
+    if ((B = (float *)calloc((ldb = ((n - j) + 3u) & ~3u), jb * sizeof(float))) == NULL) {
+      fprintf(stderr, "Failed to allocate B\n");
+      return -2;
+    }
+    if ((refA = (float *)malloc(lda * (j + jb) * sizeof(float))) == NULL) {
+      fprintf(stderr, "Failed to allocate refA\n");
+      return -3;
+    }
+    if ((refB = (float *)calloc(ldb, jb * sizeof(float))) == NULL) {
+      fprintf(stderr, "Failed to allocate refB\n");
+      return -4;
+    }
+    CUDA_ERROR_CHECK(cudaMallocPitch((void **)&dA, &dlda, (n - j) * sizeof(float), j + jb));
+    CUDA_ERROR_CHECK(cudaMallocPitch((void **)&dB, &dldb, (n - j) * sizeof(float), jb));
+    CUDA_ERROR_CHECK(cudaMalloc((void **)&dinfo, sizeof(int)));
+    dlda /= sizeof(float);
+    dldb /= sizeof(float);
+
+    for (int k = 0; k < j + jb; k++) {
+      for (int i = 0; i < n - j; i++)
+        A[k * lda + i] = (float)rand() / (float)RAND_MAX;
+    }
+
+    cond(jb, 2.0f, &A[j * lda], lda);
+
+    for (int k = 0; k < j + jb; k++)
+      memcpy(&refA[k * lda], &A[k * lda], (n - j) * sizeof(float));
+
+    CUDA_ERROR_CHECK(cudaMemcpy2D(dA, dlda * sizeof(float), A, lda * sizeof(float), (n - j) * sizeof(float), j + jb, cudaMemcpyHostToDevice));
+    CUDA_ERROR_CHECK(cudaMemcpy2D(dB, dldb * sizeof(float), B, ldb * sizeof(float), (n - j) * sizeof(float), jb, cudaMemcpyHostToDevice));
+
+#ifdef PRINT
+    for (int i = 0; i < n - j; i++) {
+      for (int k = 0; k < j + jb; k++)
+        fprintf(stderr, "%15.6f", A[k * lda + i]);
+      fprintf(stderr, "\n");
+    }
+#endif
+  }
+
+  int info = 0, refInfo = 0;
+  spotfimm2(uplo, j, jb, n, dA, dlda, dB, dldb, dinfo);
+  spotfimm2_(uplo, j, jb, n, refA, lda, refB, ldb, &refInfo);
+  CUDA_ERROR_CHECK(cudaMemcpy(&info, dinfo, sizeof(int), cudaMemcpyDeviceToHost));
+
+  float error = 0.0f;
+  if (uplo == CBlasUpper) {
+    CUDA_ERROR_CHECK(cudaMemcpy2D(A, lda * sizeof(float), dA, dlda * sizeof(float), (j + jb) * sizeof(float), n - j, cudaMemcpyDeviceToHost));
+    CUDA_ERROR_CHECK(cudaMemcpy2D(B, ldb * sizeof(float), dB, dldb * sizeof(float), jb * sizeof(float), n - j, cudaMemcpyDeviceToHost));
+
+#ifdef PRINT
+    fputs("\nrefA:\n", stderr);
+    for (int i = 0; i < j + jb; i++) {
+      for (int k = 0; k < n - j; k++)
+        fprintf(stderr, "%15.6f", refA[k * lda + i]);
+      fprintf(stderr, "\n");
+    }
+    fputs("\nrefB:\n", stderr);
+    for (int i = 0; i < jb; i++) {
+      for (int k = 0; k < n - j; k++)
+        fprintf(stderr, "%15.6f", refB[k * ldb + i]);
+      fprintf(stderr, "\n");
+    }
+
+    fputs("\nA:\n", stderr);
+    for (int i = 0; i < j + jb; i++) {
+      for (int k = 0; k < n - j; k++)
+        fprintf(stderr, "%15.6f", A[k * lda + i]);
+      fprintf(stderr, "\n");
+    }
+    fputs("\nB:\n", stderr);
+    for (int i = 0; i < jb; i++) {
+      for (int k = 0; k < n - j; k++)
+        fprintf(stderr, "%15.6f", B[k * ldb + i]);
+      fprintf(stderr, "\n");
+    }
+#endif
+
+    for (int k = 0; k < n - j; k++) {
+      for (int i = 0; i < j + jb; i++) {
+        float diff = fabsf(A[k * lda + i] - refA[k * lda + i]);
+        if (diff > error)
+          error = diff;
+      }
+    }
+
+    for (int k = 0; k < jb; k++) {
+      for (int i = 0; i <= k; i++) {
+        float diff = fabsf(B[k * ldb + i] - refB[k * ldb + i]);
+        if (diff > error)
+          error = diff;
+      }
+    }
+
+    for (int k = jb; k < n - j - jb; k++) {
+      for (int i = 0; i < jb; i++) {
+        float diff = fabsf(B[k * ldb + i] - refB[k * ldb + i]);
+        if (diff > error)
+          error = diff;
+      }
+    }
+  }
+  else {
+    CUDA_ERROR_CHECK(cudaMemcpy2D(A, lda * sizeof(float), dA, dlda * sizeof(float), (n - j) * sizeof(float), j + jb, cudaMemcpyDeviceToHost));
+    CUDA_ERROR_CHECK(cudaMemcpy2D(B, ldb * sizeof(float), dB, dldb * sizeof(float), (n - j) * sizeof(float), jb, cudaMemcpyDeviceToHost));
+
+#ifdef PRINT
+    fputs("\nrefA:\n", stderr);
+    for (int i = 0; i < n - j; i++) {
+      for (int k = 0; k < j + jb; k++)
+        fprintf(stderr, "%15.6f", refA[k * lda + i]);
+      fprintf(stderr, "\n");
+    }
+    fputs("\nrefB:\n", stderr);
+    for (int i = 0; i < n - j; i++) {
+      for (int k = 0; k < jb; k++)
+        fprintf(stderr, "%15.6f", refB[k * ldb + i]);
+      fprintf(stderr, "\n");
+    }
+
+    fputs("\nA:\n", stderr);
+    for (int i = 0; i < n - j; i++) {
+      for (int k = 0; k < j + jb; k++)
+        fprintf(stderr, "%15.6f", A[k * lda + i]);
+      fprintf(stderr, "\n");
+    }
+    fputs("\nB:\n", stderr);
+    for (int i = 0; i < n - j; i++) {
+      for (int k = 0; k < jb; k++)
+        fprintf(stderr, "%15.6f", B[k * ldb + i]);
+      fprintf(stderr, "\n");
+    }
+#endif
+
+    for (int k = 0; k < j + jb; k++) {
+      for (int i = 0; i < n - j; i++) {
+        float diff = fabsf(A[k * lda + i] - refA[k * lda + i]);
+        if (diff > error)
+          error = diff;
+      }
+    }
+
+    for (int k = 0; k < jb; k++) {
+      for (int i = k; i < jb; i++) {
+        float diff = fabsf(B[k * ldb + i] - refB[k * ldb + i]);
+        if (diff > error)
+          error = diff;
+      }
+    }
+
+    for (int k = 0; k < jb; k++) {
+      for (int i = 0; i < n - j - jb; i++) {
+        float diff = fabsf(B[k * ldb + jb + i] - refB[k * ldb + jb + i]);
+        if (diff > error)
+          error = diff;
+      }
+    }
+  }
+
+  fprintf(stdout, "Info = %d, refInfo = %d, Error = %6.3e\n", info, refInfo, error);
+
+  free(A);
+  free(B);
+  free(refA);
+  free(refB);
+  CUDA_ERROR_CHECK(cudaFree(dA));
+  CUDA_ERROR_CHECK(cudaFree(dB));
+  CUDA_ERROR_CHECK(cudaFree(dinfo));
+
+  return info;
+}
+
+static int cond(int n, float c, float * A, size_t lda) {
+  int info = 0;
+  if (n < 2)
+    info = -1;
+  else if (c < 1.0)
+    info = -2;
+  else if (lda < n)
+    info = -4;
+  if (info != 0) {
+    xerbla(-info);
+    return info;
+  }
+
+  float * u, * v, * w;
+  size_t offset = (n + 3u) & ~3u;
+
+  if ((u = (float *)malloc(3 * offset * sizeof(float))) == NULL)
+    return 1;
+
+  v = &u[offset];
+  w = &v[offset];
+
+  // Initialise A as a diagonal matrix whose diagonal consists of numbers from
+  // [1,c] with 1 and c chosen at least once (here in the top left)
+  for (int j = 0; j < n; j++) {
+    for (int i = 0; i < n; i++)
+      A[j * lda + i] = 0.0f;
+  }
+
+  A[0] = 1.0f;
+  A[lda + 1] = c;
+  for (int j = 2; j < n; j++)
+    A[j * lda + j] = ((float) rand() / (float)RAND_MAX) * (c - 1.0f) + 1.0f;
+
+  float t = 0.0f, s = 0.0f;
+  for (int j = 0; j < n; j++) {
+    // u is a random vector
+    u[j] = (float)rand() / (float)RAND_MAX;
+    // v = Au
+    v[j] = A[j * lda + j] * u[j];
+    // t = 2/u'u
+    t += u[j] * u[j];
+    // s = t^2 u'v / 2
+    s += u[j] * v[j];
+  }
+  t = 2.0f / t;
+  s = t * t * s / 2.0f;
+
+  // w = tv - su
+  for (int j = 0; j < n; j++)
+    w[j] = t * v[j] - s * u[j];
+
+  // A -= uw' + wu'
+  for (int j = 0; j < n; j++) {
+    for (int i = 0; i < n; i++)
+      A[j * lda + i] -= u[i] * w[j] + w[i] * u[j];
+  }
+
+  free(u);
+
+  return 0;
+}
+#endif

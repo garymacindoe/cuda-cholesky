@@ -1,5 +1,5 @@
-#include "../blas/sgemm.cu"
-#include "strtri.cu"
+#include "../blas/dgemm.cu"
+#include "dtrtri.cu"
 
 #ifndef __UPLO_H
 #define __UPLO_H
@@ -45,7 +45,7 @@ __device__ int lower(int i, int j) {
  * @param info  if info != 0 on output then the matrix is not positive definite
  */
 template <CBlasUplo uplo, unsigned int nb, unsigned int bx>
-__device__ void spptf2(int n, float * __restrict__ A, int * __restrict__ info) {
+__device__ void dpptf2(int n, double * __restrict__ A, int * __restrict__ info) {
   // thread 0 is the only thread to write to info
   if (threadIdx.y * bx + threadIdx.x == 0)
     *info = 0;  // initialise info to zero
@@ -57,21 +57,21 @@ __device__ void spptf2(int n, float * __restrict__ A, int * __restrict__ info) {
     // conflicts.
     const int j = threadIdx.y * bx + threadIdx.x;
     for (int i = 0; i < n; i++) {
-      float temp;
+      double temp;
       if (i <= j) {
-        // SGEMV/SSYRK
+        // SGEMV/DSYRK
         temp = A[upper(i, j)];
         for (int k = 0; k < i; k++)
           temp -= A[upper(k, i)] * A[upper(k, j)];
 
         // Thread j calculates the diagonal element
         if (i == j) {
-          if (temp <= 0.0f || isnan(temp)) {
+          if (temp <= 0.0 || isnan(temp)) {
             *info = i + 1;
             A[upper(i, i)] = temp;
           }
           else
-            A[upper(i, i)] = sqrtf(temp);
+            A[upper(i, i)] = sqrt(temp);
         }
       }
 
@@ -96,21 +96,21 @@ __device__ void spptf2(int n, float * __restrict__ A, int * __restrict__ info) {
     const int i = threadIdx.y * bx + threadIdx.x;
     if (i < n) {
       for (int j = 0; j < n; j++) {
-        float temp;
+        double temp;
         if (i >= j) {
-          // SGEMV/SSYRK
+          // SGEMV/DSYRK
           temp = A[lower<nb>(i, j)];
           for (int k = 0; k < j; k++)
             temp -= A[lower<nb>(j, k)] * A[lower<nb>(i, k)];
 
           // Thread j calculates the diagonal element
           if (i == j) {
-            if (temp <= 0.0f || isnan(temp)) {
+            if (temp <= 0.0 || isnan(temp)) {
               *info = j + 1;
               A[lower<nb>(j, j)] = temp;
             }
             else
-              A[lower<nb>(j, j)] = sqrtf(temp);
+              A[lower<nb>(j, j)] = sqrt(temp);
           }
         }
 
@@ -136,22 +136,22 @@ __device__ void spptf2(int n, float * __restrict__ A, int * __restrict__ info) {
  * This must be called with a one dimensional thread block.
  */
 template <CBlasUplo uplo, unsigned int bx>
-__global__ void spotf2(float * __restrict__ A, int * __restrict__ info, int lda, int n) {
+__global__ void dpotf2(double * __restrict__ A, int * __restrict__ info, int lda, int n) {
   // info parameter cached in shared memory for fast access by all threads in the block
-  __shared__ int sinfo;
+  __shared__ int sino;
 
   /*
    * For efficient data reuse A needs to be cached in shared memory.  In order
    * to get maximum instruction throughput 64 threads are needed but this would
-   * use all 16384 bytes (64 * 64 * sizeof(float)) of shared memory to store A.
+   * use all 16384 bytes (64 * 64 * sizeof(double)) of shared memory to store A.
    * Triangular packed storage mode is therefore used to store only the
-   * triangle of A being updated using 8320 bytes((64 * (64 + 1)) / 2 * sizeof(float))
+   * triangle of A being updated using 8320 bytes((64 * (64 + 1)) / 2 * sizeof(double))
    * of shared memory.
    * Since this is only ever going to be run using one thread block shared
    * memory and register use can be higher than when trying to fit multiple
    * thread blocks onto each multiprocessor.
    */
-  __shared__ float a[(bx * (bx + 1)) / 2];
+  __shared__ double a[(bx * (bx + 1)) / 2];
 
   const int i = threadIdx.x;
 
@@ -166,11 +166,11 @@ __global__ void spotf2(float * __restrict__ A, int * __restrict__ info, int lda,
     __syncthreads();
 
     // Perform the cholesky decomposition using the packed device function
-    spptf2<CBlasUpper, bx, bx>(n, a, &sinfo);
+    dpptf2<CBlasUpper, bx, bx>(n, a, &sino);
 
     // Write info back to global memory
     if (i == 0)
-      *info = sinfo;
+      *info = sino;
 
     // Write the upper triangle of A back to global memory
     for (int j = 0; j < n; j++) {
@@ -189,11 +189,11 @@ __global__ void spotf2(float * __restrict__ A, int * __restrict__ info, int lda,
     __syncthreads();
 
     // Perform the cholesky decomposition using the packed device function
-    spptf2<CBlasLower, bx, bx>(n, a, &sinfo);
+    dpptf2<CBlasLower, bx, bx>(n, a, &sino);
 
     // Write info back to global memory
     if (i == 0)
-      *info = sinfo;
+      *info = sino;
 
     // Write the lower triangle of A back to global memory
     if (i < n) {
@@ -211,7 +211,7 @@ __global__ void spotf2(float * __restrict__ A, int * __restrict__ info, int lda,
  *
  * The unblocked Cholesky decomposition is performed in-place on the diagonal
  * block of A.  The out-of-place STRTI2 places its result in the top/left block
- * of B and the SGEMM places its result in the rest of B.
+ * of B and the DGEMM places its result in the rest of B.
  *
  * @param A    the current row/column of A
  * @param B    temporary row/column of nb * n - j - jb or n - j - jb * nb for
@@ -225,7 +225,7 @@ __global__ void spotf2(float * __restrict__ A, int * __restrict__ info, int lda,
 template <CBlasUplo uplo,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void spotfimm2(float * __restrict__ A, float * __restrict__ B,
+__global__ void dpotfimm2(double * __restrict__ A, double * __restrict__ B,
                           int * __restrict__ info,
                           int lda, int ldb,
                           int j, int jb, int n) {
@@ -234,8 +234,8 @@ __global__ void spotfimm2(float * __restrict__ A, float * __restrict__ B,
     if (blockIdx.y == gridDim.y - 1) {
       // and the first of the last column (there should only be one)
       if (blockIdx.x == 0) {
-        __shared__ int sinfo;
-        __shared__ float a[(mb * (mb + 1)) / 2];
+        __shared__ int sino;
+        __shared__ double a[(mb * (mb + 1)) / 2];
 
         const int i = threadIdx.y * bx + threadIdx.x;
 
@@ -250,7 +250,7 @@ __global__ void spotfimm2(float * __restrict__ A, float * __restrict__ B,
         __syncthreads();
 
         // Perform the cholesky decomposition using the packed device function
-        spptf2<CBlasUpper, mb, bx>(jb, a, &sinfo);
+        dpptf2<CBlasUpper, mb, bx>(jb, a, &sino);
 
         // Write the upper triangle of A back to global memory
         for (int k = 0; k < jb; k++) {
@@ -259,19 +259,19 @@ __global__ void spotfimm2(float * __restrict__ A, float * __restrict__ B,
         }
 
         // If cholesky failed don't bother with the inverse
-        if (sinfo != 0) {
+        if (sino != 0) {
           // Write info back to global memory
           if (i == 0)
-            *info = sinfo;
+            *info = sino;
           return;
         }
 
         // Perform the inverse of A using the cholesky decomposition in shared memory
-        stpti2<CBlasUpper, CBlasNonUnit, mb, bx>(jb, a, &sinfo);
+        dtpti2<CBlasUpper, CBlasNonUnit, mb, bx>(jb, a, &sino);
 
         // Write info back to global memory
         if (i == 0)
-          *info = sinfo;
+          *info = sino;
 
         // Write the upper triangle of A back to global memory in the left block of B
         for (int k = 0; k < jb; k++) {
@@ -280,18 +280,18 @@ __global__ void spotfimm2(float * __restrict__ A, float * __restrict__ B,
         }
       }
     }
-    else        // All other blocks perform SGEMM
-      sgemm2<CBlasTrans, CBlasNoTrans, mb, nb, kb, bx, by>(jb, n - j - jb, j,
-             -1.0f, A, lda, &A[jb * lda], lda,
-              1.0f, &A[jb * lda + j], lda, &B[jb * ldb], ldb);
+    else        // All other blocks perform DGEMM
+      dgemm2<CBlasTrans, CBlasNoTrans, mb, nb, kb, bx, by>(jb, n - j - jb, j,
+             -1.0, A, lda, &A[jb * lda], lda,
+              1.0, &A[jb * lda + j], lda, &B[jb * ldb], ldb);
   }
   else {
     // If we are the last row of blocks
     if (blockIdx.x == gridDim.x - 1) {
       // and the first of the last row (there should only be one)
       if (blockIdx.y == 0) {
-        __shared__ int sinfo;
-        __shared__ float a[(nb * (nb + 1)) / 2];
+        __shared__ int sino;
+        __shared__ double a[(nb * (nb + 1)) / 2];
 
         const int i = threadIdx.y * bx + threadIdx.x;
         A += j * lda;
@@ -307,7 +307,7 @@ __global__ void spotfimm2(float * __restrict__ A, float * __restrict__ B,
         __syncthreads();
 
         // Perform the cholesky decomposition using the packed device function
-        spptf2<CBlasLower, nb, bx>(jb, a, &sinfo);
+        dpptf2<CBlasLower, nb, bx>(jb, a, &sino);
 
         // Write the lower triangle of A back to global memory
         if (i < jb) {
@@ -318,19 +318,19 @@ __global__ void spotfimm2(float * __restrict__ A, float * __restrict__ B,
         }
 
         // If cholesky failed don't bother with the inverse
-        if (sinfo != 0) {
+        if (sino != 0) {
           // Write info back to global memory
           if (i == 0)
-            *info = sinfo;
+            *info = sino;
           return;
         }
 
         // Perform the inverse of A using the cholesky decomposition in shared memory
-        stpti2<CBlasLower, CBlasNonUnit, nb, bx>(jb, a, &sinfo);
+        dtpti2<CBlasLower, CBlasNonUnit, nb, bx>(jb, a, &sino);
 
         // Write info back to global memory
         if (i == 0)
-          *info = sinfo;
+          *info = sino;
 
         // Write the lower triangle of A back to global memory in the top block of B
         if (i < jb) {
@@ -341,18 +341,18 @@ __global__ void spotfimm2(float * __restrict__ A, float * __restrict__ B,
         }
       }
     }
-    else        // All other blocks perform SGEMM
-      sgemm2<CBlasNoTrans, CBlasTrans, mb, nb, kb, bx, by>(n - j - jb, jb, j,
-             -1.0f, &A[jb], lda, A, lda,
-              1.0f, &A[j * lda + jb], lda, &B[jb], ldb);
+    else        // All other blocks perform DGEMM
+      dgemm2<CBlasNoTrans, CBlasTrans, mb, nb, kb, bx, by>(n - j - jb, jb, j,
+             -1.0, &A[jb], lda, A, lda,
+              1.0, &A[j * lda + jb], lda, &B[jb], ldb);
   }
 }
 
-template __global__ void spotf2<CBlasUpper, 64>(float * __restrict__, int * __restrict__, int, int);
-template __global__ void spotf2<CBlasLower, 64>(float * __restrict__, int * __restrict__, int, int);
+template __global__ void dpotf2<CBlasUpper, 32>(double * __restrict__, int * __restrict__, int, int);
+template __global__ void dpotf2<CBlasLower, 32>(double * __restrict__, int * __restrict__, int, int);
 
-template __global__ void spotfimm2<CBlasUpper, 32, 32, 8, 8, 8>(float * __restrict__, float * __restrict__, int * __restrict__, int, int, int, int, int);
-template __global__ void spotfimm2<CBlasLower, 64, 16, 16, 16, 4>(float * __restrict__, float * __restrict__, int * __restrict__, int, int, int, int, int);
+template __global__ void dpotfimm2<CBlasUpper, 32, 16, 8, 8, 8>(double * __restrict__, double * __restrict__, int * __restrict__, int, int, int, int, int);
+template __global__ void dpotfimm2<CBlasLower, 64,  8, 16, 16, 4>(double * __restrict__, double * __restrict__, int * __restrict__, int, int, int, int, int);
 
 #if 0
 #include <stdio.h>
@@ -374,15 +374,15 @@ template __global__ void spotfimm2<CBlasLower, 64, 16, 16, 16, 4>(float * __rest
 #define xerbla(info) \
   fprintf(stderr, "On entry to %s parameter %d had an invalid value\n", __func__, (info))
 
-extern "C" void spotf2_(const char *, const int *, float *, const int *, int *);
-static inline void spotf2(CBlasUplo uplo, int n, float * A, int lda, int * info) {
+extern "C" void dpotf2_(const char *, const int *, double *, const int *, int *);
+static inline void dpotf2(CBlasUplo uplo, int n, double * A, int lda, int * info) {
   if (uplo == CBlasUpper)
-    spotf2<CBlasUpper, 64><<<1,64>>>(A, info, lda, n);
+    dpotf2<CBlasUpper, 32><<<1,32>>>(A, info, lda, n);
   else
-    spotf2<CBlasLower, 64><<<1,64>>>(A, info, lda, n);
+    dpotf2<CBlasLower, 32><<<1,32>>>(A, info, lda, n);
 }
 
-static int cond(int, float, float *, size_t);
+static int cond(int, double, double *, size_t);
 
 int main(int argc, char * argv[]) {
   CBlasUplo uplo;
@@ -411,32 +411,32 @@ int main(int argc, char * argv[]) {
     fprintf(stderr, "Unable to parse integer from '%s'\n", argv[2]);
     return 2;
   }
-  if (n < 1 || n > 64) {
-    fputs("n must be between 1 and 64\n", stderr);
+  if (n < 1 || n > 32) {
+    fputs("n must be between 1 and 32\n", stderr);
     return 2;
   }
 
-  float * A, * dA, * refA;
+  double * A, * dA, * refA;
   size_t lda = (n + 3) & ~3, dlda;
   int * dinfo;
-  if ((A = (float *)malloc(lda * n * sizeof(float))) == NULL) {
+  if ((A = (double *)malloc(lda * n * sizeof(double))) == NULL) {
     fprintf(stderr, "Failed to allocate A\n");
     return -1;
   }
-  if ((refA = (float *)malloc(lda * n * sizeof(float))) == NULL) {
+  if ((refA = (double *)malloc(lda * n * sizeof(double))) == NULL) {
     fprintf(stderr, "Failed to allocate refA\n");
     return -2;
   }
-  CUDA_ERROR_CHECK(cudaMallocPitch((void **)&dA, &dlda, n * sizeof(float), n));
+  CUDA_ERROR_CHECK(cudaMallocPitch((void **)&dA, &dlda, n * sizeof(double), n));
   CUDA_ERROR_CHECK(cudaMalloc((void **)&dinfo, sizeof(int)));
-  dlda /= sizeof(float);
+  dlda /= sizeof(double);
 
-  cond(n, 2.0f, A, lda);
+  cond(n, 2.0, A, lda);
 
   for (int j = 0; j < n; j++)
-    memcpy(&refA[j * lda], &A[j * lda], n * sizeof(float));
+    memcpy(&refA[j * lda], &A[j * lda], n * sizeof(double));
 
-  CUDA_ERROR_CHECK(cudaMemcpy2D(dA, dlda * sizeof(float), A, lda * sizeof(float), n * sizeof(float), n, cudaMemcpyHostToDevice));
+  CUDA_ERROR_CHECK(cudaMemcpy2D(dA, dlda * sizeof(double), A, lda * sizeof(double), n * sizeof(double), n, cudaMemcpyHostToDevice));
 
   for (int i = 0; i < n; i++) {
     for (int j = 0; j < n; j++)
@@ -445,9 +445,9 @@ int main(int argc, char * argv[]) {
   }
 
   int info = 0, refInfo = 0;
-  spotf2_((const char *)&uplo, &n, refA, (const int *)&lda, &refInfo);
-  spotf2(uplo, n, dA, dlda, dinfo);
-  CUDA_ERROR_CHECK(cudaMemcpy2D(A, lda * sizeof(float), dA, dlda * sizeof(float), n * sizeof(float), n, cudaMemcpyDeviceToHost));
+  dpotf2_((const char *)&uplo, &n, refA, (const int *)&lda, &refInfo);
+  dpotf2(uplo, n, dA, dlda, dinfo);
+  CUDA_ERROR_CHECK(cudaMemcpy2D(A, lda * sizeof(double), dA, dlda * sizeof(double), n * sizeof(double), n, cudaMemcpyDeviceToHost));
   CUDA_ERROR_CHECK(cudaMemcpy(&info, dinfo, sizeof(int), cudaMemcpyDeviceToHost));
 
   fprintf(stderr, "\n");
@@ -464,10 +464,10 @@ int main(int argc, char * argv[]) {
     fprintf(stderr, "\n");
   }
 
-  float error = 0.0f;
+  double error = 0.0;
   for (int j = 0; j < n; j++) {
     for (int i = 0; i < n; i++) {
-      float diff = fabsf(refA[j * lda + i] - A[j * lda + i]);
+      double diff = fabs(refA[j * lda + i] - A[j * lda + i]);
       if (diff > error)
         error = diff;
     }
@@ -483,7 +483,7 @@ int main(int argc, char * argv[]) {
   return info;
 }
 
-static int cond(int n, float c, float * A, size_t lda) {
+static int cond(int n, double c, double * A, size_t lda) {
   int info = 0;
   if (n < 2)
     info = -1;
@@ -496,10 +496,10 @@ static int cond(int n, float c, float * A, size_t lda) {
     return info;
   }
 
-  float * u, * v, * w;
-  size_t offset = (n + 3u) & ~3u;
+  double * u, * v, * w;
+  size_t offset = (n + 1u) & ~1u;
 
-  if ((u = (float *)malloc(3 * offset * sizeof(float))) == NULL)
+  if ((u = (double *)malloc(3 * offset * sizeof(double))) == NULL)
     return 1;
 
   v = &u[offset];
@@ -509,18 +509,18 @@ static int cond(int n, float c, float * A, size_t lda) {
   // [1,c] with 1 and c chosen at least once (here in the top left)
   for (int j = 0; j < n; j++) {
     for (int i = 0; i < n; i++)
-      A[j * lda + i] = 0.0f;
+      A[j * lda + i] = 0.0;
   }
 
-  A[0] = 1.0f;
+  A[0] = 1.0;
   A[lda + 1] = c;
   for (int j = 2; j < n; j++)
-    A[j * lda + j] = ((float) rand() / (float)RAND_MAX) * (c - 1.0f) + 1.0f;
+    A[j * lda + j] = ((double) rand() / (double)RAND_MAX) * (c - 1.0) + 1.0;
 
-  float t = 0.0f, s = 0.0f;
+  double t = 0.0, s = 0.0;
   for (int j = 0; j < n; j++) {
     // u is a random vector
-    u[j] = (float)rand() / (float)RAND_MAX;
+    u[j] = (double)rand() / (double)RAND_MAX;
     // v = Au
     v[j] = A[j * lda + j] * u[j];
     // t = 2/u'u
@@ -528,8 +528,8 @@ static int cond(int n, float c, float * A, size_t lda) {
     // s = t^2 u'v / 2
     s += u[j] * v[j];
   }
-  t = 2.0f / t;
-  s = t * t * s / 2.0f;
+  t = 2.0 / t;
+  s = t * t * s / 2.0;
 
   // w = tv - su
   for (int j = 0; j < n; j++)
@@ -567,69 +567,69 @@ static int cond(int n, float c, float * A, size_t lda) {
 #define xerbla(info) \
   fprintf(stderr, "On entry to %s parameter %d had an invalid value\n", __func__, (info))
 
-extern "C" void sgemm_(const char *, const char *, const int *, const int *, const int *,
-                       const float *, const float *, const int *, const float *, const int *,
-                       const float *, float *, const int *);
-extern "C" void spotf2_(const char *, const int *, float *, const int *, int *);
-extern "C" void strti2_(const char *, const char *, const int *, float *, const int *, int *);
+extern "C" void dgemm_(const char *, const char *, const int *, const int *, const int *,
+                       const double *, const double *, const int *, const double *, const int *,
+                       const double *, double *, const int *);
+extern "C" void dpotf2_(const char *, const int *, double *, const int *, int *);
+extern "C" void dtrti2_(const char *, const char *, const int *, double *, const int *, int *);
 
-static inline void spotfimm2(CBlasUplo uplo, int j, int jb, int n, float * A, int lda, float * B, int ldb, int * info) {
+static inline void dpotfimm2(CBlasUplo uplo, int j, int jb, int n, double * A, int lda, double * B, int ldb, int * info) {
   if (uplo == CBlasUpper) {
     const unsigned int mb = 32;
-    const unsigned int nb = 32;
+    const unsigned int nb = 16;
     const unsigned int kb =  8;
     const unsigned int bx =  8;
     const unsigned int by =  8;
 
     if (jb > mb) {
-      fputs("On entry to spotfimm2 parameter 3 had an invalid value\n", stderr);
+      fputs("On entry to dpotfimm2 parameter 3 had an invalid value\n", stderr);
       return;
     }
 
     const unsigned int gx = (jb + nb - 1) / nb;
     const unsigned int gy = (n - j - jb + nb - 1) / nb;
 
-    spotfimm2<CBlasUpper, mb, nb, kb, bx, by><<<dim3(max(gx, 1), gy + 1), dim3(bx, by)>>>(A, B, info, lda, ldb, j, jb, n);
+    dpotfimm2<CBlasUpper, mb, nb, kb, bx, by><<<dim3(max(gx, 1), gy + 1), dim3(bx, by)>>>(A, B, info, lda, ldb, j, jb, n);
   }
   else {
     const unsigned int mb = 64;
-    const unsigned int nb = 16;
+    const unsigned int nb =  8;
     const unsigned int kb = 16;
     const unsigned int bx = 16;
     const unsigned int by =  4;
 
     if (jb > nb) {
-      fputs("On entry to spotfimm2 parameter 3 had an invalid value\n", stderr);
+      fputs("On entry to dpotfimm2 parameter 3 had an invalid value\n", stderr);
       return;
     }
 
     const unsigned int gx = (n - j - jb + mb - 1) / mb;
     const unsigned int gy = (jb + nb - 1) / nb;
 
-    spotfimm2<CBlasLower, mb, nb, kb, bx, by><<<dim3(gx + 1, max(gy, 1)), dim3(bx, by)>>>(A, B, info, lda, ldb, j, jb, n);
+    dpotfimm2<CBlasLower, mb, nb, kb, bx, by><<<dim3(gx + 1, max(gy, 1)), dim3(bx, by)>>>(A, B, info, lda, ldb, j, jb, n);
   }
 }
 
-static void spotfimm2_(CBlasUplo uplo, int j, int jb, int n, float * A, int lda, float * B, int ldb, int * info) {
-  const float mone = -1.0f, one = 1.0f;
+static void dpotfimm2_(CBlasUplo uplo, int j, int jb, int n, double * A, int lda, double * B, int ldb, int * info) {
+  const double mone = -1.0, one = 1.0;
   const int n_j_jb = n - j - jb;
   if (uplo == CBlasUpper) {
-    spotf2_("Upper", &jb, &A[j], &lda, info);
+    dpotf2_("Upper", &jb, &A[j], &lda, info);
     for (int k = 0; k < n - j; k++)
-      memcpy(&B[k * ldb], &A[k * lda + j], jb * sizeof(float));
-    sgemm_("Transpose", "No Transpose", &jb, &n_j_jb, &j, &mone, A, &lda, &A[jb * lda], &lda, &one, &B[jb * ldb], &ldb);
-    strti2_("Upper", "Non-Unit", &jb, B, &ldb, info);
+      memcpy(&B[k * ldb], &A[k * lda + j], jb * sizeof(double));
+    dgemm_("Transpose", "No Transpose", &jb, &n_j_jb, &j, &mone, A, &lda, &A[jb * lda], &lda, &one, &B[jb * ldb], &ldb);
+    dtrti2_("Upper", "Non-Unit", &jb, B, &ldb, info);
   }
   else {
-    spotf2_("Lower", &jb, &A[j * lda], &lda, info);
+    dpotf2_("Lower", &jb, &A[j * lda], &lda, info);
     for (int k = 0; k < jb; k++)
-      memcpy(&B[k * ldb], &A[(j + k) * lda], (n - j) * sizeof(float));
-    sgemm_("No Transpose", "Transpose", &n_j_jb, &jb, &j, &mone, &A[jb], &lda, A, &lda, &one, &B[jb], &ldb);
-    strti2_("Lower", "Non-Unit", &jb, B, &ldb, info);
+      memcpy(&B[k * ldb], &A[(j + k) * lda], (n - j) * sizeof(double));
+    dgemm_("No Transpose", "Transpose", &n_j_jb, &jb, &j, &mone, &A[jb], &lda, A, &lda, &one, &B[jb], &ldb);
+    dtrti2_("Lower", "Non-Unit", &jb, B, &ldb, info);
   }
 }
 
-static int cond(int, float, float *, size_t);
+static int cond(int, double, double *, size_t);
 
 int main(int argc, char * argv[]) {
   CBlasUplo uplo;
@@ -678,44 +678,44 @@ int main(int argc, char * argv[]) {
 
   int jb = min(nb, n - j);
 
-  float * A, * B, * dA, * dB, * refA, * refB;
+  double * A, * B, * dA, * dB, * refA, * refB;
   size_t lda, ldb, dlda, dldb;
   int * dinfo;
   if (uplo == CBlasUpper) {
-    if ((A = (float *)malloc((lda = (j + jb + 3u) & ~3u) * (n - j) * sizeof(float))) == NULL) {
+    if ((A = (double *)malloc((lda = (j + jb + 1u) & ~1u) * (n - j) * sizeof(double))) == NULL) {
       fprintf(stderr, "Failed to allocate A\n");
       return -1;
     }
-    if ((B = (float *)calloc((ldb = (jb + 3u) & ~3u), (n - j) * sizeof(float))) == NULL) {
+    if ((B = (double *)calloc((ldb = (jb + 1u) & ~1u), (n - j) * sizeof(double))) == NULL) {
       fprintf(stderr, "Failed to allocate B\n");
       return -2;
     }
-    if ((refA = (float *)malloc(lda * (n - j) * sizeof(float))) == NULL) {
+    if ((refA = (double *)malloc(lda * (n - j) * sizeof(double))) == NULL) {
       fprintf(stderr, "Failed to allocate refA\n");
       return -3;
     }
-    if ((refB = (float *)calloc(ldb, (n - j) * sizeof(float))) == NULL) {
+    if ((refB = (double *)calloc(ldb, (n - j) * sizeof(double))) == NULL) {
       fprintf(stderr, "Failed to allocate refB\n");
       return -4;
     }
-    CUDA_ERROR_CHECK(cudaMallocPitch((void **)&dA, &dlda, (j + jb) * sizeof(float), n - j));
-    CUDA_ERROR_CHECK(cudaMallocPitch((void **)&dB, &dldb, jb * sizeof(float), n - j));
+    CUDA_ERROR_CHECK(cudaMallocPitch((void **)&dA, &dlda, (j + jb) * sizeof(double), n - j));
+    CUDA_ERROR_CHECK(cudaMallocPitch((void **)&dB, &dldb, jb * sizeof(double), n - j));
     CUDA_ERROR_CHECK(cudaMalloc((void **)&dinfo, sizeof(int)));
-    dlda /= sizeof(float);
-    dldb /= sizeof(float);
+    dlda /= sizeof(double);
+    dldb /= sizeof(double);
 
     for (int k = 0; k < n - j; k++) {
       for (int i = 0; i < j + jb; i++)
-        A[k * lda + i] = (float)rand() / (float)RAND_MAX;
+        A[k * lda + i] = (double)rand() / (double)RAND_MAX;
     }
 
-    cond(jb, 2.0f, &A[j], lda);
+    cond(jb, 2.0, &A[j], lda);
 
     for (int k = 0; k < n - j; k++)
-      memcpy(&refA[k * lda], &A[k * lda], (j + jb) * sizeof(float));
+      memcpy(&refA[k * lda], &A[k * lda], (j + jb) * sizeof(double));
 
-    CUDA_ERROR_CHECK(cudaMemcpy2D(dA, dlda * sizeof(float), A, lda * sizeof(float), (j + jb) * sizeof(float), n - j, cudaMemcpyHostToDevice));
-    CUDA_ERROR_CHECK(cudaMemcpy2D(dB, dldb * sizeof(float), B, ldb * sizeof(float), jb * sizeof(float), n - j, cudaMemcpyHostToDevice));
+    CUDA_ERROR_CHECK(cudaMemcpy2D(dA, dlda * sizeof(double), A, lda * sizeof(double), (j + jb) * sizeof(double), n - j, cudaMemcpyHostToDevice));
+    CUDA_ERROR_CHECK(cudaMemcpy2D(dB, dldb * sizeof(double), B, ldb * sizeof(double), jb * sizeof(double), n - j, cudaMemcpyHostToDevice));
 
 #ifdef PRINT
     for (int i = 0; i < j + jb; i++) {
@@ -726,40 +726,40 @@ int main(int argc, char * argv[]) {
 #endif
   }
   else {
-    if ((A = (float *)malloc((lda = (n - j + 3u) & ~3u) * (j + jb) * sizeof(float))) == NULL) {
+    if ((A = (double *)malloc((lda = (n - j + 1u) & ~1u) * (j + jb) * sizeof(double))) == NULL) {
       fprintf(stderr, "Failed to allocate A\n");
       return -1;
     }
-    if ((B = (float *)calloc((ldb = ((n - j) + 3u) & ~3u), jb * sizeof(float))) == NULL) {
+    if ((B = (double *)calloc((ldb = ((n - j) + 1u) & ~1u), jb * sizeof(double))) == NULL) {
       fprintf(stderr, "Failed to allocate B\n");
       return -2;
     }
-    if ((refA = (float *)malloc(lda * (j + jb) * sizeof(float))) == NULL) {
+    if ((refA = (double *)malloc(lda * (j + jb) * sizeof(double))) == NULL) {
       fprintf(stderr, "Failed to allocate refA\n");
       return -3;
     }
-    if ((refB = (float *)calloc(ldb, jb * sizeof(float))) == NULL) {
+    if ((refB = (double *)calloc(ldb, jb * sizeof(double))) == NULL) {
       fprintf(stderr, "Failed to allocate refB\n");
       return -4;
     }
-    CUDA_ERROR_CHECK(cudaMallocPitch((void **)&dA, &dlda, (n - j) * sizeof(float), j + jb));
-    CUDA_ERROR_CHECK(cudaMallocPitch((void **)&dB, &dldb, (n - j) * sizeof(float), jb));
+    CUDA_ERROR_CHECK(cudaMallocPitch((void **)&dA, &dlda, (n - j) * sizeof(double), j + jb));
+    CUDA_ERROR_CHECK(cudaMallocPitch((void **)&dB, &dldb, (n - j) * sizeof(double), jb));
     CUDA_ERROR_CHECK(cudaMalloc((void **)&dinfo, sizeof(int)));
-    dlda /= sizeof(float);
-    dldb /= sizeof(float);
+    dlda /= sizeof(double);
+    dldb /= sizeof(double);
 
     for (int k = 0; k < j + jb; k++) {
       for (int i = 0; i < n - j; i++)
-        A[k * lda + i] = (float)rand() / (float)RAND_MAX;
+        A[k * lda + i] = (double)rand() / (double)RAND_MAX;
     }
 
-    cond(jb, 2.0f, &A[j * lda], lda);
+    cond(jb, 2.0, &A[j * lda], lda);
 
     for (int k = 0; k < j + jb; k++)
-      memcpy(&refA[k * lda], &A[k * lda], (n - j) * sizeof(float));
+      memcpy(&refA[k * lda], &A[k * lda], (n - j) * sizeof(double));
 
-    CUDA_ERROR_CHECK(cudaMemcpy2D(dA, dlda * sizeof(float), A, lda * sizeof(float), (n - j) * sizeof(float), j + jb, cudaMemcpyHostToDevice));
-    CUDA_ERROR_CHECK(cudaMemcpy2D(dB, dldb * sizeof(float), B, ldb * sizeof(float), (n - j) * sizeof(float), jb, cudaMemcpyHostToDevice));
+    CUDA_ERROR_CHECK(cudaMemcpy2D(dA, dlda * sizeof(double), A, lda * sizeof(double), (n - j) * sizeof(double), j + jb, cudaMemcpyHostToDevice));
+    CUDA_ERROR_CHECK(cudaMemcpy2D(dB, dldb * sizeof(double), B, ldb * sizeof(double), (n - j) * sizeof(double), jb, cudaMemcpyHostToDevice));
 
 #ifdef PRINT
     for (int i = 0; i < n - j; i++) {
@@ -771,14 +771,14 @@ int main(int argc, char * argv[]) {
   }
 
   int info = 0, refInfo = 0;
-  spotfimm2(uplo, j, jb, n, dA, dlda, dB, dldb, dinfo);
-  spotfimm2_(uplo, j, jb, n, refA, lda, refB, ldb, &refInfo);
+  dpotfimm2(uplo, j, jb, n, dA, dlda, dB, dldb, dinfo);
+  dpotfimm2_(uplo, j, jb, n, refA, lda, refB, ldb, &refInfo);
   CUDA_ERROR_CHECK(cudaMemcpy(&info, dinfo, sizeof(int), cudaMemcpyDeviceToHost));
 
-  float error = 0.0f;
+  double error = 0.0;
   if (uplo == CBlasUpper) {
-    CUDA_ERROR_CHECK(cudaMemcpy2D(A, lda * sizeof(float), dA, dlda * sizeof(float), (j + jb) * sizeof(float), n - j, cudaMemcpyDeviceToHost));
-    CUDA_ERROR_CHECK(cudaMemcpy2D(B, ldb * sizeof(float), dB, dldb * sizeof(float), jb * sizeof(float), n - j, cudaMemcpyDeviceToHost));
+    CUDA_ERROR_CHECK(cudaMemcpy2D(A, lda * sizeof(double), dA, dlda * sizeof(double), (j + jb) * sizeof(double), n - j, cudaMemcpyDeviceToHost));
+    CUDA_ERROR_CHECK(cudaMemcpy2D(B, ldb * sizeof(double), dB, dldb * sizeof(double), jb * sizeof(double), n - j, cudaMemcpyDeviceToHost));
 
 #ifdef PRINT
     fputs("\nrefA:\n", stderr);
@@ -810,7 +810,7 @@ int main(int argc, char * argv[]) {
 
     for (int k = 0; k < n - j; k++) {
       for (int i = 0; i < j + jb; i++) {
-        float diff = fabsf(A[k * lda + i] - refA[k * lda + i]);
+        double diff = fabs(A[k * lda + i] - refA[k * lda + i]);
         if (diff > error)
           error = diff;
       }
@@ -818,7 +818,7 @@ int main(int argc, char * argv[]) {
 
     for (int k = 0; k < jb; k++) {
       for (int i = 0; i <= k; i++) {
-        float diff = fabsf(B[k * ldb + i] - refB[k * ldb + i]);
+        double diff = fabs(B[k * ldb + i] - refB[k * ldb + i]);
         if (diff > error)
           error = diff;
       }
@@ -826,15 +826,15 @@ int main(int argc, char * argv[]) {
 
     for (int k = jb; k < n - j - jb; k++) {
       for (int i = 0; i < jb; i++) {
-        float diff = fabsf(B[k * ldb + i] - refB[k * ldb + i]);
+        double diff = fabs(B[k * ldb + i] - refB[k * ldb + i]);
         if (diff > error)
           error = diff;
       }
     }
   }
   else {
-    CUDA_ERROR_CHECK(cudaMemcpy2D(A, lda * sizeof(float), dA, dlda * sizeof(float), (n - j) * sizeof(float), j + jb, cudaMemcpyDeviceToHost));
-    CUDA_ERROR_CHECK(cudaMemcpy2D(B, ldb * sizeof(float), dB, dldb * sizeof(float), (n - j) * sizeof(float), jb, cudaMemcpyDeviceToHost));
+    CUDA_ERROR_CHECK(cudaMemcpy2D(A, lda * sizeof(double), dA, dlda * sizeof(double), (n - j) * sizeof(double), j + jb, cudaMemcpyDeviceToHost));
+    CUDA_ERROR_CHECK(cudaMemcpy2D(B, ldb * sizeof(double), dB, dldb * sizeof(double), (n - j) * sizeof(double), jb, cudaMemcpyDeviceToHost));
 
 #ifdef PRINT
     fputs("\nrefA:\n", stderr);
@@ -866,7 +866,7 @@ int main(int argc, char * argv[]) {
 
     for (int k = 0; k < j + jb; k++) {
       for (int i = 0; i < n - j; i++) {
-        float diff = fabsf(A[k * lda + i] - refA[k * lda + i]);
+        double diff = fabs(A[k * lda + i] - refA[k * lda + i]);
         if (diff > error)
           error = diff;
       }
@@ -874,7 +874,7 @@ int main(int argc, char * argv[]) {
 
     for (int k = 0; k < jb; k++) {
       for (int i = k; i < jb; i++) {
-        float diff = fabsf(B[k * ldb + i] - refB[k * ldb + i]);
+        double diff = fabs(B[k * ldb + i] - refB[k * ldb + i]);
         if (diff > error)
           error = diff;
       }
@@ -882,7 +882,7 @@ int main(int argc, char * argv[]) {
 
     for (int k = 0; k < jb; k++) {
       for (int i = 0; i < n - j - jb; i++) {
-        float diff = fabsf(B[k * ldb + jb + i] - refB[k * ldb + jb + i]);
+        double diff = fabs(B[k * ldb + jb + i] - refB[k * ldb + jb + i]);
         if (diff > error)
           error = diff;
       }
@@ -902,7 +902,7 @@ int main(int argc, char * argv[]) {
   return info;
 }
 
-static int cond(int n, float c, float * A, size_t lda) {
+static int cond(int n, double c, double * A, size_t lda) {
   int info = 0;
   if (n < 2)
     info = -1;
@@ -915,10 +915,10 @@ static int cond(int n, float c, float * A, size_t lda) {
     return info;
   }
 
-  float * u, * v, * w;
-  size_t offset = (n + 3u) & ~3u;
+  double * u, * v, * w;
+  size_t offset = (n + 1u) & ~1u;
 
-  if ((u = (float *)malloc(3 * offset * sizeof(float))) == NULL)
+  if ((u = (double *)malloc(3 * offset * sizeof(double))) == NULL)
     return 1;
 
   v = &u[offset];
@@ -928,18 +928,18 @@ static int cond(int n, float c, float * A, size_t lda) {
   // [1,c] with 1 and c chosen at least once (here in the top left)
   for (int j = 0; j < n; j++) {
     for (int i = 0; i < n; i++)
-      A[j * lda + i] = 0.0f;
+      A[j * lda + i] = 0.0;
   }
 
-  A[0] = 1.0f;
+  A[0] = 1.0;
   A[lda + 1] = c;
   for (int j = 2; j < n; j++)
-    A[j * lda + j] = ((float) rand() / (float)RAND_MAX) * (c - 1.0f) + 1.0f;
+    A[j * lda + j] = ((double) rand() / (double)RAND_MAX) * (c - 1.0) + 1.0;
 
-  float t = 0.0f, s = 0.0f;
+  double t = 0.0, s = 0.0;
   for (int j = 0; j < n; j++) {
     // u is a random vector
-    u[j] = (float)rand() / (float)RAND_MAX;
+    u[j] = (double)rand() / (double)RAND_MAX;
     // v = Au
     v[j] = A[j * lda + j] * u[j];
     // t = 2/u'u
@@ -947,8 +947,8 @@ static int cond(int n, float c, float * A, size_t lda) {
     // s = t^2 u'v / 2
     s += u[j] * v[j];
   }
-  t = 2.0f / t;
-  s = t * t * s / 2.0f;
+  t = 2.0 / t;
+  s = t * t * s / 2.0;
 
   // w = tv - su
   for (int j = 0; j < n; j++)

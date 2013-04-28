@@ -405,9 +405,9 @@ CUresult cuDtrmm2(CUBLAShandle handle,
   const unsigned int bx = (side == CBlasRight) ?  8 : (trans == CBlasNoTrans) ? 16 :  8;
   const unsigned int by = (side == CBlasRight) ?  8 : (trans == CBlasNoTrans) ?  4 :  8;
 
-  char name[67];
-  snprintf(name, 67,
-           "_Z8dtrmm%c%c%cIL9CBlasDiag%dELj%uELj%uELj%uELj%uELj%uEEvPKdS2_Pddiiiii",
+  char name[68];
+  snprintf(name, 68,
+           "_Z8dtrmm2%c%c%cIL9CBlasDiag%dELj%uELj%uELj%uELj%uELj%uEEvPKdS2_Pddiiiii",
            side, uplo, trans, diag, mb, nb, kb, bx, by);
 
   CUfunction function;

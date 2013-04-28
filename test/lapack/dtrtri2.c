@@ -7,7 +7,7 @@
 #include <math.h>
 #include <time.h>
 #include "ref/dtrtri_ref.c"
-#include "util/slatmc.c"
+#include "util/dlatmc.c"
 
 int main(int argc, char * argv[]) {
   CBlasUplo uplo;
@@ -72,7 +72,7 @@ int main(int argc, char * argv[]) {
     return -3;
   }
 
-  if (slatmc(n, 2.0, A, lda) != 0) {
+  if (dlatmc(n, 2.0, A, lda) != 0) {
     fputs("Unable to initialise A\n", stderr);
     return -1;
   }
