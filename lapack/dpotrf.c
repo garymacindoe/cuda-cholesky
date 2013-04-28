@@ -153,7 +153,7 @@ static inline CUresult cuDpotf2(CULAPACKhandle handle, CBlasUplo uplo,
   if (n == 0)
     return CUDA_SUCCESS;
 
-  const unsigned int bx = 64;
+  const unsigned int bx = 32;
   if (n > bx)
     return CUDA_ERROR_INVALID_VALUE;
 
@@ -180,7 +180,7 @@ static inline CUresult cuDpotfimm2(CULAPACKhandle handle, CBlasUplo uplo,
                                    CUdeviceptr info, CUstream stream) {
   if (uplo == CBlasUpper) {
     const unsigned int mb = 32;
-    const unsigned int nb = 32;
+    const unsigned int nb = 16;
     const unsigned int kb =  8;
     const unsigned int bx =  8;
     const unsigned int by =  8;
@@ -206,7 +206,7 @@ static inline CUresult cuDpotfimm2(CULAPACKhandle handle, CBlasUplo uplo,
   }
   else {
     const unsigned int mb = 64;
-    const unsigned int nb = 16;
+    const unsigned int nb =  8;
     const unsigned int kb = 16;
     const unsigned int bx = 16;
     const unsigned int by =  4;
@@ -282,8 +282,8 @@ CUresult cuDpotrf(CULAPACKhandle handle,
   CUdeviceptr dinfo;
   CU_ERROR_CHECK(cuMemAlloc(&dinfo, sizeof(int)));
 
-  // If n <= 64 call the unblocked algorithm
-  if (n <= 64) {
+  // If n <= 32 call the unblocked algorithm
+  if (n <= 32) {
     CU_ERROR_CHECK(cuDpotf2(handle, uplo, n, A, lda, dinfo, NULL));
     int hinfo;
     CU_ERROR_CHECK(cuMemcpyDtoH(&hinfo, dinfo, sizeof(int)));
@@ -424,7 +424,7 @@ CUresult cuDpotrf(CULAPACKhandle handle,
                              one, A + (j * lda + j) * sizeof(double), lda, stream0));
 
       // If the block size is small enough
-      if (jb <= 16) {
+      if (jb <= 8) {
         // Call the combined SPOTF2/DGEMM kernel on the GPU to avoid host->device transfer
         CU_ERROR_CHECK(cuDpotfimm2(handle, uplo, j, jb, n, A + j * sizeof(double), lda, X, ldx, dinfo, stream0));
         CU_ERROR_CHECK(cuMemcpyDtoH(&hinfo, dinfo, sizeof(int)));

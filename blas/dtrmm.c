@@ -407,7 +407,7 @@ CUresult cuDtrmm2(CUBLAShandle handle,
 
   char name[68];
   snprintf(name, 68,
-           "_Z8dtrmm2%c%c%cIL9CBlasDiag%dELj%uELj%uELj%uELj%uELj%uEEvPKdS2_Pddiiiii",
+           "_Z9dtrmm2%c%c%cIL9CBlasDiag%dELj%uELj%uELj%uELj%uELj%uEEvPKdS2_Pddiiiii",
            side, uplo, trans, diag, mb, nb, kb, bx, by);
 
   CUfunction function;
