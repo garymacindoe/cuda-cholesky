@@ -512,7 +512,7 @@ static int cond(int n, float c, float * A, size_t lda) {
 }
 #endif
 
-#if 0
+#if 1
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
