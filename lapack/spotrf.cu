@@ -816,7 +816,15 @@ int main(int argc, char * argv[]) {
       }
     }
 
-    for (int k = 0; k < n - j; k++) {
+    for (int k = 0; k < jb; k++) {
+      for (int i = 0; i <= k; i++) {
+        float diff = fabsf(B[k * ldb + i] - refB[k * ldb + i]);
+        if (diff > error)
+          error = diff;
+      }
+    }
+
+    for (int k = jb; k < n - j - jb; k++) {
       for (int i = 0; i < jb; i++) {
         float diff = fabsf(B[k * ldb + i] - refB[k * ldb + i]);
         if (diff > error)
