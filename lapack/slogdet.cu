@@ -12,22 +12,22 @@
  */
 
 template <unsigned int bs>
-__device__ void reduceBlock(volatile float * shared, float sum) {
-  shared[threadIdx.x] = sum;
+__device__ void reduceBlock(volatile float * sdata, float sum, const unsigned int i) {
+  sdata[i] = sum;
   __syncthreads();
 
   // do reduction in shared mem
-  if (bs >= 512) { if (threadIdx.x < 256) { shared[threadIdx.x] = sum = sum + shared[threadIdx.x + 256]; } __syncthreads(); }
-  if (bs >= 256) { if (threadIdx.x < 128) { shared[threadIdx.x] = sum = sum + shared[threadIdx.x + 128]; } __syncthreads(); }
-  if (bs >= 128) { if (threadIdx.x <  64) { shared[threadIdx.x] = sum = sum + shared[threadIdx.x +  64]; } __syncthreads(); }
+  if (bs >= 512) { if (i < 256) { sdata[i] = sum = sum + sdata[i + 256]; } __syncthreads(); }
+  if (bs >= 256) { if (i < 128) { sdata[i] = sum = sum + sdata[i + 128]; } __syncthreads(); }
+  if (bs >= 128) { if (i <  64) { sdata[i] = sum = sum + sdata[i +  64]; } __syncthreads(); }
 
-  if (threadIdx.x < 32) {
-    if (bs >=  64) { shared[threadIdx.x] = sum = sum + shared[threadIdx.x + 32]; }
-    if (bs >=  32) { shared[threadIdx.x] = sum = sum + shared[threadIdx.x + 16]; }
-    if (bs >=  16) { shared[threadIdx.x] = sum = sum + shared[threadIdx.x +  8]; }
-    if (bs >=   8) { shared[threadIdx.x] = sum = sum + shared[threadIdx.x +  4]; }
-    if (bs >=   4) { shared[threadIdx.x] = sum = sum + shared[threadIdx.x +  2]; }
-    if (bs >=   2) { shared[threadIdx.x] = sum = sum + shared[threadIdx.x +  1]; }
+  if (i < 32) {
+    if (bs >=  64) { sdata[i] = sum = sum + sdata[i + 32]; }
+    if (bs >=  32) { sdata[i] = sum = sum + sdata[i + 16]; }
+    if (bs >=  16) { sdata[i] = sum = sum + sdata[i +  8]; }
+    if (bs >=   8) { sdata[i] = sum = sum + sdata[i +  4]; }
+    if (bs >=   4) { sdata[i] = sum = sum + sdata[i +  2]; }
+    if (bs >=   2) { sdata[i] = sum = sum + sdata[i +  1]; }
   }
 }
 
@@ -50,38 +50,32 @@ __device__ unsigned int retirementCount = 0;
 // For more details on the reduction algorithm (notably the multi-pass approach), see
 // the "reduction" sample in the CUDA SDK.
 template <unsigned int bs, bool nIsPow2>
-__global__ void reduce(const float * x, float * temp, int incx, int n) {
+__global__ void reduce(const float *g_idata, float *g_odata, int inc, int n) {
+  __shared__ float sdata[bs];
 
-  //
-  // PHASE 1: Process all inputs assigned to this block
-  //
   // perform first level of reduction,
   // reading from global memory, writing to shared memory
-  __shared__ float shared[bs];
+  const unsigned int tid = threadIdx.x;
+  const unsigned int gs = bs * 2 * gridDim.x;
   float sum = 0.0f;
 
   // we reduce multiple elements per thread.  The number is determined by the
   // number of active thread blocks (via gridDim).  More blocks will result
-  // in a larger grid size and therefore fewer elements per thread
-  const int gs = bs * 2 * gridDim.x;
+  // in a larger gs and therefore fewer elements per thread
   for (int i = blockIdx.x * (bs * 2) + threadIdx.x; i < n; i += gs) {
-    sum += logf(x[i * incx]);    // log x when reading from global memory
+    sum += logf(g_idata[i * inc]);
 
     // ensure we don't read out of bounds -- this is optimized away for powerOf2 sized arrays
     if (nIsPow2 || i + bs < n)
-      sum += logf(x[(i + bs) * incx]);   // log x when reading from global memory
+      sum += logf(g_idata[(i + bs) * inc]);
   }
 
   // do reduction in shared mem
-  reduceBlock<bs>(shared, sum);
+  reduceBlock<bs>(sdata, sum, tid);
 
   // write result for this block to global mem
-  if (threadIdx.x == 0)
-    temp[blockIdx.x] = 2.0f * shared[0];     // calculate 2 * sum(log(x))
-
-  //
-  // PHASE 2: Last block finished will process all partial sums
-  //
+  if (tid == 0)
+    g_odata[blockIdx.x] = 2.0f * sdata[0];
 
   if (gridDim.x > 1) {
     __shared__ bool amLast;
@@ -90,10 +84,10 @@ __global__ void reduce(const float * x, float * temp, int incx, int n) {
     __threadfence();
 
     // Thread 0 takes a ticket
-    if (threadIdx.x == 0) {
+    if (tid == 0) {
       unsigned int ticket = atomicInc(&retirementCount, gridDim.x);
       // If the ticket ID is equal to the number of blocks, we are the last block!
-      amLast = (ticket == gridDim.x - 1);
+      amLast = (ticket == gridDim.x-1);
     }
 
     __syncthreads();
@@ -102,13 +96,13 @@ __global__ void reduce(const float * x, float * temp, int incx, int n) {
     if (amLast) {
       float sum = 0.0f;
 
-      for (int i = threadIdx.x; i < gridDim.x; i += bs)
-        sum += temp[i];
+      for (int i = tid; i < gridDim.x; i += bs)
+        sum += g_odata[i];
 
-      reduceBlock<bs>(shared, sum);
+      reduceBlock<bs>(sdata, sum, tid);
 
-      if (threadIdx.x == 0) {
-        temp[0] = shared[0];
+      if (tid == 0) {
+        g_odata[0] = sdata[0];
 
         // reset retirement count so that next run succeeds
         retirementCount = 0;

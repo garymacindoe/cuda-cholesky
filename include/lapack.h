@@ -107,12 +107,12 @@ CUresult cuMultiGPUDpotri(CUmultiGPULAPACKhandle, CBlasUplo, size_t, double * re
 /** Calculating log determinant - CPU and GPU only */
 float slogdet(const float *, size_t, size_t);
 
-CUresult cuSlogdet(CULAPACKhandle, CUdeviceptr, size_t, size_t,  float *, CUstream);
+CUresult cuSlogdet(CULAPACKhandle, CUdeviceptr, size_t, size_t,  CUdeviceptr, size_t *, CUstream);
 
 /** Calculating log determinant - CPU and GPU only */
 double dlogdet(const double *, size_t, size_t);
 
-CUresult cuDlogdet(CULAPACKhandle, CUdeviceptr, size_t, size_t,  double *, CUstream);
+CUresult cuDlogdet(CULAPACKhandle, CUdeviceptr, size_t, size_t,  CUdeviceptr, size_t *, CUstream);
 
 #ifdef __cplusplus
 }

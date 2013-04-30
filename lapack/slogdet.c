@@ -6,6 +6,7 @@
 #include "slogdet.fatbin.c"
 
 static inline unsigned int max(unsigned int a, unsigned int b) { return (a > b) ? a : b; }
+static inline unsigned int min(unsigned int a, unsigned int b) { return (a < b) ? a : b; }
 
 static inline unsigned int nextPow2(unsigned int n) {
   n--;
@@ -34,14 +35,9 @@ float slogdet(const float * x, size_t incx, size_t n) {
   return 2.0f * total;
 }
 
-CUresult cuSlogdet(CULAPACKhandle handle, CUdeviceptr x, size_t incx, size_t n, float * result, CUstream stream) {
-  if (n == 0) {
-    *result = 0.0f;
+CUresult cuSlogdet(CULAPACKhandle handle, CUdeviceptr x, size_t incx, size_t n, CUdeviceptr work, size_t * lwork, CUstream stream) {
+  if (n == 0)
     return CUDA_SUCCESS;
-  }
-
-  if (handle->slogdet == NULL)
-    CU_ERROR_CHECK(cuModuleLoadData(&handle->slogdet, imageBytes));
 
   unsigned int threads, blocks;
   if (n == 1) {
@@ -49,12 +45,21 @@ CUresult cuSlogdet(CULAPACKhandle handle, CUdeviceptr x, size_t incx, size_t n, 
     blocks = 1;
   }
   else {
-    threads = (n < 1024) ? nextPow2((unsigned int )(n / 2)) : 512;
+    threads = (n < 256) ? nextPow2((unsigned int )(n / 2)) : 128;
     blocks = max(1, (unsigned int)n / (threads * 2));
   }
 
-  CUdeviceptr temp;
-  CU_ERROR_CHECK(cuMemAlloc(&temp, blocks * sizeof(float)));
+  blocks = min(64, blocks);
+
+  if (work == 0) {
+    *lwork = blocks;
+    return CUDA_SUCCESS;
+  }
+  else if (*lwork < blocks)
+    return CUDA_ERROR_INVALID_VALUE;
+
+  if (handle->slogdet == NULL)
+    CU_ERROR_CHECK(cuModuleLoadData(&handle->slogdet, imageBytes));
 
   char name[31];
   snprintf(name, 31, "_Z6reduceILj%uELb%dEEvPKfPfii", threads, (n & (n - 1)) == 0);
@@ -62,13 +67,9 @@ CUresult cuSlogdet(CULAPACKhandle handle, CUdeviceptr x, size_t incx, size_t n, 
   CUfunction function;
   CU_ERROR_CHECK(cuModuleGetFunction(&function, handle->slogdet, name));
 
-  void * params[] = { &x, &temp, &incx, &n };
+  void * params[] = { &x, &work, &incx, &n };
 
   CU_ERROR_CHECK(cuLaunchKernel(function, blocks, 1, 1, threads, 1, 1, 0, stream, params, NULL));
-
-  CU_ERROR_CHECK(cuMemcpyDtoHAsync(result, temp, sizeof(float), stream));
-
-  CU_ERROR_CHECK(cuMemFree(temp));
 
   return CUDA_SUCCESS;
 }

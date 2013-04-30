@@ -33,8 +33,8 @@ int main(int argc, char * argv[]) {
   srand(0);
 
   float * x;
-  CUdeviceptr dx;
-  size_t incx = 1;
+  CUdeviceptr dx, work;
+  size_t incx = 1, lwork;
 
   CU_ERROR_CHECK(cuInit(0));
 
@@ -58,8 +58,13 @@ int main(int argc, char * argv[]) {
 
   CU_ERROR_CHECK(cuMemcpyHtoD(dx, x, incx * n * sizeof(float)));
 
+  CU_ERROR_CHECK(cuSlogdet(handle, dx, incx, n, 0, &lwork, NULL));
+  CU_ERROR_CHECK(cuMemAlloc(&work, lwork * sizeof(float)));
+
+  CU_ERROR_CHECK(cuSlogdet(handle, dx, incx, n, work, &lwork, NULL));
+
   float res;
-  CU_ERROR_CHECK(cuSlogdet(handle, dx, incx, n, &res, NULL));
+  CU_ERROR_CHECK(cuMemcpyDtoH(&res, work, sizeof(float)));
 
   float sum = 0.0f;
   float c = 0.0f;
@@ -80,7 +85,7 @@ int main(int argc, char * argv[]) {
     return -4;
   }
   for (size_t i = 0; i < 20; i++)
-    CU_ERROR_CHECK(cuSlogdet(handle, dx, incx, n, &res, NULL));
+    CU_ERROR_CHECK(cuSlogdet(handle, dx, incx, n, work, &lwork, NULL));
   if (clock_gettime(CLOCK_REALTIME, &stop) != 0) {
     fprintf(stderr, "clock_gettime failed at %s:%d\n", __FILE__, __LINE__);
     return -5;
@@ -95,6 +100,7 @@ int main(int argc, char * argv[]) {
 
   free(x);
   CU_ERROR_CHECK(cuMemFree(dx));
+  CU_ERROR_CHECK(cuMemFree(work));
 
   CU_ERROR_CHECK(cuLAPACKDestroy(handle));
 
