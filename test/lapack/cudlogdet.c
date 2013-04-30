@@ -63,7 +63,7 @@ int main(int argc, char * argv[]) {
   CU_ERROR_CHECK(cuDlogdet(handle, dx, incx, n, work, &lwork, NULL));
 
   double res;
-  CU_ERROR_CHECK(cuMemcpyDtoH(&res, work, sizeof(float)));
+  CU_ERROR_CHECK(cuMemcpyDtoH(&res, work, sizeof(double)));
 
   double sum = log(x[0]);
   double c = 0.0;
