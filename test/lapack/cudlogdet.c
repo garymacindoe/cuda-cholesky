@@ -33,7 +33,7 @@ int main(int argc, char * argv[]) {
 
   double * x;
   CUdeviceptr dx, work;
-  size_t incx = 1, lwork;
+  size_t incx = (n + 1u) & ~1u, lwork;
 
   CU_ERROR_CHECK(cuInit(0));
 
