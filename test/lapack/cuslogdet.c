@@ -5,7 +5,6 @@
 #include <stdbool.h>
 #include <float.h>
 #include <math.h>
-#include <time.h>
 
 int main(int argc, char * argv[]) {
   size_t n;
@@ -66,9 +65,9 @@ int main(int argc, char * argv[]) {
   float res;
   CU_ERROR_CHECK(cuMemcpyDtoH(&res, work, sizeof(float)));
 
-  float sum = 0.0f;
+  float sum = logf(x[0]);
   float c = 0.0f;
-  for (size_t j = 0; j < n; j++) {
+  for (size_t j = 1; j < n; j++) {
     float y = logf(x[j * incx]) - c;
     float t = sum + y;
     c = (t - sum) - y;
@@ -79,24 +78,26 @@ int main(int argc, char * argv[]) {
   float diff = fabsf(sum - res);
   bool passed = (diff <= 2.0f * (float)n * FLT_EPSILON);
 
-  struct timespec start, stop;
-  if (clock_gettime(CLOCK_REALTIME, &start) != 0) {
-    fprintf(stderr, "clock_gettime failed at %s:%d\n", __FILE__, __LINE__);
-    return -4;
-  }
+  CUevent start, stop;
+  CU_ERROR_CHECK(cuEventCreate(&start, CU_EVENT_BLOCKING_SYNC));
+  CU_ERROR_CHECK(cuEventCreate(&stop, CU_EVENT_BLOCKING_SYNC));
+
+  CU_ERROR_CHECK(cuEventRecord(start, NULL));
   for (size_t i = 0; i < 20; i++)
     CU_ERROR_CHECK(cuSlogdet(handle, dx, incx, n, work, &lwork, NULL));
-  if (clock_gettime(CLOCK_REALTIME, &stop) != 0) {
-    fprintf(stderr, "clock_gettime failed at %s:%d\n", __FILE__, __LINE__);
-    return -5;
-  }
+  CU_ERROR_CHECK(cuEventRecord(stop, NULL));
+  CU_ERROR_CHECK(cuEventSynchronize(stop));
 
-  double time = ((double)(stop.tv_sec - start.tv_sec) +
-                 (double)(stop.tv_nsec - start.tv_nsec) * 1.e-9) / 20.0;
+  float time;
+  CU_ERROR_CHECK(cuEventElapsedTime(&time, start, stop));
+  time /= 20;
+
+  CU_ERROR_CHECK(cuEventDestroy(start));
+  CU_ERROR_CHECK(cuEventDestroy(stop));
 
   const size_t bandwidth = n * sizeof(float);
-  fprintf(stdout, "%.3es %.3gGB/s Error: %.3e\n%sED!\n", time,
-          (float)bandwidth / (time * (float)(1 << 30)), diff, (passed) ? "PASS" : "FAIL");
+  fprintf(stdout, "%.3es %.3gGB/s Error: %.3e\n%sED!\n", time * 1.e-3f,
+          (double)bandwidth / (time * 1.e-3f * (float)(1 << 30)), diff, (passed) ? "PASS" : "FAIL");
 
   free(x);
   CU_ERROR_CHECK(cuMemFree(dx));
