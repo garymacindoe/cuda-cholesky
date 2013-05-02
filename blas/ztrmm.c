@@ -28,6 +28,16 @@ static inline CUresult cuMemcpyDtoH2DAsync(void * A, size_t lda, size_t ai, size
   return cuMemcpy2DAsync(&copy, stream);
 }
 
+static inline CUresult cuMemcpyDtoD2DAsync(CUdeviceptr A, size_t lda, size_t ai, size_t aj,
+                                           CUdeviceptr B, size_t ldb, size_t bi, size_t bj,
+                                           size_t m, size_t n, size_t elemSize, CUstream stream) {
+  CUDA_MEMCPY2D copy = {
+    bi * elemSize, bj, CU_MEMORYTYPE_DEVICE, NULL, B, 0, ldb * elemSize,
+    ai * elemSize, aj, CU_MEMORYTYPE_DEVICE, NULL, A, 0, lda * elemSize,
+    m * elemSize, n };
+  return cuMemcpy2DAsync(&copy, stream);
+}
+
 static const double complex zero = 0.0 + 0.0 * I;
 static const double complex one = 1.0 + 0.0 * I;
 
@@ -433,8 +443,8 @@ CUresult cuZtrmm2(CUBLAShandle handle,
 
   CU_ERROR_CHECK(cuCtxPushCurrent(handle->context));
 
-  if (handle->ztrmm == NULL)
-    CU_ERROR_CHECK(cuModuleLoadData(&handle->ztrmm, imageBytes));
+  if (handle->ztrmm2 == NULL)
+    CU_ERROR_CHECK(cuModuleLoadData(&handle->ztrmm2, imageBytes));
 
   const unsigned int mb = (trans == CBlasNoTrans) ? 64 :  8;
   const unsigned int nb = (trans == CBlasNoTrans) ?  4 :  8;
@@ -453,7 +463,7 @@ CUresult cuZtrmm2(CUBLAShandle handle,
              side, uplo, trans, diag, mb, nb, kb, bx, by);
 
   CUfunction function;
-  CU_ERROR_CHECK(cuModuleGetFunction(&function, handle->ztrmm, name));
+  CU_ERROR_CHECK(cuModuleGetFunction(&function, handle->ztrmm2, name));
 
   void * params[] = { &alpha, &A, &B, &X, &lda, &ldb, &ldx, &m, &n };
 
@@ -461,6 +471,44 @@ CUresult cuZtrmm2(CUBLAShandle handle,
                                 (unsigned int)(m + mb - 1) / mb, (unsigned int)(n + nb - 1) / nb, 1,
                                 bx, by, 1,
                                 0, stream, params, NULL));
+
+  CU_ERROR_CHECK(cuCtxPopCurrent(&handle->context));
+
+  return CUDA_SUCCESS;
+}
+
+CUresult cuZtrmm(CUBLAShandle handle,
+                 CBlasSide side, CBlasUplo uplo, CBlasTranspose trans, CBlasDiag diag,
+                 size_t m, size_t n,
+                 double complex alpha, CUdeviceptr A, size_t lda, CUdeviceptr B, size_t ldb,
+                 CUstream stream) {
+  const size_t nRowA = (side == CBlasLeft) ? m : n;
+
+  int info = 0;
+  if (lda < nRowA)
+    info = 9;
+  else if (ldb < m)
+    info = 11;
+  if (info != 0) {
+    XERBLA(info);
+    return CUDA_ERROR_INVALID_VALUE;
+  }
+
+  if (m == 0 || n == 0)
+    return CUDA_SUCCESS;
+
+  CU_ERROR_CHECK(cuCtxPushCurrent(handle->context));
+
+  CUdeviceptr X;
+  size_t ldx;
+  CU_ERROR_CHECK(cuMemAllocPitch(&X, &ldx, m * sizeof(double complex), n, sizeof(double complex)));
+  ldx /= sizeof(double complex);
+
+  CU_ERROR_CHECK(cuZtrmm2(handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb, X, ldx, stream));
+
+  CU_ERROR_CHECK(cuMemcpyDtoD2DAsync(B, ldb, 0, 0, X, ldx, 0, 0, m, n, sizeof(double complex), stream));
+
+  CU_ERROR_CHECK(cuMemFree(X));
 
   CU_ERROR_CHECK(cuCtxPopCurrent(&handle->context));
 

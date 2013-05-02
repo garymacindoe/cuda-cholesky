@@ -53,11 +53,11 @@ __device__ void zaxpy2(cuDoubleComplex alpha, const int * __restrict__ x_real_hi
 template <CBlasTranspose transB,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void zgemmN(cuDoubleComplex alpha, cuDoubleComplex beta,
-                       const cuDoubleComplex * __restrict__ A, const cuDoubleComplex * __restrict__ B,
-                       const cuDoubleComplex * __restrict__ C, cuDoubleComplex * __restrict__ D,
-                       int lda, int ldb, int ldc, int ldd,
-                       int m, int n, int k) {
+__global__ void zgemm2N(cuDoubleComplex alpha, cuDoubleComplex beta,
+                        const cuDoubleComplex * __restrict__ A, const cuDoubleComplex * __restrict__ B,
+                        const cuDoubleComplex * __restrict__ C, cuDoubleComplex * __restrict__ D,
+                        int lda, int ldb, int ldc, int ldd,
+                        int m, int n, int k) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of C/D
   const int bj = blockIdx.y * nb;       // Starting column of block of C/D
@@ -188,11 +188,11 @@ __global__ void zgemmN(cuDoubleComplex alpha, cuDoubleComplex beta,
 template <CBlasTranspose transA, CBlasTranspose transB,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void zgemmT(cuDoubleComplex alpha, cuDoubleComplex beta,
-                       const cuDoubleComplex * __restrict__ A, const cuDoubleComplex * __restrict__ B,
-                       const cuDoubleComplex * __restrict__ C, cuDoubleComplex * __restrict__ D,
-                       int lda, int ldb, int ldc, int ldd,
-                       int m, int n, int k) {
+__global__ void zgemm2T(cuDoubleComplex alpha, cuDoubleComplex beta,
+                        const cuDoubleComplex * __restrict__ A, const cuDoubleComplex * __restrict__ B,
+                        const cuDoubleComplex * __restrict__ C, cuDoubleComplex * __restrict__ D,
+                        int lda, int ldb, int ldc, int ldd,
+                        int m, int n, int k) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of C/D
   const int bj = blockIdx.y * nb;       // Starting column of block of C/D
@@ -362,11 +362,11 @@ __device__ void zaxpy2(cuDoubleComplex alpha, const double * x_real, const doubl
 template <CBlasTranspose transB,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void zgemmN(cuDoubleComplex alpha, cuDoubleComplex beta,
-                       const cuDoubleComplex * __restrict__ A, const cuDoubleComplex * __restrict__ B,
-                       const cuDoubleComplex * __restrict__ C, cuDoubleComplex * __restrict__ D,
-int lda, int ldb, int ldc, int ldd,
-                      int m, int n, int k) {
+__global__ void zgemm2N(cuDoubleComplex alpha, cuDoubleComplex beta,
+                        const cuDoubleComplex * __restrict__ A, const cuDoubleComplex * __restrict__ B,
+                        const cuDoubleComplex * __restrict__ C, cuDoubleComplex * __restrict__ D,
+                        int lda, int ldb, int ldc, int ldd,
+                        int m, int n, int k) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of C/D
   const int bj = blockIdx.y * nb;       // Starting column of block of C/D
@@ -484,11 +484,11 @@ int lda, int ldb, int ldc, int ldd,
 template <CBlasTranspose transA, CBlasTranspose transB,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void zgemmT(cuDoubleComplex alpha, cuDoubleComplex beta,
-                       const cuDoubleComplex * __restrict__ A, const cuDoubleComplex * __restrict__ B,
-                       const cuDoubleComplex * __restrict__ C, cuDoubleComplex * __restrict__ D,
-                       int lda, int ldb, int ldc, int ldd,
-                       int m, int n, int k) {
+__global__ void zgemm2T(cuDoubleComplex alpha, cuDoubleComplex beta,
+                        const cuDoubleComplex * __restrict__ A, const cuDoubleComplex * __restrict__ B,
+                        const cuDoubleComplex * __restrict__ C, cuDoubleComplex * __restrict__ D,
+                        int lda, int ldb, int ldc, int ldd,
+                        int m, int n, int k) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of C/D
   const int bj = blockIdx.y * nb;       // Starting column of block of C/D
@@ -636,11 +636,11 @@ __device__ void zaxpy2(cuDoubleComplex alpha, const cuDoubleComplex * __restrict
 template <CBlasTranspose transB,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void zgemmN(cuDoubleComplex alpha, cuDoubleComplex beta,
-                       const cuDoubleComplex * __restrict__ A, const cuDoubleComplex * __restrict__ B,
-                       const cuDoubleComplex * __restrict__ C, cuDoubleComplex * __restrict__ D,
-                       int lda, int ldb, int ldc, int ldd,
-                       int m, int n, int k) {
+__global__ void zgemm2N(cuDoubleComplex alpha, cuDoubleComplex beta,
+                        const cuDoubleComplex * __restrict__ A, const cuDoubleComplex * __restrict__ B,
+                        const cuDoubleComplex * __restrict__ C, cuDoubleComplex * __restrict__ D,
+                        int lda, int ldb, int ldc, int ldd,
+                        int m, int n, int k) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of C/D
   const int bj = blockIdx.y * nb;       // Starting column of block of C/D
@@ -758,11 +758,11 @@ __global__ void zgemmN(cuDoubleComplex alpha, cuDoubleComplex beta,
 template <CBlasTranspose transA, CBlasTranspose transB,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void zgemmT(cuDoubleComplex alpha, cuDoubleComplex beta,
-                       const cuDoubleComplex * __restrict__ A, const cuDoubleComplex * __restrict__ B,
-                       const cuDoubleComplex * __restrict__ C, cuDoubleComplex * __restrict__ D,
-                       int lda, int ldb, int ldc, int ldd,
-                       int m, int n, int k) {
+__global__ void zgemm2T(cuDoubleComplex alpha, cuDoubleComplex beta,
+                        const cuDoubleComplex * __restrict__ A, const cuDoubleComplex * __restrict__ B,
+                        const cuDoubleComplex * __restrict__ C, cuDoubleComplex * __restrict__ D,
+                        int lda, int ldb, int ldc, int ldd,
+                        int m, int n, int k) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of C/D
   const int bj = blockIdx.y * nb;       // Starting column of block of C/D
@@ -915,13 +915,13 @@ __global__ void zgemmT(cuDoubleComplex alpha, cuDoubleComplex beta,
  * kb is chosen to be the largest multiple of 16 such that the number of blocks
  * per multiprocessor is limited by the register usage.
  */
-template __global__ void zgemmN<CBlasNoTrans,   64,  4, 16, 16,  4>(cuDoubleComplex, cuDoubleComplex, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int, int, int, int);
-template __global__ void zgemmN<CBlasTrans,     64,  4, 16,  4, 16>(cuDoubleComplex, cuDoubleComplex, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int, int, int, int);
-template __global__ void zgemmN<CBlasConjTrans, 64,  4, 16,  4, 16>(cuDoubleComplex, cuDoubleComplex, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int, int, int, int);
+template __global__ void zgemm2N<CBlasNoTrans,   64,  4, 16, 16,  4>(cuDoubleComplex, cuDoubleComplex, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int, int, int, int);
+template __global__ void zgemm2N<CBlasTrans,     64,  4, 16,  4, 16>(cuDoubleComplex, cuDoubleComplex, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int, int, int, int);
+template __global__ void zgemm2N<CBlasConjTrans, 64,  4, 16,  4, 16>(cuDoubleComplex, cuDoubleComplex, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int, int, int, int);
 
-template __global__ void zgemmT<CBlasTrans,     CBlasNoTrans,    8,  8,  4,  4,  8>(cuDoubleComplex, cuDoubleComplex, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int, int, int, int);
-template __global__ void zgemmT<CBlasTrans,     CBlasTrans,      8, 16,  8,  8,  8>(cuDoubleComplex, cuDoubleComplex, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int, int, int, int);
-template __global__ void zgemmT<CBlasTrans,     CBlasConjTrans,  8, 16,  8,  8,  8>(cuDoubleComplex, cuDoubleComplex, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int, int, int, int);
-template __global__ void zgemmT<CBlasConjTrans, CBlasNoTrans,    8,  8,  4,  4,  8>(cuDoubleComplex, cuDoubleComplex, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int, int, int, int);
-template __global__ void zgemmT<CBlasConjTrans, CBlasTrans,      8, 16,  8,  8,  8>(cuDoubleComplex, cuDoubleComplex, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int, int, int, int);
-template __global__ void zgemmT<CBlasConjTrans, CBlasConjTrans,  8, 16,  8,  8,  8>(cuDoubleComplex, cuDoubleComplex, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int, int, int, int);
+template __global__ void zgemm2T<CBlasTrans,     CBlasNoTrans,    8,  8,  4,  4,  8>(cuDoubleComplex, cuDoubleComplex, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int, int, int, int);
+template __global__ void zgemm2T<CBlasTrans,     CBlasTrans,      8, 16,  8,  8,  8>(cuDoubleComplex, cuDoubleComplex, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int, int, int, int);
+template __global__ void zgemm2T<CBlasTrans,     CBlasConjTrans,  8, 16,  8,  8,  8>(cuDoubleComplex, cuDoubleComplex, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int, int, int, int);
+template __global__ void zgemm2T<CBlasConjTrans, CBlasNoTrans,    8,  8,  4,  4,  8>(cuDoubleComplex, cuDoubleComplex, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int, int, int, int);
+template __global__ void zgemm2T<CBlasConjTrans, CBlasTrans,      8, 16,  8,  8,  8>(cuDoubleComplex, cuDoubleComplex, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int, int, int, int);
+template __global__ void zgemm2T<CBlasConjTrans, CBlasConjTrans,  8, 16,  8,  8,  8>(cuDoubleComplex, cuDoubleComplex, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, const cuDoubleComplex * __restrict__, cuDoubleComplex * __restrict__, int, int, int, int, int, int, int);

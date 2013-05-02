@@ -9,18 +9,16 @@ __device__ void saxpy(float alpha, const float * __restrict__ x, float * __restr
 }
 
 /**
- * This implementation is out-of-place.  For in-place call with D = C and ldd = ldc.
- *
  * SGEMM:
- *   D := alpha * AB   + beta * C for transA == CBlasNoTrans and transB == CBlasNoTrans
- *   D := alpha * AB'  + beta * C for transA == CBlasNoTrans and transB == CBlasTrans
- *   D := alpha * A'B  + beta * C for transA == CBlasTrans and transB == CBlasNoTrans
- *   D := alpha * A'B' + beta * C for transA == CBlasTrans and transB == CBlasTrans
+ *   C := alpha * AB   + beta * C for transA == CBlasNoTrans and transB == CBlasNoTrans
+ *   C := alpha * AB'  + beta * C for transA == CBlasNoTrans and transB == CBlasTrans
+ *   C := alpha * A'B  + beta * C for transA == CBlasTrans and transB == CBlasNoTrans
+ *   C := alpha * A'B' + beta * C for transA == CBlasTrans and transB == CBlasTrans
  *
  * @param transA  transpose for A.
  * @param transB  transpose for B.
- * @param mb      the number of rows in the block of C/D.
- * @param nb      the number of columns in the block of C/D.
+ * @param mb      the number of rows in the block of C.
+ * @param nb      the number of columns in the block of C.
  * @param kb      how far to unroll the inner loop.
  * @param bx      blockDim.x.
  * @param by      blockDim.y.
@@ -28,16 +26,14 @@ __device__ void saxpy(float alpha, const float * __restrict__ x, float * __restr
 template <CBlasTranspose transA, CBlasTranspose transB,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__device__ void sgemm2(int m, int n, int k,
-                       float alpha,
-                       const float * __restrict__ A, int lda,
-                       const float * __restrict__ B, int ldb,
-                       float beta,
-                       const float * __restrict__ C, int ldc,
-                       float * __restrict__ D, int ldd) {
+__global__ void sgemm2(const float * __restrict__ A, const float * __restrict__ B,
+                       const float * __restrict__ C, float * __restrict__ D,
+                       float alpha, float beta,
+                       int lda, int ldb, int ldc, int ldd,
+                       int m, int n, int k) {
 
-  const int bi = blockIdx.x * mb;       // Starting row of block of C/D
-  const int bj = blockIdx.y * nb;       // Starting column of block of C/D
+  const int bi = blockIdx.x * mb;       // Starting row of block of C/C
+  const int bj = blockIdx.y * nb;       // Starting column of block of C/C
   int ti = threadIdx.y * bx + threadIdx.x;
   int tj = 0;
   if (transA != CBlasNoTrans) {
@@ -46,14 +42,14 @@ __device__ void sgemm2(int m, int n, int k,
   }
 
   /*
-   * Compute our starting points in A, B, C and D.
+   * Compute our starting points in A, B, C and C.
    *
    * For transA != CBlasNoTrans A is cached in shared memory so the unwrapped
-   * thread index can be re-wrapped around mb when calculating D.
+   * thread index can be re-wrapped around mb when calculating C.
    *
    * If transA == CBlasNoTrans then bx * by == mb (checked later on) so there
    * doesn't need to be a separate check for transA == CBlasNoTrans in
-   * calculating the start of C/D here.
+   * calculating the start of C/C here.
    */
   A += (transA == CBlasNoTrans) ? bi + ti : (bi + threadIdx.y) * lda + threadIdx.x;
   B += (transB == CBlasNoTrans) ? (bj + threadIdx.y) * ldb + threadIdx.x : threadIdx.y * ldb + bj + threadIdx.x;
@@ -63,7 +59,7 @@ __device__ void sgemm2(int m, int n, int k,
   m -= bi + ti;
 
   /*
-   * Blocks of A and B in shared memory and D in registers.
+   * Blocks of A and B in shared memory and C in registers.
    */
   __shared__ float a[mb][kb + 1];       // Optimised away when transA == CBlasNoTrans
   __shared__ float b[kb][(transB == CBlasNoTrans) ? nb + 1 : nb];
@@ -174,19 +170,8 @@ __device__ void sgemm2(int m, int n, int k,
   }
 }
 
-template <CBlasTranspose transA, CBlasTranspose transB,
-          unsigned int mb, unsigned int nb, unsigned int kb,
-          unsigned int bx, unsigned int by>
-__global__ void sgemm(const float * __restrict__ A, const float * __restrict__ B,
-                      const float * __restrict__ C, float * __restrict__ D,
-                      float alpha, float beta,
-                      int lda, int ldb, int ldc, int ldd,
-                      int m, int n, int k) {
-  sgemm2<transA, transB, mb, nb, kb, bx, by>(m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, D, ldd);
-}
-
 /**
- * For D = aAB + bC:
+ * For C = aAB + bC:
  *   mb must be a multiple of the warp size (32) and less than or equal to the
  *        maximum number of threads per block (512).
  *   nb must be less than or equal to 20 (registers start spilling to global
@@ -226,9 +211,7 @@ __global__ void sgemm(const float * __restrict__ A, const float * __restrict__ B
  * kb is chosen to be the largest multiple of 16 such that the number of blocks
  * per multiprocessor is limited by the register usage.
  */
-#ifndef __DEVICE_ONLY
-template __global__ void sgemm<CBlasNoTrans, CBlasNoTrans, 64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, const float * __restrict__, float * __restrict__, float, float, int, int, int, int, int, int, int);
-template __global__ void sgemm<CBlasNoTrans, CBlasTrans,   64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, const float * __restrict__, float * __restrict__, float, float, int, int, int, int, int, int, int);
-template __global__ void sgemm<CBlasTrans,   CBlasNoTrans, 32, 32,  8,  8,  8>(const float * __restrict__, const float * __restrict__, const float * __restrict__, float * __restrict__, float, float, int, int, int, int, int, int, int);
-template __global__ void sgemm<CBlasTrans,   CBlasTrans,   32, 32,  8,  8,  8>(const float * __restrict__, const float * __restrict__, const float * __restrict__, float * __restrict__, float, float, int, int, int, int, int, int, int);
-#endif
+template __global__ void sgemm2<CBlasNoTrans, CBlasNoTrans, 64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, const float * __restrict__, float * __restrict__, float, float, int, int, int, int, int, int, int);
+template __global__ void sgemm2<CBlasNoTrans, CBlasTrans,   64, 16, 16, 16,  4>(const float * __restrict__, const float * __restrict__, const float * __restrict__, float * __restrict__, float, float, int, int, int, int, int, int, int);
+template __global__ void sgemm2<CBlasTrans,   CBlasNoTrans, 32, 32,  8,  8,  8>(const float * __restrict__, const float * __restrict__, const float * __restrict__, float * __restrict__, float, float, int, int, int, int, int, int, int);
+template __global__ void sgemm2<CBlasTrans,   CBlasTrans,   32, 32,  8,  8,  8>(const float * __restrict__, const float * __restrict__, const float * __restrict__, float * __restrict__, float, float, int, int, int, int, int, int, int);

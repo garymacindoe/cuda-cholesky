@@ -35,11 +35,11 @@ __device__ void daxpy(double alpha, const int * __restrict__ x_hi,
 template <CBlasTranspose transA, CBlasTranspose transB,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void dgemm(const double * __restrict__ A, const double * __restrict__ B,
-                      const double * __restrict__ C, double * __restrict__ D,
-                      double alpha, double beta,
-                      int lda, int ldb, int ldc, int ldd,
-                      int m, int n, int k) {
+__global__ void dgemm2(const double * __restrict__ A, const double * __restrict__ B,
+                       const double * __restrict__ C, double * __restrict__ D,
+                       double alpha, double beta,
+                       int lda, int ldb, int ldc, int ldd,
+                       int m, int n, int k) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of C/D
   const int bj = blockIdx.y * nb;       // Starting column of block of C/D
@@ -198,11 +198,11 @@ __device__ void daxpy(double alpha, const double * __restrict__ x, double * __re
 template <CBlasTranspose transA, CBlasTranspose transB,
           unsigned int mb, unsigned int nb, unsigned int kb,
           unsigned int bx, unsigned int by>
-__global__ void dgemm(const double * __restrict__ A, const double * __restrict__ B,
-                      const double * __restrict__ C, double * __restrict__ D,
-                      double alpha, double beta,
-                      int lda, int ldb, int ldc, int ldd,
-                      int m, int n, int k) {
+__global__ void dgemm2(const double * __restrict__ A, const double * __restrict__ B,
+                       const double * __restrict__ C, double * __restrict__ D,
+                       double alpha, double beta,
+                       int lda, int ldb, int ldc, int ldd,
+                       int m, int n, int k) {
 
   const int bi = blockIdx.x * mb;       // Starting row of block of C/D
   const int bj = blockIdx.y * nb;       // Starting column of block of C/D
@@ -366,7 +366,7 @@ __global__ void dgemm(const double * __restrict__ A, const double * __restrict__
  * kb is chosen to be the largest multiple of 16 such that the number of blocks
  * per multiprocessor is limited by the register usage.
  */
-template __global__ void dgemm<CBlasNoTrans, CBlasNoTrans, 64,  8, 16, 16,  4>(const double * __restrict__, const double * __restrict__, const double * __restrict__, double * __restrict__, double, double, int, int, int, int, int, int, int);
-template __global__ void dgemm<CBlasNoTrans, CBlasTrans,   64,  8, 16,  8,  8>(const double * __restrict__, const double * __restrict__, const double * __restrict__, double * __restrict__, double, double, int, int, int, int, int, int, int);
-template __global__ void dgemm<CBlasTrans,   CBlasNoTrans, 32, 16,  8,  8,  8>(const double * __restrict__, const double * __restrict__, const double * __restrict__, double * __restrict__, double, double, int, int, int, int, int, int, int);
-template __global__ void dgemm<CBlasTrans,   CBlasTrans,   32, 16,  8,  8,  8>(const double * __restrict__, const double * __restrict__, const double * __restrict__, double * __restrict__, double, double, int, int, int, int, int, int, int);
+template __global__ void dgemm2<CBlasNoTrans, CBlasNoTrans, 64,  8, 16, 16,  4>(const double * __restrict__, const double * __restrict__, const double * __restrict__, double * __restrict__, double, double, int, int, int, int, int, int, int);
+template __global__ void dgemm2<CBlasNoTrans, CBlasTrans,   64,  8, 16,  8,  8>(const double * __restrict__, const double * __restrict__, const double * __restrict__, double * __restrict__, double, double, int, int, int, int, int, int, int);
+template __global__ void dgemm2<CBlasTrans,   CBlasNoTrans, 32, 16,  8,  8,  8>(const double * __restrict__, const double * __restrict__, const double * __restrict__, double * __restrict__, double, double, int, int, int, int, int, int, int);
+template __global__ void dgemm2<CBlasTrans,   CBlasTrans,   32, 16,  8,  8,  8>(const double * __restrict__, const double * __restrict__, const double * __restrict__, double * __restrict__, double, double, int, int, int, int, int, int, int);

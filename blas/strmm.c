@@ -28,6 +28,16 @@ static inline CUresult cuMemcpyDtoH2DAsync(void * A, size_t lda, size_t ai, size
   return cuMemcpy2DAsync(&copy, stream);
 }
 
+static inline CUresult cuMemcpyDtoD2DAsync(CUdeviceptr A, size_t lda, size_t ai, size_t aj,
+                                           CUdeviceptr B, size_t ldb, size_t bi, size_t bj,
+                                           size_t m, size_t n, size_t elemSize, CUstream stream) {
+  CUDA_MEMCPY2D copy = {
+    bi * elemSize, bj, CU_MEMORYTYPE_DEVICE, NULL, B, 0, ldb * elemSize,
+    ai * elemSize, aj, CU_MEMORYTYPE_DEVICE, NULL, A, 0, lda * elemSize,
+    m * elemSize, n };
+  return cuMemcpy2DAsync(&copy, stream);
+}
+
 static const float zero = 0.0f;
 static const float one = 1.0f;
 
@@ -364,7 +374,8 @@ void strmm2(CBlasSide side, CBlasUplo uplo, CBlasTranspose trans, CBlasDiag diag
 CUresult cuStrmm2(CUBLAShandle handle,
                   CBlasSide side, CBlasUplo uplo, CBlasTranspose trans, CBlasDiag diag,
                   size_t m, size_t n,
-                  float alpha, CUdeviceptr A, size_t lda, CUdeviceptr B, size_t ldb,
+                  float alpha,
+                  CUdeviceptr A, size_t lda, CUdeviceptr B, size_t ldb,
                   CUdeviceptr X, size_t ldx, CUstream stream) {
   const size_t nRowA = (side == CBlasLeft) ? m : n;
 
@@ -385,8 +396,8 @@ CUresult cuStrmm2(CUBLAShandle handle,
 
   CU_ERROR_CHECK(cuCtxPushCurrent(handle->context));
 
-  if (handle->strmm == NULL)
-    CU_ERROR_CHECK(cuModuleLoadData(&handle->strmm, imageBytes));
+  if (handle->strmm2 == NULL)
+    CU_ERROR_CHECK(cuModuleLoadData(&handle->strmm2, imageBytes));
 
   const unsigned int mb = (side == CBlasLeft && trans != CBlasNoTrans) ? 32 : 64;
   const unsigned int nb = (side == CBlasLeft && trans != CBlasNoTrans) ? 32 : 16;
@@ -394,13 +405,13 @@ CUresult cuStrmm2(CUBLAShandle handle,
   const unsigned int bx = (side == CBlasLeft && trans != CBlasNoTrans) ?  8 : 16;
   const unsigned int by = (side == CBlasLeft && trans != CBlasNoTrans) ?  8 :  4;
 
-  char name[68];
-  snprintf(name, 68,
-           "_Z8strmm%c%c%cIL9CBlasDiag%dELj%uELj%uELj%uELj%uELj%uEEvPKfS2_Pffiiiii",
+  char name[69];
+  snprintf(name, 69,
+           "_Z9strmm2%c%c%cIL9CBlasDiag%dELj%uELj%uELj%uELj%uELj%uEEvPKfS2_Pffiiiii",
            side, uplo, trans, diag, mb, nb, kb, bx, by);
 
   CUfunction function;
-  CU_ERROR_CHECK(cuModuleGetFunction(&function, handle->strmm, name));
+  CU_ERROR_CHECK(cuModuleGetFunction(&function, handle->strmm2, name));
 
   void * params[] = { &A, &B, &X, &alpha, &lda, &ldb, &ldx, &m, &n };
 
@@ -408,6 +419,45 @@ CUresult cuStrmm2(CUBLAShandle handle,
                                 (unsigned int)(m + mb - 1) / mb, (unsigned int)(n + nb - 1) / nb, 1,
                                 bx, by, 1,
                                 0, stream, params, NULL));
+
+  CU_ERROR_CHECK(cuCtxPopCurrent(&handle->context));
+
+  return CUDA_SUCCESS;
+}
+
+CUresult cuStrmm(CUBLAShandle handle,
+                 CBlasSide side, CBlasUplo uplo, CBlasTranspose trans, CBlasDiag diag,
+                 size_t m, size_t n,
+                 float alpha,
+                 CUdeviceptr A, size_t lda, CUdeviceptr B, size_t ldb,
+                 CUstream stream) {
+  const size_t nRowA = (side == CBlasLeft) ? m : n;
+
+  int info = 0;
+  if (lda < nRowA)
+    info = 9;
+  else if (ldb < m)
+    info = 11;
+  if (info != 0) {
+    XERBLA(info);
+    return CUDA_ERROR_INVALID_VALUE;
+  }
+
+  if (m == 0 || n == 0)
+    return CUDA_SUCCESS;
+
+  CU_ERROR_CHECK(cuCtxPushCurrent(handle->context));
+
+  CUdeviceptr X;
+  size_t ldx;
+  CU_ERROR_CHECK(cuMemAllocPitch(&X, &ldx, m * sizeof(float), n, sizeof(float)));
+  ldx /= sizeof(float);
+
+  CU_ERROR_CHECK(cuStrmm2(handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb, X, ldx, stream));
+
+  CU_ERROR_CHECK(cuMemcpyDtoD2DAsync(B, ldb, 0, 0, X, ldx, 0, 0, m, n, sizeof(float), stream));
+
+  CU_ERROR_CHECK(cuMemFree(X));
 
   CU_ERROR_CHECK(cuCtxPopCurrent(&handle->context));
 

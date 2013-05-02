@@ -12,7 +12,7 @@ static inline unsigned int min(unsigned int a, unsigned int b) { return (a < b) 
 
 static CUresult cuDeviceGetMaxGFLOPs(int *);
 static CUresult cuFuncMaxBlocksPerMP(CUfunction, CUdevice, unsigned int, unsigned int *);
-static void getMaxGFLOPsSize(unsigned int, unsigned int, unsigned int, unsigned int *, unsigned int *);
+static void getMaxReduction(unsigned int, unsigned int, unsigned int, unsigned int *, unsigned int *);
 static CUresult cuSgemmBenchmark(CUfunction, CBlasTranspose, CBlasTranspose, size_t, size_t, size_t, float *);
 static CUresult cuCgemmBenchmark(CUfunction, CBlasTranspose, CBlasTranspose, size_t, size_t, size_t, float *);
 static CUresult cuDgemmBenchmark(CUfunction, CBlasTranspose, CBlasTranspose, size_t, size_t, size_t, float *);
@@ -43,12 +43,12 @@ int main() {
 
   CUfunction sgemmN, sgemmT;
   CU_ERROR_CHECK(cuModuleGetFunction(&sgemmN, sgemm,
-  "_Z5sgemmIL14CBlasTranspose78ELS0_84ELj64ELj16ELj16ELj16ELj4EEvPKfS2_S2_Pfffiiiiiii"));
+  "_Z6sgemm2IL14CBlasTranspose78ELS0_84ELj64ELj16ELj16ELj16ELj4EEvPKfS2_S2_Pfffiiiiiii"));
   CU_ERROR_CHECK(cuModuleGetFunction(&sgemmT, sgemm,
-  "_Z5sgemmIL14CBlasTranspose84ELS0_78ELj32ELj32ELj8ELj8ELj8EEvPKfS2_S2_Pfffiiiiiii"));
+  "_Z6sgemm2IL14CBlasTranspose84ELS0_78ELj32ELj32ELj8ELj8ELj8EEvPKfS2_S2_Pfffiiiiiii"));
 
   CU_ERROR_CHECK(cuFuncMaxBlocksPerMP(sgemmN, device, 64, &maxBlocks));
-  getMaxGFLOPsSize((unsigned int)multiProcessorCount * maxBlocks, 64, 16, &mb, &nb);
+  getMaxReduction((unsigned int)multiProcessorCount * maxBlocks, 64, 16, &mb, &nb);
 
   prevGFlops = 0.0f;
   kb = 16;
@@ -68,7 +68,7 @@ int main() {
   fprintf(stdout, "#define SGEMM_N_KB %d\n\n", kb);
 
   CU_ERROR_CHECK(cuFuncMaxBlocksPerMP(sgemmT, device, 64, &maxBlocks));
-  getMaxGFLOPsSize((unsigned int)multiProcessorCount * maxBlocks, 32, 32, &mb, &nb);
+  getMaxReduction((unsigned int)multiProcessorCount * maxBlocks, 32, 32, &mb, &nb);
 
   prevGFlops = 0.0f;
   kb = 8;
@@ -95,12 +95,12 @@ int main() {
 
   CUfunction cgemmN, cgemmC;
   CU_ERROR_CHECK(cuModuleGetFunction(&cgemmN, cgemm,
-  "_Z5cgemmIL14CBlasTranspose78ELS0_67ELj64ELj8ELj16ELj8ELj8EEvPK6float2S3_S3_PS1_S1_S1_iiiiiii"));
+  "_Z6cgemm2IL14CBlasTranspose78ELS0_67ELj64ELj8ELj16ELj8ELj8EEvPK6float2S3_S3_PS1_S1_S1_iiiiiii"));
   CU_ERROR_CHECK(cuModuleGetFunction(&cgemmC, cgemm,
-  "_Z5cgemmIL14CBlasTranspose67ELS0_78ELj32ELj16ELj8ELj8ELj8EEvPK6float2S3_S3_PS1_S1_S1_iiiiiii"));
+  "_Z6cgemm2IL14CBlasTranspose67ELS0_78ELj32ELj16ELj8ELj8ELj8EEvPK6float2S3_S3_PS1_S1_S1_iiiiiii"));
 
   CU_ERROR_CHECK(cuFuncMaxBlocksPerMP(cgemmN, device, 64, &maxBlocks));
-  getMaxGFLOPsSize((unsigned int)multiProcessorCount * maxBlocks, 64, 8, &mb, &nb);
+  getMaxReduction((unsigned int)multiProcessorCount * maxBlocks, 64, 8, &mb, &nb);
 
   prevGFlops = 0.0f;
   kb = 16;
@@ -120,7 +120,7 @@ int main() {
   fprintf(stdout, "#define CGEMM_N_KB %d\n\n", kb);
 
   CU_ERROR_CHECK(cuFuncMaxBlocksPerMP(cgemmC, device, 64, &maxBlocks));
-  getMaxGFLOPsSize((unsigned int)multiProcessorCount * maxBlocks, 32, 16, &mb, &nb);
+  getMaxReduction((unsigned int)multiProcessorCount * maxBlocks, 32, 16, &mb, &nb);
 
   prevGFlops = 0.0f;
   kb = 8;
@@ -148,12 +148,12 @@ int main() {
 
     CUfunction dgemmN, dgemmT;
     CU_ERROR_CHECK(cuModuleGetFunction(&dgemmN, dgemm,
-    "_Z5dgemmIL14CBlasTranspose78ELS0_84ELj64ELj8ELj16ELj8ELj8EEvPKdS2_S2_Pdddiiiiiii"));
+    "_Z6dgemm2IL14CBlasTranspose78ELS0_84ELj64ELj8ELj16ELj8ELj8EEvPKdS2_S2_Pdddiiiiiii"));
     CU_ERROR_CHECK(cuModuleGetFunction(&dgemmT, dgemm,
-    "_Z5dgemmIL14CBlasTranspose84ELS0_78ELj32ELj16ELj8ELj8ELj8EEvPKdS2_S2_Pdddiiiiiii"));
+    "_Z6dgemm2IL14CBlasTranspose84ELS0_78ELj32ELj16ELj8ELj8ELj8EEvPKdS2_S2_Pdddiiiiiii"));
 
     CU_ERROR_CHECK(cuFuncMaxBlocksPerMP(dgemmN, device, 64, &maxBlocks));
-    getMaxGFLOPsSize((unsigned int)multiProcessorCount * maxBlocks, 64, 8, &mb, &nb);
+    getMaxReduction((unsigned int)multiProcessorCount * maxBlocks, 64, 8, &mb, &nb);
 
     prevGFlops = 0.0f;
     kb = 16;
@@ -173,7 +173,7 @@ int main() {
     fprintf(stdout, "#define DGEMM_N_KB %d\n\n", kb);
 
     CU_ERROR_CHECK(cuFuncMaxBlocksPerMP(dgemmT, device, 64, &maxBlocks));
-    getMaxGFLOPsSize((unsigned int)multiProcessorCount * maxBlocks, 32, 16, &mb, &nb);
+    getMaxReduction((unsigned int)multiProcessorCount * maxBlocks, 32, 16, &mb, &nb);
 
     prevGFlops = 0.0f;
     kb = 8;
@@ -200,14 +200,14 @@ int main() {
 
     CUfunction zgemmN, zgemmCN, zgemmCC;
     CU_ERROR_CHECK(cuModuleGetFunction(&zgemmN, zgemm,
-    "_Z6zgemmNIL14CBlasTranspose67ELj64ELj4ELj16ELj4ELj16EEv7double2S1_PKS1_S3_S3_PS1_iiiiiii"));
+    "_Z7zgemm2NIL14CBlasTranspose67ELj64ELj4ELj16ELj4ELj16EEv7double2S1_PKS1_S3_S3_PS1_iiiiiii"));
     CU_ERROR_CHECK(cuModuleGetFunction(&zgemmCN, zgemm,
-    "_Z6zgemmTIL14CBlasTranspose67ELS0_78ELj8ELj8ELj4ELj4ELj8EEv7double2S1_PKS1_S3_S3_PS1_iiiiiii"));
+    "_Z7zgemm2TIL14CBlasTranspose67ELS0_78ELj8ELj8ELj4ELj4ELj8EEv7double2S1_PKS1_S3_S3_PS1_iiiiiii"));
     CU_ERROR_CHECK(cuModuleGetFunction(&zgemmCC, zgemm,
-    "_Z6zgemmTIL14CBlasTranspose67ELS0_67ELj8ELj16ELj8ELj8ELj8EEv7double2S1_PKS1_S3_S3_PS1_iiiiiii"));
+    "_Z7zgemm2TIL14CBlasTranspose67ELS0_67ELj8ELj16ELj8ELj8ELj8EEv7double2S1_PKS1_S3_S3_PS1_iiiiiii"));
 
     CU_ERROR_CHECK(cuFuncMaxBlocksPerMP(zgemmN, device, 64, &maxBlocks));
-    getMaxGFLOPsSize((unsigned int)multiProcessorCount * maxBlocks, 64, 4, &mb, &nb);
+    getMaxReduction((unsigned int)multiProcessorCount * maxBlocks, 64, 4, &mb, &nb);
 
     prevGFlops = 0.0f;
     kb = 16;
@@ -227,7 +227,7 @@ int main() {
     fprintf(stdout, "#define ZGEMM_N_KB %d\n\n", kb);
 
     CU_ERROR_CHECK(cuFuncMaxBlocksPerMP(zgemmCN, device, 32, &maxBlocks));
-    getMaxGFLOPsSize((unsigned int)multiProcessorCount * maxBlocks, 8, 8, &mb, &nb);
+    getMaxReduction((unsigned int)multiProcessorCount * maxBlocks, 8, 8, &mb, &nb);
 
     prevGFlops = 0.0f;
     kb = 4;
@@ -247,7 +247,7 @@ int main() {
     fprintf(stdout, "#define ZGEMM_CN_KB %d\n\n", kb);
 
     CU_ERROR_CHECK(cuFuncMaxBlocksPerMP(zgemmCC, device, 64, &maxBlocks));
-    getMaxGFLOPsSize((unsigned int)multiProcessorCount * maxBlocks, 8, 16, &mb, &nb);
+    getMaxReduction((unsigned int)multiProcessorCount * maxBlocks, 8, 16, &mb, &nb);
 
     prevGFlops = 0.0f;
     kb = 8;
@@ -348,7 +348,7 @@ static CUresult cuFuncMaxBlocksPerMP(CUfunction function, CUdevice device, unsig
   return CUDA_SUCCESS;
 }
 
-static void getMaxGFLOPsSize(unsigned int blocks, unsigned int mb, unsigned int nb, unsigned int * m, unsigned int * n) {
+static void getMaxReduction(unsigned int blocks, unsigned int mb, unsigned int nb, unsigned int * m, unsigned int * n) {
   // Find all factors of the number of blocks required
   double reduction = 0.0;
   unsigned int limit = (unsigned int)floor(sqrt((double)blocks));
@@ -493,6 +493,7 @@ static CUresult cuSgemmBenchmark(CUfunction function, CBlasTranspose transA, CBl
   CU_ERROR_CHECK(cuMemFree(dA));
   CU_ERROR_CHECK(cuMemFree(dB));
   CU_ERROR_CHECK(cuMemFree(dC));
+  CU_ERROR_CHECK(cuMemFree(dD));
   CU_ERROR_CHECK(cuMemFreeHost(A));
   CU_ERROR_CHECK(cuMemFreeHost(B));
   CU_ERROR_CHECK(cuMemFreeHost(C));

@@ -172,8 +172,8 @@ CUresult cuDgemm2(CUBLAShandle handle, CBlasTranspose transA, CBlasTranspose tra
 
   CU_ERROR_CHECK(cuCtxPushCurrent(handle->context));
 
-  if (handle->dgemm == NULL)
-    CU_ERROR_CHECK(cuModuleLoadData(&handle->dgemm, imageBytes));
+  if (handle->dgemm2 == NULL)
+    CU_ERROR_CHECK(cuModuleLoadData(&handle->dgemm2, imageBytes));
 
   const unsigned int mb = (transA == CBlasNoTrans) ? 64 : 32;
   const unsigned int nb = (transA == CBlasNoTrans) ?  8 : 16;
@@ -181,13 +181,13 @@ CUresult cuDgemm2(CUBLAShandle handle, CBlasTranspose transA, CBlasTranspose tra
   const unsigned int bx = (transA == CBlasNoTrans) ? ((transB == CBlasNoTrans) ? 16 : 8) :  8;
   const unsigned int by = (transA == CBlasNoTrans) ? ((transB == CBlasNoTrans) ?  4 : 8) :  8;
 
-  char name[83];
-  snprintf(name, 83,
-           "_Z5dgemmIL14CBlasTranspose%dELS0_%dELj%uELj%uELj%uELj%uELj%uEEvPKdS2_S2_Pdddiiiiiii",
+  char name[84];
+  snprintf(name, 84,
+           "_Z6dgemm2IL14CBlasTranspose%dELS0_%dELj%uELj%uELj%uELj%uELj%uEEvPKdS2_S2_Pdddiiiiiii",
            transA, transB, mb, nb, kb, bx, by);
 
   CUfunction function;
-  CU_ERROR_CHECK(cuModuleGetFunction(&function, handle->dgemm, name));
+  CU_ERROR_CHECK(cuModuleGetFunction(&function, handle->dgemm2, name));
 
   void * params[] = { &A, &B, &C, &D, &alpha, &beta, &lda, &ldb, &ldc, &ldd, &m, &n, &k };
 
